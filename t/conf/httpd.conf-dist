@@ -1,0 +1,65 @@
+#make sure all regex stuff works
+#BrowserMatch Mozilla/2 nokeepalive
+
+#Configuration directives specific to mod_perl
+ServerRoot ./t
+User nobody
+Group nogroup
+Port 8529
+ServerName localhost
+DocumentRoot ./t/docs
+
+#mod_perl stuff
+
+#-Tw
+PerlTaintCheck On
+PerlWarn On
+
+PerlSetEnv KeyForPerlSetEnv OK
+PerlSetVar KeyForPerlSetVar OK
+ 
+PerlScript docs/startup.pl
+
+Alias /perl/ ./t/net/perl/
+
+Alias /cgi-bin/ ./t/net/perl/
+
+<Location /perl>
+SetHandler perl-script
+PerlHandler Apache::Registry
+Options ExecCGI
+</Location>
+
+<Location /cgi-bin>
+SetHandler cgi-script
+Options ExecCGI
+</Location>
+
+<Location /perl/io>
+SetHandler perl-script
+PerlHandler Apache::Registry
+Options ExecCGI
+PerlSendHeader On
+PerlSetupEnv   On
+</Location>
+
+<Location /perl/perl-status>
+SetHandler perl-script
+PerlHandler Apache::Status
+</Location>
+
+#PerlChildInitHandler My::child_init
+#PerlChildInitHandler My::child_exit
+
+#end mod_perl stuff
+
+ErrorLog /tmp/mod_perl_error_log
+PidFile /tmp/mod_perl_httpd.pid
+AccessConfig /dev/null
+ResourceConfig /tmp/mod_perl_srm.conf
+TypesConfig /dev/null
+TransferLog /dev/null
+ScoreBoardFile /dev/null
+
+AddType text/x-server-parsed-html .shtml
+AddType text/html .html
