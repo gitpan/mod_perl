@@ -54,6 +54,16 @@
 #include "mod_perl.h"
 #include "mod_perl_xs.h"
 
+
+#ifdef USE_SFIO
+#undef send_fd_length    
+static long send_fd_length(FILE *f, request_rec *r, long length)
+{
+    croak("Apache::send_fd() not supported with sfio");
+    return 0;
+}
+#endif
+
 #if defined(PERL_STACKED_HANDLERS) && defined(PERL_GET_SET_HANDLERS)
 
 #define PER_DIR_CONFIG 1
@@ -230,12 +240,12 @@ child_terminate(request_rec *r)
 }
 #endif
 
-#if MODULE_MAGIC_NUMBER < MMN_132
-void ap_custom_response(request_rec *r, int status, char *string)
+static char *custom_response(request_rec *r, int status, char *string)
 {
     core_dir_config *conf = 
 	get_module_config(r->per_dir_config, &core_module);
     int idx;
+    char *retval = NULL;
 
     if(conf->response_code_strings == NULL) {
         conf->response_code_strings = 
@@ -245,16 +255,15 @@ void ap_custom_response(request_rec *r, int status, char *string)
     }
 
     idx = index_of_response(status);
+    retval = conf->response_code_strings[idx];
+    if (string) {
+	conf->response_code_strings[idx] = 
+	    ((is_url(string) || (*string == '/')) && (*string != '"')) ? 
+		pstrdup(r->pool, string) : pstrcat(r->pool, "\"", string, NULL);
+    }
 
-    conf->response_code_strings[idx] = 
-       ((is_url(string) || (*string == '/')) && (*string != '"')) ? 
-       pstrdup(r->pool, string) : pstrcat(r->pool, "\"", string, NULL);
+    return retval;
 }
-#endif
-
-#ifndef custom_response
-#define custom_response ap_custom_response
-#endif
 
 static void Apache_terminate_if_done(request_rec *r, int sts)
 {
@@ -342,13 +351,13 @@ static int getsfunc_SV(char *buf, int bufsiz, void *param)
 
 static void rwrite_neg_trace(request_rec *r)
 {
-#ifdef HAVE_APACHE_V_130
+#if HAS_MMN_130
     ap_log_error(APLOG_MARK, APLOG_DEBUG, r->server,
 #else
     fprintf(stderr,
 #endif
-		 "mod_perl: rwrite returned -1 (fd=%d, B_EOUT=%d)",
-		 r->connection->client->fd, 
+		 "mod_perl: rwrite returned -1 (fd=%d, B_EOUT=%d)\n",
+		 ap_bfileno(r->connection->client, B_WR), 
 		 r->connection->client->flags & B_EOUT);
 }
 
@@ -674,8 +683,8 @@ translate_name(r)
 
 #functions from http_core.c
 
-void
-custom_response(r, status, string)
+char *
+custom_response(r, status, string=NULL)
     Apache     r
     int status
     char *string
@@ -904,17 +913,16 @@ get_client_block(r, buffer, bufsiz)
 	ST(1) = &sv_undef;
     }
 
-void 
+int
 print(r, ...)
     Apache	r
 
     ALIAS:
     Apache::PRINT = 1
 
-    PREINIT:
+    CODE:
     ix = ix; /* avoid -Wall warning */
 
-    CODE:
     if(!mod_perl_sent_header(r, 0)) {
 	SV *sv = sv_newmortal();
 	SV *rp = ST(0);
@@ -947,6 +955,11 @@ print(r, ...)
 #endif
 	kill_timeout(r);
     }
+
+    RETVAL = !r->connection->aborted;
+
+    OUTPUT:
+    RETVAL
 
 int
 write_client(r, ...)
@@ -990,6 +1003,9 @@ write_client(r, ...)
         RETVAL += sent;
 #endif
     }
+
+    OUTPUT:
+    RETVAL
 
 #functions from http_request.c
 void

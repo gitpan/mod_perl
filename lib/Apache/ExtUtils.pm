@@ -5,8 +5,12 @@ use Exporter ();
 use IO::File ();
 use File::Copy ();
 
+$Apache::ExtUtils::VERSION = '1.02';
+
 *import = \&Exporter::import;
 @Apache::ExtUtils::EXPORT = qw(command_table);
+@Apache::ExtUtils::EXPORT_OK = qw(pm);
+
 my $errsv = "";
 
 sub command_table {
@@ -159,7 +163,7 @@ static mod_perl_perl_dir_config *newPerlConfig(pool *p)
 	(mod_perl_perl_dir_config *)
 	    palloc(p, sizeof (mod_perl_perl_dir_config));
     cld->obj = Nullsv;
-    cld->class = "$class";
+    cld->pclass = "$class";
     register_cleanup(p, cld, perl_perl_cmd_cleanup, null_cleanup);
     return cld;
 }
@@ -213,12 +217,95 @@ module MODULE_VAR_EXPORT XS_${modname} = {
 
 MODULE = $class		PACKAGE = $class
 
+PROTOTYPES: DISABLE
+
 BOOT:
     XS_${modname}.name = "$class";
     add_module(&XS_${modname});
     stash_mod_pointer("$class", &XS_${modname});
 
 EOF
+}
+
+#perl -MApache::ExtUtils=pm -e pm -- Apache::Foo
+sub pm {
+    my($class) = @_ ? @_ : @ARGV;
+    (my $name = $class) =~ s/.*::(\w+)$/$1/;
+    write_pm($class, $name);
+    write_makepl($class, $name);
+}
+
+sub outfh {
+    my($file) = @_;
+
+    my $fh = local *FH;
+    if (-e $file) {
+	die "$file exists";
+    }
+    open $fh, ">$file" or die "open $file: $!";
+    print STDERR "writing $file\n";
+    return $fh;
+}
+
+sub write_pm {
+    my($class, $name) = @_;
+    my $fh = outfh("$name.pm");
+    print $fh <<EOF;
+package $class;
+
+use strict;
+use Apache::ModuleConfig ();
+use DynaLoader ();
+ 
+if(\$ENV{MOD_PERL}) {
+    no strict;
+    \$VERSION = '1.00';
+    \@ISA = qw(DynaLoader);
+     __PACKAGE__->bootstrap(\$VERSION);
+}
+
+sub DirectiveName (\$\$\$) {
+     my(\$cfg, \$parms, \$arg) = \@_;
+     my \$scfg = Apache::ModuleConfig->get(\$parms->server);
+
+}
+
+1;
+__END__
+EOF
+  close $fh or die $!;
+}
+
+sub write_makepl {
+    my($class, $name) = @_;
+
+    my $fh = outfh("Makefile.PL");
+    print $fh <<EOF;
+package $class;
+
+use ExtUtils::MakeMaker;
+
+use Apache::ExtUtils qw(command_table);
+use Apache::src ();
+
+my \@directives = ( 
+	 	   { 
+		    name     => 'DirectiveName',
+		    errmsg   => 'the syntax error message',
+		    args_how => 'TAKE1',
+		    req_override => 'OR_ALL',
+		   }
+		  );
+
+command_table(\\\@directives);
+
+WriteMakefile(
+     'NAME'	=> __PACKAGE__,
+     'VERSION_FROM' => '$name.pm',
+     'INC'	=> Apache::src->new->inc,
+ );
+EOF
+  close $fh or die $!;
 }
 
 1;

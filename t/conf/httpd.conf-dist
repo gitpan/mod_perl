@@ -15,6 +15,7 @@ umm, we use this to test mod_perl
  #-Tw
  PerlTaintCheck On
  PerlWarn On
+ PerlFreshRestart On
 
 =back to pod
 
@@ -47,7 +48,7 @@ DocumentRoot ./t/docs
 #mod_perl stuff
 
 
-PerlPassEnv TERM EDITOR NOCHANCE USER
+PerlPassEnv TERM EDITOR NOCHANCE USER PERL5LIB
 PerlSetEnv KeyForPerlSetEnv OK
 PerlSetVar KeyForPerlSetVar OK
  

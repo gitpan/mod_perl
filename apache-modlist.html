@@ -1,14 +1,12 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern, 22-Jul-1998 -->
-<!-- Changed by: Gerald Richter, 12-Aug-1998 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@pobox.com">Doug MacEachern</a>,
-<br><i> $Revision: 1.53 $ $Date: 1999/01/25 22:39:48 $</i>
+<br><i> $Revision: 1.57 $ $Date: 1999/05/19 21:38:21 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -68,6 +66,7 @@ PAUSE user id and directory.
 Apache::
 
 * PerlHandler's
+AddrMunge	bdpf	Munge email addresses in webpages	MJD
 AutoIndex	Rdcf	Lists directory content			GOZER
 Archive		i	List archive contents			PETERSON
 ASP		bdpO	Implement Active Server Pages		CHAMAS
@@ -84,7 +83,6 @@ FTP		i	Full-fledged FTP proxy			PMKANE
 Gateway		bdpf	A multiplexing gateway			CCWF
 GzipChain	bmpf	Compress files on the fly		ANDK
 IDC_HTX		i						PTI
-JavaScript	cdpf	Generate JavaScript code		ABH
 Layer		bdpf	Layer content tree over one or more	SAM
 Magick		bdpf	Image conversion on-the-fly		MPB
 Mason		bdpO	Build sites w/ modular Perl/HTML blocks	JSWARTZ
@@ -123,6 +121,7 @@ AuthenIMAP	bdpf	Authentication via an IMAP server	MICB
 AuthenPasswdSrv bdpf	External authentication server		JEFFH
 AuthenPasswd	bdpf	Authenticate against /etc/passwd	DEP
 AuthLDAP	bdpf	LDAP authentication module		CDONLEY
+AuthPerLDAP	bdpf	LDAP authentication module (PerLDAP)	HENRIK
 AuthenNIS	bdpf	NIS authentication			DEP
 AuthNISPlus	bdpF	NIS Plus authentication/authorization	VALERIE
 AuthenRaduis	bdpf	Authentication via a Radius server	DANIEL
@@ -155,6 +154,7 @@ SpeedLimit	bdpf	Control client request rate		MPB
 AcceptLanguage	cdpf	Send file type based on language pref	ROBH
 MIME		bdcf	Perl implementation of mod_mime		MPB
 MimeDBI		bdpf	Type mapping from a DBI database	MPB
+MimeXML		bdpf	mime encoding sniffer for XML files	MSERGEANT
  
 * PerlTransHandler's    (May also include a PerlHandler)
 AdBlocker	bdpf	Block advertisement images		MPB
@@ -225,6 +225,7 @@ PUT		cdpf	HTTP PUT method handler 		SORTIZ
 Roaming		bdpO	PUT/GET/MOVE/DELETE (Netscape Roaming)	JWEID
 
 * Development and Debug tools
+DB		amcO	Hook Perl interactive DB into mod_perl	DOUGM
 Debug		Rmpf	mod_perl debugging utilities		APML
 DProf		bmcf	Hook Devel::DProf into mod_perl		DOUGM
 FakeRequest	ampO	Implement Apache methods off-line	APML
@@ -293,6 +294,7 @@ GKNOPS	  Gerd Knops &lt;gerti@BITart.com&gt;
 GOZER	  Philippe M. Chiasson &lt;gozer@ectoplasm.dyndns.com&gt;
 GRICHTER  Gerald Richter &lt;richter@ecos.de&gt;
 GUNTHER   Gunther Birznieks &lt;gunther@nhgri.nih.gov&gt;
+HENRIK	  Henrik Strom &lt;henrik@computer.org&gt;
 HMUELLER  Hanno Mueller &lt;hmueller@mail.kabel.de&gt;
 IKLUFT	  Ian Kluft &lt;ikluft@cisco.com&gt;
 JANPAZ	  Honza Pazdziora &lt;adelton@informatics.muni.cz&gt;
@@ -314,10 +316,12 @@ MDORMAN	  Michael Alan Dorman  &lt;mdorman@calder.med.miami.edu&gt;
 MDOWNING  Mark Downing &lt;mdowning@rdatasys.com&gt;
 MERGL	  Edmund Mergl &lt;E.Mergl@bawue.de&gt;
 MERLYN	  Randal L. Schwartz &lt;merlyn@stonehenge.com&gt;
+MJD	  Mark-Jason Dominus &lt;mjd-perl-pause2@plover.com&gt;
 MJS       Michael Smith &lt;mjs@iii.co.uk&gt;
 MKOSS	  Max Kossatzmax &lt;kossatz@thing.at&gt;
 MICB  	  Malcolm Beattie &lt;mbeattie@sable.ox.ac.uk&gt;
 MPB	  mod_perl book (Doug and Lincoln) &lt;book@modperl.com&gt;
+MSERGEANT Matt Sergeant &lt;matt@sergeant.org&gt;
 NJENSEN	  Neil Jensen &lt;njensen@habaneros.com&gt;
 PARKER	  Michael Parker &lt;parker@austx.tandem.com&gt;
 PETERM	  Peter Marshall &lt;peterm@pageactive.com&gt;

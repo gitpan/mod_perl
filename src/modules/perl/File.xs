@@ -6,6 +6,8 @@
 #define ap_fclose(r, fd) \
         ap_pfclose(r->pool, fd)
 
+#define ap_mtime(r) r->mtime
+
 #ifndef SvCLASS
 #define SvCLASS(o) HvNAME(SvSTASH(SvRV(o)))
 #endif
@@ -20,10 +22,10 @@ static bool ApacheFile_open(SV *obj, SV *sv)
     return do_open(gv, filename, len, FALSE, 0, 0, IOp); 
 }
 
-static SV *ApacheFile_new(char *class)
+static SV *ApacheFile_new(char *pclass)
 {
     SV *RETVAL = sv_newmortal();
-    GV *gv = newGVgen(class);
+    GV *gv = newGVgen(pclass);
     HV *stash = GvSTASH(gv);
 
     sv_setsv(RETVAL, sv_bless(sv_2mortal(newRV((SV*)gv)), stash));
@@ -87,15 +89,15 @@ BOOT:
     items = items; /*avoid warning*/ 
 
 void
-ApacheFile_new(class, filename=Nullsv)
-    char *class
+ApacheFile_new(pclass, filename=Nullsv)
+    char *pclass
     SV *filename
 
     PREINIT:
     SV *RETVAL;
 
     PPCODE:
-    RETVAL = ApacheFile_new(class);
+    RETVAL = ApacheFile_new(pclass);
     if(filename) {
 	if(!ApacheFile_open(RETVAL, filename))
 	    XSRETURN_UNDEF;
@@ -115,8 +117,8 @@ ApacheFile_tmp(self)
 
     PREINIT:
     PerlIO *fp = PerlIO_tmpfile();
-    char *class = SvROK(self) ? SvCLASS(self) : SvPV(self,na);
-    SV *RETVAL = ApacheFile_new(class);
+    char *pclass = SvROK(self) ? SvCLASS(self) : SvPV(self,na);
+    SV *RETVAL = ApacheFile_new(pclass);
 
     PPCODE:
     if(!do_open((GV*)SvRV(RETVAL), "+>&", 3, FALSE, 0, 0, fp))
@@ -200,7 +202,29 @@ ap_update_mtime(r, dependency_mtime=r->finfo.st_mtime)
     Apache r
     time_t dependency_mtime
 
+time_t
+ap_mtime(r)
+    Apache r
+
 int
 ap_discard_request_body(r)
     Apache r
 
+int
+ap_set_byterange(r)
+    Apache r
+
+void
+ap_each_byterange(r)
+    Apache r
+
+    PREINIT:
+    long offset, length;
+
+    PPCODE:
+    if (!ap_each_byterange(r, &offset, &length)) {
+	XSRETURN_EMPTY;
+    }
+    EXTEND(sp, 2);
+    PUSHs(sv_2mortal(newSViv(offset)));
+    PUSHs(sv_2mortal(newSViv(length)));

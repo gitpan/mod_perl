@@ -84,8 +84,8 @@ CPerlObj *pPerl;
 
 static command_rec perl_cmds[] = {
 #ifdef PERL_SECTIONS
-    { "<Perl>", perl_section, NULL, OR_ALL, RAW_ARGS, "Perl code" },
-    { "</Perl>", perl_end_section, NULL, OR_ALL, NO_ARGS, "End Perl code" },
+    { "<Perl>", perl_section, NULL, SECTION_ALLOWED, RAW_ARGS, "Perl code" },
+    { "</Perl>", perl_end_section, NULL, SECTION_ALLOWED, NO_ARGS, "End Perl code" },
 #endif
     { "=pod", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "Start of POD" },
     { "=back", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "End of =over" },
@@ -188,7 +188,7 @@ static handler_rec perl_handlers [] = {
 
 module MODULE_VAR_EXPORT perl_module = {
     STANDARD_MODULE_STUFF,
-    perl_startup,                 /* initializer */
+    perl_module_init,                 /* initializer */
     perl_create_dir_config,    /* create per-directory config structure */
     perl_merge_dir_config,     /* merge per-directory config structures */
     perl_create_server_config, /* create per-server config structure */
@@ -484,6 +484,28 @@ void mp_check_version(void)
     exit(1);
 }
 
+#if !HAS_MMN_136
+static void set_sigpipe(void)
+{
+    char *dargs[] = { NULL };
+    perl_require_module("Apache::SIG", NULL);
+    perl_call_argv("Apache::SIG::set", G_DISCARD, dargs);
+}
+#endif
+
+void perl_module_init(server_rec *s, pool *p)
+{
+#if HAS_MMN_130
+    ap_add_version_component(MOD_PERL_STRING_VERSION);
+    if(PERL_RUNNING()) {
+	if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
+	    ap_add_version_component(form("Perl/%s", patchlevel));
+	}
+    }
+#endif
+    perl_startup(s, p);
+}
+
 void perl_startup (server_rec *s, pool *p)
 {
     char *argv[] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
@@ -492,17 +514,6 @@ void perl_startup (server_rec *s, pool *p)
     dPSRV(s);
     SV *pool_rv, *server_rv;
     GV *gv, *shgv;
-
-#if MODULE_MAGIC_NUMBER >= 19980507
-    if (!strstr(ap_get_server_version(), MOD_PERL_STRING_VERSION)) {
-	ap_add_version_component(MOD_PERL_STRING_VERSION);
-	if(PERL_RUNNING()) {
-	    if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
-		ap_add_version_component(form("Perl/%s", patchlevel));
-	    }
-	}
-    }
-#endif
 
 #ifndef WIN32
     argv[0] = server_argv0;
@@ -532,6 +543,9 @@ void perl_startup (server_rec *s, pool *p)
     if(PERL_RUNNING() && PERL_STARTUP_IS_DONE) {
 	saveINC;
 	mp_check_version();
+#if !HAS_MMN_136
+	set_sigpipe();
+#endif
     }
     
     if(perl_is_running == 0) {
@@ -766,10 +780,14 @@ int perl_handler(request_rec *r)
 	}
     }
 
-    save_hptr(&GvHV(siggv)); 
+    if (siggv) {
+	save_hptr(&GvHV(siggv)); 
+    }
 
-    save_aptr(&endav); 
-    endav = Nullav;
+    if (endav) {
+	save_aptr(&endav); 
+	endav = Nullav;
+    }
 
     /* hookup STDIN & STDOUT to the client */
     perl_stdout2client(r);
@@ -820,6 +838,7 @@ void PERL_CHILD_INIT_HOOK(server_rec *s, pool *p)
     register_cleanup(p, args, perl_child_exit_cleanup, null_cleanup);
 
     mod_perl_init_ids();
+    Apache__ServerStarting(FALSE);
     PERL_CALLBACK(hook, cls->PerlChildInitHandler);
 }
 #endif
@@ -949,9 +968,24 @@ int PERL_LOG_HOOK(request_rec *r)
 #define CleanupHandler cld->PerlCleanupHandler
 #endif
 
+#ifdef PERL_TRACE
+static char *my_signame(I32 num)
+{
+#ifdef psig_name
+    return Perl_psig_name[num] ?
+	SvPV(Perl_psig_name[num],na) : "?";
+#else
+    return PL_sig_name[num];
+#endif
+}
+
+#endif
+
 static void per_request_cleanup(request_rec *r)
 {
     dPPREQ;
+    perl_request_sigsave **sigs;
+    int i;
 
     if(!cfg) {
 	return;
@@ -960,6 +994,16 @@ static void per_request_cleanup(request_rec *r)
 	hv_clear(cfg->pnotes);
 	SvREFCNT_dec(cfg->pnotes);
 	cfg->pnotes = Nullhv;
+    }
+
+    sigs = (perl_request_sigsave **)cfg->sigsave->elts;
+    for (i=0; i < cfg->sigsave->nelts; i++) {
+	MP_TRACE_g(fprintf(stderr, 
+			   "mod_perl: restoring SIG%s (%d) handler from: 0x%lx to: 0x%lx\n",
+			   my_signame(sigs[i]->signo), (int)sigs[i]->signo,
+			   (unsigned long)Perl_rsignal_state(sigs[i]->signo),
+			   (unsigned long)sigs[i]->h));
+	Perl_rsignal(sigs[i]->signo, sigs[i]->h);
     }
 }
 
@@ -987,7 +1031,7 @@ void mod_perl_end_cleanup(void *data)
     GvAV(incgv) = av_copy_array(orig_inc);
 
     /* reset $/ */
-    sv_setpvn(GvSV(gv_fetchpv("/", FALSE, SVt_PV)), "\n", 1);
+    sv_setpvn(GvSV(gv_fetchpv("/", TRUE, SVt_PV)), "\n", 1);
 
     {
 	dTHR;
@@ -1045,7 +1089,7 @@ void mod_perl_cleanup_handler(void *data)
 }
 
 #ifdef PERL_METHOD_HANDLERS
-int perl_handler_ismethod(HV *class, char *sub)
+int perl_handler_ismethod(HV *pclass, char *sub)
 {
     CV *cv;
     HV *stash;
@@ -1056,7 +1100,7 @@ int perl_handler_ismethod(HV *class, char *sub)
     if(!sub) return 0;
     sv = newSVpv(sub,0);
     if(!(cv = sv_2cv(sv, &stash, &gv, FALSE))) {
-	GV *gvp = gv_fetchmethod(class, sub);
+	GV *gvp = gv_fetchmethod(pclass, sub);
 	if (gvp) cv = GvCV(gvp);
     }
 
@@ -1216,9 +1260,6 @@ void perl_per_request_init(request_rec *r)
     dPPDIR;
     dPPREQ;
     
-    /* PerlSetEnv */
-    mod_perl_dir_env(cld);
-
     /* PerlSendHeader */
     if(MP_SENDHDR(cld)) {
 	MP_SENTHDR_off(cld);
@@ -1243,7 +1284,11 @@ void perl_per_request_init(request_rec *r)
     }
     else if (cfg->setup_env && MP_ENV(cld)) { 
 	perl_setup_env(r);
+	cfg->setup_env = 0; /* just once per-request */
     }
+
+    /* PerlSetEnv */
+    mod_perl_dir_env(cld);
 
     if(callbacks_this_request++ > 0) return;
 
@@ -1282,7 +1327,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
     dSP;
     perl_dir_config *cld = NULL;
     HV *stash = Nullhv;
-    SV *class = newSVsv(sv), *dispsv = Nullsv;
+    SV *pclass = newSVsv(sv), *dispsv = Nullsv;
     CV *cv = Nullcv;
     char *method = "handler";
     int defined_sub = 0, anon = 0;
@@ -1308,7 +1353,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 	perl_per_request_init(r);
 
     if(!dispatcher && (SvTYPE(sv) == SVt_PV)) {
-	char *imp = pstrdup(r->pool, (char *)SvPV(class,na));
+	char *imp = pstrdup(r->pool, (char *)SvPV(pclass,na));
 
 	if((anon = strnEQ(imp,"sub ",4))) {
 	    sv = perl_eval_pv(imp, FALSE);
@@ -1320,37 +1365,37 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 
 #ifdef PERL_METHOD_HANDLERS
 	{
-	    char *end_class = NULL;
+	    char *end_pclass = NULL;
 
-	    if ((end_class = strstr(imp, "->"))) {
-		end_class[0] = '\0';
-		if(class)
-		    SvREFCNT_dec(class);
-		class = newSVpv(imp, 0);
-		end_class[0] = ':';
-		end_class[1] = ':';
-		method = &end_class[2];
+	    if ((end_pclass = strstr(imp, "->"))) {
+		end_pclass[0] = '\0';
+		if(pclass)
+		    SvREFCNT_dec(pclass);
+		pclass = newSVpv(imp, 0);
+		end_pclass[0] = ':';
+		end_pclass[1] = ':';
+		method = &end_pclass[2];
 		imp = method;
 		++is_method;
 	    }
 	}
 
-	if(*SvPVX(class) == '$') {
-	    SV *obj = perl_eval_pv(SvPVX(class), TRUE);
+	if(*SvPVX(pclass) == '$') {
+	    SV *obj = perl_eval_pv(SvPVX(pclass), TRUE);
 	    if(SvROK(obj) && sv_isobject(obj)) {
 		MP_TRACE_h(fprintf(stderr, "handler object %s isa %s\n",
-				   SvPVX(class),  HvNAME(SvSTASH((SV*)SvRV(obj)))));
-		SvREFCNT_dec(class);
-		class = obj;
-		++SvREFCNT(class); /* this will _dec later */
-		stash = SvSTASH((SV*)SvRV(class));
+				   SvPVX(pclass),  HvNAME(SvSTASH((SV*)SvRV(obj)))));
+		SvREFCNT_dec(pclass);
+		pclass = obj;
+		++SvREFCNT(pclass); /* this will _dec later */
+		stash = SvSTASH((SV*)SvRV(pclass));
 	    }
 	}
 
-	if(class && !stash) stash = gv_stashpv(SvPV(class,na),FALSE);
+	if(pclass && !stash) stash = gv_stashpv(SvPV(pclass,na),FALSE);
 	   
 #if 0
-	MP_TRACE_h(fprintf(stderr, "perl_call: class=`%s'\n", SvPV(class,na)));
+	MP_TRACE_h(fprintf(stderr, "perl_call: pclass=`%s'\n", SvPV(pclass,na)));
 	MP_TRACE_h(fprintf(stderr, "perl_call: imp=`%s'\n", imp));
 	MP_TRACE_h(fprintf(stderr, "perl_call: method=`%s'\n", method));
 	MP_TRACE_h(fprintf(stderr, "perl_call: stash=`%s'\n", 
@@ -1427,11 +1472,11 @@ callback:
     PUSHMARK(sp);
 #ifdef PERL_METHOD_HANDLERS
     if(is_method)
-	XPUSHs(sv_2mortal(class));
+	XPUSHs(sv_2mortal(pclass));
     else
-	SvREFCNT_dec(class);
+	SvREFCNT_dec(pclass);
 #else
-    SvREFCNT_dec(class);
+    SvREFCNT_dec(pclass);
 #endif
 
     XPUSHs((SV*)perl_bless_request_rec(r)); 

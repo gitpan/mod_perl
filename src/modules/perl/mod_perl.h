@@ -189,7 +189,7 @@ hv_store(ERRHV, k, strlen(k), newSVsv(v), FALSE)
 #endif
 
 typedef struct {
-    table *table;
+    table *utable;
     array_header *arr;
     table_entry *elts;
     int ix;
@@ -450,12 +450,27 @@ if((add->flags & f) || (base->flags & f)) \
 #define MODULE_MAGIC_AT_LEAST(major,minor) (0 > 1)
 #endif
 
+#define HAS_MMN(mmn) (MODULE_MAGIC_NUMBER >= mmn)
 #define MMN_130 19980527
 #define MMN_131 19980713
 #define MMN_132 19980806
-#if MODULE_MAGIC_NUMBER >= MMN_130
-#define HAVE_APACHE_V_130
+#define MMN_136 19990320
+#define HAS_MMN_130 HAS_MMN(MMN_130)
+#define HAS_MMN_131 HAS_MMN(MMN_131)
+#define HAS_MMN_132 HAS_MMN(MMN_132)
+#define HAS_MMN_136 HAS_MMN(MMN_136)
+
+#define HAS_CONTEXT MODULE_MAGIC_AT_LEAST(MMN_136,2)
+#if HAS_CONTEXT
+#define CAN_SELF_BOOT_SECTIONS	(PERL_SECTIONS_SELF_BOOT)
+#define SECTION_ALLOWED		OR_ALL
+#define USABLE_CONTEXT		parms->context
+#else
+#define CAN_SELF_BOOT_SECTIONS	((parms->path==NULL)&&PERL_SECTIONS_SELF_BOOT)
+#define SECTION_ALLOWED		RSRC_CONF
+#define USABLE_CONTEXT		parms->server->lookup_defaults
 #endif
+
 #define APACHE_SSL_12X (defined(APACHE_SSL) && (MODULE_MAGIC_NUMBER < MMN_130))
 
 #if MODULE_MAGIC_NUMBER < MMN_130
@@ -550,12 +565,11 @@ extern void *mod_perl_mutex;
 extern void *mod_perl_dummy_mutex;
 
 #ifndef MULTITHREAD_H
-typedef void mutex;
 #define MULTI_OK (0)
 #undef create_mutex
 #undef acquire_mutex
 #undef release_mutex
-#define create_mutex(name)	((mutex *)mod_perl_dummy_mutex)
+#define create_mutex(name)	((void *)mod_perl_dummy_mutex)
 #define acquire_mutex(mutex_id)	((int)MULTI_OK)
 #define release_mutex(mutex_id)	((int)MULTI_OK)
 #endif /* MULTITHREAD_H */
@@ -993,21 +1007,27 @@ typedef struct {
 } perl_dir_config;
 
 typedef struct {
+    Sighandler_t h;
+    I32 signo;
+} perl_request_sigsave;
+
+typedef struct {
     HV *pnotes;
     int setup_env;
+    array_header *sigsave;
 } perl_request_config;
 
 typedef struct {
     int is_method;
     int is_anon;
     int in_perl;
-    SV *class;
+    SV *pclass;
     char *method;
 } mod_perl_handler;
 
 typedef struct {
     SV *obj;
-    char *class;
+    char *pclass;
 } mod_perl_perl_dir_config;
 
 typedef struct {
@@ -1029,7 +1049,7 @@ void xs_init (void);
 /* mod_perl.c */
 
 /* generic handler stuff */ 
-int perl_handler_ismethod(HV *class, char *sub);
+int perl_handler_ismethod(HV *pclass, char *sub);
 int perl_call_handler(SV *sv, request_rec *r, AV *args);
 request_rec *mp_fake_request_rec(server_rec *s, pool *p, char *hook);
 
@@ -1041,6 +1061,7 @@ SV *mod_perl_fetch_handlers(SV *self, SV *hook);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 
 /* plugin slots */
+void perl_module_init(server_rec *s, pool *p);
 void perl_startup(server_rec *s, pool *p);
 int perl_handler(request_rec *r);
 void perl_child_init(server_rec *, pool *);
@@ -1083,7 +1104,7 @@ SV *mod_perl_gensym (char *pack);
 SV *mod_perl_slurp_filename(request_rec *r);
 SV *mod_perl_tie_table(table *t);
 SV *perl_hvrv_magic_obj(SV *rv);
-void perl_tie_hash(HV *hv, char *class, SV *sv);
+void perl_tie_hash(HV *hv, char *pclass, SV *sv);
 void perl_util_cleanup(void);
 void mod_perl_clear_rgy_endav(request_rec *r, SV *sv);
 void perl_stash_rgy_endav(char *s, SV *rgystash);
@@ -1117,9 +1138,6 @@ void perl_stdout2client(request_rec *r);
 #define require_Apache(s) \
     perl_require_module("Apache", s)
 
-#define defined_Apache__ReadConfig \
-SvTRUE(perl_eval_pv("grep {defined %$_ or defined @$_ or defined $$_} keys %Apache::ReadConfig::;",TRUE))
-
 char *mod_perl_auth_name(request_rec *r, char *val);
 
 module *perl_get_module_ptr(char *name, int len);
@@ -1140,10 +1158,9 @@ CHAR_P perl_limit_section(cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_urlsection (cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_dirsection (cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_filesection (cmd_parms *cmd, void *dummy, HV *hv);
-void perl_add_file_conf (server_rec *s, void *url_config);
-void perl_handle_command(cmd_parms *cmd, void *dummy, char *line);
-void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *dummy);
-void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *dummy);
+void perl_handle_command(cmd_parms *cmd, void *config, char *line);
+void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *config);
+void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *config);
 
 void perl_tainting_set(server_rec *s, int arg);
 CHAR_P perl_cmd_require (cmd_parms *parms, void *dummy, char *arg);
@@ -1205,7 +1222,7 @@ void mod_perl_pass_env(pool *p, perl_server_config *cls);
 pool *perl_get_util_pool(void);
 pool *perl_get_startup_pool(void);
 server_rec *perl_get_startup_server(void);
-request_rec *sv2request_rec(SV *in, char *class, CV *cv);
+request_rec *sv2request_rec(SV *in, char *pclass, CV *cv);
 
 /* PerlRunXS.xs */
 #define ApachePerlRun_name_with_virtualhost() \

@@ -1,9 +1,12 @@
+#! /usr/local/bin/perl
 BEGIN { 
     $Is_Win32 = ($^O eq "MSWin32");
+    $Is_Cygwin = ($^O =~ m/cygwin/g);
     if($Is_Win32) {
 	require 5.004_02;
-    }
-    else {
+    } elsif($Is_Cygwin) {
+    require 5.005_03;
+    } else {
 	require 5.003_97; 
     } 
 }
@@ -66,6 +69,8 @@ as there are memory leaks present in lower versions or Perl.
 EOF
 sleep(1);
 }
+
+#'
 
 %Apache::MyConfig::Setup = ();
 eval 'require Apache::MyConfig' ;
@@ -883,6 +888,10 @@ sub init_tests_and_config {
 	    $cmd .= qq(CFLAGS="$PERL_EXTRA_CFLAGS" );
 	}    
 	
+	if ($USE_DSO) {		# override apache's notion of this flag
+	  $cmd .= qq(LDFLAGS_SHLIB_EXPORT="$Config{ccdlflags}" );
+	}
+
 	$cmd .= "./configure " .
 		  "--activate-module=src/modules/perl/libperl.a";
 
@@ -919,7 +928,7 @@ sub init_tests_and_config {
     }
 
     #expand ./t to full path
-    iedit "t/conf/httpd.conf", "s: \./t(\S*): $PWD/t\$1:";
+    iedit "t/conf/httpd.conf", "s: \./t(\\S*): $PWD/t\$1:";
 
     for (qw(User Group)) {
 	iedit "t/conf/httpd.conf", "s/^$_ .*/$_ $$_/"; 
@@ -966,7 +975,11 @@ write_my_config($APACHE_SRC);
 
     require "lib/mod_perl_hooks.pm";
     my @list = mod_perl::hooks();
-    @list == @mod_perl_hooks or die "Edit of lib/mod_perl_hooks.pm failed $!\n";
+    if ($Is_Cygwin) {
+    } 
+    else {
+	@list == @mod_perl_hooks or die "Edit of lib/mod_perl_hooks.pm failed $!\n";
+    }
 
     unlink "lib/mod_perl_hooks.pm~";
 }
@@ -1047,6 +1060,8 @@ sub write_extra_tests {
 
     if($PERL_SSI) {
 	cp "t/modules/ssi.test", "t/modules/ssi.t";
+    } else {
+      unlink "t/modules/ssi.t";	# might be there from prior run
     }
 
     mkdir "t/docs/subr", 0755;
@@ -1091,6 +1106,8 @@ if($ENV{TEST_PERL_DIRECTIVES}) {
 }
 
 $TARGET ||= (is_ssl() ? "httpsd" : "httpd");
+
+system_sanity_check();
 
 WriteMakefile(
     #DIR => \@DIR,
@@ -1372,10 +1389,12 @@ cvs_export :
 
 cvs_tag :
 	cvs -d $(CVSROOT) tag v$(VERSION_SYM) modperl
-	@echo update mod_perl.pm's VERSION now
+	@echo update mod_perl.pm VERSION now
 
 EOF
 }
+
+#'
 
 sub MY::manifypods {
     my $self = shift;
@@ -1512,6 +1531,7 @@ sub setup_for_static {
     #XXX think about this some more
     iedit $mf, "s/^#STATIC_SRC.*/STATIC_SRC = @xs_files/";
     iedit $mf, "s/^#STATIC_EXTS.*/STATIC_EXTS = @xs_names/";
+
 =cut
 
     unless ($USE_APACI) {
@@ -1652,7 +1672,7 @@ sub conf_fixup {
 
             #XXX hack
             $repl = quotemeta('CFLAGS=$(CFLAGS)');
-            iedit $mf, qq(s:\Q\"CFLAGS=\$(CFLAGS)"\E:'$repl':;);
+            iedit $mf, qq(s:\Q\"CFLAGS=\$(CFLAGS)"\E:'$repl':;); #"
 	}
 	my $repl = q{AUX_CFLAGS='\$(CFLAGS)'};
 	iedit $mf, qq{s/AUX_CFLAGS="..CFLAGS."/$repl/};
@@ -1723,7 +1743,11 @@ sub iedit {
     return if $Is_Win32;
 
     #print STDERR "-e @_\n";
+    if ($Is_Cygwin) {
+    system $^X, "-e", "@_", $file;
+    } else {    
     system $^X, "-pi~", "-e", "@_", $file;
+    }
 }
 
 sub win32_setup {
@@ -1910,4 +1934,48 @@ EOF
     print $apaci_cfg "PERL_THREADS = $yes_no\n";
 
     return $apaci_cfg;
+}
+
+sub phat_warn {
+    my $msg = shift;
+	    warn <<EOF;
+************* WARNING *************
+
+  $msg
+
+************* WARNING *************
+EOF
+  sleep 5;
+}
+
+sub system_sanity_check {
+    return if $Is_Win32;
+
+    my $ccflags = $Config{'ccflags'};
+    for (split /\s+/, $ccflags) {
+	next unless s/^-I//;
+	my $header = "$_/ap_mmn.h";
+	if (-e $header) {
+	    phat_warn(<<EOF);
+Apache headers found in unexpected location: ``$_'', suggestions:
+   *) Remove via ``rpm -e apache''
+   *) Remove by hand
+   *) Complain to your os vendor about their poor layout choice
+   *) Complain to your sysadmin about their poor layout choice
+EOF
+	}
+    }
+
+
+    if ($USE_DSO and $] < 5.005_56 and 
+	$^O eq 'solaris' and $Config{'usemymalloc'} eq 'y') 
+      {
+	  phat_warn(<<EOF);
+Your current configuration will most likely trigger core dumps, suggestions:
+   *) Do not configure mod_perl as a DSO
+   *) Upgrade your Perl version to 5.005_56 or higher
+   *) Configure Perl with -Uusemymalloc
+   *) Switch to an os other than $^O
+EOF
+      }
 }

@@ -16,9 +16,18 @@ $VERSION = '1.00';
 # </Location>
 # see also: Apache::RegistryBB
  
-sub handler ($$) {
-    my($class, $r) = (shift,shift);
+sub namespace_from {
+    shift->filename;
+}
 
+sub handler ($$) {
+    my($class, $r);
+    if (@_ >= 2) {
+	($class, $r) = (shift, shift);
+    }
+    else {
+	($class, $r) = (__PACKAGE__, shift);
+    }
     my $pr = $class->new($r);
 
     my $rc = $pr->can_compile;

@@ -253,10 +253,12 @@ sub status_cv_dump {
     push @retval, "File: ", 
     (-e $file ? qq(<a href="file:$file">$file</a>) : $file), "\n";
 
+    my $cv    = $obj->GV->CV;
+    my $proto = $cv->PV if $cv->can('PV');
     push @retval, 
     qq(Package: <a href="$script?$stash">$stash</a>\n);
     push @retval, "Line: ",      $obj->GV->LINE, "\n";
-    push @retval, "Prototype: ", $obj->GV->CV->PV || "none", "\n";
+    push @retval, "Prototype: ", $proto || "none", "\n";
     push @retval, "XSUB: ",      $obj->XSUB ? "yes" : "no", "\n";
     push @retval, peek_link($r, $q, $name, $type);
     #push @retval, xref_link($r, $q, $name);
@@ -391,6 +393,7 @@ sub as_HTML {
     }
 
     for my $type (@methods) {
+	local $^W = 0; #weird tied DBI:: stuff
 	(my $dtype = uc $type) =~ s/E?S$//;
 	push @m, "<TR><TD valign=top><B>$type</B></TD>";
 	my @line = ();

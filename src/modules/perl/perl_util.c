@@ -112,7 +112,7 @@ static request_rec *r_magic_get(SV *sv)
     return mg ? (request_rec *)mg->mg_ptr : NULL;
 }
 
-request_rec *sv2request_rec(SV *in, char *class, CV *cv)
+request_rec *sv2request_rec(SV *in, char *pclass, CV *cv)
 {
     request_rec *r = NULL;
     SV *sv = Nullsv;
@@ -135,7 +135,7 @@ request_rec *sv2request_rec(SV *in, char *class, CV *cv)
 
     if(!sv) sv = in;
     if(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG)) {
-	if(sv_derived_from(sv, class)) {
+	if(sv_derived_from(sv, pclass)) {
 	    if((r = r_magic_get(SvRV(sv)))) {
 		/* ~ magic */
 	    }
@@ -254,7 +254,7 @@ SV *perl_hvrv_magic_obj(SV *rv)
 }
 
 
-void perl_tie_hash(HV *hv, char *class, SV *sv)
+void perl_tie_hash(HV *hv, char *pclass, SV *sv)
 {
     dSP;
     SV *obj, *varsv = (SV*)hv;
@@ -263,7 +263,7 @@ void perl_tie_hash(HV *hv, char *class, SV *sv)
     ENTER;
     SAVETMPS;
     PUSHMARK(sp);
-    XPUSHs(sv_2mortal(newSVpv(class,0)));
+    XPUSHs(sv_2mortal(newSVpv(pclass,0)));
     if(sv) XPUSHs(sv);
     PUTBACK;
     perl_call_method(methname, G_EVAL | G_SCALAR);
@@ -464,25 +464,20 @@ void perl_call_halt(int status)
 
 void perl_reload_inc(void)
 {
-    SV *val;
-    char *key;
-    I32 klen;
-    HV *orig_inc = GvHV(incgv);
-
-    ENTER;
-
-    save_hptr(&GvHV(incgv));
-    GvHV(incgv) = Nullhv;
-    SAVEI32(dowarn);
+    HV *hash = GvHV(incgv);
+    HE *entry;
+    I32 old_warn = dowarn;
+    
     dowarn = FALSE;
-
-    (void)hv_iterinit(orig_inc);
-    while((val = hv_iternextsv(orig_inc, &key, &klen))) {
+    hv_iterinit(hash);
+    while ((entry = hv_iternext(hash))) {
+	char *key = HeKEY(entry);
+	SvREFCNT_dec(HeVAL(entry));
+	HeVAL(entry) = &sv_undef;
+	MP_TRACE_g(fprintf(stderr, "reloading %s\n", key);)
 	perl_require_pv(key);
-	MP_TRACE_g(fprintf(stderr, "reloading %s\n", key));
     }
-
-    LEAVE;
+    dowarn = old_warn;
 }
 
 I32 perl_module_is_loaded(char *name)
@@ -584,10 +579,14 @@ array_header *perl_cgi_env_init(request_rec *r)
     add_common_vars(r); 
     add_cgi_vars(r); 
 
-    if ((tz = getenv("TZ")) != NULL)
-	table_set(envtab, "TZ", tz);
-
-    table_set(envtab, "PATH", DEFAULT_PATH);
+    if (!table_get(envtab, "TZ")) {
+	if ((tz = getenv("TZ")) != NULL) {
+	    table_set(envtab, "TZ", tz);
+	}
+    }
+    if (!table_get(envtab, "PATH")) {
+	table_set(envtab, "PATH", DEFAULT_PATH);
+    }
     table_set(envtab, "GATEWAY_INTERFACE", PERL_GATEWAY_INTERFACE);
 
     return table_elts(envtab);
@@ -608,7 +607,7 @@ void perl_clear_env(void)
     untie_env;
     if(!hv_exists(hv, "MOD_PERL", 8)) {
         hv_store(hv, "MOD_PERL", 8,
-                 newSVpv("mod_perl/1.17_01-dev",0), FALSE);
+                 newSVpv(MOD_PERL_STRING_VERSION,0), FALSE);
         hv_store(hv, "GATEWAY_INTERFACE", 17,
                  newSVpv("CGI-Perl/1.1",0), FALSE);
     }

@@ -10,13 +10,13 @@ unless(have_module "Apache::File") {
 }
 
 require Apache::File;
-print "1..5\n";
+print "1..6\n";
 my $fh = Apache::File->new;
 my $i = 0;
 test ++$i, $fh;
-test ++$i, $fh->open($0);
-test ++$i, !$fh->open("$0.nochance");
-test ++$i, !Apache::File->new("$0.yeahright");
+test ++$i, $fh->open($r->filename);
+test ++$i, !$fh->open($r->filename.".nochance");
+test ++$i, !Apache::File->new($r->filename.".yeahright");
 #my $tmp = Apache::File->tmp;
 #test ++$i, $tmp;
 #++$i;
@@ -24,3 +24,7 @@ test ++$i, !Apache::File->new("$0.yeahright");
 #seek $tmp, 0, 0;
 #print scalar(<$tmp>);
 test ++$i, Apache::File->tmpfile;
+
+$r->update_mtime;
+test ++$i, $r->mtime;
+print scalar localtime $r->mtime;

@@ -6,6 +6,144 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.20 - June 11, 1999
+
+turn off warnings in Apache::Status::as_HTML symdump code
+[Geoffrey Young <younggs@acwilm.com>, Tim Bunce <Tim.Bunce@ig.co.uk>]
+
+tweak Apache::RegistryNG so it works with virtual includes, thanks to
+Vivek Khera for the spot
+
+modules/eperl,embperl removed from 'make test'
+
+change Apache::File->tmpfile flags from O_WRONLY to O_RDWR
+[Chuck O'Donnell <cao@milf18.bus.net>]
+
+fix Apache::RegistryBB when $r->filename NOT_FOUND 
+[Frank D. Cringle <fdc@cliwe.ping.de>]
+
+cygwin port [Stipe Tolj <tolj@uni-duesseldorf.de>]
+
+Documented $r->pnotes [<ask@valueclick.com>]
+
+Change "setting auth_name" trace message so we don't get it without
+having enabled a MOD_PERL_TRACE level [Ask Bjoern Hansen
+<ask@valueclick.com>]
+
+s/class/pclass/g so we can compile w/ c++
+
+mod_perl will now save/restore SIGALRM
+
+fix Apache::Status bug prototype check of 'use constant' subs, thanks to
+Eric Cholet for the spot
+
+added set_byterange() and each_byterange() methods
+
+added proper support for {Location,Directory,Files}Match in <Perl> sections
+
+new Apache::ExtUtils::pm function to generate Foo.pm/Makefile.PL
+templates for modules with directive handlers
+
+Makefile.PL will now do a handful of sanity checks looking for
+possible broken configurations and offer suggestions for those it
+finds
+
+rework PerlFreshRestart to avoid core dump triggered w/ 5.005_03
+
+fix $Apache::Server::Starting under dso
+
+use ap_bfileno() instead of r->connnection->client->fd directly
+[Paul J. Reder <rederpj@raleigh.ibm.com>]
+
+fix Table.xs:table_modify() under win32
+[Trung Tran-Duc <trung.tranduc@prague.ixos.cz>]
+
+get rid of odd WRITE message in perlio.pl test if $Config{usesfio}
+[John Hughes <john@calva.com>]
+
+fix possible overwrite in perlio.c:sfapacheread() #ifdef USE_SFIO
+[John Hughes <john@calva.com>]
+
+dont use DEFAULT_PATH if r->subprocess_env->{PATH} is already set
+[Bertrand Demiddelaer <wing_co@hotmail.com>]
+
+ensure perl_setup_env() is called just once per-request
+[Salvador Ortiz Garcia <sog@msg.com.mx>]
+
+:common Apache::Constants are compiled at bootstrap time, so CVs are
+shared and AUTOLOAD is avoided, which was known to cause a spin
+while loading SERVER_ERROR for particular Perl errors
+
+<Perl> sections now use 1.3.7-dev's cmd_parms->context to cure many
+known, old bugs, e.g. @DirectoryIndex outside of %Location, .htaccess
+and many more  [Salvador Ortiz Garcia <sog@msg.com.mx>]
+
+fix bug where top-level PerlSetEnv's would be lost after 1st request
+
+fix bug in Apache::ModuleConfig->get [Dave Hayes <dave@jetcafe.org>]
+
+fix rwrite error message [Eric Cholet <cholet@logilune.com>]
+
+Change Apache::SizeLimit so that it supports Solaris 2.6 and above
+[Brian Moseley <ix@maz.org>]
+
+Fixed apaci/load_modules.pl.PL to properly fixup log_agent and
+log_referer when loaded as DSOs. [Vivek Khera <vivek@khera.org>]
+
+Fixed apaci/mod_perl.config.sh to remove the ccdlflags from the
+PERL_LIBS variable when building under bsd/os 4.x, since that causes
+errors when passing "cc" oriented flags to "ld".  I suspect this
+should be done for all platforms, as passing cc options to ld just
+seems wrong to me.  Also fixed up Makefile.PL to override Apache's
+notion of LDFLAGS_SHLIB_EXPORT to use Perl's idea of the proper flags
+when building as a DSO under APACI.  [Vivek Khera <vivek@khera.org>]
+
+=item 1.19 - April 7, 1999
+
+Apache::Leak fixes for win32 
+[Matthew Sergeant <Matthew.Sergeant@eml.ericsson.se>]
+
+Apache::Request upload tests are skipped #ifdef USE_SFIO 
+
+$r->send_fd() will croak() #ifdef USE_SFIO
+
+added $r->mtime method [Andreas J. Koenig <andreas.koenig@anima.de>]
+
+fix so version info is not inserted too early (i.e. before Apache/x.x.x)
+
+new Apache::PerlRun::namespace_from() method, returns
+$r->uri - $r->path_info, can be overridden as Apache::RegistryNG does to
+return $r->filename instead
+
+some minor test fixups for when certain things are not installed and
+be sure $ENV{PERL5LIB} is used (Perl ignores w/ -T)
+
+print() now returns true on success, false on failure (1.3.6+)
+
+no longer set SIGPIPE handler if Apache >= 1.3.6
+
+fix bug triggered when siggv is not initialized, spotted by Preston Brown
+
+new Apache::PerlRun::flush_namespace method to undef() each [SAHC]V
+entry, rather than a blind clear (which triggered cores, e.g. sort)
+
+$r->custom_response will now return the current ErrorDocument
+
+Semicolon support in $r->args [ Eric Cholet <cholet@logilune.com> ]
+
+issue with threads in perl_config.c [ Malcolm Beattie
+<mbeattie@sable.ox.ac.uk> / Koichi Nakatani <nakatani@konica.co.jp> ]
+
+fix bug in PerlPassEnv spotted by Gerd Knops, where values were munged  
+
+make sure per-dir PerlSetEnv happens after defaults are set (e.g. PATH)
+
+cure core dump with 5.005_03-threads
+
+ensure mod_perl/x.xx component is not added before Apache/x.x.x
+
+fix $ENV{MOD_PERL} value
+
 =item 1.18 - January 27, 1999
 
 if -DAPACHE_PERL5LIB is defined, feed the paths to @INC at startup
