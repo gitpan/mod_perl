@@ -8,6 +8,94 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.25 - January 29, 2001
+
+avoid 'prototype mismatch' warnings in Apache::PerlRun::flush_namespace
+[Wenzhong Tang <Tang@appliant.com>]
+
+xsubpp now run with -nolinenumbers (5.004_04 bombs otherwise)
+
+DSO support for hpux with native cc
+
+document Apache->server->register_cleanup
+[Perrin Harkins <perrin@primenet.com>]
+
+Apache::Server->loglevel can now be modified
+[Geoffrey Young <gyoung@laserlink.net>]
+
+use unsigned short rather than short for Apache::Server->port
+thanks to Richard L. Goerwitz for the spot
+
+fix $r subclassing mechanism when value of `r' or `_r' key is a hashref
+thanks to Dave LaMacchia for the spot
+
+fix Apache::PerlRun is-a -> has-a Apache relationship change oversights
+[Ken Williams <ken@forum.swarthmore.edu>,
+Alexander Solovey <alsol@sumdu.edu.ua>]
+
+win32 updates for 1.3.15, including ApacheModulePerl.{dsp,dll} ->
+mod_perl.{dsp,so} rename
+[John K. Sterling <sterling@covalent.net>,
+Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+fix directive handlers bug triggered by LoadModule foo_module
+
+allow $r->finfo to be modified
+
+if Perl is linked with -lpthread, then httpd needs to be linked with
+-lpthread, make sure that happens with USE_DSO=1, warn if USE_APXS=1
+
+largefile flags can be stripped from mod_perl with:
+ Makefile.PL PERL_USELARGEFILES=0
+
+adjust test output (modules/{cgi,constants}) to make 5.7.0-dev
+Test::Harness happy
+
+fix $r->custom_response bug which was triggering core dumps if no
+ErrorDocuments were configured, thanks to Paul Hodges for the spot
+
+rid PL_na usage in Symbol.xs
+
+INSTALL.win32 updates, obsolete INSTALL.activeperl removed
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+Solving an 'uninitialized value' warn in Apache::SizeLimit.
+post_connection() expects a return status from the callback function.
+[Stas Bekman <sbekman@stason.org>]
+
+include mod_perl hook/feature config and pod in Apache::MyConfig
+[Geoffrey Young <gyoung@laserlink.net>]
+
+rewrite of Apache::WRITE() in c/xs
+[Soheil Seyfaie <sseyfaie@cryptologic.com>]
+
+prevent $PerlRequire in a <Perl> section from triggering an endless loop
+[Salvador Ortiz Garcia <sog@msg.com.mx>]
+
+build fix for using gcc with AIX
+[Jens-Uwe Mager <jum@helios.de>]
+
+allow modification of $r->hostname
+[Jim Winstead <jimw@trainedmonkey.com>]
+
+allow Makefile.PL to build mod_perl on Win32 using VC++
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+stop win32 crash when bringing down service
+[John K. Sterling <sterling@covalent.net>]
+
+various Apache::test enhancements and fixes
+[Ken Williams <ken@forum.swarthmore.edu>, Dave Rolsky <autarch@urth.org>]
+
+Documenting the new PerlAddVar httpd.conf directive
+[Stas Bekman <sbekman@stason.org>]
+
+new Apache::test::static_modules() method
+[Ken Williams <ken@forum.swarthmore.edu>]
+
+Improved Apache->send_http_header documentation
+[Ken Williams <ken@forum.swarthmore.edu>]
+
 =item 1.24_01 - October 10, 2000
 
 fix bug in $r->args that treats ?0 as the empty string instead of zero,

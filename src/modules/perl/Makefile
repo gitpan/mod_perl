@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.11 2000/09/01 05:10:14 dougm Exp $
+# $Id: Makefile,v 1.14 2001/01/29 18:11:32 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -102,9 +102,11 @@ PERL_HOOKS =   $(PERL_DISPATCH) $(PERL_CHILD_INIT) $(PERL_CHILD_EXIT) \
 #APACHE_SSL = 
 PERL=/usr/bin/perl
 PERL_STATIC_EXTS =
-PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
+PRIVLIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
-PERL_CFG_CCFLAGS = `$(PERL) -MConfig -e 'print $$Config{ccflags}'`
+#CONFIG_PM=-MConfig
+CONFIG_PM='-MApache::ExtUtils=%Config'
+PERL_CFG_CCFLAGS = `$(PERL) $(CONFIG_PM) -e 'print $$Config{ccflags}'`
 PERL_CFG_ARCHLIB = `$(PERL) -MConfig -e 'print $$Config{archlibexp}'`
 
 PERL_CCFLAGS = -I$(PERL_CFG_ARCHLIB)/CORE $(PERL_CFG_CCFLAGS) $(PERL_HOOKS) $(TRACE)
@@ -127,7 +129,7 @@ perlxsi.c:
 	$(XS_INIT) 
 
 .xs.c:
-	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap $*.xs > $@
+	$(PERL) $(PRIVLIB)/ExtUtils/xsubpp -nolinenumbers -typemap $(PRIVLIB)/ExtUtils/typemap $*.xs > $@
 
 PERLSRC=mod_perl_opmask.c mod_perl.c perlxsi.c perl_config.c perl_util.c perlio.c $(STATIC_SRC)
 

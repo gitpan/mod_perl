@@ -41,6 +41,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
 
 my $Is_dougm = (defined($ENV{USER}) && ($ENV{USER} eq "dougm"));
 my $USE_THREADS;
+my $thrlib = join '|', qw(-lpthread);
 
 if ($] < 5.005_60) {
     $USE_THREADS = (defined($Config{usethreads}) && 
@@ -94,6 +95,7 @@ $APACHE_SRC_DEFAULT = $@ ?
     $Apache::MyConfig::Setup{Apache_Src} ; 
 
 my $PWD = cwd;
+$ENV{PERL5LIB} = "$PWD/lib";
 
 my %SSL = (
     "modules/ssl/apache_ssl.c" => "Ben-SSL",
@@ -188,7 +190,9 @@ $EVERYTHING = $EXPERIMENTAL = 0;
 $PERL_DEBUG = "";
 $PERL_DESTRUCT_LEVEL = "";
 $PERL_STATIC_EXTS = "";
-$PERL_EXTRA_CFLAGS = $] >= 5.006 ? $Config{ccflags} : "";
+$PERL_USELARGEFILES = 1;
+$PERL_EXTRA_CFLAGS = "";
+$PERL_EXTRA_LIBS = "";
 $SSLCacheServerPort = 8539;
 $SSL_BASE = ""; 
 $Port = $ENV{HTTP_PORT} || 8529;
@@ -313,8 +317,21 @@ my @mm_args;
     }
 }
 
+my $vcpp = ($Config{cc} =~ /^cl(\.exe)?$/);
+my %win32_args;
+my %win32_accept = map {$_ => 1} qw(APACHE_SRC INSTALL_DLL DEBUG EAPI);
+
 while($_ = shift) {
     ($k,$v) = split /=/, $_, 2;
+    if ($vcpp) {
+      if ($win32_accept{$k}) {
+	$win32_args{$k} = ($k eq 'DEBUG' or $k eq 'EAPI') ? 1 : $v;
+      }
+      else {
+	push @mm_args, $_;
+      }
+      next;
+    }
     unless (/^(PERL|APACHE)/ or is_mp_arg($k)) {
 	push @mm_args, $_;
     }
@@ -326,6 +343,8 @@ while($_ = shift) {
     ${$k} = $v, next if defined ${$k};
     $callback_hooks{$k} = $v if exists $callback_hooks{$k};
 }
+
+my $win32_auto = ($vcpp and $win32_args{APACHE_SRC}) ? 1 : 0;
 
 my %very_experimental = map {$_,1} 
 qw(PERL_DEFAULT_OPMASK PERL_SAFE_STARTUP PERL_ORALL_OPMASK 
@@ -342,6 +361,10 @@ if($EXPERIMENTAL) {
 if($experimental{PERL_DEFAULT_OPMASK} > 1) {
     $experimental{PERL_SAFE_STARTUP} = 2;
     $PERL_EXTRA_CFLAGS .= " -DPERL_SAFE_STARTUP=1";
+}
+
+if ($PERL_USELARGEFILES and $] >= 5.006) {
+    $PERL_EXTRA_CFLAGS .= " $Config{ccflags}";
 }
 
 for (keys %PassEnv) {
@@ -867,6 +890,13 @@ unless (-e "t/net/config.pl") {
 
 init_config_pl() if $Is_Win32;
 
+my (%win32_path);
+if ($win32_auto) {
+  require File::Spec;
+  win32_inc_and_lib();
+  win32_fix_dsp();
+}
+
 write_my_config($APACHE_SRC);
 
 unless($Is_Win32 or -e "t/conf/httpd.conf" or ($NO_HTTPD && !$PREP_HTTPD)) {
@@ -953,10 +983,18 @@ sub init_tests_and_config {
 	    $cmd .= qq(CFLAGS="$PERL_EXTRA_CFLAGS" );
 	}    
 	
-	if ($USE_DSO) {		# override apache's notion of this flag
-	  $cmd .= qq(LDFLAGS_SHLIB_EXPORT="$Config{ccdlflags}" );
-	}
+	if ($USE_DSO) {
+            # override apache's notion of this flag
+            $cmd .= qq(LDFLAGS_SHLIB_EXPORT="$Config{ccdlflags}" );
 
+            #if Perl is linked with -lpthread, httpd needs tobe too
+            if ($Config{libs} =~ /($thrlib)/) {
+                $PERL_EXTRA_LIBS .= " $1";
+            }
+	}
+        if ($PERL_EXTRA_LIBS) {
+            $cmd .= qq(LIBS="$PERL_EXTRA_LIBS" );
+        }
 	$cmd .= "./configure " .
 		  "--activate-module=src/modules/perl/libperl.a";
    
@@ -1198,6 +1236,7 @@ WriteMakefile(
 	HTTPD => $TARGET,
 	PORT => $PORT,
 	PWD => $PWD,
+        PERL5LIB => "PERL5LIB=$ENV{PERL5LIB}",
 	SHRPENV => $Config{shrpenv},
 	CVSROOT => 'perl.apache.org:/home/cvs',
     },
@@ -1209,6 +1248,17 @@ WriteMakefile(
 	FILES	=> "@do_clean",
     }
 );
+
+if ($Is_Win32) {
+  print <<'END';
+
+Beginning with version 1.3.15, Apache uses a different convention for 
+Win32 module names. Correspondingly, the name of the mod_perl module 
+built here has been changed from ApacheModulePerl.dll to mod_perl.so.
+Please see INSTALL.win32 for further details.
+
+END
+}
 
 print "*** BSDI users: be sure to read the INSTALL `Notes' section ***\n"
     if $Config{osname} =~ /bsdos/i;
@@ -1227,6 +1277,13 @@ sub MY::dist_basics {
 sub MY::clean {
     my $self = shift;
     my $string = $self->MM::clean(@_);
+    if ($win32_auto) {
+      $string .= sprintf 
+	qq{\tmsdev src\\modules\\win32\\mod_perl.dsp \\\n} .
+	  qq{\t/MAKE "mod_perl - Win32 %s" /CLEAN\n}, 
+	  ($win32_args{DEBUG} == 1) ? 'Debug' : 'Release';
+      return $string;
+    }
     unless($NO_HTTPD) {
 	my $asrc = asrc($APACHE_SRC, "http_main.c");
 	return $string unless $APACHE_SRC and -e "$asrc/http_main.c";
@@ -1245,12 +1302,15 @@ sub MY::install {
     if($USE_APXS) {
 	$add = "apxs_install";
     }
+    elsif ($win32_auto and $win32_args{INSTALL_DLL}) {
+      $add = 'amp_install';
+    }
     elsif($USE_APACI) {
 	if($APACI_ARGS =~ /--prefix=/ or $APACHE_PREFIX) {
 	    $add = "apaci_install";
 	}
     }
-    if($add and (!$NO_HTTPD and !$PREP_HTTPD) or $USE_APXS) {
+    if($add and (!$NO_HTTPD and !$PREP_HTTPD) or $USE_APXS or $win32_auto) {
 	$string =~ s/(pure_install\s+)(.*)/$1 $add $2/;
     }
     return $string;
@@ -1259,7 +1319,23 @@ sub MY::install {
 sub MY::top_targets {
     my $self = shift;
     my $string = $self->MM::top_targets;
-    return $string unless $USE_APXS or $USE_APACI or $APACHE_SRC;
+    return $string unless $USE_APXS or $USE_APACI or $APACHE_SRC or $win32_auto;
+
+    if ($win32_auto) {
+      $string =~ s/(pure_all\s+::.*\s+subdirs\s+)(.*)/$1 amp_dll $2/;
+      $string .= sprintf qq{\namp_dll:\n} . 
+	qq{\tmsdev src\\modules\\win32\\mod_perl.dsp \\\n} .
+	  qq{\t/MAKE "mod_perl - Win32 %s" /USEENV\n}, 
+	  ($win32_args{DEBUG} == 1) ? 'Debug' : 'Release';
+      if ($win32_args{INSTALL_DLL}) {
+	$string .= sprintf qq{\namp_install:\n\t\$(CP) "%s" "%s"}, 
+	"$win32_path{MODPERL_LIB}/mod_perl.so", 
+	$win32_args{INSTALL_DLL} .
+	  ($win32_args{APACHE_VERS} < 1315 ?
+	   '/ApacheModulePerl.dll' : '/mod_perl.so');
+      }
+      return $string;
+    }
 
     if($USE_APXS) {
 	    $string =~ s/(pure_all\s+::\s+)(.*)/$1 apxs_libperl $2/;
@@ -1293,16 +1369,16 @@ apxs_distclean:
 	(cd ./apaci && $(MAKE) distclean)
 
 apxs_libperl:
-	(cd ./apaci && $(MAKE))
+	(cd ./apaci && $(PERL5LIB) $(MAKE))
 
 apxs_install: apxs_libperl
 	(cd ./apaci && $(MAKE) install;)
 
 apache_httpd: $(APACHE_SRC)/Makefile.tmpl
-	(cd $(APACHE_SRC) && $(SHRPENV) $(MAKE) CC="$(CC)";)
+	(cd $(APACHE_SRC) && $(PERL5LIB) $(SHRPENV) $(MAKE) CC="$(CC)";)
 
 apaci_httpd: 
-	(cd $(APACHE_ROOT) && $(MAKE))
+	(cd $(APACHE_ROOT) && $(PERL5LIB) $(MAKE))
 
 apaci_install: 
 	(cd $(APACHE_ROOT) && $(MAKE) install)
@@ -1890,6 +1966,17 @@ EOF
 
 sub write_my_config {
     my $src = shift;
+    
+    my $string;
+    if ($win32_auto) {
+      $string =<<"EOS";
+'APACHE_INC' => '$win32_path{APACHE_INC}',
+   'APACHE_LIB' => '$win32_path{APACHE_LIB}',
+   'MODPERL_INC' => '$win32_path{MODPERL_INC}',
+   'MODPERL_LIB' => '$win32_path{MODPERL_LIB}',
+EOS
+    }
+
     local *FH;
 # writing Configuration to Apache::MyConfig
 
@@ -1897,22 +1984,175 @@ sub write_my_config {
 	die "Can't open lib/Apache/MyConfig.pm: $!";
     print FH <<EOT;
 #
-# Configuartion for mod_perl and Apache::...
+# Configuration for mod_perl and Apache::...
 #
-package Apache::MyConfig ;
+package Apache::MyConfig;
 
 %Setup = (
    'Apache_Src' => \'$APACHE_SRC\',
    'SSL_BASE' => \'$SSL_BASE\',
    'APXS' => \'$WITH_APXS\',
+   'PERL_USELARGEFILES' => \'$PERL_USELARGEFILES\',
+EOT
+
+  foreach my $key (sort @callback_hooks) {
+    print FH "   \'$key\' => \'$callback_hooks{$key}\',\n";
+  }
+
+  print FH <<EOT;
+   $string
 );
 
 1;
 
 __END__
+
+=head1 NAME
+
+Apache::MyConfig - build options access
+
+=head1 SYNOPSIS
+
+ use Apache::MyConfig;
+ die unless \$Apache::MyConfig::Setup{PERL_FILE_API};
+
+=head1 DESCRIPTION
+
+B<Apache::MyConfig> module provides access to the various hooks
+and features set when mod_perl is built.  This circumvents the
+need to set up a live server just to find out if a certain callback
+hook is available.
+
+Itterate through \%Apache::MyConfig::Setup to get obtain build
+information then see Appendix B of the Eagle book for more detail
+on each key.
+
 EOT
     close FH;
 
+}
+
+# obtain the Apache and mod_perl lib and include directories for Win32
+sub win32_inc_and_lib {
+
+  my $modperl_src = win32_fix_path(cwd) . '/src';
+  $win32_path{MODPERL_INC} = $modperl_src . '/modules/perl';
+  $win32_path{MODPERL_LIB} = ($win32_args{DEBUG} == 1) ? 
+    $modperl_src . '/modules/win32/Debug' :
+      $modperl_src . '/modules/win32/Release';
+
+  unless ( -d $win32_args{APACHE_SRC}) {
+    opendir(DIR, '../') or die "Cannot read parent directory: $!\n";
+    my @dirs = map {"../$_"}
+      grep {/apache/ and -d "../$_"} readdir DIR;
+    closedir DIR or die "Cannot close parent directory: $!\n";
+    die "Cannot find the apache sources\n" 
+      unless ($win32_args{APACHE_SRC} = find_dir(\@dirs, 'apache source'));
+  }
+  $win32_args{APACHE_SRC} = win32_fix_path($win32_args{APACHE_SRC});
+  $win32_args{APACHE_SRC} .= '/src' unless $win32_args{APACHE_SRC} =~ /src$/;
+  $win32_path{APACHE_INC} = $win32_args{APACHE_SRC} .  '/include';
+  $win32_args{APACHE_VERS} = httpd_version($win32_path{APACHE_INC}, 1);
+  $win32_path{APACHE_LIB} = ($win32_args{DEBUG} == 1) ? 
+    $win32_args{APACHE_SRC} . 
+      ($win32_args{APACHE_VERS} < 1315 ? '/CoreD' : '/Debug') :
+	$win32_args{APACHE_SRC} . 
+	  ($win32_args{APACHE_VERS} < 1315 ? '/CoreR' : '/Release');
+  die "Cannot find ApacheCore.lib under $win32_path{APACHE_LIB}\n"
+    unless -f "$win32_path{APACHE_LIB}/ApacheCore.lib";
+  
+  if ($win32_args{INSTALL_DLL} ) {
+    $win32_args{INSTALL_DLL} = 
+	win32_fix_path($win32_args{INSTALL_DLL});
+    unless ( -d $win32_args{INSTALL_DLL}) {
+      my @dirs = grep {-d} 
+	('\Program Files\Apache Group\Apache\modules', 
+	 '\Apache\modules', '\Program Files\Apache\modules');
+      $win32_args{INSTALL_DLL} = find_dir(\@dirs, 'Apache/modules');
+      if ($win32_args{INSTALL_DLL} and -d $win32_args{INSTALL_DLL}) {
+	$win32_args{INSTALL_DLL} = 
+	  win32_fix_path($win32_args{INSTALL_DLL});
+      }
+      else {
+	print <<'END';
+
+****  The Apache/modules directory was not found.    *******
+****      Please install mod_perl.so manually.       *******
+
+END
+      }
+    }
+  }
+}
+
+# fix mod_perl.dsp with the perl and apache inc and lib directories
+sub win32_fix_dsp {
+
+  my $amp = 'src/modules/win32';
+  my $dsp = 'mod_perl.dsp';
+  unless ( -f "$amp/$dsp.orig") {
+    rename("$amp/$dsp", "$amp/$dsp.orig")
+      or die "Couldn't rename $amp/$dsp: $!\n";
+  }
+  my $perl_inc = win32_fix_path_dsp("$Config{archlibexp}/CORE");
+  
+  open(OLDDSP, "$amp/$dsp.orig")
+    or die "Couldn't read $amp/$dsp.orig: $!\n";
+  open(NEWDSP, ">$amp/$dsp")
+    or die "Couldn't create $amp/$dsp: $!\n";
+  while (<OLDDSP>) {
+    if (/^SOURCE=.*ApacheCore\.lib/) {
+      printf NEWDSP "SOURCE=%s\n", 
+      win32_fix_path_dsp("$win32_path{APACHE_LIB}/ApacheCore.lib");
+    }
+    elsif (/^SOURCE=.*perl(56)?\.lib/) {
+      print NEWDSP qq{SOURCE=$perl_inc\\$Config{libperl}\n};
+    }
+    elsif (/ADD CPP/) {
+      my $apache_inc = win32_fix_path_dsp($win32_path{APACHE_INC});
+      s!(/D "WIN32")!/I "$apache_inc" /I "$perl_inc" $1!;
+      s!(/D "WIN32")!$1 /D "EAPI" ! if $win32_args{EAPI}; 
+      print NEWDSP $_;
+    }
+    else {
+      print NEWDSP $_;
+    }	
+  }
+  close OLDDSP;
+  close NEWDSP;
+  return;
+}
+
+# find a directory of type $type, given some possible $dirs
+sub find_dir {
+  my ($dirs, $type) = @_;
+  my $j = 0;
+  my $src;
+  while (1) {
+    $src = @$dirs > 0 ? $dirs->[$j] : '';
+    $src = prompt("\nWhere is your $type directory? (q to quit)", $src);
+    return undef if $src eq 'q';
+    return $src if -d $src;
+    print qq{'$src': no such directory\n};
+    $j = ($j == @$dirs-1) ? 0 : $j + 1;
+  }
+}
+
+# fix a path for Win32 Makefile
+sub win32_fix_path {
+  local $_ = shift;
+  $_ = File::Spec->rel2abs($_) if not File::Spec->file_name_is_absolute($_);
+  tr!\\!/!;
+  s!/$!!;
+  return $_;
+}
+
+# fix a path for mod_perl.dsp
+sub win32_fix_path_dsp {
+  local $_ = shift;
+  tr!/!\\!;
+  s!^\w:!!;
+  return $_;
 }
 
 #in version 1.2505 of Embed.pm we could just import these instead of using ``,
@@ -1920,8 +2160,7 @@ EOT
 
 sub ccopts {
     unless ($Embed::ccopts) {
-	$Embed::ccopts = `$^X -MExtUtils::Embed -e ccopts`;
-
+        $Embed::ccopts = "$Config{ccflags} -I$Config{archlibexp}/CORE";
 	if($USE_THREADS) {
 	    $Embed::ccopts .= " -DPERL_THREADS";
 	}
@@ -2067,11 +2306,28 @@ EOF
 	}
     }
 
+    if ($^O eq 'hpux' and ($USE_DSO or $USE_APXS) and $Config{ld} eq 'ld') {
+        unless ($ccflags =~ /\+z/i) {
+            my $switch = $] >= 5.006 ? 'A' : 'D';
+            phat_warn(<<EOF);
+mod_perl is unlikely to link with your libperl, suggestions:
+    *) Rebuild Perl with Configure -${switch}ccflags=+Z ...
+    *) Build mod_perl static rather than DSO
+EOF
+        }
+    }
+
     gdbm_check();
     malloc_check();
     uselargefiles_check();
     dynaloader_check();
 
+    if ($USE_APXS and $Config{libs} =~ /($thrlib)/) {
+        my $lib = $1;
+        phat_warn(<<EOF);
+Your Perl is linked with $lib, make sure that your httpd is built with LIBS=$lib
+EOF
+    }
 }
 
 sub gdbm_check {
@@ -2103,13 +2359,15 @@ EOF
 }
 
 sub uselargefiles_check {
-    return unless $] >= 5.006 and $Config{uselargefiles} and $USE_APXS;
+    return unless $] >= 5.006 and $Config{uselargefiles}
+      and $PERL_USELARGEFILES and $USE_APXS;
     local $Apache::src::APXS = $WITH_APXS;
     my $cflags = Apache::src->new->apxs('-q' => 'CFLAGS') || '';
     return if $cflags =~ /LARGEFILE/;
 
     phat_warn(<<EOF);
 Your Perl is uselargefiles enabled, but Apache is not, suggestions:
+    *) Rebuild mod_perl with Makefile.PL PERL_USELARGEFILES=0
     *) Rebuild Apache with CFLAGS="-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
     *) Rebuild Perl with Configure -Uuselargefiles
     *) Let mod_perl build Apache (USE_DSO=1 instead of USE_APXS=1)

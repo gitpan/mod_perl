@@ -107,8 +107,8 @@ echo "$display_prefix id: Perl/$perl_version ($os_version) [$perl_interp]" 1>&2
 #   determine build tools and flags  
 #
 
-#config_pm='-MApache::ExtUtils=%Config'
-config_pm='-MConfig'
+config_pm='-MApache::ExtUtils=%Config'
+#config_pm='-MConfig'
 perl_cc="`$perl_interp $config_pm -e 'print $Config{cc}'`"
 perl_ccflags="`$perl_interp $config_pm -e 'print $Config{ccflags}'`"
 perl_optimize="`$perl_interp $config_pm -e 'print $Config{optimize}'`"
@@ -118,7 +118,14 @@ perl_ldflags="`$perl_interp $config_pm -e 'print $Config{ldflags}'`"
 perl_lddlflags="`$perl_interp $config_pm -e 'print $Config{lddlflags}'`"
 
 case "$os_version" in
-    aix*)  perl_lddlflags="$perl_lddlflags -bI:\$(APACHELIBEXEC)/httpd.exp" ;;
+    aix*)
+	case "$perl_cc" in
+	*gcc*)
+		XLINKER="-Xlinker "
+		;;
+	esac
+    	perl_lddlflags="$perl_lddlflags $XLINKER-bI:\$(APACHELIBEXEC)/httpd.exp"
+	;;
     * )    ;;
 esac
 
@@ -132,25 +139,23 @@ my $ldopts = `$^X $embed_pm -e ldopts -- -std @ARGV`;
 # other systems, but it bites us on BSD/OS 4.x
 $ldopts =~ s@$Config{ccdlflags}@@ if ($^O eq 'bsdos');
 $ldopts =~ s,(-bE:)(perl\.exp),$1$Config{archlibexp}/CORE/$2, if($^O eq "aix");
-=pod
-#replace -Wl args meant for gcc with args for ld
-#hmm, this breaks USE_APACI=1, what to do for USE_APXS?
-#should we use gcc instead of ld?
-if($^O eq "hpux") {
+
+#replace -Wl args meant for cc with args for ld
+if ($ARGV[0] eq "DSO" and $^O eq "hpux" and $Config{ld} eq "ld") {
     while ($ldopts =~ s/-Wl,(\S+)/$1/) {
 	my $cp = $1;
 	(my $repl = $cp) =~ s/,/ /g;
-	$ldopts =~ s/$cp/$repl/;
+	$ldopts =~ s/\Q$cp/$repl/;
     }
 }
-=cut
+
 print $ldopts;
 EOT
-perl_libs="`$perl_interp $tmpfile2 $perl_libperl`"
+perl_libs="`$perl_interp $tmpfile2 $build_type`"
 if test $build_type = OBJ
 then
 	case "$os_version" in
-	    aix*)  perl_libs="$perl_libs -bE:\$(SRCDIR)/modules/perl/mod_perl.exp" ;;
+	    aix*)  perl_libs="$perl_libs $XLINKER-bE:\$(SRCDIR)/modules/perl/mod_perl.exp" ;;
 	    * )    ;;
 	esac
 fi
@@ -158,7 +163,7 @@ perl_inc="`$perl_interp -MConfig -e 'print "$Config{archlibexp}/CORE"'`"
 perl_privlibexp="`$perl_interp -MConfig -e 'print $Config{privlibexp}'`"
 perl_archlibexp="`$perl_interp -MConfig -e 'print $Config{archlibexp}'`"
 perl_xsinit="$perl_interp -MExtUtils::Embed -e xsinit"
-perl_xsubpp="$perl_interp ${perl_privlibexp}/ExtUtils/xsubpp -typemap ${perl_privlibexp}/ExtUtils/typemap"
+perl_xsubpp="$perl_interp ${perl_privlibexp}/ExtUtils/xsubpp -nolinenumbers -typemap ${perl_privlibexp}/ExtUtils/typemap"
 perl_ar="`$perl_interp -MConfig -e 'print $Config{ar}'`"
 perl_ranlib=`$perl_interp -MConfig -e 'print $Config{ranlib}'`
 

@@ -247,7 +247,7 @@ static char *custom_response(request_rec *r, int status, char *string)
 
     if(conf->response_code_strings == NULL) {
         conf->response_code_strings = (char **)
-	  pcalloc(r->pool,
+	  pcalloc(perl_get_startup_pool(),
 		  sizeof(*conf->response_code_strings) * 
 		  RESPONSE_CODES);
     }
@@ -1035,6 +1035,54 @@ get_client_block(r, buffer, bufsiz)
     }
 
 int
+write(r, sv_buffer, sv_length=-1, offset=0)
+    Apache	r
+    SV *sv_buffer
+    int sv_length
+    int offset
+
+    ALIAS:
+    Apache::WRITE = 1
+
+    PREINIT:
+    STRLEN len;
+    char *buffer;
+    int sent = 0;
+
+    CODE:
+    ix = ix; /* avoid -Wall warning */
+    RETVAL = 0;
+
+    if (r->connection->aborted) {
+        XSRETURN_UNDEF;
+    }
+
+    buffer = SvPV(sv_buffer, len);
+    if (sv_length != -1) {
+        len = sv_length;
+    }
+
+    if (offset) {
+        buffer += offset;
+    }
+
+    while (len > 0) {
+        sent = rwrite(buffer,
+                      len < HUGE_STRING_LEN ? len : HUGE_STRING_LEN,
+                      r);
+        if (sent < 0) {
+            rwrite_neg_trace(r);
+	    break;
+        }
+        buffer += sent;
+        len -= sent;
+        RETVAL += sent;
+    }
+
+    OUTPUT:
+    RETVAL
+
+int
 print(r, ...)
     Apache	r
 
@@ -1443,11 +1491,11 @@ protocol(r)
     RETVAL
 
 char *
-hostname(r)
+hostname(r, ...)
     Apache	r
 
     CODE:
-    RETVAL = (char *)r->hostname;
+    get_set_PVp(r->hostname,r->pool);
 
     OUTPUT:
     RETVAL
@@ -1858,10 +1906,26 @@ no_cache(r, ...)
 #  struct stat finfo;		/* ST_MODE set to zero if no such file */
 
 SV *
-finfo(r)
+finfo(r, sv_statbuf=Nullsv)
     Apache r
+    SV *sv_statbuf
 
     CODE:
+    if (sv_statbuf) {
+        if (SvROK(sv_statbuf) && SvOBJECT(SvRV(sv_statbuf))) {
+            STRLEN sz;
+            char *buf = SvPV((SV*)SvRV(sv_statbuf), sz);
+            if (sz != sizeof(r->finfo)) {
+                croak("statbuf size mismatch, got %d, wanted %d",
+                      sz, sizeof(r->finfo));
+            }
+            memcpy(&r->finfo, buf, sz);
+        }
+        else {
+            croak("statbuf is not an object");
+        }
+    }
+
     statcache = r->finfo;
     if (r->finfo.st_mode) {
 	laststatval = 0;

@@ -491,9 +491,10 @@ if((add->flags & f) || (base->flags & f)) \
 #ifdef PERL_SECTIONS
 # ifndef PERL_SECTIONS_SELF_BOOT
 #  ifdef WIN32
-#   define PERL_SECTIONS_SELF_BOOT getenv("PERL_SECTIONS_SELF_BOOT")
+#   define PERL_SECTIONS_SELF_BOOT \
+       (getenv("PERL_SECTIONS_SELF_BOOT") && !perl_sections_self_boot)
 #  else
-#   define PERL_SECTIONS_SELF_BOOT 1
+#   define PERL_SECTIONS_SELF_BOOT !perl_sections_self_boot
 #  endif
 # endif
 #endif
@@ -1209,6 +1210,7 @@ perl_request_config *perl_create_request_config(pool *p, server_rec *s);
 void perl_perl_cmd_cleanup(void *data);
 
 void perl_section_self_boot(cmd_parms *parms, void *dummy, const char *arg);
+void perl_clear_symtab(HV *symtab);
 CHAR_P perl_section (cmd_parms *cmd, void *dummy, CHAR_P arg);
 CHAR_P perl_end_section (cmd_parms *cmd, void *dummy);
 CHAR_P perl_pod_section (cmd_parms *cmd, void *dummy, CHAR_P arg);

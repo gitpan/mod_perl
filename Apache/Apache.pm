@@ -158,12 +158,6 @@ sub PRINTF {
 }
 *printf = \&PRINTF;
 
-sub WRITE {
-    my($r, $buff, $length, $offset) = @_;
-    my $send = substr($buff, $offset, $length);
-    $r->print($send);
-}
-
 sub send_cgi_header {
     my($r, $headers) = @_;
     my $dlm = "\015?\012"; #a bit borrowed from LWP::UserAgent
@@ -589,6 +583,29 @@ Will return a I<HASH> reference blessed into the
 I<Apache::Table> class when called in a scalar context with no
 "key" argument. See I<Apache::Table>.
 
+
+=item $r->dir_config->get( $key )
+
+Returns the value of a per-directory array variable specified by the
+C<PerlAddVar> directive.
+
+   # <Location /foo/bar>
+   # PerlAddVar  Key  Value1
+   # PerlAddVar  Key  Value2
+   # </Location>
+
+   my @val = $r->dir_config->get('Key');
+
+Alternatively in your code you can extend the setting with:
+
+  $r->dir_config->add(Key => 'Value3');
+
+Keys are case-insensitive.
+
+Will return a I<HASH> reference blessed into the
+I<Apache::Table> class when called in a scalar context with no
+"key" argument. See I<Apache::Table>.
+
 =item $r->requires
 
 Returns an array reference of hash references, containing information
@@ -697,11 +714,12 @@ This is the value of the Group directive.
 
 =item $s->loglevel
 
-Returns the value of the current LogLevel. This method is added by
+Get or set the value of the current LogLevel. This method is added by
 the Apache::Log module, which needs to be pulled in.
 
     use Apache::Log;
     print "LogLevel = ", $s->loglevel;
+    $s->loglevel(Apache::Log::DEBUG);
 
 If using Perl 5.005+, the following constants are defined (but not
 exported):
@@ -757,9 +775,11 @@ content to the client.
 
 =over 4
 
-=item $r->send_http_header
+=item $r->send_http_header( [$content_type] )
 
 Send the response line and all headers to the client.
+Takes an optional parameter indicating the content-type of the
+response, i.e. 'text/html'.
 
 This method will create headers from the $r->content_xxx() and
 $r->no_cache() attributes (described below) and then append the
@@ -1048,6 +1068,13 @@ destroyed.
        my $r = shift;
        warn "registered cleanup called for ", $r->uri, "\n";
    });
+
+Cleanup functions registered in the parent process (before forking)
+will run once when the server is shut down:
+
+   #PerlRequire startup.pl
+   warn "parent pid is $$\n";
+   Apache->server->register_cleanup(sub { warn "server cleanup in $$\n"});
 
 The I<post_connection> method is simply an alias for I<register_cleanup>, 
 as this method may be used to run code after the client connection is closed,

@@ -15,7 +15,7 @@ use Config;
 my $r = shift;
 my $sub = "test_$ENV{QUERY_STRING}";
 if (defined &{$sub}) {
-    &{$sub};
+    &{$sub}($r);
 }
 else {
     print "Status: 200 Bottles of beer on the wall\n",
@@ -112,4 +112,57 @@ D
 EOF
 
 }
+
+sub test_syswrite_1 {
+    test_syswrite(shift);
+}
+
+sub test_syswrite_2 {
+    test_syswrite(shift,160);
+}
+
+sub test_syswrite_3 {
+    test_syswrite(shift,80, 2000);
+}
+
+sub test_syswrite {
+    my $r = shift;
+    my $len = shift;
+    my $offset = shift;
+    my $msg = "";
+
+#    my $m = "ENTERING test_syswrite ";
+#    $m .= "LEN = $len " if $len;
+#    $m .= "OFF = $offset" if $offset;
+#    print STDERR $m, "\n";
+
+    print "Status: 200 Bottles of beer on the wall\n",
+    "X-Perl-Version: $]\n";
+    print "X-Perl-Script: perlio.pl\n";
+    print "X-Message: hello\n";
+    print "Content-type: text/plain\n\n";
+
+    for ('A'..'Z') {
+	$msg .= $_ x 80;
+    }
+    my $bytes_sent = 
+	defined($offset) ? syswrite STDOUT, $msg, $len, $offset :  
+	 defined($len) ? syswrite STDOUT, $msg, $len : 
+           syswrite STDOUT, $msg, length($msg);
+
+    my $real_b = $r->bytes_sent;
+    print "REAL Bytes sent = $real_b\n";
+    die "Syswrite error. Bytes wrote=$bytes_sent. Real bytes sent = $real_b\n"
+	unless $bytes_sent == $real_b;
+}
+
+sub test_syswrite_noheader {
+    print STDERR "********* This is not a real error. Ignore. *********\n";
+    my $msg = "1234WRITEmethod";
+    syswrite STDOUT, $msg, 5, 4;
+}
+
+
+
+
 

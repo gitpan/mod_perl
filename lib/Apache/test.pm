@@ -1,14 +1,15 @@
 package Apache::test;
 
 use strict;
-use vars qw(@EXPORT $USE_THREAD $USE_SFIO $PERL_DIR);
+use vars qw(@EXPORT $USE_THREAD $USE_SFIO $PERL_DIR @EXPORT_OK);
 use Exporter ();
 use Config;
 use FileHandle ();
 *import = \&Exporter::import;
 
-@EXPORT = qw(test fetch simple_fetch have_module skip_test 
+@EXPORT = qw(test fetch simple_fetch have_module skip_test
 	     $USE_THREAD $USE_SFIO $PERL_DIR WIN32 grab run_test); 
+@EXPORT_OK = qw(have_httpd);
 
 BEGIN { 
     if(not $ENV{MOD_PERL}) {
@@ -86,14 +87,15 @@ EOF
 
 sub _ask {
     # Just a function for asking the user questions
-    my ($prompt, $default, $mustfind) = @_;
+    my ($prompt, $default, $mustfind, $canskip) = @_;
 
+    my $skip = defined $canskip ? " ('$canskip' to skip)" : '';
     my $response;
     do {
-	print "$prompt [$default]: ";
+	print "$prompt [$default]$skip: ";
 	chomp($response = <STDIN>);
 	$response ||= $default;
-    } until (!$mustfind || (-e $response || !print("$response not found\n")));
+    } until (!$mustfind || ($response eq $canskip) || (-e $response || !print("$response not found\n")));
 
     return $response;
 }
@@ -108,10 +110,16 @@ sub get_test_params {
     
     my $httpd = $ENV{'APACHE'} || which('apache') || which('httpd') || '/usr/lib/httpd/httpd';
 
-    $httpd = _ask("\n", $httpd, 1);
+    $httpd = _ask("\n", $httpd, 1, '!');
+    if ($httpd eq '!') {
+	print "Skipping.\n";
+	return;
+    }
     system "$Config{lns} $httpd t/httpd";
 
-    if (lc _ask("Search existing config file for dynamic module dependencies?", 'n') eq 'y') {
+    # Default: search for dynamic dependencies if mod_so is present, don't bother otherwise.
+    my $default = (`t/httpd -l` =~ /mod_so\.c/ ? 'y' : 'n');
+    if (lc _ask("Search existing config file for dynamic module dependencies?", $default) eq 'y') {
 	my %compiled;
 	for (`t/httpd -V`) {
 	    if (/([\w]+)="(.*)"/) {
@@ -138,55 +146,62 @@ sub get_test_params {
 }
 
 sub _read_existing_conf {
-    # Returns some config text 
-    shift;
-    my ($server_conf) = @_;
-    
+    # Returns some "(Add|Load)Module" config lines, generated from the
+    # existing config file and a few must-have modules.
+    my ($self, $server_conf) = @_;
     
     open SERVER_CONF, $server_conf or die "Couldn't open $server_conf: $!";
-    my @lines = grep {!m/^\s*#/} <SERVER_CONF>;
+    my @lines = grep {!m/^\s*\#/} <SERVER_CONF>;
     close SERVER_CONF;
     
     my @modules       =   grep /^\s*(Add|Load)Module/, @lines;
     my ($server_root) = (map /^\s*ServerRoot\s*(\S+)/, @lines);
+    $server_root =~ s/^"//;
+    $server_root =~ s/"$//;
 
     # Rewrite all modules to load from an absolute path.
     foreach (@modules) {
 	s!(\s)([^/\s]\S+/)!$1$server_root/$2!;
     }
     
-    # Directories where apache DSOs live.
-    my (@module_dirs) = map {m,(/\S*/),} @modules;
-    
-    # Have to make sure that dir, autoindex and perl are loaded.
-    my @required  = qw(dir autoindex perl);
-    
-    my @l = `t/httpd -l`;
-    my @compiled_in = map /^\s*(\S+)/, @l[1..@l-2];
+    my $static_mods = $self->static_modules('t/httpd');
     
     my @load;
-    foreach my $module (@required) {
-	if (!grep /$module/i, @compiled_in, @modules) {
+    # Have to make sure that dir, autoindex and perl are loaded.
+    foreach my $module (qw(dir autoindex perl)) {
+       unless ($static_mods->{"mod_$module"} or grep /$module/i, @modules) {
+           warn "Will attempt to load mod_$module dynamically.\n";
 	    push @load, $module;
 	}
     }
+    
+    # Directories where apache DSOs live.
+    my @module_dirs = map {m,(/\S*/),} @modules;
     
     # Finally compute the directives to load modules that need to be loaded.
  MODULE:
     foreach my $module (@load) {
 	foreach my $module_dir (@module_dirs) {
-	    if (-e "$module_dir/mod_$module.so") {
-		push @modules, "LoadModule ${module}_module $module_dir/mod_$module.so\n"; next MODULE;
-	    } elsif (-e "$module_dir/lib$module.so") {
-		push @modules, "LoadModule ${module}_module $module_dir/lib$module.so\n"; next MODULE;
-	    } elsif (-e "$module_dir/ApacheModule\u$module.dll") {
-		push @modules, "LoadModule ${module}_module $module_dir/ApacheModule\u$module.dll\n"; next MODULE;
+           foreach my $filename ("mod_$module.so", "lib$module.so", "ApacheModule\u$module.dll") {
+               if (-e "$module_dir/$filename") {
+                   push @modules, "LoadModule ${module}_module $module_dir/$filename\n"; next MODULE;
+               }
 	    }
 	}
+       warn "Warning: couldn't find anything to load for 'mod_$module'.\n";
     }
-		      
-    print "found the following modules: \n@modules";
+    
+    print "Adding the following dynamic config lines: \n@modules";
     return join '', @modules;
+}
+
+sub static_modules {
+    # Returns a hashref whose keys are each of the modules compiled
+    # statically into the given httpd binary.
+    my ($self, $httpd) = @_;
+
+    my @l = `$httpd -l`;
+    return {map {lc($_) => 1} map /(\S+)\.c/, @l};
 }
 
 # Find an executable in the PATH.
@@ -303,6 +318,10 @@ sub have_module {
 sub skip_test {
     print "1..0\n";
     exit;
+}
+
+sub have_httpd {
+    return -e 't/httpd';
 }
 
 sub run {
@@ -509,7 +528,9 @@ Apache::Test - Facilitates testing of Apache::* modules
  *MY::test = sub { Apache::test->MM_test(%params) };
 
  # In t/*.t script (or test.pl)
- (Some methods of Doug's that I haven't reviewed or documented yet)
+ use Apache::test qw(skip_test have_httpd);
+ skip_test unless have_httpd;
+ (Some more methods of Doug's that I haven't reviewed or documented yet)
 
 =head1 DESCRIPTION
 
@@ -628,6 +649,14 @@ In a scalar context, fetch() returns the content of the web server's
 response.  In a list context, fetch() returns the content and the
 HTTP::Response object itself.  This can be handy if you need to check
 the response headers, or the HTTP return code, or whatever.
+
+=head2 static_modules
+
+ Example: $mods = Apache::test->static_modules('/path/to/httpd');
+
+This method returns a hashref whose keys are all the modules
+statically compiled into the given httpd binary.  The corresponding
+values are all 1.
 
 =head1 EXAMPLES
 
