@@ -39,6 +39,14 @@ type check, fixup and logger stages of a request.
 The mod_perl FAQ is maintained by Frank Cringle <fdc@cliwe.ping.de>:
 http://www.ping.de/~fdc/mod_perl/
 
+Mike Stok <mike@stok.co.uk> maintains mirrors the mod_perl FAQ at
+
+  http://www.stok.co.uk/~mike/mod_perl/
+
+and
+
+  http://www.tiac.net/users/stok/mod_perl/
+
 =head1 Apache/Perl API
 
 See 'perldoc Apache' for info on how to use the Perl-Apache API.
@@ -66,10 +74,24 @@ Apache::Registry module.  The file must exist and be executable, in addition,
 'Options ExecCGI' must be turned on.
 See the Apache::Registry module for details.
 
+If you wish to have mod_perl execute scripts in any location based on
+file extension, use a configuration like so:
+
+ <Files *.pl>
+ SetHandler perl-script
+ PerlHandler Apache::Registry
+ Options ExecCGI
+ </Files>
+
 By default, mod_perl does not send any headers by itself, however, you
 may wish to change this:
 
     PerlSendHeader On	
+
+PerlSendHeader will not send a terminating newline, your script must
+send that itself, e.g.:
+
+ print "Content-type: text/html\n\n";
 
 With the recommended configuration, these options and Perl version
 5.003_93 or higher (or 5.003_xx version with sfio), scripts running
@@ -266,8 +288,11 @@ Sybase users C<Apache::Sybase::DBlib>.  These modules hide the
 peculiar code example above.  In addition, different scripts may share
 a connection, minimizing resource consumption.  Example:
 
+ #httpd.conf has
+ # PerlModule Apache::DBI
+ #DBI scripts look exactly as they do under CGI
  use strict;
- my $dbh = Apache::DBI->connect(...);
+ my $dbh = DBI->connect(...);
 
 Although B<$dbh> shown here will go out of scope when the script ends,
 the Apache::DBI module's reference to it does not, keep the connection
@@ -586,6 +611,11 @@ mod_perl's Makefile.PL script can take care of this for you as well:
 If you're interested in sprinkling Perl code inside your HTML
 documents, you'll also want to look at the Apache::Embperl,
 Apache::ePerl and Apache::SSI modules. 
+
+=head1 BENCHMARKING
+
+How much faster is mod_perl that CGI?  There are many ways to
+benchmark the two, see the C<benchmark/> directory for some examples.
 
 =head1 WARNINGS
 

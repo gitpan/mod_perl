@@ -16,6 +16,53 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.00b1
+
+turning off $^W in Apache::Registry when using Cwd to avoid
+'use of uninitialized variable' warning
+
+added Apache::DESTROY to shutup AutoLoader compliants spotted by Tim Newsome 
+
+Constants.pm:
+-added constant for DONE (included with export tag ':common')
+-removed constants for DYNAMIC_MODULE_LIMIT, HUGE_STRING_LEN,
+ MAX_HEADERS, MAX_STRING_LEN, METHODS
+
+added benchmark/ directory with benchmarking examples
+
+added pointers to Mike Stok's FAQ mirrors
+
+added short-n-simple cgi_to_mod_perl document
+
+fixed various Makefile.PL w/Stronghold bugs spotted Vivek Khera and Ted Corning
+- PERL_SSI=1 will work (and add -DAPACHE_SSL)
+- Makefile.tmpl is fixed up so mod_perl/x.xx is added to Server:
+- 'make test' will pause (sleep 2) between starting httpsd and running the tests
+
+swap link order of Makefile.tmpl for Stronghold, regardless of version,
+thanks to Ted Corning
+
+perl_clear_env() will now leave $ENV{TZ} in place to 
+cure bug with hpux 9.04 spotted and suggested fix from
+1Lt. Samuel S. Tai 
+
+Apache::Registry will now 'chdir dirname $r->filename' before the 
+script/subroutine is compiled so 'use Foo' can find Foo.pm in '.'
+bug spotted by Janne Himanka
+
+win32 port:
+-added INSTALL.win32
+-added src/modules/perl/mod_perl.mak
+-tweaked Makefile.PL:
+  -does not try to build httpd 
+  -generates perlxsi.c, Apache.c, Constants.c (since we use mod_perl.mak)
+-Apache::Registry does not test '-x $filename' if $Is_Win32 
+-wrap callbacks in a mutex lock/unlock
+
+applied patch from Eric Bartley to fix Apache::Include
+
+change Apache::Registry behavior back to returing $r->status instead of OK
+
 =item 0.99
 
 added DO_HTTPD option to avoid configuration prompts, suggested by

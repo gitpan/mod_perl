@@ -7,8 +7,8 @@ use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.32 1997/06/12 00:17:41 dougm Exp $
-$VERSION = (qw$Revision: 1.32 $)[1];
+#$Id: Registry.pm,v 1.33 1997/06/30 02:19:14 dougm Exp $
+$VERSION = (qw$Revision: 1.33 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -17,6 +17,7 @@ $Debug ||= 0;
 Apache->module('Apache::Debug') if $Debug;
 
 my(@cleanup);
+my $Is_Win32 = $^O eq "MSWin32";
 
 sub handler {
     my($r) = @_;
@@ -36,7 +37,7 @@ sub handler {
 	    $r->log_reason("attempt to invoke directory as script", $filename);
 	    return FORBIDDEN;
 	}
-	unless (-x _) {
+	unless ($Is_Win32 or -x _) {
 	    $r->log_reason("file permissions deny server execution",
 			   $filename);
 	    return FORBIDDEN;
@@ -88,6 +89,9 @@ sub handler {
             $r->log_error("Apache::Registry::handler eval-ing") if $Debug & 4;
  	    undef &{"$package\::handler"} unless $Debug & 4; #avoid warnings
 
+	    my $cwd = fastcwd;
+	    chdir dirname $r->filename;
+
 	    my $eval = join(
 			    '',
 			    'package ',
@@ -114,10 +118,11 @@ sub handler {
 	    $Apache::Registry->{$package}{mtime} = $mtime;
 	}
 
-	my $cwd = fastcwd;
-	chdir dirname $r->filename;
 	eval {$package->handler;};
-	chdir $cwd;
+	{
+	    local $^W = 0; #shutup Cwd.pm
+	    chdir $cwd;
+	}
 	$^W = $oldwarn;
 
 	my $err = $@;
@@ -136,7 +141,7 @@ sub handler {
 	for (@cleanup) { &{$_}($r) }
 	@cleanup = ();
 
-	return OK;
+	return $r->status;
     } else {
 	return NOT_FOUND unless $Debug & 2;
 	return Apache::Debug::dump($r, NOT_FOUND);
@@ -199,6 +204,7 @@ Apache::Registry - Run unaltered CGI scrips under mod_perl
  <Location /perl>
  SetHandler perl-script
  PerlHandler Apache::Registry
+ Options ExecCGI 
  ...
  </Directory>
 

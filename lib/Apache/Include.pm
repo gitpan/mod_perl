@@ -1,4 +1,5 @@
 package Apache::Include;
+use Apache::Constants ':common';
 use Apache::Registry ();
 
 $VERSION = "1.00";
@@ -11,6 +12,7 @@ sub handler {
     $r->translate_name; 
     Apache::Registry::handler($r);
     $r->uri($uri); $r->filename($fname); #reset
+    OK;
 }
 
 1;

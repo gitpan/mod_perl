@@ -44,6 +44,12 @@ char *name;
 #else
 	    goto not_there;
 #endif
+	if (strEQ(name, "DONE"))
+#ifdef DONE
+	    return DONE;
+#else
+	    goto not_there;
+#endif
 	if (strEQ(name, "DYNAMIC_MODULE_LIMIT"))
 #ifdef DYNAMIC_MODULE_LIMIT
 	    return DYNAMIC_MODULE_LIMIT;

@@ -3,11 +3,13 @@ Constants/Constants.pm
 Constants/Makefile.PL
 FileHandle.patch
 INSTALL
+INSTALL.win32
 MANIFEST
 Makefile.PL
 README
 apache-modlist.html
 mod_perl.pod
+cgi_to_mod_perl.pod
 eg/perl_sections.txt
 eg/cgi-pm.pl
 eg/file_upload.pl
@@ -31,6 +33,7 @@ src/modules/perl/config.c
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/Makefile
+src/modules/perl/mod_perl.mak
 t/report.PL
 t/README
 t/TEST
@@ -61,3 +64,5 @@ t/docs/LoadClass.pm
 t/net/hooks.t
 t/net/perl/hooks.pl
 t/net/perl/api.pl
+benchmark/lwp-simple.pod
+benchmark/stopwatch.pod

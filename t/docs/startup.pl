@@ -15,6 +15,7 @@ use ExtUtils::testlib;
 #for testing PERL_HANDLER_METHODS
 #see httpd.conf and t/docs/LoadClass.pm
 use lib './t/docs';
+require "blib.pl" if -e "./t/docs/blib.pl";
 
 sub MyClass::method ($$) {
     my($class, $r) = @_;  

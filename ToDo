@@ -42,8 +42,6 @@ find a good way to make Apache::exit override CORE::exit no matter where we are
 
 find good ways to decrease size of httpd (perl-runtime!)
 
-port to win32 (need apache there first of course!)
-
 more tests for the test suite
 
 add more examples

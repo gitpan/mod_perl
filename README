@@ -44,6 +44,20 @@ There's plenty more Apache/Perl software you might be interested in.
 The Apache/Perl module list keeps track of modules inside and outside
 the distribution, along with idea placeholders.  
 
+It is also possible to use Perl to configure your server (in
+*.conf files) with <Perl> sections.  This eases often complicated and
+cumbersome configuration of vitrual host and various resources.  Since
+any Perl code can be used in these sections, configuration info could
+be pulled in from an RDBMS with DBI or your favorite database package.
+
+While the output of mod_perl scripts can be included with Server Side
+Includes just as CGI scripts can, mod_perl's integration with
+mod_include gives an extra speed boost and allows Perl code to be
+directly inside SSI files. 
+
+See the `INSTALL' document for installing under unix and
+`INSTALL.win32' for installing under Win32.
+
 For more information see:
 http://www.perl.com/CPAN/modules/by-module/Apache/apache-modlist.html
 

@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.56 1997/06/12 00:17:41 dougm Exp $ */
+/* $Id: Apache.xs,v 1.57 1997/06/30 02:19:14 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -186,6 +186,14 @@ __exit(...)
 
     exit(sts);
 
+#shutup AutoLoader
+void 
+DESTROY(r)
+    Apache     r
+
+    CODE:
+    return;
+
 #httpd.h
      
 char *
@@ -233,6 +241,16 @@ unescape_url_info(url)
 
     OUTPUT:
     RETVAL
+
+#from mod_include.c
+
+void
+send_parsed_content(r, f)
+    Apache     r
+    FILE       *f
+
+    CODE:
+    send_parsed_content(f, r);
 
 #functions from http_main.c
 

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.59 1997/06/12 00:17:41 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.60 1997/06/30 02:19:14 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -60,6 +60,12 @@
 
 #define CORE_PRIVATE 
 #include "mod_perl.h"
+
+#ifdef MULTITHREAD
+void *mod_perl_mutex = &mod_perl_mutex;
+#else
+void *mod_perl_dummy_mutex = &mod_perl_dummy_mutex;
+#endif
 
 static IV mp_request_rec;
 static int seqno = 0;
@@ -178,6 +184,21 @@ int PERL_RUNNING (void)
     return (perl_is_running);
 }
 
+void perl_clear_env(void)
+{
+    char *key; 
+    I32 klen; 
+    SV *val;
+    HV *hv = (HV*)GvHV(envgv);
+
+    (void)hv_iterinit(hv); 
+    while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { 
+	if(strnEQ(key, "TZ", 2))
+	    continue;
+	(void)hv_delete(hv, key, klen, G_DISCARD);
+    }
+}
+
 void perl_startup (server_rec *s, pool *p)
 {
     char *argv[] = { NULL, NULL, NULL, NULL, NULL };
@@ -263,7 +284,7 @@ void perl_startup (server_rec *s, pool *p)
     }
     MP_TRACE(fprintf(stderr, "ok\n"));
 
-    perl_clear_env;
+    perl_clear_env();
     hv_store(PerlEnvHV, "GATEWAY_INTERFACE", 17, 
 	     newSVpv(PERL_GATEWAY_INTERFACE,0), 0);
 
@@ -317,6 +338,9 @@ void perl_startup (server_rec *s, pool *p)
     if(!stacked_handlers)
 	stacked_handlers = newHV();
 #endif 
+#ifdef MULTITHREAD
+    mod_perl_mutex = create_mutex(NULL);
+#endif
 }
 
 int mod_perl_sent_header(SV *self, int val)
@@ -466,7 +490,7 @@ int PERL_LOG_HOOK(request_rec *r)
 
 void mod_perl_end_cleanup(void *data)
 {
-    perl_clear_env;
+    perl_clear_env();
     av_undef(GvAV(incgv));
     SvREFCNT_dec(GvAV(incgv));
     GvAV(incgv) = Nullav;

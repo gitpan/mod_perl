@@ -47,10 +47,6 @@ typedef server_rec  * Apache__Server;
 #define HV_SvTAINTED_on(hv,key,klen) \
     SvTAINTED_on(*hv_fetch(hv, key, klen, 0)) 
 
-/* flush %ENV */
-#define perl_clear_env \
-      hv_clear(PerlEnvHV)
-
 #define perl_set_pid \
       if(!set_pid++) sv_setiv(GvSV(gv_fetchpv("$", TRUE, SVt_PV)), (I32)getpid())
 
@@ -86,6 +82,7 @@ typedef server_rec  * Apache__Server;
 #define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 1)
 
 #define PERL_CALLBACK(h,name) \
+acquire_mutex(mod_perl_mutex); \
 perl_set_pid; \
 status = perl_run_stacked_handlers(h, r, Nullav); \
 if((status != OK) && (status != DECLINED)) { \
@@ -95,6 +92,7 @@ else if(name != Nullav) { \
     MP_TRACE(fprintf(stderr, "running server configured stacked handlers...\n")); \
     status = perl_run_stacked_handlers(h, r, name); \
 } \
+release_mutex(mod_perl_mutex); \
 MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status))
 
 
@@ -108,9 +106,12 @@ MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status))
 
 #define PERL_CALLBACK(h,name) \
 if(name != NULL) { \
-    SV *sv = newSVpv(name,0); \
+    SV *sv; \
+    acquire_mutex(mod_perl_mutex); \
+    sv = newSVpv(name,0); \
     status = perl_call_handler(sv, r, Nullav); \
     SvREFCNT_dec(sv); \
+    release_mutex(mod_perl_mutex); \
     MP_TRACE(fprintf(stderr, "perl_call %s '%s' returned: %d\n", h,name,status)); \
 } \
 else { \
@@ -184,6 +185,21 @@ PERL_READ_CLIENT
            table_set (env_arr, "PATH", DEFAULT_PATH); \
            table_set (env_arr, "GATEWAY_INTERFACE", PERL_GATEWAY_INTERFACE); \
        }
+
+#ifdef MULTITHREAD
+extern void *mod_perl_mutex;
+#else
+extern void *mod_perl_dummy_mutex;
+#endif
+
+#ifndef MULTITHREAD_H
+typedef void mutex;
+#define MULTI_OK (0)
+#define create_mutex(name)	((mutex *)mod_perl_dummy_mutex)
+#define acquire_mutex(mutex_id)	((int)MULTI_OK)
+#define release_mutex(mutex_id)	((int)MULTI_OK)
+
+#endif
 
 /* on/off switches for callback hooks during request stages */
 

@@ -1,4 +1,12 @@
-BEGIN { require 5.003; } 
+BEGIN { 
+    $Is_Win32 = ($^O eq "MSWin32");
+    if($Is_Win32) {
+	require 5.004;
+    }
+    else {
+	require 5.003; 
+    } 
+}
 use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
@@ -7,15 +15,21 @@ use File::Path qw(mkpath rmtree);
 use Cwd;
 use File::Copy qw(cp);
 
-#version 1.5 that ships with 5.003 is broken!
-*cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
 
-$VERSION = "0.99";
+#version 1.5 that ships with 5.003 is broken!
+*cp = sub { 
+    system "cp @_";
+    for (@_) { -e $_ or die $! }
+} if $File::Copy::VERSION < 2.0;
+
+$VERSION = "1.00b1";
 
 use subs qw(_prompt iedit);
 
-report_setup();
-readline_setup();        
+unless ($Is_Win32) {
+    report_setup();
+    readline_setup();        
+}
 
 eval 'use Apache::MyConfig' ;
 
@@ -30,7 +44,7 @@ my %SSL = (
 );
 
 # Patch up the Makefiles we are going to use with Apache
-system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
+system $^X, "-pi~", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
             <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
 
 #soes yous can try out the zamples
@@ -123,6 +137,12 @@ if($ALL_HOOKS) {
     }
 }
 
+if($Is_Win32) {
+    $NO_HTTPD = 1;
+    win32_setup();
+} 
+
+unless ($NO_HTTPD) {
 foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 		  <../apache*/src>, <../stronghold*/src>, "../src", "./src") 
 {
@@ -154,6 +174,8 @@ unless (@adirs) {
 	    print "Can't stat $src_dir\n";
 	}
     }
+}
+
 }
 
 foreach $adir (@adirs) {
@@ -318,12 +340,12 @@ unless (-e "t/net/config.pl") {
     cp "t/net/config.pl.dist", "t/net/config.pl";
 }
 
-unless(-e "t/conf/httpd.conf") {
+unless($Is_Win32 or -e "t/conf/httpd.conf") {
     cp "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
 #    $User  = (getpwnam('nobody'))[0]  || getpwuid($>) || $>;
 #    $Group = (getgrnam('nogroup'))[0] || getgrgid($)) || $); 
-    $User  = getpwuid($>) || $>;
-    $Group = getgrgid($)) || $); 
+    $User  = $Is_Win32 ? "nobody" : (getpwuid($>) || $>);
+    $Group = $Is_Win32 ? "nogroup" : (getgrgid($)) || $)); 
 
     print STDERR "Will run tests as User: '$User' Group: '$Group'\n";
 
@@ -368,32 +390,29 @@ EOT
 close FH;
 
 #checking for LWP code, borrowed from LWP's own Makefile.PL :-)
-print "Checking for LWP::UserAgent...";
-eval {
-    require LWP::UserAgent;
-};
-if ($@) {
-    $no_lwp++;
-    $missing_modules++;
-    print "failed\n";
-    print <<EOT;
+unless ($Is_Win32) {
+    print "Checking for LWP::UserAgent...";
+    eval {
+	require LWP::UserAgent;
+    };
+    if ($@) {
+	$no_lwp++;
+	$missing_modules++;
+	print "failed\n";
+	print <<EOT;
 $@
 The libwww-perl library is needed to run the test suite.
 Installation of this library is recommended, but not required.   
 
 EOT
     sleep(2);  # Don't hurry too much
-} else {
-    print "ok\n";
+    } else {
+	print "ok\n";
+    }
 }
 
-eval {
-    require CGI;
-};
-if ($@) {
-
-}
-else {
+eval { require CGI; };
+if (not $@) {
     print "Checking CGI.pm VERSION.......";
     if($CGI::VERSION >= 2.35) {
 	print "ok\n";
@@ -403,6 +422,11 @@ else {
 	print "you need to upgrade CGI.pm from $CGI::VERSION to 2.35 or higher\n";
 	sleep(10);
     }
+}
+
+if($] < 5.003_01) {
+    eval { require ExtUtils::Embed };
+    die "ExtUtils::Embed not installed, cannot build mod_perl\nRead the PREREQUSITES section in INSTALL document!\nStop.\n" if $@;
 }
 
 print <<EOT if $missing_modules;
@@ -422,6 +446,14 @@ sub is_ssl {
 }
   
 sub write_extra_tests {
+    #ensure we can find blib/ 
+    local *FH;
+    open FH, ">t/docs/blib.pl";
+    print FH "use lib qw(\n", 
+    (map { "$PWD/$_\n" } qw(blib/lib blib/arch)),
+    ");\n1;\n";
+    close FH;
+
     return unless 
 	$callback_hooks{PERL_STACKED_HANDLERS} 
     and $callback_hooks{PERL_FIXUP};
@@ -545,6 +577,9 @@ start_httpd: test_pre_init
 	$(APACHE_SRC)/$(HTTPD) -X -d `pwd`/t & 
 	@echo httpd listening on port $(PORT)
 	@echo will write error_log to: /tmp/mod_perl_error_log
+	@echo "letting apache warm up...\c"
+	@sleep 2
+	@echo done
 
 run_tests:
 	$(FULLPERL) t/TEST $(TEST_VERBOSE)
@@ -592,6 +627,7 @@ sub httpd_version {
 		    return undef;
 		}
 		elsif($version >= 1.2) {
+		    $do_link_swap++ if is_ssl($dir);
 		    $can_dash_make{$dir}++;
 		    return "NONE";
 		}
@@ -626,11 +662,8 @@ sub setup_for_static {
 
     cp "Apache/typemap", $d;
 
-    for (qw(Constants)) {
-	cp "${_}/${_}.xs", $d;
-    }
-    for (qw(Apache)) {
-	rename "${_}/${_}.xs", "${_}/${_}.xs.disabled";
+    for (qw(Apache Constants)) {
+	rename "${_}/${_}.xs", "${_}/${_}.xs.disabled" if -e "${_}/${_}.xs";
     }
 
     iedit $mf, "s/^#STATIC_/STATIC_/";
@@ -640,13 +673,13 @@ sub readline_setup {
     eval 'use Term::ReadLine' ;
 
     if ($@ eq '') {
-	my $term = new Term::ReadLine 'mod_perl install';
+	$::term = new Term::ReadLine 'mod_perl install';
 	
 	eval {
 	    sub main::_prompt {
 		my ($prompt, $default) = @_ ;
 		
-		$_ = $term -> readline ("$prompt [$default] ") ;
+		$_ = $::term -> readline ("$prompt [$default] ") ;
 		if (!/^\s*$/) {
 		    s/\s+$//;
 		    return $_ ;
@@ -677,15 +710,14 @@ EOT
 sub conf_fixup {
     my($mf, $cfg) = @_;
 
-    if ($ADD_VERSION and not is_ssl()) {
-	my $inc;
-	$inc = " `$^X -MExtUtils::Embed -e ccopts` -I. -DUSE_PERL_SSI" if $PERL_SSI; 
-	iedit $cfg,
-	      q{next unless /EXTRA_CFLAGS\s*=/;}.
-	      q{next if /mod_perl/; chomp; }.
-		  qq{\$_ .= q| $inc -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n|;};
-		
-    }
+    my $inc;
+    $inc = qq{-DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\" } if $ADD_VERSION;
+    $inc .= " `$^X -MExtUtils::Embed -e ccopts` -I. -DUSE_PERL_SSI" if $PERL_SSI; 
+    $inc .= " -DAPACHE_SSL" if is_ssl() and $PERL_SSI;
+    iedit $cfg,
+    q{next unless /EXTRA_CFLAGS\s*=/;}.
+	q{next if /mod_perl/; chomp; }.
+	    qq{\$_ .= q| $inc\n|;};
 
     my $ldopts = "`$^X $PWD/src/modules/perl/ldopts $PERL_STATIC_EXTS`";
     iedit $cfg,
@@ -693,10 +725,14 @@ sub conf_fixup {
     q{next if /perl/; chomp;}.
     qq{\$_ .= q| $ldopts\n|;};
 
-    if(is_ssl() =~ /stronghold/i and $do_link_swap) {
-	warn "swapping link order in $mf for Stronghold\n";
-	my $repl = quotemeta('$(REGLIB) $(LIBS)');
-	iedit $mf, "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;";
+    if(is_ssl() =~ /stronghold/i) {
+	if($do_link_swap) {
+	    warn "swapping link order in $mf for Stronghold\n";
+	    my $repl = quotemeta('$(REGLIB) $(LIBS)');
+	    iedit $mf, "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;";
+	}
+	my $repl = q{AUX_CFLAGS='\$(CFLAGS)'};
+	iedit $mf, qq{s/AUX_CFLAGS="..CFLAGS."/$repl/};
     }
 
     open(CONF, $cfg) || die "Can't open $cfg: $!";
@@ -749,4 +785,17 @@ sub iedit {
     my $file = shift;
     #print STDERR "-e @_\n";
     system $^X, "-pi~", "-e", "@_", $file;
+}
+
+sub win32_setup {
+    my $d = "src/modules/perl";
+    cp "Apache/typemap", $d;
+    chdir $d;
+    system "$^X -MExtUtils::Embed -e xsinit -- -std Apache Apache::Constants $PERL_STATIC_EXTS";
+    my $lib = $Config{privlibexp};
+    for (qw(Constants Apache)) {    
+        system "$^X $lib/ExtUtils/xsubpp -typemap $lib/ExtUtils/typemap $_.xs > $_.c";
+
+    }
+    chdir "../../../";
 }

@@ -1,3 +1,8 @@
+use File::Copy qw(cp);
+
+
+#version 1.5 that ships with 5.003 is broken!
+*cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
 
 use ExtUtils::testlib;
 BEGIN { require "net/config.pl"; }
@@ -6,9 +11,15 @@ require LWP::UserAgent;
 #first one queries httpd for enabled hooks, 
 #generating a hook::handler() for each and writing t/docs/.htaccess
 #next request invokes each handler, each appending to t/docs/hooks.txt
+my $stacked_test = -d "../docs/stacked" or -d "./docs/stacked";
+if($stacked_test) {
+    push @urls, qw(/stacked/test.html) ;
+    for (qw(.. .)) {
+	cp "$_/docs/LoadClass.pm", "../$_/blib/lib" if -e "$_/docs/LoadClass.pm";
+    }
+}    
+
 @urls = ("$net::perldir/hooks.pl", "/test.html");
-push @urls, qw(/stacked/test.html) if 
-    -d "../docs/stacked" or -d "./docs/stacked";
 
 my $ua = new LWP::UserAgent;    # create a useragent to test
 

@@ -1,0 +1,79 @@
+=head1 NAME
+
+INSTALL.win32 - Apache mod_perl installation instructions for Win32
+
+=head1 DESCRIPTION
+
+How to build, test, configure and install mod_perl under Win32
+
+=head1 PREREQUSITES
+
+=over 3
+
+Apache version 1.3-dev or higher and Perl 5.004 or higher.
+
+mod_perl will _not_ work with Activeware's port, only with the "official"
+Perl, available from: http://www.perl.com/CPAN/src/5.0/latest.tar.gz
+
+=back
+
+=head1 Configuring and building under Win32
+
+=over 3
+
+=item Setup the Perl side
+
+run 'perl Makefile.PL'
+run 'nmake install'
+
+This will install the Perl side of mod_perl and setup files for the library build.
+
+=item Create a new project
+
+Using MS developer studio, 
+select "File -> Open Workspace ...", 
+select "Files of type [Makefiles (*.mak)]"
+browse and open mod_perl-x.xx/src/modules/perl/mod_perl.mak
+
+=item Settings
+
+select "Tools -> Options -> Directories"
+
+select "Show directories for: [Include files]"
+
+You'll need to add the following paths:
+C:\apache_x.xx\src
+C:\apache_x.xx\src\regex
+C:\perl\lib\Core
+
+select "Build -> Build mod_perl.lib"
+
+(You may see some harmless warnings)
+
+=item Apache setup
+
+Open the apache workspace
+
+select "Insert -> Files into Project"
+
+browse and select C:\...\mod_perl-x.xx\src\modules\perl\Release\mod_perl.lib
+
+select "Insert -> Files into Project"
+
+browse and select C:\perl\lib\Core\perl.lib
+
+select "Build -> Settings ..." and add:
+
+ /nodefaultlib:"LIBC"
+
+edit modules.c, adding:
+
+  extern module perl_module;
+
+and and '&perl_module,' to both prelinked_modules[] and preloaded_modules[] 
+ 
+select "Build -> Build apache.exe"
+
+Be sure that 'C:\perl\bin' is in your path so apache can find perl.dll
+
+=back

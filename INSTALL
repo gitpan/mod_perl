@@ -10,13 +10,15 @@ How to build, test, configure and install mod_perl
 
 =over 3
 
-Apache version 1.1.x or 1.2b9+ 
+Apache version 1.1.x or 1.2.0+ 
 
 Perl version 5.003 or higher
 
 If you do not have Perl version 5.003_01 or higher,
 fetch and install ExtUtils::Embed from CPAN 
-<URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.10.tar.gz>
+<URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.12.tar.gz>
+
+Win32 users, see INSTALL.win32
 
 =back
 
@@ -38,7 +40,7 @@ When asked:
 
    "Configure mod_perl with ../apache_xxx ?"
 
-answering 'y' only means there is where we can find src/*.h
+answering 'y' just tells Makefile.PL where we can find src/*.h
 
 When asked:
 
