@@ -1,0 +1,208 @@
+=head1 NAME
+
+mod_perl 1.x versus mod_perl 2.x compatibility issues
+
+=head1 Description
+
+FIXME: DESCRIPTION
+
+=head1 Code Porting from 1.x to 2.x
+
+mod_perl 2.x is trying hard to be back compatible with mod_perl
+1.x. However some things (mostly APIs) have been changed. In order to
+gain a complete compatibilty with 1.x while running under 2.x, you
+should load the compatibility module as early as possible:
+
+  use Apache::compat;
+
+at the server startup. And unless there are forgotten things or bugs,
+your code should work without any changes under 2.x series.
+
+However, unless you want to keep the 1.x compatibility, you should try
+to remove the compatibility layer and adjust your code to work under
+2.x without it. You want to do it mainly for the performance
+improvement.
+
+This document explains what APIs have changed and what new APIs should
+be used instead.
+
+=head1 Configuration Directives
+
+To migrate the configuration files to the 2.x syntax, you may need to
+do certain adjustments if you use any of the configuration directives
+listed in the following sections.
+
+Remember that if you use any of the new directives you configuration
+won't work anymore with mod_perl 1.x.
+
+=head2 PerlHandler
+
+Replaced with C<PerlResponseHandler>.
+
+=head2 PerlSendHeader
+
+Replaced with C<PerlOptions +/-ParseHeaders> directive.
+
+  PerlSendHeader On  => Options +ParseHeaders
+  PerlSendHeader Off => Options -ParseHeaders
+
+=head2 PerlSetupEnv
+
+Replaced with C<PerlOptions +/-SetupEnv> directive.
+
+  PerlSendHeader On  => Options +SetupEnv
+  PerlSendHeader Off => Options -SetupEnv
+
+=head2 PerlTaintCheck
+
+Now can be turned on with:
+
+  PerlSwitches -T
+
+The default is I<Off>. You cannot turn it I<Off> once it's turned
+I<On>.
+
+=head2 PerlWarn
+
+Now can be turned on with:
+
+  PerlSwitches -w
+
+
+
+
+
+=head1 Apache API
+
+To continue using Apache API from 1.x, load the compatibility module
+as early as possible:
+
+  use Apache::compat;
+
+at the server startup.
+
+=head2 Apache::gensym
+
+Since Perl 5.6.1 filehandlers are autovivified and there is no need
+for C<Apache::gensym()> function, since now it can be done with:
+
+  open my $fh, "foo" or die $!;
+
+The C function modperl_perl_gensym() is available for XS/C extension
+writers, though.
+
+=head1 Apache::File
+
+
+
+
+=head1 Apache::Util
+
+A few C<Apache::Util> functions have changed their interface.
+
+=head2 Apache::Util::size_string
+
+C<Apache::Util::size_string> has been replaced with
+C<APR::String::format_size>, which returns formatted strings of only 4
+characters long. See the C<APR::String> manpage for more information.
+
+
+
+
+
+=head1 Miscellaneous
+
+=head2 Method Handlers
+
+In mod_perl 1.x the method handlers could be specified by using the
+C<($$)> prototype:
+
+  package Bird;
+  @ISA = qw(Eagle);
+  
+  sub handler ($$) {
+      my($class, $r) = @_;
+      ...;
+  }
+
+Starting from Perl version 5.6 the subroutine attributes are used in
+place of subroutine prototypes:
+
+  package Bird;
+  @ISA = qw(Eagle);
+  
+  sub handler : method {
+      my($class, $r) = @_;
+      ...;
+  }
+
+see the I<attributes> manpage for additional information on subroutine
+attributes.
+
+mod_perl 2.0 doesn't support the C<($$)> prototypes, mainly because
+several callbacks in 2.0 have more arguments than C<$r>, so the
+C<($$)> prototype doesn't make sense anymore. Therefore if you want
+your code to work with both mod_perl generations, you should use the
+subroutine attributes.
+
+
+=head1 Apache::Registry and Apache::PerlRun and Other mod_cgi Emulators
+
+C<Apache::Registry> and C<Apache::PerlRun> now live in the
+C<ModPerl::> namespace to avoid collisions with the versions from 1.x.
+
+To run the 1.x C<Apache::Registry> you have to load C<Apache::compat>:
+
+  file:startup.pl:
+  ----------------
+  use Apache::compat ();
+  use lib ...; #or something to find 1.xx Apache::Registry
+
+then in I<httpd.conf>:
+
+  Alias /perl /path/to/perl/scripts
+  <Location /perl>
+     Options +ExecCGI
+     SetHandler modperl
+     PerlResponseHandler Apache::Registry
+  </Location>
+
+Notice that C<Apache::compat> has to be loaded before C<CGI.pm> if the
+latter module is used.
+
+META: complete
+
+
+=head1 Apache::StatINC
+
+C<Apache::StatINC> has been replaced by C<Apache::Reload>.
+
+
+
+=head1 Maintainers
+
+Maintainer is the person(s) you should contact with updates,
+corrections and patches.
+
+=over
+
+=item *
+
+Stas Bekman E<lt>stas (at) stason.orgE<gt>
+
+=back
+
+=head1 Authors
+
+=over
+
+=item *
+
+Stas Bekman E<lt>stas (at) stason.orgE<gt>
+
+=back
+
+Only the major authors are listed above. For contributors see the
+Changes file.
+
+=cut
