@@ -13,9 +13,9 @@ use DynaLoader ();
 *import = \&Exporter::import;
 
 @EXPORT_OK = qw(escape_html escape_uri unescape_uri unescape_uri_info 
-		parsedate ht_time size_string);
+		parsedate ht_time size_string validate_password);
 %EXPORT_TAGS = (all => \@EXPORT_OK);
-$VERSION = '1.01';
+$VERSION = '1.02';
 
 __PACKAGE__->mod_perl::boot($VERSION);
 
@@ -75,6 +75,31 @@ escape sequence and returns the result.
 
  my $esc = Apache::Util::escape_uri($uri);
 
+=item unescape_uri
+
+This function decodes all %XX hex escape sequences in the given URI.
+
+ my $unescaped = Apache::Util::unescape_uri($safe_uri); 
+
+=item unescape_uri_info
+
+This function is similar to unescape_uri() but is specialized to remove
+escape sequences from the query string portion of the URI. The main
+difference is that it translates the ``+'' character into spaces  as well
+as recognizing and translating the hex escapes.
+
+Example:
+
+ $string = $r->uri->query;
+ my %data = map { Apache::Util::unescape_uri_info($_) }
+              split /[=&]/, $string, -1;
+
+ This would correctly translate the query string
+ ``name=Fred+Flintstone&town=Bedrock'' into the hash: 
+
+ data => 'Fred Flintstone',
+ town => 'Bedrock'
+
 =item parsedate
 
 Parses an HTTP date in one of three standard forms:
@@ -100,6 +125,29 @@ Examples:
  my $str = Apache::Util::ht_time(time, "%d %b %Y %T %Z");
 
  my $str = Apache::Util::ht_time(time, "%d %b %Y %T %Z", 0);
+
+=item size_string
+
+Converts the given file size into a formatted string. The size
+given in the string will be in units of bytes, kilobytes, or
+megabytes, depending on the size.
+
+ my $size = Apache::Util::size_string -s $r->finfo;
+
+=item validate_password
+
+Validate a plaintext password against a smashed one.  Use either
+crypt() (if available), ap_MD5Encode() or ap_SHA1Encode depending 
+upon the format of the smashed input password.
+
+Returns true if they match, false otherwise.
+
+ if (Apache::Util::validate_password("slipknot", "aXYx4GnaCrDQc")) {
+     print "password match\n";
+ }
+ else {
+     print "password mismatch\n";
+ }
 
 =back
 

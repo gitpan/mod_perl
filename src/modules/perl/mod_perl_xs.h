@@ -3,7 +3,7 @@
 #define get_set_PVp(thing,p) \
     RETVAL = (char*)thing; \
     if(items > 1) \
-        thing = (char*)(ST(1) == &sv_undef) ? NULL : pstrdup(p, SvPV(ST(1),na))
+        thing = (char*)((ST(1) == &sv_undef) ? NULL : pstrdup(p, SvPV(ST(1),na)))
 
 #define get_set_PV(thing) \
     get_set_PVp(thing,r->pool)
@@ -15,7 +15,7 @@
 
 #define TABLE_GET_SET(table, do_taint) \
 if(key == NULL) { \
-    ST(0) = mod_perl_tie_table(table); \
+    ST(0) = table ? mod_perl_tie_table(table) : &sv_undef; \
     XSRETURN(1); \
 } \
 else { \

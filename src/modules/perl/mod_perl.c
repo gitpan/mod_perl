@@ -82,54 +82,56 @@ static HV *stacked_handlers = Nullhv;
 CPerlObj *pPerl;
 #endif
 
+typedef const char* (*crft)(); /* command_req_func_t */
+
 static command_rec perl_cmds[] = {
 #ifdef PERL_SECTIONS
-    { "<Perl>", perl_section, NULL, SECTION_ALLOWED, RAW_ARGS, "Perl code" },
-    { "</Perl>", perl_end_section, NULL, SECTION_ALLOWED, NO_ARGS, "End Perl code" },
+    { "<Perl>", (crft) perl_section, NULL, SECTION_ALLOWED, RAW_ARGS, "Perl code" },
+    { "</Perl>", (crft) perl_end_section, NULL, SECTION_ALLOWED, NO_ARGS, "End Perl code" },
 #endif
-    { "=pod", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "Start of POD" },
-    { "=back", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "End of =over" },
-    { "=cut", perl_pod_end_section, NULL, OR_ALL, NO_ARGS, "End of POD" },
-    { "__END__", perl_config_END, NULL, OR_ALL, RAW_ARGS, "Stop reading config" },
-    { "PerlFreshRestart", perl_cmd_fresh_restart,
+    { "=pod", (crft) perl_pod_section, NULL, OR_ALL, RAW_ARGS, "Start of POD" },
+    { "=back", (crft) perl_pod_section, NULL, OR_ALL, RAW_ARGS, "End of =over" },
+    { "=cut", (crft) perl_pod_end_section, NULL, OR_ALL, NO_ARGS, "End of POD" },
+    { "__END__", (crft) perl_config_END, NULL, OR_ALL, RAW_ARGS, "Stop reading config" },
+    { "PerlFreshRestart", (crft) perl_cmd_fresh_restart,
       NULL,
       RSRC_CONF, FLAG, "Tell mod_perl to reload modules and flush Apache::Registry cache on restart" },
-    { "PerlTaintCheck", perl_cmd_tainting,
+    { "PerlTaintCheck", (crft) perl_cmd_tainting,
       NULL,
       RSRC_CONF, FLAG, "Turn on -T switch" },
 #ifdef PERL_SAFE_STARTUP
-    { "PerlOpmask", perl_cmd_opmask,
+    { "PerlOpmask", (crft) perl_cmd_opmask,
       NULL,
       RSRC_CONF, TAKE1, "Opmask File" },
 #endif
-    { "PerlWarn", perl_cmd_warn,
+    { "PerlWarn", (crft) perl_cmd_warn,
       NULL,
       RSRC_CONF, FLAG, "Turn on -w switch" },
-    { "PerlScript", perl_cmd_require,
+    { "PerlScript", (crft) perl_cmd_require,
       NULL,
       OR_ALL, ITERATE, "this directive is deprecated, use `PerlRequire'" },
-    { "PerlRequire", perl_cmd_require,
+    { "PerlRequire", (crft) perl_cmd_require,
       NULL,
       OR_ALL, ITERATE, "A Perl script name, pulled in via require" },
-    { "PerlModule", perl_cmd_module,
+    { "PerlModule", (crft) perl_cmd_module,
       NULL,
       OR_ALL, ITERATE, "List of Perl modules" },
-    { "PerlSetVar", perl_cmd_var,
+    { "PerlSetVar", (crft) perl_cmd_var,
       NULL,
       OR_ALL, TAKE2, "Perl config var and value" },
-    { "PerlSetEnv", perl_cmd_setenv,
+    { "PerlSetEnv", (crft) perl_cmd_setenv,
       NULL,
       OR_ALL, TAKE2, "Perl %ENV key and value" },
-    { "PerlPassEnv", perl_cmd_pass_env, 
+    { "PerlPassEnv", (crft) perl_cmd_pass_env, 
       NULL,
       RSRC_CONF, ITERATE, "pass environment variables to %ENV"},  
-    { "PerlSendHeader", perl_cmd_sendheader,
+    { "PerlSendHeader", (crft) perl_cmd_sendheader,
       NULL,
       OR_ALL, FLAG, "Tell mod_perl to parse and send HTTP headers" },
-    { "PerlSetupEnv", perl_cmd_env,
+    { "PerlSetupEnv", (crft) perl_cmd_env,
       NULL,
       OR_ALL, FLAG, "Tell mod_perl to setup %ENV by default" },
-    { "PerlHandler", perl_cmd_handler_handlers,
+    { "PerlHandler", (crft) perl_cmd_handler_handlers,
       NULL,
       OR_ALL, ITERATE, "the Perl handler routine name" },
 #ifdef PERL_TRANS
@@ -192,7 +194,7 @@ module MODULE_VAR_EXPORT perl_module = {
     perl_create_dir_config,    /* create per-directory config structure */
     perl_merge_dir_config,     /* merge per-directory config structures */
     perl_create_server_config, /* create per-server config structure */
-    NULL,                      /* merge per-server config structures */
+    perl_merge_server_config,  /* merge per-server config structures */
     perl_cmds,                 /* command table */
     perl_handlers,             /* handlers */
     PERL_TRANS_HOOK,           /* translate_handler */
@@ -269,7 +271,8 @@ void perl_shutdown (server_rec *s, pool *p)
     perl_run_endav("perl_shutdown"); 
 
     MP_TRACE_g(fprintf(stderr, 
-		     "destructing and freeing Perl interpreter..."));
+		     "destructing and freeing Perl interpreter (level=%d)...",
+	       perl_destruct_level));
 
     perl_util_cleanup();
 
@@ -302,11 +305,12 @@ void perl_shutdown (server_rec *s, pool *p)
 
 request_rec *mp_fake_request_rec(server_rec *s, pool *p, char *hook)
 {
-    request_rec *r = (request_rec *)palloc(p, sizeof(request_rec));
+    request_rec *r = (request_rec *)pcalloc(p, sizeof(request_rec));
     r->pool = p; 
     r->server = s;
     r->per_dir_config = NULL;
     r->uri = hook;
+    r->notes = NULL;
     return r;
 }
 
@@ -351,7 +355,7 @@ void perl_restart(server_rec *s, pool *p)
 #endif
 
     /* reload %INC */
-    perl_reload_inc();
+    perl_reload_inc(s, p);
 
     LEAVE;
 
@@ -383,8 +387,8 @@ static I32 scriptname_val(IV ix, SV* sv)
     request_rec *r = perl_request_rec(NULL);
     if(r) 
 	sv_setpv(sv, r->filename);
-    else if(strNE(SvPVX(GvSV(curcop->cop_filegv)), "-e"))
-	sv_setsv(sv, GvSV(curcop->cop_filegv));
+    else if(strNE(SvPVX(GvSV(CopFILEGV(curcop))), "-e"))
+	sv_setsv(sv, GvSV(CopFILEGV(curcop)));
     else {
 	SV *file = perl_eval_pv("(caller())[1]",TRUE);
 	sv_setsv(sv, file);
@@ -411,9 +415,55 @@ static void mod_perl_tie_scriptname(void)
     if(orig_inc) SvREFCNT_dec(orig_inc); \
     orig_inc = av_copy_array(GvAV(incgv))
 
-#if MODULE_MAGIC_NUMBER >= MMN_130
-static void mp_dso_unload(void *data) 
-{ 
+#define dl_librefs "DynaLoader::dl_librefs"
+#define dl_modules "DynaLoader::dl_modules"
+
+static void unload_xs_so(void)
+{
+    I32 i;
+    AV *librefs = perl_get_av(dl_librefs, FALSE);
+    AV *modules = perl_get_av(dl_modules, FALSE);
+
+    if (!librefs) {
+	MP_TRACE_g(fprintf(stderr, 
+			   "Could not get @%s for unloading.\n",
+			   dl_librefs));
+	return;
+    }
+	
+    for (i=0; i<=AvFILL(librefs); i++) {
+	void *handle;
+	SV *handle_sv = *av_fetch(librefs, i, FALSE);
+	SV *module_sv = *av_fetch(modules, i, FALSE);
+
+	if(!handle_sv) {
+	    MP_TRACE_g(fprintf(stderr, 
+			       "Could not fetch $%s[%d]!\n",
+			       dl_librefs, (int)i));
+	    continue;
+	}
+	handle = (void *)SvIV(handle_sv);
+
+	MP_TRACE_g(fprintf(stderr, "unload_xs_so: %s (0x%lx)\n",
+			   SvPVX(module_sv), (unsigned long)handle));
+	if (handle) {
+#ifdef _AIX
+	    /* make sure Perl's dlclose is used, instead of Apache's */
+	    dlclose(handle)
+#else
+	    ap_os_dso_unload(handle);
+#endif
+	}
+    }
+
+    av_clear(modules);
+    av_clear(librefs);
+}
+
+#if 0
+/* unload_xs_dso should obsolete this hack */
+static void cancel_dso_dlclose(void)
+{
     module *modp;
 
     if(!PERL_DSO_UNLOAD)
@@ -430,8 +480,14 @@ static void mp_dso_unload(void *data)
 	    modp->dynamic_load_handle = NULL;
 	}
     }
-} 
+}
 #endif
+
+static void mp_dso_unload(void *data) 
+{ 
+    unload_xs_so();
+    perl_shutdown(NULL, NULL);
+} 
 
 static void mp_server_notstarting(void *data) 
 {
@@ -499,7 +555,7 @@ void perl_module_init(server_rec *s, pool *p)
     ap_add_version_component(MOD_PERL_STRING_VERSION);
     if(PERL_RUNNING()) {
 	if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
-	    ap_add_version_component(form("Perl/%s", patchlevel));
+	    ap_add_version_component(form("Perl/%_", perl_get_sv("]",TRUE)));
 	}
     }
 #endif
@@ -509,7 +565,7 @@ void perl_module_init(server_rec *s, pool *p)
 void perl_startup (server_rec *s, pool *p)
 {
     char *argv[] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-    char **list, *dstr;
+    char **entries, *dstr;
     int status, i, argc=1;
     dPSRV(s);
     SV *pool_rv, *server_rv;
@@ -597,7 +653,11 @@ void perl_startup (server_rec *s, pool *p)
 # endif
 #endif
 
+#ifndef perl_init_i18nl10n
     perl_init_i18nl10n(1);
+#else
+    /* 5.6 calls during perl_construct() */
+#endif
 
     MP_TRACE_g(fprintf(stderr, "allocating perl interpreter..."));
     if((perl = perl_alloc()) == NULL) {
@@ -697,20 +757,20 @@ void perl_startup (server_rec *s, pool *p)
     ENTER_SAFE(s,p);
     MP_TRACE_g(mod_perl_dump_opmask());
 
-    list = (char **)cls->PerlRequire->elts;
+    entries = (char **)cls->PerlRequire->elts;
     for(i = 0; i < cls->PerlRequire->nelts; i++) {
-	if(perl_load_startup_script(s, p, list[i], TRUE) != OK) {
+	if(perl_load_startup_script(s, p, entries[i], TRUE) != OK) {
 	    fprintf(stderr, "Require of Perl file `%s' failed, exiting...\n", 
-		    list[i]);
+		    entries[i]);
 	    exit(1);
 	}
     }
 
-    list = (char **)cls->PerlModule->elts;
+    entries = (char **)cls->PerlModule->elts;
     for(i = 0; i < cls->PerlModule->nelts; i++) {
-	if(perl_require_module(list[i], s) != OK) {
+	if(perl_require_module(entries[i], s) != OK) {
 	    fprintf(stderr, "Can't load Perl module `%s', exiting...\n", 
-		    list[i]);
+		    entries[i]);
 	    exit(1);
 	}
     }
@@ -752,6 +812,7 @@ int perl_handler(request_rec *r)
     dPPREQ;
     dTHR;
     SV *nwvh = Nullsv;
+    GV *gv = gv_fetchpv("SIG", TRUE, SVt_PVHV);
 
     (void)acquire_mutex(mod_perl_mutex);
     
@@ -774,14 +835,12 @@ int perl_handler(request_rec *r)
     SAVETMPS;
 
     if((nwvh = ApachePerlRun_name_with_virtualhost())) {
-	if(!r->server->is_virtual) {
-	    SAVESPTR(nwvh);
-	    sv_setiv(nwvh, 0);
-	}
+	SAVESPTR(nwvh);
+	sv_setiv(nwvh, r->server->is_virtual);
     }
 
-    if (siggv) {
-	save_hptr(&GvHV(siggv)); 
+    if (gv) {
+	save_hptr(&GvHV(gv)); 
     }
 
     if (endav) {
@@ -1001,9 +1060,9 @@ static void per_request_cleanup(request_rec *r)
 	MP_TRACE_g(fprintf(stderr, 
 			   "mod_perl: restoring SIG%s (%d) handler from: 0x%lx to: 0x%lx\n",
 			   my_signame(sigs[i]->signo), (int)sigs[i]->signo,
-			   (unsigned long)Perl_rsignal_state(sigs[i]->signo),
+			   (unsigned long)rsignal_state(sigs[i]->signo),
 			   (unsigned long)sigs[i]->h));
-	Perl_rsignal(sigs[i]->signo, sigs[i]->h);
+	rsignal(sigs[i]->signo, sigs[i]->h);
     }
 }
 
@@ -1043,17 +1102,17 @@ void mod_perl_end_cleanup(void *data)
 
 #ifdef PERL_STACKED_HANDLERS
     /* reset Apache->push_handlers, but don't clear ExitHandler */
-#define CH_EXIT_KEY "PerlChildExitHandler", 20
+#define CH_EXIT_KEY "PerlChildExitHandler"
     {
 	SV *exith = Nullsv;
-	if(hv_exists(stacked_handlers, CH_EXIT_KEY)) {
-	    exith = *hv_fetch(stacked_handlers, CH_EXIT_KEY, FALSE);
+	if(hv_exists(stacked_handlers, CH_EXIT_KEY, 20)) {
+	    exith = *hv_fetch(stacked_handlers, CH_EXIT_KEY, 20, FALSE);
             /* inc the refcnt since hv_clear will dec it */
 	    ++SvREFCNT(exith);
 	}
 	hv_clear(stacked_handlers);
 	if(exith) 
-	    hv_store(stacked_handlers, CH_EXIT_KEY, exith, FALSE);
+	    hv_store(stacked_handlers, CH_EXIT_KEY, 20, exith, FALSE);
     }
 
 #endif
@@ -1269,15 +1328,6 @@ void perl_per_request_init(request_rec *r)
     else
 	MP_SENTHDR_on(cld);
 
-    /* SetEnv PERL5LIB */
-    if(!MP_INCPUSH(cld)) {
-	char *path = (char *)table_get(r->subprocess_env, "PERL5LIB");
-	if(path) {
-	    perl_incpush(path);
-	    MP_INCPUSH_on(cld);
-	}
-    }
-
     if(!cfg) {
 	cfg = perl_create_request_config(r->pool, r->server);
 	set_module_config(r->request_config, &perl_module, cfg);
@@ -1287,10 +1337,28 @@ void perl_per_request_init(request_rec *r)
 	cfg->setup_env = 0; /* just once per-request */
     }
 
-    /* PerlSetEnv */
-    mod_perl_dir_env(cld);
-
     if(callbacks_this_request++ > 0) return;
+
+    if (!r->main) {
+	/* so Apache->request will work before PerlHandler with CGI.pm
+	 * XXX: triggers core dump in subrequests, 
+	 * so just do in the main request for now
+	 */
+	(void)perl_request_rec(r);
+    }
+
+    /* PerlSetEnv */
+    mod_perl_dir_env(r, cld);
+
+    /* SetEnv PERL5LIB */
+    if (!MP_INCPUSH(cld)) {
+	char *path = (char *)table_get(r->subprocess_env, "PERL5LIB");
+
+	if (path) {
+	    perl_incpush(path);
+	    MP_INCPUSH_on(cld);
+	}
+    }
 
     {
 	dPSRV(r->server);
@@ -1334,7 +1402,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
     char *dispatcher = NULL;
 
     if(r->per_dir_config)
-	cld = get_module_config(r->per_dir_config, &perl_module);
+	cld = (perl_dir_config *) get_module_config(r->per_dir_config, &perl_module);
 
 #ifdef PERL_DISPATCH
     if(cld && (dispatcher = cld->PerlDispatchHandler)) {

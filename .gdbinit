@@ -141,7 +141,7 @@ define hvfetch
 end
 
 define hvINCval
-   set $hv = (((((XPVGV*)(incgv)->sv_any)->xgv_gp))->gp_hv)
+   set $hv = (((((XPVGV*)(PL_incgv)->sv_any)->xgv_gp))->gp_hv)
    set $klen = strlen($arg0)
    set $sv = *Perl_hv_fetch($hv, $arg0, $klen, 0)
    printf "%s = `%s'\n", $arg0, ((XPV*) ($sv)->sv_any )->xpv_pv
@@ -175,4 +175,19 @@ end
 define cluck
    set $sv = perl_eval_pv("Carp::cluck(); `tail '$Apache::ErrLog'`", 1)
    printf "%s\n", ((XPV*) ($sv)->sv_any )->xpv_pv
+end
+
+define longmess
+   set $sv = perl_eval_pv("Carp::longmess()", 1)
+   printf "%s\n", ((XPV*) ($sv)->sv_any )->xpv_pv
+end
+
+define shortmess
+   set $sv = perl_eval_pv("Carp::shortmess()", 1)
+   printf "%s\n", ((XPV*) ($sv)->sv_any )->xpv_pv
+end
+
+define perl_get_sv
+    set $sv = perl_get_sv($arg0, 0)
+    printf "%s\n", $sv ? ((XPV*) ((SV*)$sv)->sv_any)->xpv_pv : "undef"
 end

@@ -1,7 +1,18 @@
 #ifdef WIN32
 #define NO_PERL_CHILD_INIT
 #define NO_PERL_CHILD_EXIT
+#ifdef JW_PERL_OBJECT
+#include <winsock2.h>
+#include <malloc.h>
+#include <win32.h>
+#include <win32iop.h>
+#include <fcntl.h>		// For O_BINARY
+#include "EXTERN.h"
+#include "perl.h"
+#include <iperlsys.h>
+#else
 #include "dirent.h"
+#endif
 #endif
 
 #ifndef IS_MODULE
@@ -16,25 +27,7 @@
 #endif
 
 #ifdef _INCLUDE_APACHE_FIRST
-#include "httpd.h" 
-#include "http_config.h" 
-#include "http_protocol.h" 
-#include "http_log.h" 
-#include "http_main.h" 
-#include "http_core.h" 
-#include "http_request.h" 
-#include "util_script.h" 
-#include "http_conf_globals.h"
-#if defined(APACHE_SSL) || defined(MOD_SSL)
-#undef _
-#ifdef _config_h_
-#ifdef CAN_PROTOTYPE
-#define _(args) args
-#else
-#define _(args) ()
-#endif
-#endif
-#endif
+#include "apache_inc.h"
 #endif
 
 #include "EXTERN.h"
@@ -108,31 +101,19 @@
 #undef __attribute__
 
 #ifndef _INCLUDE_APACHE_FIRST
-#ifdef __cplusplus
-extern "C" {
+#include "apache_inc.h"
 #endif
-#include "httpd.h" 
-#include "http_config.h" 
-#include "http_protocol.h" 
-#include "http_log.h" 
-#include "http_main.h" 
-#include "http_core.h" 
-#include "http_request.h" 
-#include "util_script.h" 
-#include "http_conf_globals.h"
-#if defined(APACHE_SSL) || defined(MOD_SSL)
-#undef _
-#ifdef _config_h_
-#ifdef CAN_PROTOTYPE
-#define _(args) args
+
+#ifdef pTHX_
+#define PERL_IS_5_6
 #else
-#define _(args) ()
-#endif
-#endif
-#endif
-#ifdef __cplusplus
-}
-#endif
+#define pTHX_
+#define aTHXo_
+#define CopFILEGV(cop) cop->cop_filegv
+#define CopLINE(cop)   cop->cop_line
+#define CopLINE_set(c,l) (CopLINE(c) = (l))
+#define SAVECOPFILE(cop) SAVESPTR(CopFILEGV(curcop));
+#define SAVECOPLINE(cop) SAVEI16(CopLINE(cop))
 #endif
 
 #ifndef dTHR
@@ -149,6 +130,17 @@ extern "C" {
 
 #ifndef AvFILLp
 #define AvFILLp(av)	((XPVAV*)  SvANY(av))->xav_fill
+#endif
+
+#ifdef eval_pv
+#   ifndef perl_eval_pv
+#      define perl_eval_pv eval_pv
+#   endif
+#endif
+#ifdef eval_sv
+#   ifndef perl_eval_sv
+#      define perl_eval_sv eval_sv
+#   endif
 #endif
 
 #define MP_EXISTS_ERROR(k) \
@@ -182,10 +174,6 @@ hv_store(ERRHV, k, strlen(k), newSVsv(v), FALSE)
 
 #ifndef DO_INTERNAL_REDIRECT
 #define DO_INTERNAL_REDIRECT perl_get_sv("Apache::DoInternalRedirect", FALSE)
-#endif
-
-#ifdef PERL_RESTART_HANDLER
-#undef NO_PERL_RESTART
 #endif
 
 typedef struct {
@@ -275,9 +263,10 @@ mp_magic_setenv(key, val, 0)
 #define mp_setenv(key, val) \
 { \
     int klen = strlen(key); \
-    hv_store(GvHV(envgv), key, klen, newSVpv(val,0), FALSE); \
+    SV *sv = newSVpv(val,0); \
+    hv_store(GvHV(envgv), key, klen, sv, FALSE); \
     HV_SvTAINTED_on(GvHV(envgv), key, klen); \
-    my_setenv(key, val); \
+    my_setenv(key, SvPVX(sv)); \
 }
 
 #define mp_SetEnv(key, val) \
@@ -336,13 +325,13 @@ int dstatus = DECLINED; \
 int status = dstatus
 
 #define dPPREQ \
-   perl_request_config *cfg = get_module_config(r->request_config, &perl_module)
+   perl_request_config *cfg = (perl_request_config *)get_module_config(r->request_config, &perl_module)
 
 #define dPPDIR \
-   perl_dir_config *cld = get_module_config(r->per_dir_config, &perl_module)   
+   perl_dir_config *cld = (perl_dir_config *)get_module_config(r->per_dir_config, &perl_module)   
 
 #define dPSRV(srv) \
-   perl_server_config *cls = get_module_config (srv->module_config, &perl_module)
+   perl_server_config *cls = (perl_server_config *) get_module_config (srv->module_config, &perl_module)
 
 /* per-directory flags */
 
@@ -604,11 +593,17 @@ char *ap_cpystrn(char *dst, const char *src, size_t dst_size);
 #endif
 #endif
 
+#define PERL_CUR_HOOK_SV \
+perl_get_sv("Apache::__CurrentCallback", TRUE)
+
 #define PERL_SET_CUR_HOOK(h) \
-{ \
-   SV *sv = perl_get_sv("Apache::__CurrentCallback", TRUE); \
-   if (sv) sv_setpv(sv, h); \
-}
+if (r->notes) ap_table_setn(r->notes, "PERL_CUR_HOOK", h); \
+else sv_setpv(PERL_CUR_HOOK_SV, h)
+
+#define PERL_GET_CUR_HOOK \
+(r->notes ? \
+ap_table_get(r->notes, "PERL_CUR_HOOK") : \
+SvPVX(PERL_CUR_HOOK_SV))
 
 #ifdef PERL_STACKED_HANDLERS
 
@@ -705,7 +700,7 @@ else { \
 #define PERL_DISPATCH_HOOK perl_dispatch
 
 #define PERL_DISPATCH_CMD_ENTRY \
-"PerlDispatchHandler", perl_cmd_dispatch_handlers, \
+"PerlDispatchHandler", (crft) perl_cmd_dispatch_handlers, \
     NULL, \
     OR_ALL, TAKE1, "the Perl Dispatch handler routine name"
 
@@ -722,7 +717,7 @@ else { \
 #define PERL_CHILD_INIT_HOOK perl_child_init
 
 #define PERL_CHILD_INIT_CMD_ENTRY \
-"PerlChildInitHandler", perl_cmd_child_init_handlers, \
+"PerlChildInitHandler", (crft) perl_cmd_child_init_handlers, \
     NULL,	 \
     RSRC_CONF, PERL_TAKE, "the Perl Child init handler routine name"  
 
@@ -739,7 +734,7 @@ else { \
 #define PERL_CHILD_EXIT_HOOK perl_child_exit
 
 #define PERL_CHILD_EXIT_CMD_ENTRY \
-"PerlChildExitHandler", perl_cmd_child_exit_handlers, \
+"PerlChildExitHandler", (crft) perl_cmd_child_exit_handlers, \
     NULL,	 \
     RSRC_CONF, PERL_TAKE, "the Perl Child exit handler routine name"  
 
@@ -754,7 +749,7 @@ else { \
 #define PERL_RESTART
 
 #define PERL_RESTART_CMD_ENTRY \
-"PerlRestartHandler", perl_cmd_restart_handlers, \
+"PerlRestartHandler", (crft) perl_cmd_restart_handlers, \
     NULL,	 \
     RSRC_CONF, PERL_TAKE, "the Perl Restart handler routine name"  
 
@@ -777,7 +772,7 @@ else { \
 #define PERL_POST_READ_REQUEST_HOOK perl_post_read_request
 
 #define PERL_POST_READ_REQUEST_CMD_ENTRY \
-"PerlPostReadRequestHandler", perl_cmd_post_read_request_handlers, \
+"PerlPostReadRequestHandler", (crft) perl_cmd_post_read_request_handlers, \
     NULL, \
     RSRC_CONF, PERL_TAKE, "the Perl Post Read Request handler routine name" 
 
@@ -794,7 +789,7 @@ else { \
 #define PERL_TRANS_HOOK perl_translate
 
 #define PERL_TRANS_CMD_ENTRY \
-"PerlTransHandler", perl_cmd_trans_handlers, \
+"PerlTransHandler", (crft) perl_cmd_trans_handlers, \
     NULL,	 \
     RSRC_CONF, PERL_TAKE, "the Perl Translation handler routine name"  
 
@@ -812,7 +807,7 @@ else { \
 #define PERL_AUTHEN_HOOK perl_authenticate
 
 #define PERL_AUTHEN_CMD_ENTRY \
-"PerlAuthenHandler", perl_cmd_authen_handlers, \
+"PerlAuthenHandler", (crft) perl_cmd_authen_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Authentication handler routine name"
 
@@ -829,7 +824,7 @@ else { \
 #define PERL_AUTHZ_HOOK perl_authorize
 
 #define PERL_AUTHZ_CMD_ENTRY \
-"PerlAuthzHandler", perl_cmd_authz_handlers, \
+"PerlAuthzHandler", (crft) perl_cmd_authz_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Authorization handler routine name" 
 #define PERL_AUTHZ_CREATE(s) s->PerlAuthzHandler = PERL_CMD_INIT
@@ -845,7 +840,7 @@ else { \
 #define PERL_ACCESS_HOOK perl_access
 
 #define PERL_ACCESS_CMD_ENTRY \
-"PerlAccessHandler", perl_cmd_access_handlers, \
+"PerlAccessHandler", (crft) perl_cmd_access_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Access handler routine name" 
 
@@ -864,7 +859,7 @@ else { \
 #define PERL_TYPE_HOOK perl_type_checker
 
 #define PERL_TYPE_CMD_ENTRY \
-"PerlTypeHandler", perl_cmd_type_handlers, \
+"PerlTypeHandler", (crft) perl_cmd_type_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Type check handler routine name" 
 
@@ -881,7 +876,7 @@ else { \
 #define PERL_FIXUP_HOOK perl_fixup
 
 #define PERL_FIXUP_CMD_ENTRY \
-"PerlFixupHandler", perl_cmd_fixup_handlers, \
+"PerlFixupHandler", (crft) perl_cmd_fixup_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Fixup handler routine name" 
 
@@ -898,7 +893,7 @@ else { \
 #define PERL_LOG_HOOK perl_logger
 
 #define PERL_LOG_CMD_ENTRY \
-"PerlLogHandler", perl_cmd_log_handlers, \
+"PerlLogHandler", (crft) perl_cmd_log_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Log handler routine name" 
 
@@ -915,7 +910,7 @@ else { \
 #define PERL_CLEANUP_HOOK perl_cleanup
 
 #define PERL_CLEANUP_CMD_ENTRY \
-"PerlCleanupHandler", perl_cmd_cleanup_handlers, \
+"PerlCleanupHandler", (crft) perl_cmd_cleanup_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Cleanup handler routine name" 
 
@@ -932,7 +927,7 @@ else { \
 #define PERL_INIT_HOOK perl_init
 
 #define PERL_INIT_CMD_ENTRY \
-"PerlInitHandler", perl_cmd_init_handlers, \
+"PerlInitHandler", (crft) perl_cmd_init_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Init handler routine name" 
 
@@ -949,7 +944,7 @@ else { \
 #define PERL_HEADER_PARSER_HOOK perl_header_parser
 
 #define PERL_HEADER_PARSER_CMD_ENTRY \
-"PerlHeaderParserHandler", perl_cmd_header_parser_handlers, \
+"PerlHeaderParserHandler", (crft) perl_cmd_header_parser_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Header Parser handler routine name" 
 
@@ -974,6 +969,7 @@ typedef struct {
     PERL_CMD_TYPE *PerlChildExitHandler;
     PERL_CMD_TYPE *PerlRestartHandler;
     char *PerlOpmask;
+    table *vars;
 } perl_server_config;
 
 typedef struct {
@@ -1034,7 +1030,11 @@ int log_transaction (request_rec *r);
 /* mod_perl prototypes */
 
 /* perlxsi.c */
+#ifdef aTHX_
+void xs_init (pTHX);
+#else
 void xs_init (void);
+#endif
 
 /* mod_perl.c */
 
@@ -1102,7 +1102,7 @@ void perl_run_rgy_endav(char *s);
 void perl_run_endav(char *s);
 void perl_call_halt(int status);
 CV *empty_anon_sub(void);
-void perl_reload_inc(void);
+void perl_reload_inc(server_rec *s, pool *p);
 I32 perl_module_is_loaded(char *name);
 SV *perl_module2file(char *name);
 int perl_require_module(char *module, server_rec *s);
@@ -1132,6 +1132,7 @@ void perl_stdout2client(request_rec *r);
 char *mod_perl_auth_name(request_rec *r, char *val);
 
 module *perl_get_module_ptr(char *name, int len);
+void *perl_merge_server_config(pool *p, void *basev, void *addv);
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *perl_create_dir_config(pool *p, char *dirname);
 void *perl_create_server_config(pool *p, server_rec *s);
@@ -1156,7 +1157,7 @@ void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *conf
 void perl_tainting_set(server_rec *s, int arg);
 CHAR_P perl_cmd_require (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg);
-CHAR_P perl_cmd_var(cmd_parms *cmd, perl_dir_config *rec, char *key, char *val);
+CHAR_P perl_cmd_var(cmd_parms *cmd, void *config, char *key, char *val);
 CHAR_P perl_cmd_setenv(cmd_parms *cmd, perl_dir_config *rec, char *key, char *val);
 CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg);
 CHAR_P perl_cmd_pass_env (cmd_parms *parms, void *dummy, char *arg);
@@ -1198,7 +1199,7 @@ CHAR_P perl_cmd_perl_FLAG(cmd_parms *cmd, mod_perl_perl_dir_config *d, int flag)
 void *perl_perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *perl_perl_merge_srv_config(pool *p, void *basev, void *addv);
 
-void mod_perl_dir_env(perl_dir_config *cld);
+void mod_perl_dir_env(request_rec *r, perl_dir_config *cld);
 void mod_perl_pass_env(pool *p, perl_server_config *cls);
 
 #define PERL_DIR_MERGE     "DIR_MERGE"
@@ -1241,4 +1242,9 @@ else         Zero(op_mask, maxo, char)
 #else
 #define ENTER_SAFE(s,p)
 #define LEAVE_SAFE
+#endif
+
+#ifdef JW_PERL_OBJECT
+#undef stderr
+#define stderr PerlIO_stderr()
 #endif

@@ -4,7 +4,7 @@ use strict;
 use DynaLoader ();
 
 BEGIN {
-    $mod_perl::VERSION = "1.21";
+    $mod_perl::VERSION = "1.2101";
 }
 
 sub boot {
@@ -25,7 +25,7 @@ sub hook {
 
     (my $try = $hook) =~ s/^Perl//;
     $try =~ s/Handler$//;
-    return Apache::perl_hook($try);
+    return Apache::perl_hook($try) > 0;
 }
 
 sub import {
@@ -36,6 +36,7 @@ sub import {
     if($_[0] =~ /^\d/) {
 	$class->UNIVERSAL::VERSION(shift);
     }
+    return unless $ENV{MOD_PERL};
 
     for my $hook (@_) {
 	require Apache;

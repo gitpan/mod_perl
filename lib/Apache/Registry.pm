@@ -1,7 +1,11 @@
 package Apache::Registry;
 use Apache ();
 #use strict; #eval'd scripts will inherit hints
-use Apache::Constants qw(:common &OPT_EXECCGI &REDIRECT);
+use Apache::Constants qw(:common &OPT_EXECCGI);
+
+BEGIN {
+    OPT_EXECCGI() if $ENV{MOD_PERL}; #preload, :common are alread pre-loaded
+}
 
 $Apache::Registry::VERSION = '2.01';
 
@@ -54,13 +58,15 @@ sub handler {
 	my $mtime = -M _;
 
 	my $uri = $r->uri;
-	$uri = "/__INDEX__" if $uri eq "/";
 	# turn into a package name
 	$r->log_error(sprintf "Apache::Registry::handler examining %s",
 		      $uri) if $Debug && $Debug & 4;
-	my $script_name = $r->path_info ?
-	    substr($uri, 0, length($uri)-length($r->path_info)) :
-		$uri;
+	my $path_info = $r->path_info;
+	my $script_name = $path_info && $uri =~ /$path_info$/ ?
+	    substr($uri, 0, length($uri)-length($path_info)) :
+	    $uri;
+
+	$script_name =~ s:/+$:/__INDEX__:;
 
 	if($Apache::Registry::NameWithVirtualHost) {
 	    my $name = $r->get_server_name;
@@ -68,7 +74,7 @@ sub handler {
 	}
 
 	# Escape everything into valid perl identifiers
-	$script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
+	$script_name =~ s/([^A-Za-z0-9_\/])/sprintf("_%2x",unpack("C",$1))/eg;
 
 	# second pass cares for slashes and words starting with a digit
 	$script_name =~ s{
@@ -220,11 +226,10 @@ Apache::Registry - Run unaltered CGI scrips under mod_perl
  PerlModule Apache::Registry
 
  <Location /perl>
- SetHandler perl-script
- PerlHandler Apache::Registry
- Options ExecCGI 
- ...
- </Directory>
+   SetHandler perl-script
+   PerlHandler Apache::Registry
+   Options ExecCGI 
+ </Location>
 
 =head1 DESCRIPTION
 

@@ -87,8 +87,8 @@ array_header *avrv2array_header(SV *avrv, pool *p)
 
     for(i=0; i<=AvFILL(av); i++) {
 	SV *sv = *av_fetch(av, i, FALSE);    
-	char **new = (char **) push_array(arr);
-	*new = pstrdup(p, SvPV(sv,na));
+	char **entry = (char **) push_array(arr);
+	*entry = pstrdup(p, SvPV(sv,na));
     }
 
     return arr;
@@ -282,14 +282,14 @@ void perl_tie_hash(HV *hv, char *pclass, SV *sv)
 
 /* execute END blocks */
 
-void perl_run_blocks(I32 oldscope, AV *list)
+void perl_run_blocks(I32 oldscope, AV *subs)
 {
     STRLEN len;
     I32 i;
     dTHR;
 
-    for(i=0; i<=AvFILL(list); i++) {
-	CV *cv = (CV*)*av_fetch(list, i, FALSE);
+    for(i=0; i<=AvFILL(subs); i++) {
+	CV *cv = (CV*)*av_fetch(subs, i, FALSE);
 	SV* atsv = ERRSV;
 
 	MARK_WHERE("END block", (SV*)cv);
@@ -298,7 +298,7 @@ void perl_run_blocks(I32 oldscope, AV *list)
 	UNMARK_WHERE;
 	(void)SvPV(atsv, len);
 	if (len) {
-	    if (list == beginav)
+	    if (subs == beginav)
 		sv_catpv(atsv, "BEGIN failed--compilation aborted");
 	    else
 		sv_catpv(atsv, "END failed--cleanup aborted");
@@ -462,22 +462,56 @@ void perl_call_halt(int status)
     }
 }
 
-void perl_reload_inc(void)
+/*
+ * reload %INC: cannot do so while iterating over %INC incase
+ * reloaded modules modify %INC at the file-scope
+ * this approach also preserves order for modules loaded via PerlModule
+ */
+void perl_reload_inc(server_rec *s, pool *sp)
 {
+    dPSRV(s);
     HV *hash = GvHV(incgv);
     HE *entry;
     I32 old_warn = dowarn;
-    
+    pool *p = ap_make_sub_pool(sp);
+    table *reload = ap_make_table(p, HvKEYS(hash));
+    char **entries;
+    int i = 0;
+
     dowarn = FALSE;
+    entries = (char **)cls->PerlModule->elts;
+    for (i=0; i < cls->PerlModule->nelts; i++) {
+	SV *file = perl_module2file(entries[i]);
+	ap_table_set(reload, SvPVX(file), "1");
+	SvREFCNT_dec(file);
+    }
+
     hv_iterinit(hash);
     while ((entry = hv_iternext(hash))) {
-	char *key = HeKEY(entry);
-	SvREFCNT_dec(HeVAL(entry));
-	HeVAL(entry) = &sv_undef;
-	MP_TRACE_g(fprintf(stderr, "reloading %s\n", key);)
-	perl_require_pv(key);
+	ap_table_setn(reload, HeKEY(entry), "1");
     }
+
+    {
+	array_header *arr = ap_table_elts(reload);
+	table_entry *elts = (table_entry *)arr->elts;
+	SV *keysv = newSV(0);
+	for (i=0; i < arr->nelts; i++) {
+	    sv_setpv(keysv, elts[i].key);
+	    if (!(entry = hv_fetch_ent(hash, keysv, FALSE, 0))) {
+		MP_TRACE_g(fprintf(stderr, 
+				   "%s not found in %%INC\n", elts[i].key));
+		continue;
+	    }
+	    SvREFCNT_dec(HeVAL(entry));
+	    HeVAL(entry) = &sv_undef;
+	    MP_TRACE_g(fprintf(stderr, "reloading %s\n", HeKEY(entry)));
+	    perl_require_pv(HeKEY(entry));
+	}
+	SvREFCNT_dec(keysv);
+    }
+
     dowarn = old_warn;
+    ap_destroy_pool(p);
 }
 
 I32 perl_module_is_loaded(char *name)
@@ -506,13 +540,13 @@ SV *perl_module2file(char *name)
     return sv;
 }
 
-int perl_require_module(char *mod, server_rec *s)
+int perl_require_module(char *name, server_rec *s)
 {
     dTHR;
     SV *sv = sv_newmortal();
     sv_setpvn(sv, "require ", 8);
-    MP_TRACE_d(fprintf(stderr, "loading perl module '%s'...", mod)); 
-    sv_catpv(sv, mod);
+    MP_TRACE_d(fprintf(stderr, "loading perl module '%s'...", name)); 
+    sv_catpv(sv, name);
     perl_eval_sv(sv, G_DISCARD);
     if(s) {
 	if(perl_eval_ok(s) != OK) {
@@ -534,13 +568,13 @@ int perl_require_module(char *mod, server_rec *s)
  */
 void perl_qrequire_module(char *name) 
 {
-    OP *mod;
+    OP *reqop;
     SV *key = perl_module2file(name);
     if((key && hv_exists_ent(GvHV(incgv), key, FALSE)))
 	return;
-    mod = newSVOP(OP_CONST, 0, key);
-    /*mod->op_private |= OPpCONST_BARE;*/
-    utilize(TRUE, start_subparse(FALSE, 0), Nullop, mod, Nullop);
+    reqop = newSVOP(OP_CONST, 0, key);
+    /*reqop->op_private |= OPpCONST_BARE;*/
+    utilize(TRUE, start_subparse(FALSE, 0), Nullop, reqop, Nullop);
 }
 
 void perl_do_file(char *pv)
@@ -720,10 +754,10 @@ int perl_sv_is_http_code(SV *errsv, int *status)
 	char *tmp = errpv;
 	tmp += 3;
 #ifndef PERL_MARK_WHERE
-	if(strNE(SvPVX(GvSV(curcop->cop_filegv)), "-e")) {
+	if(strNE(SvPVX(GvSV(CopFILEGV(curcop))), "-e")) {
 	    SV *fake = newSV(0);
 	    sv_setpv(fake, ""); /* avoid -w warning */
-	    sv_catpvf(fake, " at %_ line ", GvSV(curcop->cop_filegv));
+	    sv_catpvf(fake, " at %_ line ", GvSV(CopFILEGV(curcop)));
 
 	    if(strnEQ(SvPVX(fake), tmp, SvCUR(fake))) 
 		/* $@ is nothing but 3 digit code and the mess die tacks on */
@@ -801,23 +835,23 @@ void mod_perl_mark_where(char *where, SV *sub)
 {
     dTHR;
     SV *name = Nullsv;
-    if(curcop->cop_line) {
+    if(CopLINE(curcop)) {
 #if 0
 	fprintf(stderr, "already know where: %s line %d\n",
-		SvPV(GvSV(curcop->cop_filegv),na), curcop->cop_line);
+		SvPV(GvSV(CopFILEGV(curcop)),na), CopFILEGV(curcop));
 #endif
 	return;
     }
 
-    SAVESPTR(curcop->cop_filegv);
-    SAVEI16(curcop->cop_line);
+    SAVECOPFILE(curcop);
+    SAVECOPLINE(curcop);
 
     if(sub) 
 	name = perl_sv_name(sub);
 
-    sv_setpv(GvSV(curcop->cop_filegv), "");
-    sv_catpvf(GvSV(curcop->cop_filegv), "%s subroutine `%_'", where, name);
-    curcop->cop_line = 1;
+    sv_setpv(GvSV(CopFILEGV(curcop)), "");
+    sv_catpvf(GvSV(CopFILEGV(curcop)), "%s subroutine `%_'", where, name);
+    CopLINE_set(curcop, 1);
 
     if(name)
 	SvREFCNT_dec(name);

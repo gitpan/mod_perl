@@ -14,10 +14,13 @@ unless(defined &import) {
     *import = \&Exporter::import;
 }
 
-sub AUTOLOAD {
-                    #why must we stringify first???
-    __AUTOLOAD() if "$Apache::Constants::AUTOLOAD"; 
-    goto &$Apache::Constants::AUTOLOAD;
+if ($ENV{MOD_PERL}) {
+    #outside of mod_perl this will recurse looking for __AUTOLOAD, grr
+    *AUTOLOAD  = sub {
+	#why must we stringify first???
+	__AUTOLOAD() if "$Apache::Constants::AUTOLOAD"; 
+	goto &$Apache::Constants::AUTOLOAD;
+    };
 }
 
 my %ConstNameCache = ();
@@ -27,7 +30,7 @@ sub export {
     for my $new (@_) {
 	next if grep { $new eq $_ } @Apache::Constants::EXPORT_OK;
 	push @Apache::Constants::EXPORT_OK, $new;
-	if(defined %Apache::Constants::EXPORT) {
+	if(%Apache::Constants::EXPORT) {
 	    $Apache::Constants::EXPORT{$new} = 1;
 	}
     }
@@ -99,12 +102,12 @@ response codes:
  NOT_AUTHORITATIVE
 
 B<CONTINUE> and B<NOT_AUTHORITATIVE> are aliases for B<DECLINED>.
- 
+
 =item methods
 
 This are the method numbers, commonly used with
 the Apache B<method_number> method.
-   
+
  METHODS
  M_CONNECT
  M_DELETE

@@ -106,16 +106,27 @@ echo "$display_prefix id: Perl/$perl_version ($os_version) [$perl_interp]" 1>&2
 #
 #   determine build tools and flags  
 #
-perl_cc="`$perl_interp -MConfig -e 'print $Config{cc}'`"
-perl_ccflags="`$perl_interp -MConfig -e 'print $Config{ccflags}'`"
-perl_optimize="`$perl_interp -MConfig -e 'print $Config{optimize}'`"
-perl_cccdlflags="`$perl_interp -MConfig -e 'print $Config{cccdlflags}'`"
-perl_ld="`$perl_interp -MConfig -e 'print $Config{ld}'`"
-perl_ldflags="`$perl_interp -MConfig -e 'print $Config{ldflags}'`"
-perl_lddlflags="`$perl_interp -MConfig -e 'print $Config{lddlflags}'`"
+
+#config_pm='-MApache::ExtUtils=%Config'
+config_pm='-MConfig'
+perl_cc="`$perl_interp $config_pm -e 'print $Config{cc}'`"
+perl_ccflags="`$perl_interp $config_pm -e 'print $Config{ccflags}'`"
+perl_optimize="`$perl_interp $config_pm -e 'print $Config{optimize}'`"
+perl_cccdlflags="`$perl_interp $config_pm -e 'print $Config{cccdlflags}'`"
+perl_ld="`$perl_interp $config_pm -e 'print $Config{ld}'`"
+perl_ldflags="`$perl_interp $config_pm -e 'print $Config{ldflags}'`"
+perl_lddlflags="`$perl_interp $config_pm -e 'print $Config{lddlflags}'`"
+
+case "$os_version" in
+    aix*)  perl_lddlflags="$perl_lddlflags -bI:\$(APACHELIBEXEC)/httpd.exp" ;;
+    * )    ;;
+esac
+
 cat >$tmpfile2 <<'EOT'
 use Config;
-my $ldopts = `$^X -MExtUtils::Embed -e ldopts -- -std @ARGV`;
+#my $embed_pm = '-MApache::ExtUtils=ldopts';
+my $embed_pm = '-MExtUtils::Embed';
+my $ldopts = `$^X $embed_pm -e ldopts -- -std @ARGV`;
 # can't pass ccdlflags to ld, which is what happens in this context.  however
 # we still need the libraries themselves.  I think this should be correct for
 # other systems, but it bites us on BSD/OS 4.x
@@ -136,7 +147,7 @@ if($^O eq "hpux") {
 print $ldopts;
 EOT
 perl_libs="`$perl_interp $tmpfile2 $perl_libperl`"
-perl_inc="`$perl_interp -MExtUtils::Embed -e perl_inc`"
+perl_inc="`$perl_interp -MConfig -e 'print "$Config{archlibexp}/CORE"'`"
 perl_privlibexp="`$perl_interp -MConfig -e 'print $Config{privlibexp}'`"
 perl_archlibexp="`$perl_interp -MConfig -e 'print $Config{archlibexp}'`"
 perl_xsinit="$perl_interp -MExtUtils::Embed -e xsinit"

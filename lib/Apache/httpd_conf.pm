@@ -183,7 +183,7 @@ $Port = 8529;
 $DocumentRoot = $dir ? "$dir/docs" : "docs";
 $ServerName = "localhost";
  
-@Alias = () unless defined @Alias;
+@Alias = () unless @Alias;
 
 for (qw(/perl /cgi-bin)) {
     push @Alias, [$_ => $dir ? "$dir/perl" : "perl"];
@@ -244,7 +244,7 @@ Apache::httpd_conf - Generate an httpd.conf file
 =head1 SYNOPSIS
 
   use Apache::httpd_conf ();
- 
+
   Apache::httpd_conf->write(Port => 8888);
 
 =head1 DESCRIPTION

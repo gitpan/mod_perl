@@ -157,11 +157,11 @@ char *mod_perl_auth_name(request_rec *r, char *val)
 
     return conf->auth_name;
 #else
-    return auth_name(r);
+    return (char *) auth_name(r);
 #endif
 }
 
-void mod_perl_dir_env(perl_dir_config *cld)
+void mod_perl_dir_env(request_rec *r, perl_dir_config *cld)
 {
     if(MP_HASENV(cld)) {
 	array_header *arr = table_elts(cld->env);
@@ -172,6 +172,7 @@ void mod_perl_dir_env(perl_dir_config *cld)
 	    MP_TRACE_d(fprintf(stderr, "mod_perl_dir_env: %s=`%s'",
 			     elts[i].key, elts[i].val));
 	    mp_setenv(elts[i].key, elts[i].val);
+	    ap_table_setn(r->subprocess_env, elts[i].key, elts[i].val);
 	}
 	MP_HASENV_off(cld); /* just doit once per-request */
     }
@@ -203,86 +204,82 @@ void mod_perl_pass_env(pool *p, perl_server_config *cls)
 
 void *perl_merge_dir_config (pool *p, void *basev, void *addv)
 {
-    perl_dir_config *new = (perl_dir_config *)pcalloc (p, sizeof(perl_dir_config));
+    perl_dir_config *mrg = (perl_dir_config *)pcalloc (p, sizeof(perl_dir_config));
     perl_dir_config *base = (perl_dir_config *)basev;
     perl_dir_config *add = (perl_dir_config *)addv;
 
     array_header *vars = (array_header *)base->vars;
 
-    new->location = add->location ? 
+    mrg->location = add->location ? 
         add->location : base->location;
 
     /* XXX: what triggers such a condition ?*/
     if(vars && (vars->nelts > 100000)) {
 	fprintf(stderr, "[warning] PerlSetVar->nelts = %d\n", vars->nelts);
     }
-    else {
-	new->vars = overlay_tables(p, add->vars, base->vars);
-    }
+    mrg->vars = overlay_tables(p, add->vars, base->vars);
+    mrg->env = overlay_tables(p, add->env, base->env);
 
-    new->vars = overlay_tables(p, add->vars, base->vars);
-    new->env = overlay_tables(p, add->env, base->env);
-
-    new->SendHeader = (add->SendHeader != MPf_None) ?
+    mrg->SendHeader = (add->SendHeader != MPf_None) ?
 	add->SendHeader : base->SendHeader;
 
-    new->SetupEnv = (add->SetupEnv != MPf_None) ?
+    mrg->SetupEnv = (add->SetupEnv != MPf_None) ?
 	add->SetupEnv : base->SetupEnv;
 
     /* merge flags */
-    MP_FMERGE(new,add,base,MPf_INCPUSH);
-    MP_FMERGE(new,add,base,MPf_HASENV);
-    /*MP_FMERGE(new,add,base,MPf_ENV);*/
-    /*MP_FMERGE(new,add,base,MPf_SENDHDR);*/
-    MP_FMERGE(new,add,base,MPf_SENTHDR);
-    MP_FMERGE(new,add,base,MPf_CLEANUP);
-    MP_FMERGE(new,add,base,MPf_RCLEANUP);
+    MP_FMERGE(mrg,add,base,MPf_INCPUSH);
+    MP_FMERGE(mrg,add,base,MPf_HASENV);
+    /*MP_FMERGE(mrg,add,base,MPf_ENV);*/
+    /*MP_FMERGE(mrg,add,base,MPf_SENDHDR);*/
+    MP_FMERGE(mrg,add,base,MPf_SENTHDR);
+    MP_FMERGE(mrg,add,base,MPf_CLEANUP);
+    MP_FMERGE(mrg,add,base,MPf_RCLEANUP);
 
 #ifdef PERL_DISPATCH
-    new->PerlDispatchHandler = add->PerlDispatchHandler ? 
+    mrg->PerlDispatchHandler = add->PerlDispatchHandler ? 
         add->PerlDispatchHandler : base->PerlDispatchHandler;
 #endif
 #ifdef PERL_INIT
-    new->PerlInitHandler = add->PerlInitHandler ? 
+    mrg->PerlInitHandler = add->PerlInitHandler ? 
         add->PerlInitHandler : base->PerlInitHandler;
 #endif
 #ifdef PERL_HEADER_PARSER
-    new->PerlHeaderParserHandler = add->PerlHeaderParserHandler ? 
+    mrg->PerlHeaderParserHandler = add->PerlHeaderParserHandler ? 
         add->PerlHeaderParserHandler : base->PerlHeaderParserHandler;
 #endif
 #ifdef PERL_ACCESS
-    new->PerlAccessHandler = add->PerlAccessHandler ? 
+    mrg->PerlAccessHandler = add->PerlAccessHandler ? 
         add->PerlAccessHandler : base->PerlAccessHandler;
 #endif
 #ifdef PERL_AUTHEN
-    new->PerlAuthenHandler = add->PerlAuthenHandler ? 
+    mrg->PerlAuthenHandler = add->PerlAuthenHandler ? 
         add->PerlAuthenHandler : base->PerlAuthenHandler;
 #endif
 #ifdef PERL_AUTHZ
-    new->PerlAuthzHandler = add->PerlAuthzHandler ? 
+    mrg->PerlAuthzHandler = add->PerlAuthzHandler ? 
         add->PerlAuthzHandler : base->PerlAuthzHandler;
 #endif
 #ifdef PERL_TYPE
-    new->PerlTypeHandler = add->PerlTypeHandler ? 
+    mrg->PerlTypeHandler = add->PerlTypeHandler ? 
         add->PerlTypeHandler : base->PerlTypeHandler;
 #endif
 #ifdef PERL_FIXUP
-    new->PerlFixupHandler = add->PerlFixupHandler ? 
+    mrg->PerlFixupHandler = add->PerlFixupHandler ? 
         add->PerlFixupHandler : base->PerlFixupHandler;
 #endif
 #if 1
-    new->PerlHandler = add->PerlHandler ? add->PerlHandler : base->PerlHandler;
+    mrg->PerlHandler = add->PerlHandler ? add->PerlHandler : base->PerlHandler;
 #endif
 #ifdef PERL_LOG
-    new->PerlLogHandler = add->PerlLogHandler ? 
+    mrg->PerlLogHandler = add->PerlLogHandler ? 
         add->PerlLogHandler : base->PerlLogHandler;
 #endif
 #ifdef PERL_CLEANUP
-    new->PerlCleanupHandler = add->PerlCleanupHandler ? 
+    mrg->PerlCleanupHandler = add->PerlCleanupHandler ? 
         add->PerlCleanupHandler : base->PerlCleanupHandler;
 #endif
 
-    return new;
+    return mrg;
 }
 
 void *perl_create_dir_config (pool *p, char *dirname)
@@ -310,6 +307,57 @@ void *perl_create_dir_config (pool *p, char *dirname)
     return (void *)cld;
 }
 
+void *perl_merge_server_config (pool *p, void *basev, void *addv)
+{
+    perl_server_config *mrg = (perl_server_config *)pcalloc (p, sizeof(perl_server_config));
+    perl_server_config *base = (perl_server_config *)basev;
+    perl_server_config *add = (perl_server_config *)addv;
+
+    mrg->PerlPassEnv = append_arrays(p, add->PerlPassEnv, base->PerlPassEnv);
+#if 0
+    /* We don't merge these because they're inlined */
+    mrg->PerlModule = append_arrays(p, add->PerlModule, base->PerlModule);
+    mrg->PerlRequire = append_arrays(p, add->PerlRequire, base->PerlRequire);
+#endif
+
+    mrg->PerlTaintCheck = add->PerlTaintCheck ?
+        add->PerlTaintCheck : base->PerlTaintCheck;
+    mrg->PerlWarn = add->PerlWarn ?
+        add->PerlWarn : base->PerlWarn;
+    mrg->FreshRestart = add->FreshRestart ?
+        add->FreshRestart : base->FreshRestart;
+    mrg->PerlOpmask = add->PerlOpmask ?
+        add->PerlOpmask : base->PerlOpmask;
+    mrg->vars = overlay_tables(p, add->vars, base->vars);
+
+#ifdef PERL_POST_READ_REQUEST
+    mrg->PerlPostReadRequestHandler = add->PerlPostReadRequestHandler ?
+        add->PerlPostReadRequestHandler : base->PerlPostReadRequestHandler;
+#endif
+#ifdef PERL_TRANS
+    mrg->PerlTransHandler = add->PerlTransHandler ?
+        add->PerlTransHandler : base->PerlTransHandler;
+#endif
+#ifdef PERL_CHILD_INIT
+    mrg->PerlChildInitHandler = add->PerlChildInitHandler ?
+        add->PerlChildInitHandler : base->PerlChildInitHandler;
+#endif
+#ifdef PERL_CHILD_EXIT
+    mrg->PerlChildExitHandler = add->PerlChildExitHandler ?
+        add->PerlChildExitHandler : base->PerlChildExitHandler;
+#endif
+#ifdef PERL_RESTART
+    mrg->PerlRestartHandler = add->PerlRestartHandler ?
+        add->PerlRestartHandler : base->PerlRestartHandler;
+#endif
+#ifdef PERL_INIT
+    mrg->PerlInitHandler = add->PerlInitHandler ?
+        add->PerlInitHandler : base->PerlInitHandler;
+#endif
+
+    return mrg;
+}
+
 void *perl_create_server_config (pool *p, server_rec *s)
 {
     perl_server_config *cls =
@@ -322,6 +370,7 @@ void *perl_create_server_config (pool *p, server_rec *s)
     cls->PerlWarn = 0;
     cls->FreshRestart = 0;
     cls->PerlOpmask = NULL;
+    cls->vars = make_table(p, 5); 
     PERL_POST_READ_REQUEST_CREATE(cls);
     PERL_TRANS_CREATE(cls);
     PERL_CHILD_INIT_CREATE(cls);
@@ -343,16 +392,16 @@ perl_request_config *perl_create_request_config(pool *p, server_rec *s)
     cfg->setup_env = 0;
 
     cfg->sigsave = make_array(p, 1, sizeof(perl_request_sigsave *));
+
     for (i=0; sigsave[i]; i++) {
 	perl_request_sigsave *sig = 
 	    (perl_request_sigsave *)pcalloc(p, sizeof(perl_request_sigsave));
-	sig->signo = Perl_whichsig(sigsave[i]);
-	sig->h =  Perl_rsignal_state(sig->signo);
+	sig->signo = whichsig(sigsave[i]);
+	sig->h = rsignal_state(sig->signo);
 	MP_TRACE_g(fprintf(stderr, 
 			   "mod_perl: saving SIG%s (%d) handler 0x%lx\n",
 			   sigsave[i], (int)sig->signo, (unsigned long)sig->h));
 	*(perl_request_sigsave **)push_array(cfg->sigsave) = sig;
-
     }
 
     return cfg;
@@ -522,23 +571,21 @@ CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg)
     dPSRV(parms->server);
     if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
     require_Apache(parms->server);
+
+    MP_TRACE_d(fprintf(stderr, "PerlModule: arg='%s'\n", arg));
+
     if(PERL_RUNNING()) {
 	if (PERL_STARTUP_IS_DONE) {
 	    if (perl_require_module(arg, NULL) != OK) {
-		dTHR;
-		return SvPV(ERRSV,na);
+		STRLEN n_a;
+		return SvPV(ERRSV,n_a);
 	    }
 	}
 	else {
 	    return NULL;
 	}
     }
-    else {
-	char **new;
-	MP_TRACE_d(fprintf(stderr, "push_perl_modules: arg='%s'\n", arg));
-	new = (char **)push_array(cls->PerlModule);
-	*new = pstrdup(parms->pool, arg);
-    }
+    *(char **)push_array(cls->PerlModule) = pstrdup(parms->pool, arg);
 
 #ifdef PERL_SECTIONS
     if(CAN_SELF_BOOT_SECTIONS)
@@ -552,23 +599,22 @@ CHAR_P perl_cmd_require (cmd_parms *parms, void *dummy, char *arg)
 {
     dPSRV(parms->server);
     if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
-    MP_TRACE_d(fprintf(stderr, "perl_cmd_require: %s\n", arg));
+
+    MP_TRACE_d(fprintf(stderr, "PerlRequire: arg=`%s'\n", arg));
+
     if(PERL_RUNNING()) {
 	if (PERL_STARTUP_IS_DONE) {
 	    if (perl_load_startup_script(NULL, parms->pool, arg, TRUE) != OK) {
-		dTHR;
-		return SvPV(ERRSV,na);
+		STRLEN n_a;
+		return SvPV(ERRSV,n_a);
 	    }
 	    else {
 		return NULL;
 	    }
 	}
     }
-    else {
-	char **new;
-	new = (char **)push_array(cls->PerlRequire);
-	*new = pstrdup(parms->pool, arg);
-    }
+
+    *(char **)push_array(cls->PerlRequire) = pstrdup(parms->pool, arg);
 
 #ifdef PERL_SECTIONS
     if(CAN_SELF_BOOT_SECTIONS)
@@ -650,11 +696,9 @@ CHAR_P perl_cmd_pass_env (cmd_parms *parms, void *dummy, char *arg)
     if(PERL_RUNNING()) {
 	mp_PassEnv(arg);
     }
-    else {
-	char **new;
-	new = (char **)push_array(cls->PerlPassEnv);
-	*new = pstrdup(parms->pool, arg);
-    }
+
+    *(char **)push_array(cls->PerlPassEnv) = pstrdup(parms->pool, arg);
+
     MP_TRACE_d(fprintf(stderr, "perl_cmd_pass_env: arg=`%s'\n", arg));
     arg = NULL;
     return NULL;
@@ -667,10 +711,17 @@ CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg) {
     return NULL;
 }
 
-CHAR_P perl_cmd_var(cmd_parms *cmd, perl_dir_config *rec, char *key, char *val)
+CHAR_P perl_cmd_var(cmd_parms *cmd, void *config, char *key, char *val)
 {
-    table_set(rec->vars, key, val);
     MP_TRACE_d(fprintf(stderr, "perl_cmd_var: '%s' = '%s'\n", key, val));
+    if (cmd->path) {
+        perl_dir_config *rec = (perl_dir_config *) config;
+        table_set(rec->vars, key, val);
+    }
+    else {
+        dPSRV(cmd->server);
+        table_set(cls->vars, key, val);
+    }
     return NULL;
 }
 
@@ -860,7 +911,7 @@ static SV *perl_perl_create_srv_config(SV **sv, HV *pclass, cmd_parms *parms)
 static void *perl_perl_merge_cfg(pool *p, void *basev, void *addv, char *meth)
 {
     GV *gv;
-    mod_perl_perl_dir_config *new = NULL,
+    mod_perl_perl_dir_config *mrg = NULL,
 	*basevp = (mod_perl_perl_dir_config *)basev,
 	*addvp  = (mod_perl_perl_dir_config *)addv;
 
@@ -878,7 +929,7 @@ static void *perl_perl_merge_cfg(pool *p, void *basev, void *addv, char *meth)
     if((gv = gv_fetchmethod_autoload(SvSTASH(SvRV(basesv)), meth, FALSE)) && isGV(gv)) {
 	int count;
 	dSP;
-	new = (mod_perl_perl_dir_config *)
+	mrg = (mod_perl_perl_dir_config *)
 	    palloc(p, sizeof(mod_perl_perl_dir_config));
 
 	MP_TRACE_c(fprintf(stderr, "calling %s->%s\n", 
@@ -893,17 +944,17 @@ static void *perl_perl_merge_cfg(pool *p, void *basev, void *addv, char *meth)
 	if((perl_eval_ok(NULL) == OK) && (count == 1)) {
 	    sv = POPs;
 	    ++SvREFCNT(sv);
-	    new->obj = sv;
-	    new->pclass = SvCLASS(sv);
+	    mrg->obj = sv;
+	    mrg->pclass = SvCLASS(sv);
 	}
 	PUTBACK;
 	FREETMPS;LEAVE;
     }
     else {
-	new->obj = newSVsv(basesv);
-	new->pclass = basevp->pclass;
+	mrg->obj = newSVsv(basesv);
+	mrg->pclass = basevp->pclass;
     }
-    return (void *)new;
+    return (void *)mrg;
 }
 
 void *perl_perl_merge_dir_config(pool *p, void *basev, void *addv)
@@ -943,7 +994,7 @@ CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *data,
     obj = perl_perl_create_dir_config(&data->obj, CvSTASH(cv), cmd);
 
     if(xsmod && 
-       (sdata = get_module_config(cmd->server->module_config, xsmod))) {
+       (sdata = (mod_perl_perl_dir_config *)get_module_config(cmd->server->module_config, xsmod))) {
 	(void)perl_perl_create_srv_config(&sdata->obj, CvSTASH(cv), cmd);
 	set_module_config(cmd->server->module_config, xsmod, sdata);
     }
@@ -1033,15 +1084,15 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
     (void)hv_iterinit(hv); \
     while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { \
         HV *tab = Nullhv; \
-        AV *list = Nullav; \
+        AV *entries = Nullav; \
 	if(SvMAGICAL(val)) mg_get(val); \
 	if(SvROK(val) && (SvTYPE(SvRV(val)) == SVt_PVHV)) \
 	    tab = (HV *)SvRV(val); \
 	else if(SvROK(val) && (SvTYPE(SvRV(val)) == SVt_PVAV)) \
-	    list = (AV *)SvRV(val); \
+	    entries = (AV *)SvRV(val); \
 	else \
 	    croak("value of `%s' is not a HASH or ARRAY reference!", key); \
-	if(list || tab) { \
+	if(entries || tab) { \
 
 #define dSECiter_stop \
         } \
@@ -1050,8 +1101,8 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
 #define SECiter_list(t) \
 { \
     I32 i; \
-    for(i=0; i<=AvFILL(list); i++) { \
-        SV *rv = *av_fetch(list, i, FALSE); \
+    for(i=0; i<=AvFILL(entries); i++) { \
+        SV *rv = *av_fetch(entries, i, FALSE); \
         HV *nhv; \
         if(!SvROK(rv) || (SvTYPE(SvRV(rv)) != SVt_PVHV)) \
    	    croak("not a HASH reference!"); \
@@ -1061,7 +1112,7 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
         t; \
         SvREFCNT_dec(nhv); \
     } \
-    list = Nullav; \
+    entries = Nullav; \
     continue; \
 }
 
@@ -1132,7 +1183,7 @@ CHAR_P perl_virtualhost_section (cmd_parms *cmd, void *dummy, HV *hv)
     const char *errmsg = NULL;
     dSECiter_start
 
-    if(list) {
+    if(entries) {
 	SECiter_list(perl_virtualhost_section(cmd, dummy, tab));
     }
 
@@ -1189,7 +1240,7 @@ CHAR_P perl_urlsection (cmd_parms *cmd, void *dummy, HV *hv)
 
     void *new_url_conf;
 
-    if(list) {
+    if(entries) {
 	SECiter_list(perl_urlsection(cmd, dummy, tab));
     }
 
@@ -1241,7 +1292,7 @@ CHAR_P perl_dirsection (cmd_parms *cmd, void *dummy, HV *hv)
     void *new_dir_conf;
     regex_t *r = NULL;
 
-    if(list) {
+    if(entries) {
 	SECiter_list(perl_dirsection(cmd, dummy, tab));
     }
 
@@ -1303,7 +1354,7 @@ CHAR_P perl_filesection (cmd_parms *cmd, void *dummy, HV *hv)
     void *new_file_conf;
     regex_t *r = NULL;
 
-    if(list) {
+    if(entries) {
 	SECiter_list(perl_filesection(cmd, dummy, tab));
     }
 
@@ -1351,7 +1402,13 @@ CHAR_P perl_limit_section(cmd_parms *cmd, void *dummy, HV *hv)
 {
     SV *sv;
     char *methods;
+    module *mod = top_module;
+    const command_rec *nrec = find_command_in_modules("<Limit", &mod);
+    const command_rec *orec = cmd->cmd;
     /*void *ac = (void*)create_default_per_dir_config(cmd->pool);*/
+
+    if(nrec)
+	cmd->cmd = nrec;
 
     if(hv_exists(hv,"METHODS", 7))
        sv = hv_delete(hv, "METHODS", 7, G_SCALAR);
@@ -1367,6 +1424,7 @@ CHAR_P perl_limit_section(cmd_parms *cmd, void *dummy, HV *hv)
     limit_section(cmd, dummy, methods); 
     perl_section_hash_walk(cmd, dummy, hv);
     cmd->limited = -1;
+    cmd->cmd = orec;
 
     return NULL;
 }
@@ -1407,7 +1465,7 @@ void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *config)
     else if(strnEQ(key, "Files", 5)) 
 	perl_filesection(cmd, (core_dir_config *)dummy, hv);
     else if(strEQ(key, "Limit")) 
-	perl_limit_section(cmd, dummy, hv);
+	perl_limit_section(cmd, config, hv);
 
     cmd->info = old_info;
 }
@@ -1434,17 +1492,29 @@ void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *conf
 				   key, cmd, config);
 	}
 	else {
+	    int do_quote = cmd->cmd->args_how != RAW_ARGS;
 	    SV *sv = newSV(0);
 	    sv_catpv(sv, key);
-	    sv_catpvn(sv, " \"", 2);
-
+	    if (do_quote) {
+		sv_catpvn(sv, " \"", 2);
+	    }
+	    else {
+		sv_catpvn(sv, " ", 1);
+	    }
 	    for(j=1; j<=n; j++) {
 		sv_catsv(sv, av_shift(av));
-		if(j != n)
-		    sv_catpvn(sv, "\" \"", 3);
+		if (j != n) {
+		    if (do_quote) {
+			sv_catpvn(sv, "\" \"", 3);
+		    }
+		    else {
+			sv_catpvn(sv, " ", 1);
+		    }
+		}
 	    }
-	    sv_catpvn(sv,"\"",1);
-
+	    if (do_quote) {
+		sv_catpvn(sv,"\"", 1);
+	    }
 	    perl_handle_command(cmd, config, SvPVX(sv));
 	    SvREFCNT_dec(sv);
 	}
@@ -1649,7 +1719,7 @@ CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
 	    perl_handle_command_hv(hv, key, parms, config);
 	}
 	else if((av = GvAV((GV*)val))) {	
-	    module *mod = top_module;
+	    module *tmod = top_module;
 	    const command_rec *c; 
 	    I32 shift, alen = AvFILL(av);
 
@@ -1660,7 +1730,7 @@ CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
 		continue;
 	    }
 
-	    if(!(c = find_command_in_modules((const char *)key, &mod))) {
+	    if(!(c = find_command_in_modules((const char *)key, &tmod))) {
 		fprintf(stderr, "command_rec for directive `%s' not found!\n", key);
 		continue;
 	    }
@@ -1702,6 +1772,27 @@ CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
 }
 
 #endif /* PERL_SECTIONS */
+
+static int perl_hook_api(char *string)
+{
+    char name[56];
+    char *s;
+
+    ap_cpystrn(name, string, sizeof(name));
+    if (!(s = (char *)strstr(name, "Api"))) {
+	return -1;
+    }
+    *s = '\0';
+
+    if (strEQ(name, "Uri")) {
+	/* s/^Uri$/URI/ */
+	name[1] = toUPPER(name[1]);
+	name[2] = toUPPER(name[2]);
+    }
+
+    /* XXX: assumes .xs is linked static */
+    return perl_get_cv(form("Apache::%s::bootstrap", name), FALSE) != Nullcv;
+}
 
 int perl_hook(char *name)
 {
@@ -1753,6 +1844,13 @@ int perl_hook(char *name)
 #else
 	return 0;    
 #endif
+	    if (strEQ(name, "DirectiveHandlers")) 
+#ifdef PERL_DIRECTIVE_HANDLERS
+		return 1;
+#else
+	return 0;    
+#endif
+
 	break;
 	case 'F':
 	    if (strEQ(name, "Fixup")) 
@@ -1806,6 +1904,13 @@ int perl_hook(char *name)
 	return 0;    
 #endif
 	break;
+	case 'R':
+	    if (strEQ(name, "Restart")) 
+#ifdef PERL_RESTART
+		return 1;
+#else
+	return 0;    
+#endif
 	case 'S':
 	    if (strEQ(name, "SSI")) 
 #ifdef PERL_SSI
@@ -1841,6 +1946,7 @@ int perl_hook(char *name)
 #endif
 	break;
     }
-    return -1;
+
+    return perl_hook_api(name);
 }
 

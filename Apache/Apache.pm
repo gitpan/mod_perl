@@ -46,7 +46,7 @@ sub parse_args {
 sub content {
     my($r) = @_;
     my $ct = $r->header_in("Content-type") || "";
-    return unless $ct eq "application/x-www-form-urlencoded";
+    return unless $ct =~ m!^application/x-www-form-urlencoded!;
     my $buff;
     $r->read($buff, $r->header_in("Content-length"));
     parse_args(wantarray, $buff);
@@ -214,9 +214,9 @@ the description of the Apache C API at http://www.apache.org/docs/.
 
 The request object holds all the information that the server needs to
 service a request.  Apache B<Perl*Handler>s will be given a reference to the
-request object as parameter and may choose update or use it in various
+request object as parameter and may choose to update or use it in various
 ways.  Most of the methods described below obtain information from or
-updates the request object.
+update the request object.
 The perl version of the request object will be blessed into the B<Apache> 
 package, it is really a C<request_rec*> in disguise.
 
@@ -337,7 +337,7 @@ The number of bytes sent to the client, handy for logging, etc.
 
 =item $r->the_request
 
-The request line send by the client, handy for logging, etc.
+The request line sent by the client, handy for logging, etc.
 
 =item $r->proxyreq
 
@@ -356,10 +356,19 @@ The $r->protocol method will return a string identifying the protocol
 that the client speaks.  Typical values will be "HTTP/1.0" or
 "HTTP/1.1".
 
+=item $r->hostname
+
+Returns the server host name, as set by full URI or Host: header.
+
+=item $r->request_time
+
+Returns the time that the request was made.  The time is the local unix
+time in seconds since the epoch.
+
 =item $r->uri( [$uri] )
 
-The $r->uri method will return the requested URI, optionally changing
-it with the first argument.
+The $r->uri method will return the requested URI minus optional query
+string, optionally changing it with the first argument.
 
 =item $r->filename( [$filename] )
 
@@ -373,7 +382,7 @@ The $r->path_info method will return what is left in the path after the
 I<URI --E<gt> filename> translation, optionally changing it with the first 
 argument if you happen to be doing the translation.
 
-=item $r->args
+=item $r->args( [$query_string] )
 
 The $r->args method will return the contents of the URI I<query
 string>.  When called in a scalar context, the entire string is
@@ -382,6 +391,9 @@ I<value> pairs are returned, i.e. it can be used like this:
 
    $query = $r->args;
    %in    = $r->args;
+
+$r->args can also be used to set the I<query string>. This can be useful
+when redirecting a POST request.
 
 =item $r->headers_in
 
@@ -417,7 +429,7 @@ This method is used to read data from the client,
 looping until it gets all of C<$bytes_to_read> or a timeout happens.
 
 In addition, this method sets a timeout before reading with
-C<$r-E<gt>hard_timeout>
+C<$r-E<gt>hard_timeout>.
 
 =item $r->get_remote_host
 
@@ -467,12 +479,12 @@ this variable.
 =item $c->remote_ip
 
 The dotted decimal representation of the remote client's IP address.
-This is set by then server when the connection record is created so
+This is set by the server when the connection record is created so
 is always defined.
 
 You can also set this value by providing an argument to it. This is
-helpful if your server is behind a squid accelerator proxy which add
-a HTTP_X_FORWARDED_FOR header.
+helpful if your server is behind a squid accelerator proxy which adds
+a X-Forwarded-For header.
 
 =item $c->local_addr
 
@@ -517,10 +529,11 @@ If the configuration directive B<IdentityCheck> is set to off: then
 C<$r-E<gt>get_remote_logname> does nothing and C<$c-E<gt>remote_logname> is
 always undefined.
 
-=item $c->user 
+=item $c->user( [$user] )
 
 If an authentication check was successful, the authentication handler
-caches the user name here.
+caches the user name here. Sets the user name to the optional first
+argument.
 
 =item $c->auth_type
 
@@ -530,6 +543,15 @@ C<$c-E<gt>user>, if any.
 =item $c->aborted
 
 Returns true if the client stopped talking to us.
+
+=item $c->fileno( [$direction] )
+
+Returns the client file descriptor. If $direction is 0, the input fd
+is returned. If $direction is not null or ommitted, the output fd is
+returned.
+
+This can be used to detect client disconnect without doing any I/O,
+e.g. using IO::Select.
 
 =back
 
@@ -548,10 +570,12 @@ Returns the value of a per-directory variable specified by the
 C<PerlSetVar> directive.
 
    # <Location /foo/bar>
-   # SetPerlVar  Key  Value
+   # PerlSetVar  Key  Value
    # </Location>
 
    my $val = $r->dir_config('Key');
+
+Keys are case-insensitive.
 
 Will return a I<HASH> reference blessed into the
 I<Apache::Table> class when called in a scalar context with no
@@ -641,6 +665,10 @@ Returns true if this is a virtual server.
 
 Returns the wild-carded names for ServerAlias servers. 
 
+=item $s->dir_config( $key )
+
+Alias for Apache::dir_config.
+
 =item $s->warn
 
 Alias for Apache::warn.
@@ -648,6 +676,44 @@ Alias for Apache::warn.
 =item $s->log_error
 
 Alias for Apache::log_error.
+
+=item $s->uid
+
+Returns the numeric user id under which the server answers requests.
+This is the value of the User directive.
+
+=item $s->gid
+
+Returns the numeric group id under which the server answers requests.
+This is the value of the Group directive.
+
+=item $r->get_handlers( $hook )
+
+Returns a reference to a list of handlers enabled for $hook. $hook is
+a string representing the phase to handle. The returned list is a list
+of references to the handler subroutines.
+
+	$list = $r->get_handlers( 'PerlHandler' );
+
+=item $r->set_handlers( $hook, [\&handler, ... ] )
+
+Sets the list if handlers to be called for $hook. $hook is a string
+representing the phase to handle. The list of handlers is an anonymous
+array of code references to the handlers to install for this request
+phase. The special list [ \&OK ] can be used to disable a particular
+phase.
+
+	$r->set_handlers( PerlLogHandler => [ \&myhandler1, \&myhandler2 ] );
+	$r->set_handlers( PerlAuthenHandler => [ \&OK ] );
+
+=item $r->push_handlers( $hook, \&handler )
+
+Pushes a new handler to be called for $hook. $hook is a string
+representing the phase to handle. The handler is a reference to a
+subroutine to install for this request phase. This handler will be
+called before any configured handlers.
+
+	$r->push_handlers( PerlHandler => \&footer);
 
 =back
 
@@ -690,7 +756,7 @@ for the realm defined by the configuration directive C<AuthName>.
 
 Set the handler for a request.
 Normally set by the configuration directive C<AddHandler>.
-  
+
    $r->handler( "perl-script" );
 
 =item $r->notes( $key, [$value] )
@@ -962,8 +1028,8 @@ $r->send_http_header().  Example of use:
 
    $r->send_cgi_header(<<EOT);
    Location: /foo/bar
-   Content-type: text/html 
-   
+   Content-type: text/html
+
    EOT
 
 =back

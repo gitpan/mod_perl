@@ -4,7 +4,234 @@ Changes - Apache mod_perl change logfile
 
 =head1 CHANGES
 
+all changes without author attribution are by Doug MacEachern
+
 =over 3
+
+=item 1.21_01 - March 5, 2000
+
+#ifdef _AIX, make sure Perl's dlclose is used, instead of Apache's
+during dso_unload [Jens-Uwe Mager <jum@helios.de>]
+
+__THE__ dso fix: dlclose() xs shared objects and call perl_shutdown()
+before mod_perl's libperl.so is unloaded/reloaded by mod_so
+[Daniel Jacobowitz <drow@false.org>, Alan Burlison <Alan.Burlison@uk.sun.com>]
+
+add  /D "_MSWSOCK_" to ApacheModulePerl.dsp
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+removed modules/sandwich test
+
+Apache::RegistryBB returns DECLINED instead of FORBIDDEN if -d $r->finfo
+[Sean Chittenden <sean.chittenden@auctia.com>]
+
+add Apache::Util::validate_password(), as suggested by Christophe
+Labouisse
+
+call (void)perl_request_rec(r) asap, instead of waiting till the
+response phase, e.g. so CGI.pm can be used before PerlHandler, without 
+having to call Apache->request($r);
+
+Apache::perl_hook() fixes for Perl*Api, thanks to Geoffrey Young for
+the spot
+
+save/restore $^W in Apache::PerlRun
+[Honza Pazdziora <adelton@informatics.muni.cz>]
+
+fix Apache::Registry when $r->uri ends with a /
+[Peter Deister <deister@opus5.de>]
+
+add virtualhost support to Apache::RegistryLoader
+[John Hughes <john@Calva.COM>]
+
+$Apache::Registry::NameWithVirtualHost fix
+[John Hughes <john@Calva.COM>]
+
+allow Apache::PerlRun::handler to be subclassed
+[Yasushi Nakajima <sey@jkc.co.jp>]
+
+fix $r->connection->remote_ip for SGI performance patches (#ifdef SGI_BOOST)
+[Artem Veremey <scimitar@mail.ru>]
+
+mod_perl.exp is now installed
+
+aix tweaks for building with apxs
+[Jens-Uwe Mager <jum@helios.de>]
+
+pod fixups to avoid WARNING from newer pod2*
+
+Apache::RedirectLogFix now uses $r->last
+[David D. Kilzer <ddkilzer@e-markets.com>]
+
+tweaks for sfio
+[Lupe Christoph <lupe@lupe-christoph.de>]
+
+update Apache::SIG docs, thanks to Bill Moseley for the spot
+
+fix get_set_PVp in mod_perl_xs.h
+[Michal Jaegermann <michal@ellpspace.math.ualberta.ca>]
+
+tweaks to compile/run with 5.5.670 + -Dusethreads
+
+$r->hostname now documented [Eric Cholet <cholet@logilune.com>]
+
+Apache::File methods are now documented 
+[Eric Cholet <cholet@logilune.com>]
+
+avoid quoting <Perl> config if args_how == RAW_ARGS
+thanks to Michael Schout for the spot
+
+PerlPassEnv maintains its value beyond the first request,
+thanks to Chris Thorman for the spot
+
+prevent possible core dump in $r->pnotes if get_module_config returns
+NULL, thanks to Kevin Murphy for the spot
+
+fix Apache::Status::status_cv_dump for Perl/5.6-dev
+
+use perl_get_sv("]") instead of patchlevel for $AddPerlVersion
+
+adjust Makefile.PL and Apache::src to parse 1.3.13-dev's httpd.h
+
+Apache::Util functions $r->unescape_uri, $r->unescape_uri_info,
+$r->size_string are now documented [Eric Cholet <cholet@logilune.com>]
+
+$r->request_time is now documented [Jeffrey W. Baker <jwbaker@acm.org>]
+
+Look for the makepl_args.mod_perl file as .makepl_args.mod_perl in
+./ and ../ too since the book says it works so. [Ask Bjoern Hansen
+<ask@valueclick.com>]
+
+PerlRestartHandler is now enabled w/ ALL_HOOKS=1 (or EVERYTHING=1)
+
+$r->no_cache(1) will now set the r->headers_out "Pragma" and
+"Cache-control" to "no-cache"
+
+`PerlSetEnv PERL5LIB ...' now works again, thanks to Stas for the spot
+
+Apache::test fix for Apache::Table
+
+PerlFreshRestart semantics changed to preserve order of PerlModule's
+and not to reload modules while actually iterating over %INC
+
+$r->current_callback now works properly when PerlHandler invokes
+subrequests, thanks to James Smith for the spot
+
+if an Apache::Table is NULL return undef (e.g. $r->notes during ChildInit)
+
+ActivePerl compile patches [Jochen Wiedmann <joe@ispsoft.de>]
+
+document that Apache 1.2.x is no longer supported
+
+Apache::src now supported with USE_APXS=1
+
+'make test' AllowOverride None for Directory / 
+[Steve Lembark <Steve.Lembark@wfg.com>]
+
+disable experimental perlrunxs until future notice
+
+add sanity check for libgdbm
+
+change PL_siggv usage to gv_fetchpv("SIG", ...) for Perl 5.6-tobe
+[Andreas J. Koenig <andreas.koenig@anima.de>]
+
+document $r->get_handlers, $r->set_handlers, $r->push_handlers
+[Eric Cholet <cholet@logilune.com>]
+
+document PerlSetVar [Eric Cholet <cholet@logilune.com>]
+
+document the fact that $r->dir_config handles keys in a
+case insensitive manner [Ken Williams <ken@forum.swarthmore.edu>]
+
+avoid logging "rwrite returned -1" multiple times in the
+same request [Eric Cholet <cholet@logilune.com>]
+
+bugfix in write_client() when running under APACHE_SSL
+[Michael Douglass <mikedoug@staff.texas.net>]
+
+document the fact that $r->connection->user can be used to set
+the authenticated user name [Joshua Gerth <jgerth@ptdcs2.ra.intel.com>]
+
+document the fact that $r->uri sets/gets the URI minus the query string,
+not the complete URI [Andrei A. Voropaev <andrei@securities.com>]
+
+fixed the failure of t/modules/file test in 'make test' suit by untainting
+the $ENV{PATH} in ./t/net/perl/file.pl [Stas Bekman <sbekman@iname.com>]
+
+added the Apache::GTopLimit to MANIFEST and thus to distribution [Stas
+Bekman <sbekman@iname.com>]
+
+Apache::RegistryLoader::handler was rewritten to allow a better
+diagnostics of scripts preloading problems. [Stas Bekman 
+<sbekman@iname.com>]
+
+document the fact that $r->args can be used to set the query string
+as well as get it [Andrei A. Voropaev <andrei@securities.com>]
+
+add $r->connection->fileno, provides the client file descriptors. This
+can be used to detect client disconnect without doing any I/O, e.g. using
+IO::Select [Eric Cholet <cholet@logilune.com>]
+
+if $r->bytes_sent has not been calculated, then do so before returning
+the value.  thanks to Dirk Melchers for the spot
+
+ensure that all -I directories printed by Apache::src actually exist
+
+don't assume $uri =~ /$path_info$/ in Apache::Registry/PerlRun
+[Jonas Liljegren <jonas@paranormal.o.se>]
+
+/D "_WINSOCK2API_" for 1.3.9/win32 [Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+fix segfault when using Limit in <Perl> sections
+[Müller Joachim <Joachim.Mueller@arbeitsamt.de>]
+
+make $c->remote_host writeable [Joshua Chamas <joshua@chamas.com>]
+
+add per-server PerlSetVar variables, accessed using
+Apache->server->dir_config or $r->server->dir_config.
+$r->dir_config merges them with per-directory variables.
+[Eric Cholet <cholet@logilune.com>]
+
+documentation typo [David Harris <dharris@drh.net>]
+
+add $r->server->uid and $r->server->gid [Eric Cholet <cholet@logilune.com>]
+
+add per-server configuration merge [Eric Cholet <cholet@logilune.com>]
+
+`_' is no longer escaped in Apache::Registry package names
+
+fix $ENV{PATH} corruption, thanks to help from Chip Turner, 
+Oleg Bartunov and Tomasz Przygoda 
+
+mod_perl_version.h removed from MANIFEST
+
+fix modules/sandwich test
+
+apxs/aix port [Paul J. Reder <rederpj@raleigh.ibm.com>]
+
+preload Apache::Constants::OPT_EXECCGI() for Apache::{Registry,PerlRun}
+thanks to Chris Remshaw for spotting this w/ Apache::DProf
+
+Apache::SizeLimit now uses $r->child_terminate instead of Apache::exit(-2)
+[Jon Peterson <jon@snowdrift.org>]
+
+get rid of various 5.005_60 warnings
+
+add Status{Terse,TerseSize,Deparse,Fathom,OptionsAll} options to Apache::Status
+
+adjust mod_perl.h for 5.005_59 perl_eval_{pv,sv} rename
+
+fix flush_namespace undef logic in Apache::PerlRun, thanks to Karsten
+Meier for the spot
+
+Tweak Apache::content to comply with media-types embedded in content-types
+(RFC 2616 section 3.7) [Eric Cholet <cholet@logilune.com>]
+
+Removed and added a few modules from the Bundle file. <ask@netcetera.dk>
+
+Renamed the Apache::StatINC parameters to StatINC_<something>. Changed
+StatINC_Debug to take a number as parameter instead of "on" to support
+"debug levels" <ask@netcetera.dk>
 
 =item 1.21 - July 2, 1999
 
@@ -497,7 +724,7 @@ modules
 
 Apache::Log optimizations/enhancements:
   $r->log now invokes ap_log_rerror (w/ 1.3.2-dev+)
-  ${r,s}->log->$method() will now accept a CODE ref as it's first
+  ${r,s}->log->$method() will now accept a CODE ref as its first
   argument, which is only called when LogLevel >= $method
   caller() file/line info determined only if LogLevel >= debug
   avoid copy of message SV 
@@ -690,7 +917,7 @@ add PERL_TIE_TABLES and PERL_DIRECTIVE_HANDLERS to EVERYTHING=1 group
 
 add some casts to avoid warnings from const char changes in 1.3.1-dev
 
-write_client will break out of it's loop if rwrite returns a -1 error 
+write_client will break out of its loop if rwrite returns a -1 error 
 condition, which could cause spinning httpds otherwise
 [Eric Eisenhart <eric@sonic.net>]
 
@@ -739,7 +966,7 @@ Various fixes and improvements to the APACI support:
 if $r->subprocess_env is called in a void context just call
 (void)perl_cgi_env_init(r)
 
-$ENV{PATH}: don't let perl_clear_env() clear it's value
+$ENV{PATH}: don't let perl_clear_env() clear its value
 
 prevent $r->dir_config SEGV if called during ChildInit, 
 spotted by Lincoln Stein
@@ -1236,7 +1463,7 @@ REMOTE_NAME even if another type was passed as the optional second argument
 
 renamed eg/perlio.pl to eg/test.pl
 
-moved SUPPORT section from INSTALL doc to it's own file
+moved SUPPORT section from INSTALL doc to its own file
 
 fixed auto-set of $ServerRoot bug in Apache::httpd_conf
 
@@ -1638,7 +1865,7 @@ some mod_perl.pm fixes
 
 Apache::Status "Loaded Modules" item enhancements:
 -now shows file location
--can click on module package for dump of it's symbol table
+-can click on module package for dump of its symbol table
 -pretty table format
 
 don't add -I. to perl_startup() which may cause confusion spotted by
@@ -2126,7 +2353,7 @@ added $r->translate_name method to run translate handlers
 
 fix Apache::Status so it sends http headers!  spotted by Mike Stok
 
-have cgi.t skip it's tests if CGI.pm is not installed, for Rob, the
+have cgi.t skip its tests if CGI.pm is not installed, for Rob, the
 only person in the whole world who doesn't have CGI.pm installed ;-)
 
 s/make/$(MAKE)/ for 'make test_report' thanks to Tom Hughes 

@@ -33,6 +33,22 @@ BOOT:
 #				 * get_remote_host() */
 
 int
+fileno(conn, ...)
+    Apache::Connection	conn
+
+    PREINIT:
+    int sts = 1;	/* default is output fd */
+
+    CODE:
+    if(items > 1) {
+        sts = (int)SvIV(ST(1));
+    }
+    RETVAL = ap_bfileno(conn->client, sts ? B_WR : B_RD);
+
+    OUTPUT:
+    RETVAL
+
+int
 aborted(conn)
     Apache::Connection	conn
 
@@ -82,18 +98,28 @@ remote_ip(conn, ...)
     CODE:
     RETVAL = conn->remote_ip;
  
-    if(items > 1)
-         conn->remote_ip = pstrdup(conn->pool, (char *)SvPV(ST(1),na));
+    if(items > 1) {
+#ifdef SGI_BOOST
+        ap_cpystrn(conn->remote_ip, (char *)SvPV(ST(1),na),
+                   sizeof(conn->remote_ip));
+        conn->remote_ip_len = strlen(conn->remote_ip);
+#else
+        conn->remote_ip = pstrdup(conn->pool, (char *)SvPV(ST(1),na));
+    }
+#endif
 
     OUTPUT:
     RETVAL
 
 char *
-remote_host(conn)
+remote_host(conn, ...)
     Apache::Connection	conn
 
     CODE:
     RETVAL = conn->remote_host;
+
+    if(items > 1)
+         conn->remote_host = pstrdup(conn->pool, (char *)SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL

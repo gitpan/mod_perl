@@ -167,6 +167,8 @@ sub httpd_version {
     my($string, $extra, @vers);
 
     while(<$fh>) {
+	next unless /^#define/;
+	s/SERVER_PRODUCT \"/\"Apache/; #1.3.13+
 	next unless s/^#define\s+SERVER_(BASE|)VERSION\s+"(.*)\s*".*/$2/;
 	chomp($string = $_);
 
@@ -190,16 +192,26 @@ sub httpd_version {
     return $version;
 }
 
+sub find_in_inc {
+    my $name = shift;
+    for (@INC) {
+	my $file;
+	if (-e ($file = "$_/auto/Apache/$name")) {
+	    return $file;
+	}
+    }
+}
+
+#XXX
+#do similar for mod_perl.exp and httpd.exp
+
 sub typemaps {
     my $typemaps = [];
     
-    for (@INC) {
-	my $file;
-	if (-e ($file = "$_/auto/Apache/typemap")) {
-	    push @$typemaps, $file;
-	    last;
-	}
+    if (my $file = find_in_inc("typemap")) {
+	push @$typemaps, $file;
     }
+
     if(IS_MOD_PERL_BUILD) {
 	push @$typemaps, "../Apache/typemap";
     }
@@ -212,8 +224,8 @@ sub inc {
     my $src  = $self->dir;
     my $main = $self->main;
     my $os = $Is_Win32 ? "win32" : "unix";
-    my @inc = ("-I$src", "-I$src/modules/perl", "-I$main");
-    for ("src/regex", "$src/os/$os") {
+    my @inc = (); 
+    for ($src, "$src/modules/perl", $main, "$src/regex", "$src/os/$os") {
 	push @inc, "-I$_" if -d $_;
     }
     my $ssl_dir = "$src/../ssl/include";
@@ -222,6 +234,11 @@ sub inc {
 	$ssl_dir = "$Apache::MyConfig::Setup{SSL_BASE}/include";
     }
     push @inc, "-I$ssl_dir" if -d $ssl_dir;
+    require Apache::MyConfig;
+    if (my $apxs = $Apache::MyConfig::Setup{'APXS'}) {
+	my $ainc = `$apxs -q INCLUDEDIR`;
+	push @inc, "-I$ainc" if -d $ainc;
+    }
     return "@inc";
 }
 
@@ -274,7 +291,7 @@ source code.
 Create an object blessed into the B<Apache::src> class.
 
  my $src = Apache::src->new;
- 
+
 =item dir
 
 Top level directory where source files are located.

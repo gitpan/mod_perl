@@ -65,15 +65,27 @@ CV *empty_anon_sub(void)
                   Nullop,
                   block_end(block_start(TRUE), newOP(OP_STUB,0)));
 }
-   
+
+#ifdef newCONSTSUB
+
+#define my_newCONSTSUB(stash, name, sv) \
+    if(!no_warn) no_warn = empty_anon_sub(); \
+    SAVESPTR(warnhook); \
+    warnhook = (SV*)no_warn; \
+    newCONSTSUB(stash, name, sv)
+
+#else   
+
 static void my_newCONSTSUB(HV *stash, char *name, SV *sv)
 {
 #ifdef dTHR
     dTHR;
 #endif
-    ENTER;
-    SAVEI32(hints);
-    SAVEI16(curcop->cop_line);
+    I32 oldhints = hints;
+    HV *old_cop_stash = curcop->cop_stash;
+    HV *old_curstash = curstash;
+    line_t oldline = curcop->cop_line;
+
     hints &= ~HINT_BLOCK_SCOPE;
 
     if(stash) {
@@ -92,8 +104,13 @@ static void my_newCONSTSUB(HV *stash, char *name, SV *sv)
 	   newSVOP(OP_CONST, 0, &sv_no),	
 	   newSTATEOP(0, Nullch, newSVOP(OP_CONST, 0, sv)));
 
-    LEAVE;
+    hints = oldhints;
+    curcop->cop_stash = old_cop_stash;
+    curstash = old_curstash;
+    curcop->cop_line = oldline;
 }
+
+#endif
 
 static enum cmd_how autoload_args_how(char *name) {
     if (strEQ(name, "FLAG"))
@@ -129,12 +146,11 @@ static enum cmd_how autoload_args_how(char *name) {
     if (strEQ(name, "TAKE3"))
 	return TAKE3;
     
-    return -1;
+    return (enum cmd_how) -1;
 }
 
 static double
-constant(name)
-char *name;
+constant(char *name)
 {
     errno = 0;
     switch (*name) {

@@ -6,21 +6,29 @@
 
 For comments, questions, bug-reports, announcements, etc., send mail
 to I<modperl@apache.org>.
+
 To subscribe to this list (which you must do to send mail to the
-list), send a mail message to I<majordomo@apache.org> with the body:
+list), send a mail message to 
 
- subscribe modperl
+I<modperl-subscribe@apache.org>
 
-Please note that mails on the mailinglist go out with a reply-to
-header, so you have to be subscribed to get the answers.
+We also have a mailing list just for announcements. Subscribe by
+sending a message to 
 
-We also have a mailinglist just for announcements. Subscribe my
-sending a message to I<majordomo@apache.org> with the body:
+I<announce-subscribe@perl.apache.org>
 
- subscribe modperl-announce
+Discussions about the perl.apache.org website and general mod_perl
+advocacy should go to the I<advocacy@perl.apache.org>
+mailing list. Subscribe by sending mail to
+I<advocacy-subscribe@perl.apache.org>
 
-(Thanks to Brian Behlendorf)
-(Thanks also to Mark A. Imbriaco who maintained the original list for 2 years)
+The HTML::Embperl mailing list is at I<embperl@perl.apache.org>.
+Subscribe by (you properly got the idea by now) sending mail to
+I<embperl-subscribe@perl.apache.org>.
+
+All CVS commit messages goes to the I<modperl-cvs@apache.org>
+list. Embperl CVS messages goes to I<embperl-cvs@perl.apache.org>.
+
 
 =item MAIL LIST ARCHIVES
 
@@ -69,15 +77,17 @@ Please send mail to modperl@apache.org
 
 Always include this information:
 
-Output of C<perl -v; perl -V>
+Output of C<perl -V>
 
 Version of mod_perl
 
 Version of apache
 
+Options given to mod_perl's Makefile.PL
+
 Server configuration details
 
-relevant sections of your ErrorLog (make test's is: t/logs/error_log)
+Relevant sections of your ErrorLog (make test's is: t/logs/error_log)
 
 If 'make test' fails, the output of 'make test TEST_VERBOSE=1'
 
@@ -104,7 +114,7 @@ which will:
 Here's how to get a backtrace:
 
  % cd mod_perl-x.xx
- % touch conf/srm.conf
+ % touch t/conf/srm.conf
  % gdb ../apache_x.xx/src/httpd
  (gdb) run -X -f `pwd`/t/conf/httpd.conf -d `pwd`/t
  [now make request that causes core dump]
@@ -127,6 +137,10 @@ While the process is spinning, send it a I<USR1> signal:
 Sometimes gdb can make heads or tails of the core file, try this:
  
  % gdb -core core
+
+or
+
+ % gdb httpd core
 
 If the dump is happening in libperl a -DDEBUGGING enabled libperl
 would help show us what's really happening. 

@@ -3,60 +3,81 @@ SHORT TERM STUFF (this section should always be empty in a release version!)
                  (well, close to it anyhow)
 ---------------------------------------------------------------------------
 
-- SetEnv PATH cause garbled value (is it mod_env or mod_perl?)
+- DEFAULT_PATH quoting fixup
+[Sheldon Hearn <sheldonh@uunet.co.za>]
 
-- mod_perl_version.h should not be directly written to
+- PERL_STATIC_EXTS doesnt work with USE_APACI=1
+
+- solaris Perl Configure adds a space before -R in ccdlflags, see
+  about removing that
+  [Ken McNamara <conmara@oaktree.net>]
+
+- fixup for building with apxs when $Config{useshrplib} eq "define"
+[iroca@ssa.siemens.es]
+
+- see if possible to have the dso libperl.so be named something else,
+  e.g. libmodperl.so 
+  [Eugene B. Byrganov <E.B.Byrganov@inp.nsk.su]
+
+- fix t/httpd symlink logic ["Young, Geoffrey S." <younggs@acwilm.com>]
+
+- ldopts() spits out ccdlflags when linker is ld
+
+- Makefile.PL should always push load_modules.pl for 'make test' 
+
+- recursion triggered by internal_redirect() called by a pushed handler
+[Ashish Goyal <ashishg@linux-delhi.org>]
+
+- auth stuff segfaults if AuthType isn't set
+[Matt Sergeant <matt@sergeant.org>]
+
+- Support of <CR> <LF> in a EBCDIC environment
+[Ignasi Roca <ignasi.roca@fujitsu.siemens.es>]
+
+- Apache::FakeRequest::args doesnt behave right in a list context
+[Michael Finke <mfinke@apollo.screamdesign.com>]
+
+- rename PerlSendHeader?
+
+- syswrite/WRITE
 
 - libapreq: Apache::Cookie format sync w/ CGI.pm
-
-- document Apache::File
-
-- think about making 'use Apache::Log ()' automatic
 
 - remove DIR_MAGIC_TYPE from mod_perl's handler table, if possible (Salvador)
 
 - should Apache::Registry use -M or (stat _)[9]?
 
-- restart troubles: Apache::DBI, @INC
-
 - ActivePerl?
-
-- ldopts() spits out ccdlflags when linker is ld
-
-- Paul J. Reder's aix/dso port
 
 - Apache::Include->virtual should return run() value, not status()
 
-- win32 socket bug (WSAStartup() needed for each thread?)
+- think about making 'use Apache::Log ()' automatic
 
-- Makefile.PL should always push load_modules.pl for 'make test' 
+- coderef to $r->custom_response
+[Randal L. Schwartz <merlyn@stonehenge.com>]
 
-- make PERL_STARTUP_DONE_CHECK=1 default for win32?
+- PerlRun::flush_namespace needs to check if_owner for all types, not
+just cvs.  NOTE: i dont think this is possible, only CVs have a GV
+pointer attached -dougm
+[John M Vinopal <jvinopal@abattoir.com>]
 
-- turn of strip of httpd in Apache's install.sh
+- should $r->content unset $r->headers_in('content-length') ?
+NOTE: im worried this could break apps who need to know content-length 
+after data has been read
 
 ---------------------------------------------------------------------------
 KNOWN BUGS
 ---------------------------------------------------------------------------
 
-- sfio/solaris problem
-Lupe Christoph <lupe@alanya.m.isar.de>, Don Hayward <don@mote.org>
-
 - Gerald's report of Embperl/sub-request/print breakage
 
-- looks like we need a per-server configuration merge routine
-
-- need turn of strip of httpd during 'make install'
+- need turn of strip of httpd during 'make install' ?
 
 - SSIs executed using /bin/sh, not suexec as configured?
   Theo Van Dinter <felicity@kluge.net>
 
 - /perl/perl-status?sig dumps core under hpux 10.20
    [David-Michael.Lincke@unisg.ch]
-
-- USE_DSO=1 --> END blocks are run at startup time
-
-- USE_DSO=1 broken on most platforms (core dump in dlclose)
 
 - $r cannot use many api methods during ChildInit/ChildExit -> SEGV
 

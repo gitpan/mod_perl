@@ -20,6 +20,7 @@ INSTALL
 INSTALL.apaci
 SUPPORT
 INSTALL.win32
+INSTALL.activeperl
 MANIFEST
 ToDo
 Makefile.PL
@@ -55,6 +56,7 @@ lib/Apache/RegistryNG.pm
 lib/Apache/RegistryBB.pm
 lib/Apache/RegistryLoader.pm
 lib/Apache/Resource.pm
+lib/Apache/GTopLimit.pm
 #lib/Apache/Safe.pm
 lib/Apache/SIG.pm
 lib/Apache/SizeLimit.pm
@@ -72,8 +74,8 @@ Leak/Leak.pm
 Leak/Leak.xs
 Leak/Makefile.PL
 Leak/typemap
+src/modules/perl/apache_inc.h
 src/modules/perl/perl_PL.h
-src/modules/perl/mod_perl_version.h
 src/modules/perl/Exports.c
 src/modules/perl/File.xs
 src/modules/perl/Constants.xs
@@ -121,7 +123,6 @@ t/modules/psections.t
 t/modules/perlrun.t
 t/modules/include.t
 t/modules/ssi.test
-t/modules/sandwich.t
 t/modules/src.t
 t/modules/stage.t
 t/modules/status.t
@@ -225,6 +226,7 @@ apaci/mod_perl.config
 apaci/mod_perl.config.sh
 apaci/load_modules.pl.PL
 apaci/find_source.PL
+apaci/mod_perl.exp
 .gdbinit
 INSTALL.simple
 INSTALL.simple.ssl
@@ -234,4 +236,4 @@ t/docs/subr/.exists
 PerlRunXS/Makefile.PL
 PerlRunXS/PerlRunXS.pm
 src/modules/perl/PerlRunXS.xs
-t/modules/perlrunxs.t
+

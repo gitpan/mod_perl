@@ -15,6 +15,11 @@ BEGIN {
 	eval { require "net/config.pl"; }; #for 'make test'
 	$PERL_DIR = $net::perldir;
     } 
+    # Validate that the OS knows the name of the server in $net::httpserver     
+    # if 'localhost' is not defined, the tests wouldn't pass
+    (my $hostname) = ($net::httpserver =~ /(.*?):/);
+    warn qq{\n*** [Crucial] You must define "$hostname" (e.g. in /etc/hosts) in order for 'make test' to pass\n}  
+      unless gethostbyname $hostname;
 }
 
 $PERL_DIR = $ENV{PERL_DIR} if exists $ENV{PERL_DIR};
@@ -76,6 +81,24 @@ sub simple_fetch {
     $response->is_success;
 }
 
+#even if eval $mod fails, the .pm ends up in %INC
+#so the next eval $mod succeeds, when it shouldnot
+
+my %really_have = (
+   'Apache::Table' => sub { 
+       if ($ENV{MOD_PERL}) {
+	   return Apache::Table->can('TIEHASH');
+       }
+       else {
+	   return $net::callback_hooks{PERL_TABLE_API};
+       }
+   },
+);
+
+for (qw(Apache::Cookie Apache::Request)) {
+    $really_have{$_} = $really_have{'Apache::Table'};
+}
+
 sub have_module {
     my $mod = shift;
     my $v = shift;
@@ -84,6 +107,7 @@ sub have_module {
 	 require Apache;
 	 require Apache::Constants;
     };
+
     eval "require $mod";
     if($v and not $@) {
 	eval { 
@@ -104,7 +128,13 @@ sub have_module {
     elsif($@) {
 	warn "$@\n";
     }
-    print "module $mod is installed\n";
+
+    if (my $cv = $really_have{$mod}) {
+	return 0 unless $cv->();
+    }
+
+    print "module $mod is installed\n" unless $ENV{MOD_PERL};
+    
     return 1;
 }
 

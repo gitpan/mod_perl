@@ -6,7 +6,7 @@
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@pobox.com">Doug MacEachern</a>,
-<br><i> $Revision: 1.58 $ $Date: 1999/06/15 08:30:36 $</i>
+<br><i> $Revision: 1.67 $ $Date: 2000/03/05 01:10:35 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -53,7 +53,7 @@ or to <a href="mailto:dougm@pobox.com">me</a>.
 <p>
 If you wish to share you module(s) the Perl way, by putting them on CPAN,
 send a request to <a href="mailto:dougm@pobox.com">me</a> or 
-<a href="mailto:modules@perl.com">modules@perl.com</a> to get set up with a
+<a href="mailto:modules@perl.org">modules@perl.org</a> to get set up with a
 PAUSE user id and directory.
 <p>
 <b>HINT</b>:  For a nice set of template files try this:
@@ -69,8 +69,8 @@ Apache::
 AdBanner	cdpf	Ad banner server			CHOLET
 AddrMunge	bdpf	Munge email addresses in webpages	MJD
 AutoIndex	Rdcf	Lists directory content			GOZER
-Archive		i	List archive contents			PETERSON
-ASP		bdpO	Implement Active Server Pages		CHAMAS
+Archive		bdpf	Make linked contents pages of .tar(.gz) JPETERSON
+<a href="http://www.nodeworks.com/asp/">ASP</a>		bdpO	Implement Active Server Pages		CHAMAS
 BBS		cdpO 	BBS like System for Apache		MKOSS
 CallHandler	cdpf	Map filenames to subroutine calls	GKNOPS
 Cachet		i	OutputChain with caching		MERLYN
@@ -83,13 +83,14 @@ Forward		bdpO	OutputChain like functionality		MPB
 FTP		i	Full-fledged FTP proxy			PMKANE
 Gateway		bdpf	A multiplexing gateway			CCWF
 GzipChain	bmpf	Compress files on the fly		ANDK
-IDC_HTX		i						PTI
+iNcom		bdpf	An e-commerce framework			FRAJULAC
 Layer		bdpf	Layer content tree over one or more	SAM
 Magick		bdpf	Image conversion on-the-fly		MPB
 Mason		bdpO	Build sites w/ modular Perl/HTML blocks	JSWARTZ
 ModuleDoc	bdpf	Self documentation for Apache C modules	DOUGM
 NavBar		bdpO	Navigation bar generator		MPB
 OutputChain     bmpO	Chain output of stacked handlers	JANPAZ
+OWA		bdpf	Runs Oracle PL/SQL Web Toolkit apps	SVINTO
 PassFile	bdpf	Send file via OutputChain		ANDK
 PerlRun		Smpf	Run unaltered CGI scripts		APML
 PrettyText	bdpf	Re-format .txt files for client display	CHTHORMAN
@@ -114,7 +115,7 @@ AgentDeny	cdpf	Deny abusive User-Agents		ROBH
 * PerlAuthenHandler's
 AuthAny		bdpf	Authenticate with any username/password	MPB
 AuthenCache	bmpf	Cache authentication credentials	JBODNAR
-AuthCookie	bdpO	Authen + Authz via cookies		EBARTLEY
+AuthCookie	bdpO	Authen + Authz via cookies		KWILLIAM
 AuthenDBI	bmpO	Authenticate via Perl's DBI		MERGL
 AuthExpire	i	Expire Basic auth credentials		DOUGM
 AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
@@ -148,6 +149,7 @@ RoleAuthz	i	Role-based authorization		DOUGM
 AccessLimitNum	bmpf	Limit user access by number of requests	APML
 BlockAgent	bdpf	Block access from certain agents	MPB
 DayLimit	bmpf	Limit access based on day of week	MPB
+IPThrottle	cdpf	Limit bandwith consumption by IP	MERLYN
 RobotLimit	cdpf	Limit access of robots			PARKER
 SpeedLimit	bdpf	Control client request rate		MPB
 
@@ -214,6 +216,7 @@ Handler		bmcO	Interface to Apache handler_rec struct	APML
 Log		SmcO	ap_log_error interface			APML
 LogFile		bmcO	Interface to Apache's piped logs, etc.	APML
 Module		bmcO	Interface to Apache module struct	APML
+Scoreboard      RdcO    Perl interface to Apache's scoreboard.h DOUGM
 Server		SmcO	Interface to Apache server_rec struct	APML
 SubProcess	cmcO	Interface to Apache subprocess API	APML
 Table		SmcO	Interface to Apache table struct + API 	APML
@@ -225,6 +228,12 @@ PATCH		bdpf	HTTP PATCH method handler		MPB
 PUT		cdpf	HTTP PUT method handler 		SORTIZ
 Roaming		bdpO	PUT/GET/MOVE/DELETE (Netscape Roaming)	JWEID
 
+* Watchdog and Monitoring tools
+SizeLimit         Smpf    Graceful exit for large children        APML
+Status            Smpf    Embedded interpreter runtime status     APML
+VMonitor          Rdpn    Visual System and Processes Monitor     STAS
+Watchdog::RunAway Rdpn    RunAway processes watchdog/terminator   STAS
+
 * Development and Debug tools
 DB		amcO	Hook Perl interactive DB into mod_perl	DOUGM
 Debug		Rmpf	mod_perl debugging utilities		APML
@@ -233,10 +242,8 @@ FakeRequest	ampO	Implement Apache methods off-line	APML
 Leak		bmcf	Memory leak tracking routines		APML
 Peek		amcf	Devel::Peek for mod_perl		APML
 SawAmpersand	bmpf	Make sure noone is using $&, $' or $`	APML
-SizeLimit	Smpf	Graceful exit for large children	APML
 SmallProf	bmpf	Hook Devel::SmallProf into mod_perl	DOUGM
 StatINC		Smpf	Reload require'd files when updated	APML
-Status		Smpf	Embedded interpreter runtime status	APML
 Symbol		bmcO	Things for symbol things		APML
 Symdump		bmpf	Symbol table snapshots to disk		APML
 test		Smpf	Handy routines for 'make test' scripts	APML
@@ -291,6 +298,7 @@ DOUGB     Doug Bagley &lt;doug@dejanews.com&gt;
 DOUGM	  Doug MacEachern &lt;dougm@pobox.com&gt;
 EBARTLEY  Eric Bartley  &lt;bartley@osd.cc.purdue.edu&gt;
 FLETCH    Mike Fletcher &lt;lemur1@mindspring.com&gt;
+FRAJULAC  Francis J. Lacoste &lt;frajulac@insu.com&gt;
 GKNOPS	  Gerd Knops &lt;gerti@BITart.com&gt;
 GOZER	  Philippe M. Chiasson &lt;gozer@ectoplasm.dyndns.com&gt;
 GRICHTER  Gerald Richter &lt;richter@ecos.de&gt;
@@ -326,7 +334,7 @@ MSERGEANT Matt Sergeant &lt;matt@sergeant.org&gt;
 NJENSEN	  Neil Jensen &lt;njensen@habaneros.com&gt;
 PARKER	  Michael Parker &lt;parker@austx.tandem.com&gt;
 PETERM	  Peter Marshall &lt;peterm@pageactive.com&gt;
-PETERSON  Jonathan Peterson &lt;jon@amxstudios.com&gt;
+JPETERSON  Jonathan Peterson &lt;jon@amxstudios.com&gt;
 PLISTER   Peter Lister &lt;p.lister@cranfield.ac.uk&gt;
 PMKANE	  Patrick Michael Kane &lt;modus@pr.es.to&gt;
 PTI	  Peter Tillemans &lt;pti@pandora.be&gt;
@@ -336,7 +344,9 @@ ROBH	  Rob Hartill &lt;robh@imdb.com&gt;
 RSE       Ralf S. Engelschall &lt;rse@engelschall.com&gt;
 SAM	  Simon Matthews &lt;sam@peritas.com&gt;
 SKANE     Stephen E Kane &lt;sek112@elvis.arl.psu.edu&gt;
-SORTIZ	  Salvador Ortiz &lt;sortiz@sog@msg.com.mx&gt;
+SORTIZ	  Salvador Ortiz &lt;sortiz@msg.com.mx&gt;
+STAS      Stas Bekman &lt;stas@stason.org&gt;
+SVINTO	  Svante Sörmark &lt;svinto@ita.chalmers.se&gt;
 TOMHUGHES Tom Hughes &lt;tom@compton.demon.co.uk&gt;
 VALERIE	  Valerie Delane &lt;valerie@savina.com&gt;
 VKHERA    Vivek Khera &lt;vivek@khera.org&gt;

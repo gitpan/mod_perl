@@ -14,7 +14,7 @@ BEGIN {
 sub MMN_130 () { 19980527 }
 
 use ExtUtils::MakeMaker;
-use Config;
+use Config ();
 use FileHandle ();
 use DirHandle ();
 use File::Compare ();
@@ -22,6 +22,12 @@ use File::Basename qw(dirname);
 use File::Path qw(mkpath rmtree);
 use Cwd;
 use File::Copy qw(cp);
+
+#use Apache::ExtUtils qw(%Config);
+
+unless (%Config) {
+    *Config = \%Config::Config;
+}
 
 my %vcache = (); #SERVER_VERSION
 my %mcache = (); #MODULE_MAGIC_NUMBER
@@ -33,8 +39,16 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
 } if $File::Copy::VERSION < 2.0;
 
 my $Is_dougm = (defined($ENV{USER}) && ($ENV{USER} eq "dougm"));
-my $USE_THREADS = 
-    (defined($Config{usethreads}) && ($Config{usethreads} eq "define"));
+my $USE_THREADS;
+
+if ($] < 5.005_60) {
+    $USE_THREADS = (defined($Config{usethreads}) && 
+		    ($Config{usethreads} eq "define"));
+}
+else {
+    $USE_THREADS = (defined($Config{use5005threads}) && 
+		    ($Config{use5005threads} eq "define"));
+}
    
 require "./lib/mod_perl.pm";
 $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
@@ -55,11 +69,6 @@ $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
 }
 
 use subs qw(iedit asrc);
-
-gen_script("t/net/perl/cgi.pl");
-gen_script("t/report");
-gen_script("apaci/find_source");
-write_version_h("src/modules/perl");
 
 if($] < 5.004_04) {
     print <<EOF;
@@ -113,6 +122,10 @@ my(@do_clean) = qw{
    t/logs/error_log
    t/conf/srm.conf
    t/logs/httpd.pid
+   src/modules/perl/mod_perl_version.h
+   t/net/perl/cgi.pl
+   t/report
+   apaci/find_source
 };
 #t/conf/httpd.conf
 #t/net/config.pl
@@ -124,6 +137,11 @@ unless ($Is_Win32) {
 }
 
 rmtree "t/docs/stacked", 0, 0;
+
+gen_script("t/net/perl/cgi.pl");
+gen_script("t/report");
+gen_script("apaci/find_source");
+write_version_h("src/modules/perl");
 
 my(@test_pre_init) = qq(
 test_pre_init:
@@ -194,7 +212,6 @@ PERL_STARTUP_DONE_CHECK
 PERL_RUN_XS
 PERL_MARK_WHERE
 DO_INTERNAL_REDIRECT
-PERL_RESTART_HANDLER
 PERL_TIE_SCRIPTNAME
 PERL_STASH_POST_DATA
 XS_IMPORT
@@ -230,7 +247,7 @@ sub is_mp_arg {
    PERL_ACCESS PERL_AUTHEN PERL_AUTHZ 
    PERL_TYPE PERL_FIXUP
    PERL_HANDLER PERL_LOG 
-   PERL_INIT PERL_CLEANUP
+   PERL_INIT PERL_CLEANUP PERL_RESTART
    PERL_STACKED_HANDLERS 
    PERL_METHOD_HANDLERS
    PERL_DIRECTIVE_HANDLERS
@@ -252,7 +269,7 @@ $callback_hooks{PERL_HANDLER} = 1; #PerlHandler always on
 my @mm_args;
 {
     my($fh,$file);
-    for (qw(./ ../), "$ENV{HOME}/.") {
+    for (qw(./ ../ ./. ../.), "$ENV{HOME}/.") {
 	last if $fh = FileHandle->new($file = $_."makepl_args.mod_perl");
     }
     if($fh) {
@@ -328,13 +345,21 @@ EOF
     }
 }
 
+system_sanity_check();
+
 if($USE_APXS) {
     if(-e $USE_APXS and !(-d _)) {
         $WITH_APXS = $USE_APXS;
     }
     elsif($USE_APXS and $APACHE_PREFIX) {
-	$WITH_APXS = "$APACHE_PREFIX/sbin/apxs";
+	for (qw(sbin bin)) {
+	    last if -e ($WITH_APXS = "$APACHE_PREFIX/$_/apxs");
+	}
     }
+    unless ($WITH_APXS) {
+	chomp($WITH_APXS = `which apxs`);
+    }
+
     print "Will configure via APXS";
     print " (apxs=$WITH_APXS)" if $WITH_APXS;
     print "\n";
@@ -496,6 +521,9 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    }
 	    close MANI;
 
+	    cp "src/modules/perl/mod_perl_version.h",
+	       "$atopdir/src/modules/perl/mod_perl_version.h";
+
 	    if($USE_APACI) {
 		open MANI, "MANIFEST" or die "open MANIFEST $!";
 		while(<MANI>) {
@@ -596,7 +624,8 @@ if($PERL_DIRECTIVE_HANDLERS) {
     $callback_hooks{PERL_DIRECTIVE_HANDLERS} = 1;
 }
 
-if($PERL_RUN_XS or $experimental{PERL_RUN_XS} > 1) {
+#if($PERL_RUN_XS or $experimental{PERL_RUN_XS} > 1) {
+if (0) {
     my $mmn    = $USE_APXS ? MMN_130 : magic_number($APACHE_SRC);
     if($mmn >= MMN_130) {
 	push @xs_modules, "Apache::PerlRunXS";
@@ -632,10 +661,9 @@ if($APACHE_SRC or $USE_APXS) {
     my $mmn    = $USE_APXS ? MMN_130 : magic_number($APACHE_SRC);
     my $httpdv = $USE_APXS ? 130     : httpd_version($APACHE_SRC,1);
 
-    unless($httpdv >= 120) {
-	$callback_hooks{PERL_HEADER_PARSER} = 0;
-	$cant_hook{PERL_HEADER_PARSER} = 
-	    "(need 1.2.0 or higher)";
+    unless($httpdv >= 130) {
+	phat_warn("Apache Version 1.3.0 required, aborting...");
+	exit(1);
     }
 
     if($httpdv >= 130) {
@@ -1107,8 +1135,6 @@ if($ENV{TEST_PERL_DIRECTIVES}) {
 
 $TARGET ||= (is_ssl() ? "httpsd" : "httpd");
 
-system_sanity_check();
-
 WriteMakefile(
     #DIR => \@DIR,
     NAME    => "mod_perl",
@@ -1360,17 +1386,28 @@ sub wanted {
 sub MY::post_initialize {
     my($self) = shift;
 
-    return unless $APACHE_SRC and $APACHE_HEADER_INSTALL;
+    return unless $APACHE_HEADER_INSTALL;
+    my($ap_src, $ap_inc);
+    if ($APACHE_SRC) {
+	$ap_src = $APACHE_SRC;
+	$ap_inc = "$ap_src/include";
+    }
+    elsif ($USE_APXS) {
+	#$base = `$WITH_APXS -q INCLUDEDIR`;
+	$ap_inc = $ap_src = 'src'; #just install mod_perl headers
+    }
+
+    return unless -d $ap_src;
 
     $My::self = $self;
-
-    finddepth(\&wanted, $APACHE_SRC);
+    {
+	local $APACHE_SRC = $ap_src;
+	finddepth(\&wanted, $ap_src);
+    }
     $self->{PM}{"Apache/typemap"} = '$(INST_ARCHLIB)/' . "auto/Apache/typemap";
-
-    my $v = httpd_version($APACHE_SRC, 1);
-    return '' unless $v >= 133;
+    $self->{PM}{"apaci/mod_perl.exp"} = '$(INST_ARCHLIB)/' . "auto/Apache/mod_perl.exp";
     for (qw(ap_config_auto.h)) {
-	my $from = "$APACHE_SRC/include/$_";
+	my $from = "$ap_inc/$_";
 	my $to = '$(INST_ARCHLIB)/' . "auto/Apache/include/$_";
 	unless ($self->{PM}->{$from}) {
 	    $self->{PM}->{$from} = $to;
@@ -1428,6 +1465,8 @@ sub httpd_version {
     my($fserver, $fversion, $frest);
     my($string, $extra, @vers);
     while(<$fh>) {
+	next unless /^#define/;
+	s/SERVER_PRODUCT \"/\"Apache/; #1.3.13+
 	next unless s/^#define\s+SERVER_(BASE|)VERSION\s+"(.*)\s*".*/$2/;
 	chomp($string = $_);
 
@@ -1811,6 +1850,7 @@ package Apache::MyConfig ;
 %Setup = (
    'Apache_Src' => \'$APACHE_SRC\',
    'SSL_BASE' => \'$SSL_BASE\',
+   'APXS' => \'$WITH_APXS\',
 );
 
 1;
@@ -1966,6 +2006,7 @@ EOF
 	}
     }
 
+    gdbm_check();
 
     if ($USE_DSO and $] < 5.005_56 and 
 	$^O eq 'solaris' and $Config{'usemymalloc'} eq 'y') 
@@ -1978,4 +2019,32 @@ Your current configuration will most likely trigger core dumps, suggestions:
    *) Switch to an os other than $^O
 EOF
       }
+}
+
+sub gdbm_check {
+    if ($Config{libs} =~ /gdbm/) {
+	require DynaLoader;
+	require AutoLoader; #eek
+	my $found = 0;
+	my @path = split /\s+/, $Config{libpth};
+
+	for (@path) {
+	    last if $found = DynaLoader::dl_findfile($_, "-lgdbm");
+	}
+
+	unless ($found) {
+	    my @maybe = ();
+	    for (@path) {
+		push @maybe, grep { ! -l $_ } <$_/libgdbm.*>;
+	    }
+	    my $suggest = @maybe ? 
+	      "You could just symlink it to $maybe[0]" :
+		"You might need to install Perl from source";
+	    phat_warn(<<EOF);
+Your Perl is configured to link against libgdbm, 
+  but libgdbm.so was not found.
+  $suggest
+EOF
+       }
+    }
 }

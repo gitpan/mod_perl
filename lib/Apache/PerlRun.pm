@@ -2,7 +2,11 @@ package Apache::PerlRun;
 
 use strict;
 use vars qw($Debug);
-use Apache::Constants qw(:common OPT_EXECCGI);
+use Apache::Constants qw(:common &OPT_EXECCGI);
+
+BEGIN {
+    OPT_EXECCGI() if $ENV{MOD_PERL}; #preload, :common are alread pre-loaded
+}
 
 unless (defined $Apache::Registry::NameWithVirtualHost) {
     $Apache::Registry::NameWithVirtualHost = 1;
@@ -127,8 +131,11 @@ sub run {
 
     my $rc = OK;
     my $cv = \&{"$package\::handler"};
+
+    my $oldwarn = $^W;
     eval { $rc = &{$cv}($pr, @_) } if $pr->seqno;
     $pr->{status} = $rc;
+    $^W = $oldwarn;
 
     my $errsv = "";
     if($@) {
@@ -154,18 +161,20 @@ sub namespace_from {
 
     my $uri = $pr->uri; 
 
-    $uri = "/__INDEX__" if $uri eq "/";
     $pr->log_error(sprintf "Apache::PerlRun->namespace escaping %s",
 		  $uri) if $Debug && $Debug & 4;
 
-    my $script_name = $pr->path_info ?
-	substr($uri, 0, length($uri)-length($pr->path_info)) :
-	    $uri;
+    my $path_info = $pr->path_info;
+    my $script_name = $path_info && $uri =~ /$path_info$/ ?
+	substr($uri, 0, length($uri)-length($path_info)) :
+	$uri;
 
     if($Apache::Registry::NameWithVirtualHost) {
 	my $name = $pr->get_server_name;
 	$script_name = join "", $name, $script_name if $name;
     }
+
+    $script_name =~ s:/+$:/__INDEX__:;
 
     return $script_name;
 }
@@ -177,7 +186,7 @@ sub namespace {
     my $script_name = $pr->namespace_from;
 
     # Escape everything into valid perl identifiers
-    $script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
+    $script_name =~ s/([^A-Za-z0-9_\/])/sprintf("_%2x",unpack("C",$1))/eg;
 
     # second pass cares for slashes and words starting with a digit
     $script_name =~ s{
@@ -256,9 +265,16 @@ sub set_script_name {
     *0 = \$pr->filename;
 }
 
-sub handler {
-    my $r = shift;
-    my $pr = Apache::PerlRun->new($r);
+sub handler ($$) {
+    my($class, $r);
+    if (@_ >= 2) {
+	($class, $r) = (shift, shift);
+    }
+    else {
+	($class, $r) = (__PACKAGE__, shift);
+    }
+
+    my $pr = $class->new($r);
     my $rc = $pr->can_compile;
     return $rc unless $rc == OK;
 
@@ -304,17 +320,17 @@ sub flush_namespace {
     my $tab = \%{$package.'::'};
 
     for (keys %$tab) {
-	if(defined &{ $tab->{$_} }) {
+	if(*{ $tab->{$_} }{CODE}) {
 	    undef_cv_if_owner($package, \&{ $tab->{$_} });
 	} 
-        if(defined %{ $tab->{$_} }) {
-            %{ $tab->{$_} } = undef;
+        if(*{ $tab->{$_} }{HASH}) {
+            undef %{ $tab->{$_} };
         }
-        if(defined @{ $tab->{$_} }) {
-            @{ $tab->{$_} } = undef;
+        if(*{ $tab->{$_} }{ARRAY}) {
+            undef @{ $tab->{$_} };
         }
-        if(defined ${ $tab->{$_} }) {
-	    ${ $tab->{$_} } = undef;
+        if(*{ $tab->{$_} }{SCALAR}) {
+	    undef ${ $tab->{$_} };
         }
      }
 }

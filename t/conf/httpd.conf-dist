@@ -27,6 +27,13 @@ umm, we use this to test mod_perl
 
 =cut
 
+<Directory />
+AllowOverride None
+</Directory>
+<Directory ./t>
+AllowOverride All
+</Directory>
+
 #make sure all regex stuff works
 #BrowserMatch Mozilla/2 nokeepalive
 
@@ -67,7 +74,7 @@ TestCmd one two
 <Files ~ "\.pl$">
    PerlHandler          Apache::Registry
    PerlSendHeader       On
-   Options              ExecCGI
+   Options              +ExecCGI
 </Files>
 
 Alias /perl/ ./t/net/perl/
@@ -149,12 +156,10 @@ PerlSetupEnv   On
 </Location>
 
 <Location /perl/perl-status>
-PerlSetVar StatusPeek On
-PerlSetVar StatusGraph On
-PerlSetVar StatusDumper On
-PerlSetVar StatusLexInfo On
+PerlSetVar StatusOptionsAll On
 SetHandler perl-script
 PerlHandler +Apache::Status
+PerlSetEnv PERL5LIB /home/dougm/lib/perl
 </Location>
 
 <Location /perl_xs/perl-status>

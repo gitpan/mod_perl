@@ -56,10 +56,6 @@ You may load modules at server startup via:
 
     PerlModule Apache::SSI SomeOther::Module
 
-There is a limit of 10 PerlModule's, if you need more to be loaded when the 
-server starts, use one PerlModule to pull in many or use the PerlRequire 
-directive described below.
-
 Optionally:
 
     PerlRequire  perl-scripts/script_to_load_at_startup.pl
@@ -116,6 +112,9 @@ assumes it is a package name which implements a 'handler' subroutine.
 Only ChildInit, ChildExit, PostReadRequest and Trans handlers are not
 allowed in .htaccess files.
 
+Modules can check if the code is being run in the parent server during
+startup by checking the $Apache::Server::Starting variable.
+
 =head1 RESTARTING
 
 =over 4
@@ -165,6 +164,18 @@ existing environment variable to Perl's C<%ENV>:
  PerlPassEnv SomeKey 
 
 =over 4
+
+=item CONFIGURATION
+
+The C<PerlSetVar> directive provides a simple mechanism for passing
+information from configuration files to Perl modules or Registry scripts:
+
+ PerlSetVar  SomeKey  SomeValue
+
+Perl modules or scripts retrieve configuration values using the
+C<$r-E<gt>dir_config> method (see 'perldoc Apache').
+
+C<PerlSetVar> handles keys case-insensitively.
 
 =item GATEWAY_INTERFACE
 
@@ -430,7 +441,7 @@ request.
 
 Perl*Handler directives can define any number of subroutines,
 e.g. (in config files)
- 
+
  PerlTransHandler OneTrans TwoTrans RedTrans BlueTrans
 
 With the method, Apache->push_handlers, callbacks can be added to
@@ -619,7 +630,7 @@ C<%Hash>, e.g.:
  #will be shifted off the @List
  #or use array reference to handle any number greater than
  #the minimum for that directive
-  
+
  push @Redirect, "/foo", "http://www.foo.com/";
 
  push @Redirect, "/imdb", "http://www.imdb.com/";
@@ -637,7 +648,7 @@ A tip for syntax checking outside of httpd:
 
  <Perl>
  #!perl
- 
+
  #... code here ...
 
  __END__
@@ -770,14 +781,16 @@ See the L<SUPPORT> file.
 
 =head1 Win32
 
-Jeffrey Baker maintains the win32 binary distribution of mod_perl available
+See L<INSTALL.win32> for building from sources.
+
+Info about win32 binary distributions of mod_perl are available
 from: 
 
- http://www.perl.com/CPAN/authors/Jeffrey_Baker/
+ http://perl.apache.org/distributions/
 
 =head1 REVISION
 
-$Id: mod_perl.pod,v 1.14 1998/10/12 15:16:38 ask Exp $
+$Id: mod_perl.pod,v 1.20 2000/03/05 23:46:30 dougm Exp $
 
 =head1 AUTHOR
 

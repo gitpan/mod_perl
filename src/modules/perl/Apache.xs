@@ -242,16 +242,16 @@ child_terminate(request_rec *r)
 
 static char *custom_response(request_rec *r, int status, char *string)
 {
-    core_dir_config *conf = 
+    core_dir_config *conf = (core_dir_config *)
 	get_module_config(r->per_dir_config, &core_module);
     int idx;
     char *retval = NULL;
 
     if(conf->response_code_strings == NULL) {
-        conf->response_code_strings = 
-	    pcalloc(r->pool,
-		    sizeof(*conf->response_code_strings) * 
-		    RESPONSE_CODES);
+        conf->response_code_strings = (char **)
+	  pcalloc(r->pool,
+		  sizeof(*conf->response_code_strings) * 
+		  RESPONSE_CODES);
     }
 
     idx = index_of_response(status);
@@ -368,12 +368,12 @@ PROTOTYPES: DISABLE
 BOOT:
     items = items; /*avoid warning*/ 
 
-SV *
+const char *
 current_callback(r)
     Apache     r
 
     CODE:
-    RETVAL = newSVsv(perl_get_sv("Apache::__CurrentCallback", TRUE));
+    RETVAL = PERL_GET_CUR_HOOK;
 
     OUTPUT:
     RETVAL
@@ -462,6 +462,9 @@ I32
 mod_perl_define(sv, name)
     SV *sv
     char *name
+
+    CLEANUP:
+    sv = sv; /*-Wall*/
 
 I32
 module(sv, name)
@@ -841,7 +844,9 @@ send_http_header(r, type=NULL)
     send_http_header(r);
     mod_perl_sent_header(r, 1);
     r->status = 200; /* XXX, why??? */
- 
+
+#ifndef PERL_OBJECT
+
 int
 send_fd(r, f, length=-1)
     Apache	r
@@ -853,6 +858,8 @@ send_fd(r, f, length=-1)
 
     OUTPUT:
     RETVAL
+
+#endif
 
 int
 rflush(r)
@@ -956,7 +963,11 @@ print(r, ...)
 	CV *cv = GvCV(gv_fetchpv("Apache::write_client", FALSE, SVt_PVCV));
 	hard_timeout("mod_perl: Apache->print", r);
 	PUSHMARK(mark);
-	(void)(*CvXSUB(cv))(cv); /* &Apache::write_client; */
+#ifdef PERL_OBJECT
+	(void)(*CvXSUB(cv))(cv, pPerl); /* &Apache::write_client; */
+#else
+	(void)(*CvXSUB(cv))(aTHXo_ cv); /* &Apache::write_client; */
+#endif
 
 	if(IoFLAGS(GvIOp(defoutgv)) & IOf_FLUSH) /* if $| != 0; */
 #if MODULE_MAGIC_NUMBER >= 19970103
@@ -984,6 +995,9 @@ write_client(r, ...)
     CODE:
     RETVAL = 0;
 
+    if (r->connection->aborted)
+        XSRETURN_IV(0);
+
     for(i = 1; i <= items - 1; i++) {
 	int sent = 0;
         SV *sv = SvROK(ST(i)) && (SvTYPE(SvRV(ST(i))) == SVt_PV) ?
@@ -991,18 +1005,16 @@ write_client(r, ...)
 	buffer = SvPV(sv, len);
 #ifdef APACHE_SSL
         while(len > 0) {
-            sent = 0;
-	    if(len < HUGE_STRING_LEN) {
-	        sent = rwrite(buffer, len, r);
-	    }
-	    else {
-	        sent = rwrite(buffer, HUGE_STRING_LEN, r);
-	        buffer += HUGE_STRING_LEN;
-	    }
+	    sent = rwrite(buffer,
+	        	  len < HUGE_STRING_LEN ? len : HUGE_STRING_LEN,
+	        	  r);
 	    if(sent < 0) {
 		rwrite_neg_trace(r);
+		/* break out of outer loop too */
+		i = items;
 		break;
 	    }
+	    buffer += sent;
 	    len -= sent;
 	    RETVAL += sent;
         }
@@ -1409,6 +1421,10 @@ bytes_sent(r, ...)
     for(last=r; last->next; last=last->next)
         continue;
 
+    if (last->sent_bodyct && !last->bytes_sent) {
+	ap_bgetopt(last->connection->client, BO_BYTECT, &last->bytes_sent);
+    }
+
     RETVAL = last->bytes_sent;
 
     if(items > 1)
@@ -1624,7 +1640,7 @@ pnotes(r, k=Nullsv, val=Nullsv)
     SV *val
 
     PREINIT:
-    perl_request_config *cfg;
+    perl_request_config *cfg = NULL;
     char *key = NULL;
     STRLEN len;
 
@@ -1632,7 +1648,12 @@ pnotes(r, k=Nullsv, val=Nullsv)
     if(k) {
 	key = SvPV(k,len);
     }
-    cfg = get_module_config(r->request_config, &perl_module);
+    cfg = (perl_request_config *)
+      get_module_config(r->request_config, &perl_module);
+    if (!cfg) {
+	XSRETURN_UNDEF;
+    }
+
     if(!cfg->pnotes) cfg->pnotes = newHV();
     if(key) {
 	if(hv_exists(cfg->pnotes, key, len)) {
@@ -1712,6 +1733,10 @@ no_cache(r, ...)
 
     CODE: 
     get_set_IV(r->no_cache);
+    if (r->no_cache) {
+	ap_table_setn(r->headers_out, "Pragma", "no-cache");
+	ap_table_setn(r->headers_out, "Cache-control", "no-cache");
+    }
 
     OUTPUT:
     RETVAL
@@ -1821,15 +1846,32 @@ dir_config(r, key=NULL, ...)
     Apache  r
     char *key
 
+    ALIAS:
+    Apache::Server::dir_config = 1
+
     PREINIT:
     perl_dir_config *c;
+    perl_server_config *cs;
+    server_rec *s;
 
     CODE:
-    if(r->per_dir_config) {				   
-        c = get_module_config(r->per_dir_config, &perl_module);
-        TABLE_GET_SET(c->vars, FALSE);
+    ix = ix; /*-Wall*/
+    RETVAL = Nullsv;
+    if(r && r->per_dir_config) {				   
+	c = (perl_dir_config *)get_module_config(r->per_dir_config, 
+						 &perl_module);
+	TABLE_GET_SET(c->vars, FALSE);
     }
-    else XSRETURN_UNDEF;
+    if (!SvTRUE(RETVAL)) {
+	s = r ? r->server : perl_get_startup_server();
+	if (s && s->module_config) {
+	    SvREFCNT_dec(RETVAL); /* in case above did newSV(0) */
+	    cs = (perl_server_config *)get_module_config(s->module_config, 
+							 &perl_module);
+	    TABLE_GET_SET(cs->vars, FALSE);
+	}
+	else XSRETURN_UNDEF;
+    }
  
     OUTPUT:
     RETVAL
