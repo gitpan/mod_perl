@@ -1,32 +1,27 @@
+BEGIN { require 5.003; } 
 use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
 use File::Basename qw(dirname);
-use File::Copy qw(cp);
 use File::Path qw(mkpath rmtree);
 use Cwd;
+use File::Copy qw(cp);
 
-$VERSION = "0.98_08";
-#
-# Check if Readline is installed
-#
+#version 1.5 that ships with 5.003 is broken!
+*cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
+
+$VERSION = "0.98_09";
 
 use subs qw(_prompt);
 
 report_setup();
 readline_setup();        
-#
-# Check if knwon config
-#
 
 eval 'use Apache::MyConfig' ;
 
-if ($@ eq '') { 
-    $APACHE_SRC_DEFAULT = $Apache::MyConfig::Setup{Apache_Src} ; 
-}
-else {
-    $APACHE_SRC_DEFAULT = '../apache_x.x/src' ;
-}
+$APACHE_SRC_DEFAULT = $@ ? 
+    '../apache_x.x/src'  :
+    $Apache::MyConfig::Setup{Apache_Src} ; 
 
 my $PWD = cwd;
 my %SSL = (
@@ -71,7 +66,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
    '1.1.3Ben-SSL' => "Makefile.tmpl-Ben-SSL",
    '1.2Ben-SSL' => "",
-   NONE => "", 
+    NONE => "", 
 );	     
 
 $Port = $PORT = 8529;
@@ -181,6 +176,8 @@ foreach $adir (@adirs) {
 	    cp "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
 	    print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
 	}
+
+	mft_fixup("$adir/Makefile.tmpl");
 
 	mkpath "$adir/modules/perl";
 	#ignore make's output here
@@ -709,6 +706,14 @@ EOT
     }
 }
 
+sub mft_fixup {
+    my $mf = shift;
+    my $repl = quotemeta('$(REGLIB) $(LIBS)');
+    system $^X, "-pi~", "-e",
+    "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;",
+    $mf;
+}
+ 
 sub report_setup {
     local(*IN,*OUT);
     open IN, "t/report.PL" or die;

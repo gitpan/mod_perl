@@ -1,3 +1,6 @@
+#make sure all regex stuff works
+BrowserMatch Mozilla/2 nokeepalive
+
 #Configuration directives specific to mod_perl
 ServerRoot ./t
 User nobody

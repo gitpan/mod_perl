@@ -16,31 +16,24 @@ OBJS= alloc.o http_main.o http_core.o http_config.o http_request.o \
 .c.o:
 	$(CC) -c $(INCLUDES) $(CFLAGS) $(SPACER) $<
 
-all: Configuration httpd
+all: @@Configuration@@ httpd
 
-Configuration: Configuration.tmpl
-	@echo "Configuration older than Configuration.tmpl, or doesn't exist."
-	@echo "Consider copying Configuration.tmpl to Configuration, editing and rerunning"
+@@Configuration@@: Configuration.tmpl
+	@echo "@@Configuration@@ older than Configuration.tmpl, or doesn't exist."
+	@echo "Consider copying Configuration.tmpl to @@Configuration@@, editing and rerunning"
 	@echo "Configure."
-	@echo "If not, you will at least have to touch Configuration."
+	@echo "If not, you will at least have to touch @@Configuration@@."
 	@false
-
-
-PERL=/opt/perl5/bin/perl
-PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
-
-modules/perl/libmodperl.a:
-	(cd modules/perl && $(MAKE) CC='$(CC)' AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)' PERL=$(PERL);)
 
 httpd: $(REGLIB) $(OBJS)
 	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS)
 
 regex/libregex.a:
-	(cd regex; $(MAKE) lib CC='$(CC)' AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
+	(cd regex; $(MAKE) lib CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
 
-modules/proxy/libproxy.a:
+modules/last-built:
 	(cd modules; \
-	$(MAKE) CC='$(CC)' AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
+	$(MAKE) CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
 
 clean:
 	rm -f httpd $(OBJS) 

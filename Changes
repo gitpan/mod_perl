@@ -16,6 +16,24 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.98_09
+
+fixed bug in Apache::perl_hook('Access') spotted by Eric Bartley
+
+applied patch from Peter Levart <Peter.Levart@SELECT-TECH.SI>
+to make Apache::parse_args more reliable
+
+if using Perl 5.003, use system cp since File::Copy is broken, 
+bug spotted by Rob
+
+switch link order in Makefile.tmpl back to what it was in b10 (tmp workaround):
+s/$(LIBS) $(REGLIB)/$(REGLIB) $(LIBS)/
+Thanks to hint from Mike Fletcher
+
+=item 0.98_08
+
+added 'make test_report'
+
 =item 0.98_07
 
 STATIC=1 is the default now, you make choose DYNAMIC=1
@@ -86,7 +104,7 @@ back to only PerlHandler enabled by default
 if STATIC=1 is configured during 'perl Makefile.PL', Apache::Constants
 will also be linked static.  This is the default on aix and bsdos.
 
-$r->register_callback will now save a pointer to the request_rec
+$r->register_cleanup will now save a pointer to the request_rec
 rather than doing it in PerlTransHandler
 
 applied patch from Martin Pool <m.pool@pharos.com.au> so we see the real

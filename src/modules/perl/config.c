@@ -714,7 +714,7 @@ int perl_hook(char *name)
 	return 0;    
 #endif
 	if (strEQ(name, "Access"))
-#ifdef PERL_AUTHZ
+#ifdef PERL_ACCESS
 	    return 1;
 #else
 	return 0;    
