@@ -16,6 +16,33 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.94 - 03/09/97
+
+removed pp_hot.patch from distibution
+
+t/net/http-post.t will now test the tie'd *STDIN if $] >= 5.003_93
+
+*STDIN is now tie'd to the client, only works if perl version is
+>= 5.003_93 
+
+removed Apache::TieHandle from the distribution as it is no longer
+needed.  however, scripts that are currently using:
+use Apache:TieHandle ();
+tie *STDOUT => "Apache::TieHandle";
+will not break, but will produce a no longer needed warning
+
+removed Apache::Registry's attempt to honor __END__, as Andreas
+pointed out, this can't really be done right unless we have
+Perl::Lex and Perl::Parse :-)
+
+applied Makefile.PL patch from Andreas to use modules instead of
+system() where possible
+
+Apache::Constants now defines SERVER_SUBVERSION,
+as suggested by Andreas
+
+removed is_perlaliased from Apache::Debug, caught by Andreas
+
 =item 0.93_01 - 03/04/97
 
 added 'use ExtUtils::testlib' to t/docs/startup.pl since PERL5LIB

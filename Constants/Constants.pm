@@ -2,7 +2,7 @@ package Apache::Constants;
 
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = "1.01";
+$VERSION = "1.02";
 
 use Carp ();
 use Exporter ();
@@ -80,6 +80,7 @@ use DynaLoader ();
    RESPONSE_CODES
    SERVER_ERROR
    SERVER_VERSION
+   SERVER_SUBVERSION
    USE_LOCAL_COPY
 );
 

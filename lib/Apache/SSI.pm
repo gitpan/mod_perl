@@ -9,8 +9,8 @@ use vars qw($VERSION @ISA);
 
 @ISA = qw(HTML::TreeBuilder);
 
-#$Id: SSI.pm,v 1.13 1997/01/20 05:21:52 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.13 $ =~ /(\d+)\.(\d+)/);
+#$Id: SSI.pm,v 1.14 1997/03/10 00:25:45 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.14 $ =~ /(\d+)\.(\d+)/);
 
 #wherever you choose:
 #AddHandler perl-script .phtml
@@ -22,14 +22,13 @@ $VERSION = sprintf("%d.%02d", q$Revision: 1.13 $ =~ /(\d+)\.(\d+)/);
 #PerlResponse Apache::SSI::handler
 
 sub handler {
-    my $r = @_;
+    my($r) = @_;
     %ENV = $r->cgi_env; #for exec
     $r->content_type("text/html"); 
     $r->send_http_header;
     my $p = Apache::SSI->new($r);
     $p->parse_file($r->filename);
     $r->print($p->as_HTML);
-    0; #status OK 
 }
 
 sub magic_type {
@@ -197,13 +196,16 @@ This directive calls a perl subroutine:
 =head1 CAVEATS
 
 This module is not complete, it does not provide the full functionality 
-of mod_include.
+of mod_include.  
 
 There is no support for xssi directives.
 
 =head1 SEE ALSO
 
-mod_include, mod_perl(3), HTML::TreeBuilder(3), perl(1), Apache(3)
+For much more power, see the L<HTML::Embperl> and L<Apache::ePerl> modules. 
+
+mod_include, mod_perl(3), HTML::TreeBuilder(3), Apache(3),
+HTML::Embperl(3), Apache::ePerl(3)
 
 =head1 AUTHOR
 

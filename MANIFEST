@@ -1,4 +1,3 @@
-ANNOUNCE
 CGI-XA/MANIFEST
 CGI-XA/Makefile.PL
 CGI-XA/README
@@ -37,8 +36,6 @@ lib/Apache/MsqlProxy.pm
 lib/Apache/Options.pm
 lib/Apache/Registry.pm
 lib/Apache/SSI.pm
-lib/Apache/TieHandle.pm
-pp_hot.patch
 src/Makefile.tmpl
 src/Makefile.tmpl-1.2
 src/modules/perl/Apache.xs

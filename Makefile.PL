@@ -1,9 +1,12 @@
 use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
+use File::Basename qw(dirname);
+use File::Copy qw(cp);
+use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.93_01";
+$VERSION = "0.94";
 
 my $PWD = cwd;
 
@@ -86,7 +89,7 @@ foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 }
 
 unless (@adirs) {
-    print "Enter 'q' to stop search\n";
+    print "Enter `q' to stop search\n";
     while(1) {
 	$src_dir = prompt "Please tell me where I can find your apache src", 
 	                  "../apache_x.x/src";
@@ -123,35 +126,33 @@ foreach $adir (@adirs) {
 	unless ($can_dash_make{$adir}) {
 	    unless (-e "$adir/Makefile.tmpl.bak") {
 		print STDERR "Backing up $adir/Makefile.tmpl to $adir/Makefile.tmpl.bak\n";
-		system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
+		cp "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
 	    }
-	    system "cp", "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
+	    cp "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
 	    print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
 	}
 
-	mkdir "$adir/modules", 0755;
-	mkdir "$adir/modules/perl", 0755;
+	mkpath "$adir/modules/perl";
 	#ignore make's output here
 	`(cd $adir/modules/perl; make clean 2> /dev/null)`;
 
 	local(*MANI);
 	open *MANI, "MANIFEST" or die "open MANIFEST $!";
-	$adir =~ s,/src$,,;
+	my $atopdir = dirname($adir);
 	#only rm and cp files mod_perl ships with
 	while(<MANI>) {
 	    next unless m,^src/modules/perl/,; chomp;
 	    #print "rm -f $adir/$_\n";
-	    system "rm", "-f", "$adir/$_";
+	    unlink "$atopdir/$_";
 	    #print "cp $_ $adir/$_\n";
-	    system "cp", $_, "$adir/$_";
+	    cp $_, "$atopdir/$_";
 	}
 	close MANI;
-	$adir .= "/src";
 	unless(-e "src/Configuration" and (-M "src/Configuration" < -M $conf)) {
 	    unless(-e $conf) {
-		system "cp", "$conf.tmpl", $conf;
+		cp "$conf.tmpl", $conf;
 	    }
-	    system $Config{cp}, $conf, "src/";
+	    cp $conf, "src/Configuration";
 	    $conf = "src/Configuration";
 
 	    system $^X, "-pi", "-e",  
@@ -229,11 +230,11 @@ unless ($NO_HTTPD) {
 }
 
 unless (-e "t/net/config.pl") {
-    system "cp", "t/net/config.pl.dist", "t/net/config.pl";
+    cp "t/net/config.pl.dist", "t/net/config.pl";
 }
 
 unless(-e "t/conf/httpd.conf") {
-    system "cp", "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
+    cp "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
 #    $User  = (getpwnam('nobody'))[0]  || getpwuid($>) || $>;
 #    $Group = (getgrnam('nogroup'))[0] || getgrgid($)) || $); 
     $User  = getpwuid($>) || $>;
@@ -270,7 +271,7 @@ eval {
 if ($@) {
     $no_lwp++;
     $missing_modules++;
-    print " failed\n";
+    print "failed\n";
     print <<EOT;
 $@
 The libwww-perl library is needed to run the test suite.
@@ -279,7 +280,7 @@ Installation of this library is recommended, but not required.
 EOT
     sleep(2);  # Don't hurry too much
 } else {
-    print " ok\n";
+    print "ok\n";
 }
 
 print <<EOT if $missing_modules;
@@ -379,7 +380,7 @@ start_httpd: test_pre_init
 	@(cd t/net; test -f config.pl || cp config.pl.dist config.pl)
 	@$(TOUCH) /tmp/mod_perl_srm.conf
 	env PERL5LIB=./blib/lib:./blib/arch \
-	$(APACHE_SRC)/$(HTTPD) -X -d `pwd`/t &
+	$(APACHE_SRC)/$(HTTPD) -X -d `pwd`/t & 
 	@echo httpd listening on port $(PORT)
 	@echo will write error_log to: /tmp/mod_perl_error_log
 

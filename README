@@ -1,49 +1,61 @@
-README for the Apache/Perl modules
+The Apache/Perl integration project brings together the full power of
+the Perl programming language and the Apache HTTP server.  This is
+achieved by linking the Perl runtime library into the server and
+providing an object oriented Perl interface to the server's C language
+API. 
+These pieces are seamlessly glued together by the `mod_perl' server
+plugin, making it is possible to write Apache modules entirely in
+Perl.  In addition, the persistent interpreter embedded in the server
+avoids the overhead of starting an external interpreter and the
+penalty of Perl start-up (compile) time.  
 
-This Apache module embeds a perl interpreter in the HTTP server.  
-One benefit of this is that we are able to run scripts without 
-going through the expensive (fork/exec/parameter passing/parsing, 
-perl-startup time, etc.) CGI interface.  
-Not only will scripts run faster, they have direct access to the C API 
-of the server, allowing the developer to extend Apache server 
-functionality with modules written in Perl.
+Without question, the most popular Apache/Perl module is
+Apache::Registry module.  This module emulates the CGI environment,
+allowing programmers to write scripts that run under CGI or
+mod_perl without change.  Existing CGI scripts may require some
+changes, simply because a CGI script has a very short lifetime of one
+HTTP request, allowing you to get away with "quick and dirty"
+scripting.  Using mod_perl and Apache::Registry requires you to be
+more careful, but it also gives new meaning to the work "quick"!
 
-The current approach of mod_perl is to allocate and construct one
-perl interpreter when the server starts.  At the same time, load,
-parse and run one perl script, which may pull in other perl code such
-as your favorite modules.  This also allows you to initiate persistent
-connections such as to a database server.  Then, a subroutine in
-memory is called to handle each request.  The interpreter is destroyed
-upon restart or shutdown of the server.
+Although it may be all you need, a speedy CGI replacement is only a
+small part of this project. Callback hooks are in place for each stage
+of a request.  Apache-Perl modules may step in during the handler,
+header parser, uri translate, authentication, authorization, access,
+type check, fixup and logger stages of a request.     
 
-Type 'perldoc mod_perl' for more information.
- 
-For comments, questions, bug-reports, announcements, etc., send mail
-to majordomo@listproc.itribe.net with the string "subscribe modperl"
-in the body.  (Thanks to Mark A. Imbriaco <mark@itribe.net>)
+Bundled Apache/Perl modules include:
+    Apache::Registry       - Run unaltered CGI scripts 
+    Apache::Status         - Embedded interpreter runtime status	
+    Apache::SSI            - Implement server-side includes in Perl
+    Apache::AuthenDBI      - Authenticate via Perl's DBI
+    Apache::Authen         - Perl Apache authentication utilities
+    Apache::AuthzAge       - Authorize based on age
+    Apache::AccessLimitNum - Limit user access by number of requests
+    Apache::Constants      - Constants defined in httpd.h
+    Apache::MsqlProxy      - Translate URI's into mSQL database queries
 
-Thanks to James Cooper <pixel@organic.com>,
-there is a hypermail archive for this list at:
- 
+There's plenty more Apache/Perl software you might be interested in,
+than what's in the mod_perl distribution.  The Apache/Perl module list
+keeps track of modules inside and outside the distribution, along with
+idea placeholders.  
+For more information see:
+http://www.perl.com/CPAN/modules/by-module/Apache/apache-modlist.html
+
+For comments, questions, bug-reports, announcements, etc., join the
+Apache/Perl mailing list by sending mail to
+listserv@listproc.itribe.net with the string "subscribe modperl" in
+the body.   
+
+There is a hypermail archive for this list available from:
 http://www.coe.missouri.edu/~faq/lists/modperl/
 
-Patrick Kane <modus@enews.com> maintains the mod_perl FAQ available at:
+The mod_perl FAQ is available from:
 http://chaos.dc.enews.com/mod_perl/
  
-The latest version of this software and other information is available
-at: http://www.osf.org/~dougm/apache/
-
-KNOWN BUGS and TODO - See 'ToDo' file
-
-ACKNOWLEDGEMENTS - See 'Changes' file
-
-
----------------------------------------------------------------------------
+For more general information see the Apache/Perl homepage:
+http://www.osf.org/~dougm/apache/
 
 Enjoy,
--Doug MacEachern <dougm@osf.org>
-
-
-
-
+-Doug MacEachern
 

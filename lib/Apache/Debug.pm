@@ -52,10 +52,10 @@ sub dump {
     $r->content_type("text/html");
     $r->content_language("en");
     $r->no_cache(1);
-    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.13 1996/12/19 04:14:51 dougm Exp $);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.14 1997/03/10 00:25:45 dougm Exp $);
     $r->send_http_header;
     
-    return 0 if $r->method eq "HEAD";   # should not generate a body
+    return 0 if $r->header_only;   # should not generate a body
 
     my $title = "$status $StatusCode{$status}";
     $r->write_client(join("\n", "<html>",
@@ -66,11 +66,11 @@ sub dump {
     for (
 	 qw(
 	    method uri protocol path_info filename
-            allow_options is_perlaliased
+            allow_options
 	    )
 	 )
     {
-	$r->write_client(sprintf "<b>\$r->%-17s</b> : %s\n", $_, $r->$_() );
+	$r->print(sprintf "<b>\$r->%-17s</b> : %s\n", $_, $r->$_() );
     }
 
     for (
@@ -81,7 +81,7 @@ sub dump {
 	    )
 	 ) 
     {
-	$r->write_client(sprintf "<b>\$s->%-17s</b> : %s\n", $_, $srv->$_() );
+	$r->print(sprintf "<b>\$s->%-17s</b> : %s\n", $_, $srv->$_() );
     }
 
     for (
@@ -94,13 +94,13 @@ sub dump {
 	    )
 	 )
     {
-	$r->write_client(sprintf "<b>\$c->%-17s</b> : %s\n", $_, $conn->$_() );
+	$r->print(sprintf "<b>\$c->%-17s</b> : %s\n", $_, $conn->$_() );
     }
 
     my $args = $r->args;
     my %args = $r->args;
     my %in   = $r->content;
-    $r->write_client(
+    $r->print(
 		     "\n<b>scalar \$r->args       :</b> $args\n",
 			 
 		     "\n<b>\$r->args:</b>\n",
@@ -112,7 +112,7 @@ sub dump {
 		     "\n<b>\$r->headers_in:</b>\n",		     
 		     (map { sprintf "   %-12s = %s\n", $_, $headers{$_} } sort keys %headers),
 		     );
-    $r->write_client("</pre>\n</body></html>\n");
+    $r->print("</pre>\n</body></html>\n");
     return 0; #need to give a return status
 }
 

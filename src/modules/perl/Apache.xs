@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.41 1997/03/05 03:13:58 dougm Exp $ */
+/* $Id: Apache.xs,v 1.42 1997/03/10 00:25:45 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -73,9 +73,6 @@ typedef server_rec  * Apache__Server;
     bwrite(r->connection->client, buffer, n); \
     SET_BYTES_SENT(r)
 #endif
-
-#define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
-#define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
 
 #define PUSHelt(key,val,klen) \
     XPUSHs(sv_2mortal((SV*)newSVpv(key, klen))); \
@@ -239,12 +236,10 @@ void perl_stdin2client(request_rec *r)
     sfdisc(PerlIO_stdin(), sfdcnewapache(r));
     sfsetbuf(PerlIO_stdin(), NULL, 0);
 #else
-    /* XXX patch pp_sys.c ?
-    CTRACE(stderr, "tie *STDIN => Apache (doesn't work yet)\n");
+    CTRACE(stderr, "tie *STDIN => Apache\n");
     sv_magic((SV *)gv_fetchpv("STDIN", TRUE, SVt_PVIO), 
 	     (SV *)perl_bless_request_rec(r),
 	     'q', Nullch, 0);
-    */
 #endif
     }
 
@@ -327,6 +322,9 @@ char *name
 #CORE::exit only causes trouble when we're embedded
 void
 exit(...)
+
+    ALIAS:
+    Apache::CGI::exit = 1
 
     CODE:
     {
@@ -521,9 +519,6 @@ read_client_block(r, buffer, bufsiz)
 int
 write_client(r, ...)
     Apache	r
-
-    ALIAS:
-    Apache::PRINT = 1
 
     CODE:
     {    

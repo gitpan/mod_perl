@@ -56,6 +56,7 @@ sub status_inc {
     }
     $q->delete("INC");
     foreach $module (sort keys %INC) {
+	next unless $INC{$module}; #e.g. fake Apache/TieHandle.pm
 	no strict 'refs';
 	$module =~ s,/,::,g;
 	$module =~ s,\.pm$,,;

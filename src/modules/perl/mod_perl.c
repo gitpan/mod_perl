@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.39 1997/03/05 03:13:58 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.40 1997/03/10 00:25:45 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -224,6 +224,9 @@ void perl_init (server_rec *s, pool *p)
 	    exit(1);
 	}
     }
+
+    /* trick require now that TieHandle.pm is gone */
+    hv_fetch(perl_get_hv("INC", TRUE), "Apache/TieHandle.pm", 19, 1);
 
     perl_clear_env();
 

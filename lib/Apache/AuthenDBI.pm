@@ -1,5 +1,6 @@
 package Apache::AuthenDBI;
 use Apache ();
+use Apache::Constants qw(OK);
 use Apache::Authen ();
 use strict;
 

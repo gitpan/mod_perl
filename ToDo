@@ -14,6 +14,8 @@ more timeout handling?
 Apache::Registry should parse command line if present in scripts
 e.g. #!/usr/local/bin/perl -w
 
+Apache::Registry should honor __END__, but how to get it right?
+
 Apache::DBI module for managing persistent database connections
 
 extend Perl*Handler model so they can be stacked

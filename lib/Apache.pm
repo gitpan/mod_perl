@@ -6,6 +6,7 @@ use Apache::Constants qw(OK);
 @ISA = qw(Exporter);
 @EXPORT_OK = qw(exit warn);
 $VERSION = "1.11";
+$Apache::CRLF = "\015\012";
 
 bootstrap Apache $VERSION;
 
@@ -38,6 +39,11 @@ sub cgi_var {
     return $val;
 }
 
+sub READ {
+    my($r, $buff, $len, $offset) = @_;
+    return $r->read($$buff, $len, $offset);
+}
+
 sub read {
     my($r, $bufsiz) = @_[0,2];
     my($nrd, $buf, $total);
@@ -63,6 +69,7 @@ sub read {
     return $total;
 }
 
+*PRINT = \&print;
 sub print {
     my($r) = shift;
     $r->hard_timeout("Apache->print");
@@ -146,6 +153,12 @@ sub untaint {
     }
 }
 
+sub Apache::TieHandle::TIEHANDLE {
+    my($class, $r) = @_;
+    warn("use of Apache::TieHandle depreciated, *STDOUT is already tie'd");
+    $r ||= Apache->request;
+}
+
 1;
 
 __END__
@@ -188,6 +201,10 @@ L<Apache::Registry> will make a request object availible to these scripts
 by passing an object reference to C<Apache->request($r)>.
 If handlers use modules such as C<Apache::CGI> that need to access
 L<Apache->request>, they too should do this (e.g. Apache::Status).
+
+=item $r->as_string
+
+Returns a string representation of the request object.
 
 =item $r->main
 

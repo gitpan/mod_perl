@@ -10,12 +10,12 @@ if ($@) {
     @ISA = qw(CGI::XA);
 }
 
-$VERSION = (qw$Revision: 1.20 $)[1];
+$VERSION = (qw$Revision: 1.21 $)[1];
 
 sub new {
     my($class) = shift;
     my($r) = Apache->request;
-    %ENV = $r->cgi_env unless $ENV{GATEWAY_INTERFACE}; #PerlSetupEnv On 
+    %ENV = $r->cgi_env unless defined $ENV{GATEWAY_INTERFACE}; #PerlSetupEnv On 
     my $self = $class->SUPER::new(@_);
     $self->{'.req'} = $r;
     $self;
@@ -28,9 +28,11 @@ sub header {
     return $self->CGI::XA::header(@_);
 }		     
 
+if ($] < 5.00393) { #before we could tie *STDIN
+    eval {
 sub print {
     my($self) = shift;
-    $self->{'.req'}->write_client(@_);
+    $self->{'.req'}->print(@_);
 }
 
 sub read_from_client {
@@ -46,17 +48,17 @@ sub new_MultipartBuffer {
     return $new;
 }
 
-sub exit {
-    my($self, $s) = @_;
-    $self->{'.req'}->exit($s);
-}
-
 package Apache::MultipartBuffer;
 use vars qw(@ISA);
 @ISA = qw(CGI::XA::MultipartBuffer);
 
-sub wouldBlock { undef }
-*Apache::MultipartBuffer::read_from_client = \&Apache::CGI::read_from_client;
+*Apache::MultipartBuffer::read_from_client = 
+    \&Apache::CGI::read_from_client;
+
+}; 
+die $@ if $@;
+
+}
 
 1;
 

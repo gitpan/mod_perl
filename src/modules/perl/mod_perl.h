@@ -24,6 +24,9 @@ extern "C" {
 #include "http_core.h"
 #include "http_request.h"
 
+#define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
+#define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
+
 #ifdef PERL_TRACE
 #define CTRACE fprintf
 #else

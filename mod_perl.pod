@@ -124,22 +124,20 @@ sub-directories or files.
 
 =head1 I/O 
 
-Apache's i/o is not stream oriented.  So, by default, you cannot 
+Apache's i/o is not stream oriented.  So, unless you have perl version
+5.003_93 or higher, by default, you cannot 
 print() to STDOUT from your script, use $r->print() instead.  
-Nor can you read() from STDIN, use $r->read*() or the $r->content 
+Nor can you read() from STDIN, use $r->read() or the $r->content 
 methods to read POST data.
-As of Perl5.003_02, there are two mechanisms in place for redirecting
-the STDIN and STDOUT streams.  
+In post 5.003 versions of Perl, two mechanisms have been introduced which allows
+redirecting the STDIN and STDOUT streams.  
 
 One mechanism takes advantage of the PerlIO abstraction and sfio discipline
 structures, such that STDIN and STDOUT are hooked up to the client by default
 if you configured perl with -Dusesfio (see Perl's INSTALL doc).
 
-Otherwise, mod_perl will tie() STDOUT to the client.  In order for this to 
-work, you must have Perl 5.003_02+ or apply the pp_hot.patch to your Perl 
-source.  There is no magic method to read from a tie'd STDIN, so for now
-you must use $r->read*() or $r->content to fetch client data.
-
+Otherwise, mod_perl will tie() STDOUT and STDIN to the client.  
+In order for this to work, you must have Perl version 5.003_93 or higher.
 
 =head1 Using CGI.pm and CGI::*
 

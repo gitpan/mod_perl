@@ -46,17 +46,13 @@ Apache::AuthzAge - Authorize based on age
 
 =head1 SYNOPSIS
 
- #server config file
-
- PerlModule Apache::AuthzAge
-
  #access control directives
 
  #use standard authentication modules
  AuthName SomeRealm
  Auth[DBM]UserFile /path/to/password/file
  
- PerlAuthzHandler Apache::AuthzAge::handler
+ PerlAuthzHandler Apache::AuthzAge
  PerlSetVar       UserAgeFile  /path/to/dbm_file
 
  #user must be at least 21
