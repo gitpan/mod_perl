@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.36 1997/01/23 00:07:19 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.38 1997/01/23 15:49:48 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -59,8 +59,6 @@
  */
 
 #include "mod_perl.h"
-
-#define DEFINED_SUB(sub) (perl_get_cv(sub, FALSE) || GvCV(gv_fetchmethod(NULL, sub)))
 
 static int avoid_alloc_hack = 0;
 
@@ -215,7 +213,7 @@ void perl_init (server_rec *s, pool *p)
   CTRACE(stderr, "ok\n");
 
   /* import Apache::Constants qw(OK DECLINED) */
-  perl_call_argv("Apache::Constants::import", G_DISCARD | G_EVAL, constants);
+  perl_call_argv("Exporter::import", G_DISCARD | G_EVAL, constants);
   if(perl_eval_ok(s) != OK) 
     perror("Apache::Constants->import failed");
     
@@ -248,10 +246,9 @@ void *create_perl_server_config (pool *p, server_rec *s)
     (perl_server_config *)palloc(p, sizeof (perl_server_config));
 
   cls->PerlModules = (char **)NULL; 
-  cls->PerlModules = (char **)palloc(p, (MAX_PERL_MODS+2)*sizeof(char *));
+  cls->PerlModules = (char **)palloc(p, (MAX_PERL_MODS+1)*sizeof(char *));
   cls->PerlModules[0] = "Apache";
-  cls->PerlModules[1] = "Apache::Constants";
-  cls->NumPerlModules = 2;
+  cls->NumPerlModules = 1;
   cls->PerlScript = NULL;
   PERL_TRANS_CREATE(cls);
   perl = NULL;
@@ -381,7 +378,7 @@ int perl_call(char *imp, request_rec *r)
      * attempt to load the class module if it is not already
      */
     if(instr(imp, "::")) {
-      if(!DEFINED_SUB(imp)) {
+      if(!perl_get_cv(imp, FALSE) || !GvCV(gv_fetchmethod(NULL, imp))) { 
 	if(!gv_stashpv(imp, FALSE)) {
 	  CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
 	  perl_require_module(imp, r->server);

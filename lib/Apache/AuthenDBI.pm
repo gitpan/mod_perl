@@ -15,6 +15,7 @@ my(%Config) = (
 
 sub handler {
     my($r) = @_;
+    return unless $r->is_main; #don't bother with sub-requests
     my($key,$val);
     my $attr = {
 	DBType => 'SQL',
@@ -49,7 +50,7 @@ Apache::AuthenDBI - Authenticate via Perl DBI
  AuthType Basic
 
  #authenticate via DBI
- PerlAuthenHandler Apache::AuthenDBI::handler
+ PerlAuthenHandler Apache::AuthenDBI
 
  PerlSetVar AuthDBIDB     dbname
  PerlSetVar AuthDBIUser   username
