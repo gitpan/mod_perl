@@ -30,7 +30,10 @@ BEGIN {
 
 sub httpd_conf {
     shift;
-    push @Apache::ReadConfig::PerlConfig,
+    no strict 'refs';
+    #use a symbolic reference so %Apache::ReadConfig::
+    #is empty at compile time
+    push @{"Apache::ReadConfig::PerlConfig"},
       map "$_\n", @_;
 }
 
@@ -268,6 +271,18 @@ Returns true if the current request object is for the main request.
 
 Returns true if the current request is the first internal request,
 returns false if the request is a sub-request or internal redirect.
+
+=item $r->allowed($bitmask)
+
+Get or set the allowed methods bitmask. This allowed bitmask should be
+set whenever a 405 (method not allowed) or 501 (method not implemented)
+answer is returned. The bit corresponding to the method number should be
+et.
+
+   unless ($r->method_number == M_GET) {
+     $r->allowed($r->allowed | (1<<M_GET) | (1<<M_HEAD) | (1<<M_OPTIONS));
+     return HTTP_METHOD_NOT_ALLOWED;
+   }
 
 =back
 

@@ -197,6 +197,10 @@
 #define AvFILLp(av)	((XPVAV*)  SvANY(av))->xav_fill
 #endif
 
+#ifndef PERL_MG_UFUNC
+#define PERL_MG_UFUNC(name,ix,sv) I32 name(IV ix, SV *sv)
+#endif
+
 #ifdef eval_pv
 #   ifndef perl_eval_pv
 #      define perl_eval_pv eval_pv
@@ -497,17 +501,6 @@ if((add->flags & f) || (base->flags & f)) \
 #   define PERL_SECTIONS_SELF_BOOT !perl_sections_self_boot
 #  endif
 # endif
-#endif
-
-#ifndef PERL_STARTUP_DONE_CHECK
-#define PERL_STARTUP_DONE_CHECK getenv("PERL_STARTUP_DONE_CHECK")
-#endif
-
-#define PERL_STARTUP_IS_DONE \
-(!PERL_STARTUP_DONE_CHECK || strEQ(getenv("PERL_STARTUP_DONE"), "2"))
-
-#ifndef PERL_DSO_UNLOAD
-#define PERL_DSO_UNLOAD getenv("PERL_DSO_UNLOAD")
 #endif
 
 #ifdef APACHE_SSL

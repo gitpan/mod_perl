@@ -259,8 +259,6 @@ void perl_shutdown (server_rec *s, pool *p)
 
     if((pdl = getenv("PERL_DESTRUCT_LEVEL")))
 	perl_destruct_level = atoi(pdl);
-    else
-	perl_destruct_level = PERL_DESTRUCT_LEVEL;
 
     if(perl_destruct_level < 0) {
 	MP_TRACE_g(fprintf(stderr, 
@@ -382,7 +380,7 @@ static void mod_perl_set_cwd(void)
 }
 
 #ifdef PERL_TIE_SCRIPTNAME
-static I32 scriptname_val(IV ix, SV* sv)
+static PERL_MG_UFUNC(scriptname_val, ix, sv)
 { 
     dTHR;
     request_rec *r = perl_request_rec(NULL);
@@ -482,46 +480,12 @@ static void unload_xs_so(array_header *librefs)
     }
 }
 
-#if 0
-/* unload_xs_dso should obsolete this hack */
-static void cancel_dso_dlclose(void)
-{
-    module *modp;
-
-    if(!PERL_DSO_UNLOAD)
-	return;
-
-    if(strEQ(top_module->name, "mod_perl.c"))
-	return;
-
-    for(modp = top_module; modp; modp = modp->next) {
-	if(modp->dynamic_load_handle) {
-	    MP_TRACE_g(fprintf(stderr, 
-			       "mod_perl: cancel dlclose for %s\n", 
-			       modp->name));
-	    modp->dynamic_load_handle = NULL;
-	}
-    }
-}
-#endif
-
 static void mp_dso_unload(void *data) 
 { 
     array_header *librefs;
 
-#ifdef WIN32
-    // This is here to stop a crash when bringing down
-    // a service.  Apparently the dso is unloaded too early.
-    // This if statement tests to see if we are running as a 
-    // service. apache does the same
-    // see apache's isProcessService() in service.c 
-    if (AllocConsole()) {
-        FreeConsole();
-        return;
-    } 
-#endif
-
     librefs = xs_dl_librefs((pool *)data);
+    perl_destruct_level = 2;
     perl_shutdown(NULL, NULL);
     unload_xs_so(librefs);
 } 
@@ -639,7 +603,7 @@ void perl_startup (server_rec *s, pool *p)
     dstr = NULL;
 #endif
 
-    if(PERL_RUNNING() && PERL_STARTUP_IS_DONE) {
+    if(PERL_RUNNING()) {
 	saveINC;
 	mp_check_version();
 #if !HAS_MMN_136
@@ -777,6 +741,11 @@ void perl_startup (server_rec *s, pool *p)
 	TAINT_NOT; /* At this time all is safe */
     }
 
+#ifdef MOD_PERL_PREFIX
+	av_unshift(GvAV(incgv),1);
+	av_store(GvAV(incgv), 0, newSVpv(MOD_PERL_PREFIX,0));
+#endif
+	
 #ifdef APACHE_PERL5LIB
     perl_incpush(APACHE_PERL5LIB);
 #else
@@ -789,22 +758,6 @@ void perl_startup (server_rec *s, pool *p)
 	GV *exitgp = gv_fetchpv("CORE::GLOBAL::exit", TRUE, SVt_PVCV);
 	GvCV(exitgp) = perl_get_cv("Apache::exit", TRUE);
 	GvIMPORTED_CV_on(exitgp);
-    }
-
-    if(PERL_STARTUP_DONE_CHECK)	{
- 	char *psd = getenv("PERL_STARTUP_DONE");
- 	if (!psd) {
- 	    MP_TRACE_g(fprintf(stderr, 
- 			       "mod_perl: PerlModule,PerlRequire postponed\n"));
- 	    my_setenv("PERL_STARTUP_DONE", "1");
- 	    saveINC;
-	    return;
-	}
- 	else { 
- 	    MP_TRACE_g(fprintf(stderr, 
- 			       "mod_perl: postponed PerlModule,PerlRequire enabled\n"));
- 	    my_setenv("PERL_STARTUP_DONE", "2");
-	}
     }
 
     ENTER_SAFE(s,p);
@@ -839,10 +792,10 @@ void perl_startup (server_rec *s, pool *p)
 #endif
 
     saveINC;
-#if MODULE_MAGIC_NUMBER >= MMN_130
-    if(perl_module.dynamic_load_handle) 
-	register_cleanup(p, p, mp_dso_unload, null_cleanup); 
-#endif
+
+    if (PERL_IS_DSO) {
+	register_cleanup(p, p, mp_dso_unload, null_cleanup);
+    }
 }
 
 int mod_perl_sent_header(request_rec *r, int val)

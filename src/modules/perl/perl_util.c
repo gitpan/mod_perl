@@ -426,8 +426,7 @@ void perl_run_endav(char *s)
     }
 }
 
-static I32
-errgv_empty_set(IV ix, SV* sv)
+static PERL_MG_UFUNC(errgv_empty_set, ix, sv)
 { 
     sv_setsv(sv, &sv_no);
     return TRUE;
@@ -611,6 +610,8 @@ array_header *perl_cgi_env_init(request_rec *r)
 
     add_common_vars(r); 
     add_cgi_vars(r); 
+    /* resetup global request rec, because it may set to an (invalid) subrequest by ap_add_cgi_vars */
+    perl_request_rec(r);
 
     if (!table_get(envtab, "TZ")) {
 	if ((tz = getenv("TZ")) != NULL) {

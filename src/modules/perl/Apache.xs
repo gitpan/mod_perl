@@ -238,7 +238,7 @@ child_terminate(request_rec *r)
 }
 #endif
 
-static char *custom_response(request_rec *r, int status, char *string)
+static char *custom_response(request_rec *r, int status, char *string, int reset)
 {
     core_dir_config *conf = (core_dir_config *)
 	get_module_config(r->per_dir_config, &core_module);
@@ -254,7 +254,10 @@ static char *custom_response(request_rec *r, int status, char *string)
 
     idx = index_of_response(status);
     retval = conf->response_code_strings[idx];
-    if (string) {
+    if (reset) {
+        conf->response_code_strings[idx] = NULL;
+    }
+    else if (string) {
 	conf->response_code_strings[idx] = 
 	    ((is_url(string) || (*string == '/')) && (*string != '"')) ? 
 		pstrdup(r->pool, string) : pstrcat(r->pool, "\"", string, NULL);
@@ -370,6 +373,13 @@ PROTOTYPES: DISABLE
 
 BOOT:
     items = items; /*avoid warning*/ 
+
+void
+add_version_component(name)
+    const char *name
+
+    CODE:
+    ap_add_version_component(name);
 
 const char *
 current_callback(r)
@@ -751,6 +761,12 @@ custom_response(r, status, string=NULL)
     Apache     r
     int status
     char *string
+   
+    CODE:
+    RETVAL = custom_response(r, status, string, ST(2) == &sv_undef);
+
+    OUTPUT:
+    RETVAL
     
 int
 satisfies(r)
@@ -947,6 +963,10 @@ send_fd(r, f, length=-1)
     long length
 
     CODE:
+    if (!f) {
+        croak("send_fd: NULL filehandle "
+              "(hint: did you check the return value of open?)");
+    }
     RETVAL = send_fd_length(f, r, length);
 
     OUTPUT:
@@ -1510,6 +1530,16 @@ status(r, ...)
     OUTPUT:
     RETVAL
 
+int
+allowed(r, ...)
+    Apache	r
+
+    CODE:
+    get_set_IV(r->allowed);
+
+    OUTPUT:
+    RETVAL
+
 time_t
 request_time(r)
     Apache	r
@@ -1890,6 +1920,10 @@ no_cache(r, ...)
 	ap_table_setn(r->headers_out, "Pragma", "no-cache");
 	ap_table_setn(r->headers_out, "Cache-control", "no-cache");
     }
+    else if (items > 1) { /* $r->no_cache(0) */
+       ap_table_unset(r->headers_out, "Pragma");
+       ap_table_unset(r->headers_out, "Cache-control");
+    }
 
     OUTPUT:
     RETVAL
@@ -1929,9 +1963,11 @@ finfo(r, sv_statbuf=Nullsv)
     statcache = r->finfo;
     if (r->finfo.st_mode) {
 	laststatval = 0;
+        sv_setpv(statname, r->filename);
     }
     else {
 	laststatval = -1;
+        sv_setpv(statname, "");
     }
     if(GIMME_V == G_VOID) XSRETURN_UNDEF;
     RETVAL = newRV_noinc((SV*)gv_fetchpv("_", TRUE, SVt_PVIO));

@@ -95,6 +95,7 @@ $APACHE_SRC_DEFAULT = $@ ?
     $Apache::MyConfig::Setup{Apache_Src} ; 
 
 my $PWD = cwd;
+$ENV{APACHE_CWD} = $PWD;
 $ENV{PERL5LIB} = "$PWD/lib";
 
 my %SSL = (
@@ -162,6 +163,9 @@ gen_script("t/net/perl/cgi.pl");
 gen_script("t/report");
 gen_script("apaci/find_source");
 gen_script("apaci/apxs_cflags");
+gen_script("apaci/perl_config", "$PWD/lib");
+gen_script("apaci/load_modules.pl");
+
 write_version_h("src/modules/perl");
 
 my(@test_pre_init) = qq(
@@ -227,11 +231,10 @@ $PERL_FILE_API = 0;
 $PERL_CONNECTION_API = 1; #these two were split out late in the game
 $PERL_SERVER_API = 1;     #so they are on by default 
 $PERL_RUN_XS = 0;
+$MOD_PERL_PREFIX;
 
 my %experimental = map { $_,1 } qw{
 PERL_AUTOPRELOAD
-PERL_DSO_UNLOAD
-PERL_STARTUP_DONE_CHECK
 PERL_RUN_XS
 PERL_MARK_WHERE
 DO_INTERNAL_REDIRECT
@@ -335,6 +338,13 @@ while($_ = shift) {
     unless (/^(PERL|APACHE)/ or is_mp_arg($k)) {
 	push @mm_args, $_;
     }
+	
+	if($k eq 'PREFIX')
+		{
+		use File::Spec;
+		$MOD_PERL_PREFIX = File::Spec->catfile($v,'lib','site_perl',$Config{'version'},$Config{'archname'});
+		}
+		
     $v = 1 unless defined $v;
     if($experimental{$k}) {
 	$experimental{$k}++;
@@ -410,7 +420,6 @@ system_sanity_check();
 
 if ($USE_APACI) {
     print "Will configure via APACI";
-    gen_script("apaci/load_modules.pl");
     if($USE_DSO) {
         print " (DSO enabled)";
     }
@@ -596,6 +605,7 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 		open MANI, "MANIFEST" or die "open MANIFEST $!";
 		while(<MANI>) {
 		    next unless m,^apaci/,; chomp;
+                    s/\.PL$//;
 		    (my $to = $_) =~ s,^apaci/,src/modules/perl/,;
 		    unlink "$atopdir/$to";
 		    print "cp $_ $atopdir/$to\n";
@@ -1385,17 +1395,21 @@ apaci_install:
 
 tar_Apache:
 	(cd $(INSTALLSITELIB)/$(ARCHNAME); \
-	     $(TAR) -cf $(PWD)/Apache.tar mod_perl.pm Apache.pm Apache $(ARCHNAME)/auto/Apache; )
+            $(TAR) -cf $(PWD)/Apache.tar mod_perl.pm Apache.pm Apache auto/Apache; )
 
 offsite-tar:
 	$(CP) MANIFEST MANIFEST.orig
-	$(PERL) -e 'for (<$(APACHE_SRC)/*.h>) {' \
-	-e 'system "$(CP) $$_ src/";' \
+	echo src/Makefile.config >> MANIFEST
+	$(CP) $(APACHE_SRC)/Makefile.config src/Makefile.config
+	mkdir "src/include"
+	$(PERL) -e 'for (<$(APACHE_SRC)/include/*.h>) {' \
+	-e 'system "$(CP) $$_ src/include/";' \
 	-e 's,^$(APACHE_SRC),,;' \
 	-e 'system "echo src$$_ >> MANIFEST";' \
 	-e '}' 
 	$(MAKE) dist
-	$(RM_F) src/*.h
+	$(RM_RF) src/include/
+	$(RM) src/Makefile.config
 	$(MV) MANIFEST.orig MANIFEST
 
 EOF
@@ -1898,10 +1912,15 @@ sub add_module {
 
 sub gen_script {
     my $file = shift;
+    my(@lib) = @_;
     local(*IN,*OUT);
     open IN, "$file.PL" or die "Couldn't open $file.PL: $!";
     open OUT, ">$file" or die "Couldn't open $file: $!";
-    print OUT "#!$Config{perlpath}\n", join '', <IN>;
+    print OUT "#!$Config{perlpath}\n";
+    if (@lib) {
+        print OUT "use lib qw(@lib);\n";
+    }
+    print OUT join '', <IN>;
     close OUT;
     close IN;
     chmod 0755, "$file";    
@@ -1931,6 +1950,15 @@ sub win32_setup {
 
     }
     chdir "../../../";
+
+    open(F, '>t/docs/init.pl') 
+      or die "Cannot open t/docs/init.pl: $!";
+    print F <<"END";
+#!perl
+\$Apache::Server::CWD = '$PWD';
+
+END
+  close F;
 }
 
 sub dirent_kludge {
@@ -1966,20 +1994,34 @@ EOF
 
 sub write_my_config {
     my $src = shift;
-    
-    my $string;
+
+# preparing and writing Configuration to Apache::MyConfig
+    my %my_config = %callback_hooks;
+    my @other_hooks = qw(APACHE_SRC SSL_BASE APXS PERL_USELARGEFILES
+                         PERL_TRACE PERL_DEBUG APACI_ARGS
+                         APACHE_PREFIX DO_HTTPD NO_HTTPD PREP_HTTPD
+                         USE_APACI APACHE_HEADER_INSTALL
+                         PERL_STATIC_EXTS PERL_SSI PERL_SECTIONS USE_APXS WITH_APXS);
+    {
+        no strict 'refs';
+        $my_config{$_} = ${$_} for @other_hooks;
+    }
     if ($win32_auto) {
-      $string =<<"EOS";
-'APACHE_INC' => '$win32_path{APACHE_INC}',
-   'APACHE_LIB' => '$win32_path{APACHE_LIB}',
-   'MODPERL_INC' => '$win32_path{MODPERL_INC}',
-   'MODPERL_LIB' => '$win32_path{MODPERL_LIB}',
-EOS
+        for (qw(APACHE_INC APACHE_LIB MODPERL_INC MODPERL_LIB)) {
+            $my_config{$_} = $win32_path{$_};
+        }
     }
 
-    local *FH;
-# writing Configuration to Apache::MyConfig
+    #need this alias for Apache::src backwards compat
+    $my_config{'Apache_Src'} = $my_config{'APACHE_SRC'};
+    $my_config{'APXS'} = delete $my_config{'WITH_APXS'};
 
+    my $my_config_dump = join ",\n",
+        map { qq{'$_' => } .
+              ($my_config{$_} =~ /^\d+$/ ? $my_config{$_} : qq{'$my_config{$_}'})
+            } sort keys %my_config;
+
+    local *FH;
     open FH, '>lib/Apache/MyConfig.pm'  ||
 	die "Can't open lib/Apache/MyConfig.pm: $!";
     print FH <<EOT;
@@ -1989,20 +2031,8 @@ EOS
 package Apache::MyConfig;
 
 %Setup = (
-   'Apache_Src' => \'$APACHE_SRC\',
-   'SSL_BASE' => \'$SSL_BASE\',
-   'APXS' => \'$WITH_APXS\',
-   'PERL_USELARGEFILES' => \'$PERL_USELARGEFILES\',
-EOT
-
-  foreach my $key (sort @callback_hooks) {
-    print FH "   \'$key\' => \'$callback_hooks{$key}\',\n";
-  }
-
-  print FH <<EOT;
-   $string
+$my_config_dump
 );
-
 1;
 
 __END__
@@ -2050,16 +2080,25 @@ sub win32_inc_and_lib {
       unless ($win32_args{APACHE_SRC} = find_dir(\@dirs, 'apache source'));
   }
   $win32_args{APACHE_SRC} = win32_fix_path($win32_args{APACHE_SRC});
-  $win32_args{APACHE_SRC} .= '/src' unless $win32_args{APACHE_SRC} =~ /src$/;
-  $win32_path{APACHE_INC} = $win32_args{APACHE_SRC} .  '/include';
-  $win32_args{APACHE_VERS} = httpd_version($win32_path{APACHE_INC}, 1);
-  $win32_path{APACHE_LIB} = ($win32_args{DEBUG} == 1) ? 
-    $win32_args{APACHE_SRC} . 
-      ($win32_args{APACHE_VERS} < 1315 ? '/CoreD' : '/Debug') :
-	$win32_args{APACHE_SRC} . 
-	  ($win32_args{APACHE_VERS} < 1315 ? '/CoreR' : '/Release');
+  if (-d "$win32_args{APACHE_SRC}/libexec") {
+    $win32_path{APACHE_LIB} = $win32_args{APACHE_SRC} . '/libexec';
+    $win32_path{APACHE_INC} = $win32_args{APACHE_SRC} . '/include';
+    $win32_args{APACHE_VERS} = httpd_version($win32_path{APACHE_INC}, 1);
+  }
+  else {
+    $win32_args{APACHE_SRC} .= '/src' unless $win32_args{APACHE_SRC} =~ /src$/;
+    $win32_path{APACHE_INC} = $win32_args{APACHE_SRC} . '/include';
+    $win32_args{APACHE_VERS} = httpd_version($win32_path{APACHE_INC}, 1);
+    $win32_path{APACHE_LIB} = ($win32_args{DEBUG} == 1) ? 
+      $win32_args{APACHE_SRC} . 
+	($win32_args{APACHE_VERS} < 1315 ? '/CoreD' : '/Debug') :
+	  $win32_args{APACHE_SRC} . 
+	    ($win32_args{APACHE_VERS} < 1315 ? '/CoreR' : '/Release');
+  }
   die "Cannot find ApacheCore.lib under $win32_path{APACHE_LIB}\n"
     unless -f "$win32_path{APACHE_LIB}/ApacheCore.lib";
+  die "Cannot find httpd.h under $win32_path{APACHE_INC}\n"
+    unless -f "$win32_path{APACHE_INC}/httpd.h";
   
   if ($win32_args{INSTALL_DLL} ) {
     $win32_args{INSTALL_DLL} = 
@@ -2110,7 +2149,7 @@ sub win32_fix_dsp {
     }
     elsif (/ADD CPP/) {
       my $apache_inc = win32_fix_path_dsp($win32_path{APACHE_INC});
-      s!(/D "WIN32")!/I "$apache_inc" /I "$perl_inc" $1!;
+      s!(/D "WIN32")!/I "$apache_inc"  /I "$apache_inc/../os/win32" /I "$perl_inc" $1!;
       s!(/D "WIN32")!$1 /D "EAPI" ! if $win32_args{EAPI}; 
       print NEWDSP $_;
     }
@@ -2255,6 +2294,13 @@ PERL = $^X
 LIBPERL = $LIBPERL
 
 $static_targets
+
+EOF
+
+print $apaci_cfg <<EOF if defined $MOD_PERL_PREFIX;
+
+# mod_perl installation prefix
+MOD_PERL_PREFIX = $MOD_PERL_PREFIX
 
 EOF
 

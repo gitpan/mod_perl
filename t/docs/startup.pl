@@ -28,17 +28,20 @@ if ($] >= 5.005 and -e "t/docs/local.pl") {
     }; $@='' if $@;
 }
 
-# BSD/OS 3.1 gets confused with some dynamically loaded code inside evals,
-# so make sure IO::File is loaded here, rather than later within an eval.
-# this should not harm any other platforms, since IO::File will be used
-# by them anyhow.
-use IO::File ();
-
 use Apache ();
 use Apache::Registry ();
 unless ($INC{'Apache.pm'} =~ /blib/) {
     die "Wrong Apache.pm loaded: $INC{'Apache.pm'}";
 }
+
+my $version = defined $^V ? sprintf("v%vd", $^V) : $];
+Apache::add_version_component("Perl/$version");
+
+# BSD/OS 3.1 gets confused with some dynamically loaded code inside evals,
+# so make sure IO::File is loaded here, rather than later within an eval.
+# this should not harm any other platforms, since IO::File will be used
+# by them anyhow.
+use IO::File ();
 
 Apache::Constants->export(qw(HTTP_MULTIPLE_CHOICES));
 
@@ -66,7 +69,7 @@ eval {
 
 $Apache::DoInternalRedirect = 1;
 $Apache::ERRSV_CAN_BE_HTTP  = 1;
-$Apache::Server::AddPerlVersion = 1;
+#$Apache::Server::AddPerlVersion = 1;
 #warn "ServerStarting=$Apache::ServerStarting\n";
 #warn "ServerReStarting=$Apache::ServerReStarting\n";
 

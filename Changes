@@ -8,6 +8,90 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.25_01 - July 6, 2001
+
+add symbols to mod_perl.exp for aix/axkit
+
+add Apache::add_version_component() function
+
+make sure Apache::ExtUtils can be found when building inside of the
+apache source tree, thanks to Jonathan Swartz for the spot
+
+add perl_call_handler to mod_perl.def for win32/axkit
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+fix -[TB] file tests against $r->finfo, thanks to Geoffrey Young for
+the spot
+
+Apache::SizeLimit enhancements [Perrin Harkins <perrin@elem.com>]:
+- Added support for minimum shared memory and maximum unshared memory
+settings.
+- Added extra diagnostics to tell how many requests a process served,
+how long it lived, and how much shared memory it was using when
+SizeLimit killed it.
+
+win32 enhancement: APACHE_SRC can be either the build or install tree
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+perl_destruct_level must always be 2 for DSO builds to prevent
+leaking on restarts, thanks to Paul G. Weiss for the spot
+
+make sure file to be reloaded can be found in @INC, adjusting based on
+%INC value if needed
+[Ilya Konstantinov <modperl@future.galanet.net>]
+
+croak if the filehandle passed to $r->send_fd is NULL, otherwise
+apache will segfault
+
+if PREFIX is given to Makefile.PL add it to @INC at startup
+[Philippe M . Chiasson <gozer@cpan.org>]
+
+add %Apache::MyConfig aliases for Apache::src backwards compat
+[Philippe M . Chiasson <gozer@cpan.org>]
+
+$r->custom_response($code, undef) will now unset the current CustomResponse
+[Geoffrey Young <gyoung@laserlink.net>]
+
+fix to compile with sfio+ithreads, thanks to Joe Schaefer for the spot
+
+win32 fixes for apache 1.3.20 [Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+adjust perl_clear_symtab() to deal properly bleedperl's version of
+cv_undef() (which broke modules with directive handlers)
+thanks to Geoffrey Young for the spot
+
+add $r->allowed method [Philippe Troin <phil@fifi.org>]
+
+fix 'make offsite-tar' [Geoffrey Young <gyoung@laserlink.net>]
+
+win32 fixes [Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+fix double-loading bug of Perl{Require,Module}s at startup time
+
+improve Apache::MyConfig [Stas Bekman <sbekman@stason.org>]
+
+back out 'stop win32 crash when bringing down service' change, no
+longer needed with 1.3.19
+[John Sterling, Will Rowe]
+
+$r->no_cache(0) will unset cache headers
+[Geoffrey Young <gyoung@laserlink.net>]
+
+export hvrv2table (needed by Apache::Request) for aix and win32
+[Jens-Uwe Mager <jum@helios.de>, Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+fix 'make tar_Apache' [Geoffrey Young <gyoung@laserlink.net>]
+
+make sure global for Apache->request is reset after configuring %ENV
+[Gerald Richter <richter@ecos.de>]
+
+adjust 'U' magic functions to Perl 5.7.x-dev prototype change
+
+Put Apache's CFLAGS into AP_CFLAGS instead of CFLAGS, so that
+people who like to override CFLAGS from the make line (make
+CFLAGS='-arch ppc -arch i386') can do so without stomping the
+Apache flags.  [ Wilfredo Sanchez <wsanchez@KnowNow.com> ]
+
 =item 1.25 - January 29, 2001
 
 avoid 'prototype mismatch' warnings in Apache::PerlRun::flush_namespace
