@@ -16,11 +16,11 @@ use Apache::Const -compile => 'OK';
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 62;
+    plan $r, tests => 76;
 
     ### native pools ###
 
-    # explicit and implicit DESTROY shouldn't destroy native pools
+    # explicit destroy shouldn't destroy native pools
     {
         my $p = $r->pool;
 
@@ -28,9 +28,9 @@ sub handler {
         t_debug "\$r->pool has 2 or more ancestors (found $count)";
         ok $count >= 2;
 
-        $p->cleanup_register(\&set_cleanup, [$r, 'native DESTROY']);
+        $p->cleanup_register(\&set_cleanup, [$r, 'native destroy']);
 
-        $p->DESTROY;
+        $p->destroy;
 
         my @notes = $r->notes->get('cleanup');
 
@@ -63,23 +63,23 @@ sub handler {
     ### custom pools ###
 
 
-    # test: explicit pool object DESTROY destroys the custom pool
+    # test: explicit pool object destroy destroys the custom pool
     {
         my $p = APR::Pool->new;
 
-        $p->cleanup_register(\&set_cleanup, [$r, 'new DESTROY']);
+        $p->cleanup_register(\&set_cleanup, [$r, 'new destroy']);
 
         ok t_cmp(1, ancestry_count($p),
                  "a new pool has one ancestor: the global pool");
 
-        # explicity DESTROY the object
-        $p->DESTROY;
+        # explicity destroy the object
+        $p->destroy;
 
         my @notes = $r->notes->get('cleanup');
 
         ok t_cmp(1, scalar(@notes), "should be 1 note");
 
-        ok t_cmp('new DESTROY', $notes[0]);
+        ok t_cmp('new destroy', $notes[0]);
 
         $r->notes->clear;
     }
@@ -128,7 +128,7 @@ sub handler {
         my ($pp, $sp) = both_pools_create_ok($r);
 
         # destroying $pp should destroy the subpool $sp too
-        $pp->DESTROY;
+        $pp->destroy;
 
         both_pools_destroy_ok($r);
 
@@ -141,8 +141,8 @@ sub handler {
     {
         my ($pp, $sp) = both_pools_create_ok($r);
 
-        $sp->DESTROY;
-        $pp->DESTROY;
+        $sp->destroy;
+        $pp->destroy;
 
         both_pools_destroy_ok($r);
 
@@ -157,8 +157,8 @@ sub handler {
     {
         my ($pp, $sp) = both_pools_create_ok($r);
 
-        $pp->DESTROY;
-        $sp->DESTROY;
+        $pp->destroy;
+        $sp->destroy;
 
         both_pools_destroy_ok($r);
 
@@ -173,7 +173,7 @@ sub handler {
         my ($pp, $sp) = both_pools_create_ok($r);
 
         # parent pool destroys child pool
-        $pp->DESTROY;
+        $pp->destroy;
 
         # this should "gracefully" fail, since $sp's guts were
         # destroyed when the parent pool was destroyed
@@ -203,13 +203,13 @@ sub handler {
         my $pp2;
         {
             my $pp = APR::Pool->new;
-            $pp->DESTROY;
+            $pp->destroy;
             # $pp2 ideally should take the exact place of apr_pool
             # previously pointed to by $pp
             $pp2 = APR::Pool->new;
             # $pp object didn't go away yet (it'll when exiting this
             # scope). in the previous implementation, $pp will be
-            # DESTROY'ed second time on the exit of the scope and it
+            # destroyed second time on the exit of the scope and it
             # could happen to work, because $pp2 pointer has allocated
             # exactly the same address. and if so it would have killed
             # the pool that $pp2 points to
@@ -226,7 +226,7 @@ sub handler {
 
         # next make sure that $pp2's pool is still alive
         $pp2->cleanup_register(\&set_cleanup, [$r, 'overtake']);
-        $pp2->DESTROY;
+        $pp2->destroy;
 
         my @notes = $r->notes->get('cleanup');
 
@@ -259,7 +259,7 @@ sub handler {
             my $pp = APR::Pool->new;
             my $sp = $pp->new;
             # parent destroys $sp
-            $pp->DESTROY;
+            $pp->destroy;
 
             # hopefully these pool will take over the $pp and $sp
             # allocations
@@ -272,7 +272,7 @@ sub handler {
         $r->notes->clear;
 
         # parent pool destroys child pool
-        $pp2->DESTROY;
+        $pp2->destroy;
 
         both_pools_destroy_ok($r);
 
@@ -300,13 +300,14 @@ sub handler {
         $r->notes->clear;
 
         # now the last copy is gone and the cleanup hooks will be called
-        $cp->DESTROY;
+        $cp->destroy;
 
         @notes = $r->notes->get('cleanup');
         ok t_cmp(1, scalar(@notes), "should be 1 note");
         ok t_cmp('several references', $notes[0]);
-    }
 
+        $r->notes->clear;
+    }
     {
         # and another variation
         my $pp = $r->pool->new;
@@ -316,17 +317,117 @@ sub handler {
         my $pp2 = $sp->parent_get;
 
         # parent destroys children
-        $pp->DESTROY;
+        $pp->destroy;
 
         # grand parent ($r->pool) is undestroyable (core pool)
-        $gp->DESTROY;
+        $gp->destroy;
 
         # now all custom pools are destroyed - $sp and $pp2 point nowhere
-        $pp2->DESTROY;
-        $sp->DESTROY;
+        $pp2->destroy;
+        $sp->destroy;
 
         ok 1;
     }
+
+    # cleanup_register using a function name as a callback
+    {
+        {
+            my $p = APR::Pool->new;
+            $p->cleanup_register('set_cleanup', [$r, 'function name']);
+        }
+
+        my @notes = $r->notes->get('cleanup');
+        ok t_cmp('function name', $notes[0], "function name callback");
+
+        $r->notes->clear;
+    }
+
+    # cleanup_register using an anon sub callback
+    {
+        {
+            my $p = APR::Pool->new;
+
+            $p->cleanup_register(sub { &set_cleanup }, [$r, 'anon sub']);
+        }
+
+        my @notes = $r->notes->get('cleanup');
+        ok t_cmp('anon sub', $notes[0], "anon callback");
+
+        $r->notes->clear;
+    }
+
+    # registered callbacks are run in reversed order LIFO
+    {
+        {
+            my $p = APR::Pool->new;
+
+            $p->cleanup_register(\&add_cleanup, [$r, 'first']);
+            $p->cleanup_register(\&add_cleanup, [$r, 'second']);
+        }
+
+        my @notes = $r->notes->get('cleanup');
+        ok t_cmp('second', $notes[0], "two cleanup functions");
+        ok t_cmp('first',  $notes[1], "two cleanup functions");
+
+        $r->notes->clear;
+    }
+
+    # bogus callbacks unfortunately will fail only when the pool is
+    # destroyed, and we have no way to propogate (and thus trap) those
+    # errors. They are logged though. So as usual, one has to always
+    # watch error_log (things like CGI::Carp's fatalsToBrowser) won't
+    # quite be able to catch those.
+    {
+        my $p = APR::Pool->new;
+        t_server_log_error_is_expected();
+        $p->cleanup_register('some_bogus_non_existing', 1);
+    }
+    {
+        my $p = APR::Pool->new;
+        t_server_log_error_is_expected();
+        $p->cleanup_register(\&non_existing1, 1);
+    }
+
+    ### $p->clear ###
+    {
+        my ($pp, $sp) = both_pools_create_ok($r);
+        $pp->clear;
+        # both pools should have run their cleanups
+        both_pools_destroy_ok($r);
+
+        # sub-pool $sp should be now bogus, as clear() destroys
+        # subpools
+        eval { $sp->parent_get };
+        ok t_cmp(qr/invalid pool object/,
+                 $@,
+                 "clear destroys sub pools");
+
+        # now we should be able to use the parent pool without
+        # allocating it
+        $pp->cleanup_register(\&set_cleanup, [$r, 're-using pool']);
+        $pp->destroy;
+
+        my @notes = $r->notes->get('cleanup');
+        ok t_cmp('re-using pool', $notes[0]);
+
+        $r->notes->clear;
+    }
+
+
+    # a pool can be tagged, so when doing low level apr_pool tracing
+    # (when apr is compiled with -DAPR_POOL_DEBUG) it's possible to
+    # grep(1) for a certain tag, so it's a useful method
+    {
+        my $p = APR::Pool->new;
+        $p->tag("my pool");
+
+        # though there is no way we can get back the value to test,
+        # since there is no apr_pool_tag read accessor
+        ok 1;
+    }
+
+
+
 
     # other stuff
     {
@@ -363,14 +464,14 @@ sub ancestry_count {
 
 sub add_cleanup {
     my $arg = shift;
-    debug "adding cleanup note";
+    debug "adding cleanup note: $arg->[1]";
     $arg->[0]->notes->add(cleanup => $arg->[1]);
     1;
 }
 
 sub set_cleanup {
     my $arg = shift;
-    debug "setting cleanup note";
+    debug "setting cleanup note: $arg->[1]";
     $arg->[0]->notes->set(cleanup => $arg->[1]);
     1;
 }

@@ -293,15 +293,18 @@ sub map_structure {
         my($name, $type) = ($e->{name}, $e->{type});
         my $rtype;
 
-        next unless $self->structure_map->{$stype}->{$name};
+        # ro/rw/undef(disabled)
+        my $access_mode = $self->structure_map->{$stype}->{$name};
+        next unless $access_mode;
         next unless $rtype = $self->map_type($type);
 
         push @elts, {
-           name    => $name,
-           type    => $rtype,
-           default => $self->null_type($type),
-           pool    => $self->class_pool($class),
-           class   => $self->{map}->{$type} || "",
+           name        => $name,
+           type        => $rtype,
+           default     => $self->null_type($type),
+           pool        => $self->class_pool($class),
+           class       => $self->{map}->{$type} || "",
+           access_mode => $access_mode,
         };
     }
 

@@ -5,6 +5,9 @@ package TestApache::util;
 use strict;
 use warnings FATAL => 'all';
 
+# regex matching (LC_CTYPE) of strftime-like (LC_TIME) strings
+use locale;
+
 use Apache::RequestRec ();
 use Apache::RequestIO ();
 use Apache::Util ();
@@ -52,7 +55,7 @@ sub handler {
     Apache::OK;
 }
 
-my $fmtdate_ptn = qr/^\w\w\w, \d\d \w\w\w \d\d\d\d \d\d:\d\d:\d\d/;
+my $fmtdate_ptn = qr/^\w+, \d\d \w+ \d\d\d\d \d\d:\d\d:\d\d/;
 sub time_cmp {
     my($time, $fmtdate, $comment, $exact_match) = @_;
 

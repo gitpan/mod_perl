@@ -7,6 +7,7 @@ use warnings FATAL => 'all';
 use Apache::Test;
 use Apache::TestConfig;
 use Apache::TestUtil;
+use Apache::BuildConfig;
 
 use Apache::Module ();
 use DynaLoader ();
@@ -18,31 +19,40 @@ sub handler {
 
     my $cfg = Apache::Test::config();
 
-    plan $r, tests => 14;
-
     my $top_module = Apache::Module->top_module;
 
+    #no promise that mod_perl will be the top_module
+    my $top_module_name = (defined $top_module && $top_module->name()) || '';
+
+    my $tests = 11;
+    $tests += 3 if $top_module_name eq 'mod_perl.c';
+
+    plan $r, tests => $tests;
+
+    t_debug "top_module: $top_module_name";
     ok $top_module;
 
     ok t_cmp($cfg->{httpd_info}->{MODULE_MAGIC_NUMBER_MAJOR},
              $top_module->version,
              q{$top_module->version});
 
-    ok t_cmp(scalar keys %{ $cfg->{modules} },
+    ok t_cmp(scalar(keys %{ $cfg->{modules} }),
              $top_module->module_index,
-             q{$top_module->module_index}) || 1;
+             q{$top_module->module_index})
+        || 1; # the A-T config could be wrong
 
     #XXX: some of these tests will fail if modperl is linked static
     #rather than dso.
 
-    #no promise that mod_perl will be the top_module
-    ok t_cmp('mod_perl.c', $top_module->name(), q{$top_module->name}) || 1;
+    if ($top_module_name eq 'mod_perl.c') {
+        ok t_cmp('mod_perl.c', $top_module_name, q{$top_module->name}) || 1;
 
-    my $cmd = $top_module->cmds;
+        my $cmd = $top_module->cmds;
 
-    ok defined $cmd;
+        ok defined $cmd;
 
-    ok UNIVERSAL::isa($cmd, 'Apache::Command');
+        ok UNIVERSAL::isa($cmd, 'Apache::Command');
+    }
 
     if (0) { #XXX: currently fails with --enable-mods-shared=all
         local $cfg->{modules}->{'mod_perl.c'} = 1;
@@ -75,8 +85,12 @@ sub handler {
              "Apache::Module::loaded('Apache__Module_foo.c')");
 
     #.so
-    ok t_cmp(1, Apache::Module::loaded('mod_perl.so'),
-             "Apache::Module::loaded('mod_perl.so')");
+    {
+        my $build = Apache::BuildConfig->new;
+        my $expect = $build->{MODPERL_LIB_SHARED} ? 1 : 0;
+        ok t_cmp($expect, Apache::Module::loaded('mod_perl.so'),
+                 "Apache::Module::loaded('mod_perl.so')");
+    }
 
     ok t_cmp(0, Apache::Module::loaded('Apache__Module__foo.so'),
              "Apache::Module::loaded('Apache__Module_foo.so')");

@@ -10,6 +10,7 @@ PACKAGE=Apache
 MODULE=ModPerl::Global
  mpxs_ModPerl__Global_special_list_call
  mpxs_ModPerl__Global_special_list_clear
+ mpxs_ModPerl__Global_special_list_register
 
 MODULE=Apache::RequestRec   PACKAGE=Apache::RequestRec
  mpxs_Apache__RequestRec_content_type   | | r, type=Nullsv
@@ -138,7 +139,7 @@ MODULE=Apache::SubProcess
 MODULE=Apache::Directive
  mpxs_Apache__Directive_as_string
  mpxs_Apache__Directive_as_hash
- Apache__Directive_lookup | MPXS_ | ...
+ DEFINE_lookup | MPXS_Apache__Directive_lookup | ...
 
 MODULE=Apache::CmdParms
  mpxs_Apache__CmdParms_info

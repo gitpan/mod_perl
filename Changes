@@ -10,6 +10,102 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
+=item 1.99_14 - May 21, 2004
+
+APR::SockAddr::port() accessor is now read-only [Stas]
+
+APR::Pool now has destroy() and clear() available [Stas]
+
+now logging the errors happening in pool cleanup callbacks [Stas]
+
+use the new Apache-Test attribute -minclient in the test suites. Now
+along with the default maxclients = minclients+1, we no longer should
+get 'server reached MaxClients setting' errors. [Stas]
+
+new API for APR::Socket recv() and send() + updated tests [Stas]
+
+add infrastructure for new ModPerl::Const constants and the first
+constant ModPerl::EXIT. [Stas]
+
+re-implement ModPerl::Util::exit to use exception objects, so it's
+possible to detect exit called in eval context and call it again
+outside the eval context. [Stas]
+
+add the perl interface for the new exception handling code (mod_perl,
+apache and apr methods will now throw exceptions with $@ being an
+object). New class APR::Error was added, to handle the exception
+objects with overload methods. Also added confess and croak
+equivalents of Carp's methods, since at the moment the Carp's ones
+don't work as is. The following perl and C methods have been renamed:
+  modperl_apr_strerror  => modperl_error_strerror 
+  APR::strerror         => APR::Error::strerr 
+[Stas]
+
+set the 'error-notes' table to the error message on
+HTTP_INTERNAL_SERVER_ERROR [Stas]
+
+fix the apxs build function to not handle empty lookups as errors
+[Randy Kobes, Steve Hay]
+
+fix type casting problems in the io functions [Stas]
+
+add support for libgtop 2.5.0+ (maintenance mode) [Stas]
+
+APR::Socket::timeout_set now croaks on failure [Stas]
+
+significantly speedup the startup of threaded mpm test suite, by
+configuring only the minimal number of perl interpreters to start
+[Stas]
+
+make APR::Socket::opt_(set|get) working (and change the previous
+behavior) [Stas]
+
+make sure that our protocol module tests that interact with the socket
+use a blocking read [Joe Orton]
+
+Use a better approach to figure out whether we need to strip perl's
+LargeFilesSource flag, by checking whether libapr was compiled with
+-D_FILE_OFFSET_BITS=64 or not. Checking for APR_HAS_LARGE_FILES is
+useless since it doesn't tell whether 32 vs 64 bits off_t and similar
+types are used [Joe Orton]
+
+'SetHandler perl-script' no longer grabs any newly encountered END
+blocks, and removes them from PL_endav, but only if they are
+explicitly registered via ModPerl::Global::special_list_register(END
+=> $package_name) (this is a new function). It's now possible to have
+a complete control of when END blocks are run from the user space, not
+only in the registry handlers [Stas]
+
+END blocks encountered by child processes and not hijacked by
+ModPerl::Global::special_list_register() are now executed at the
+server shutdown (previously they weren't executed at all). [Stas]
+
+Added test to ensure <Perl> sections can have things like %Location
+tied [Gozer]
+
+Fix the installation on Win32 so that an appropriate Apache2
+subdirectory under the Perl tree is used when MP_INST_APACHE2 is
+specified [Randy Kobes]
+
+Fix a redefined warning in Apache::Status [Stas]
+
+Fix Apache::Status, to lookup the Apache::Request version without
+loading it. Only if a suitable (2.x) version is found -- load and use
+it. Previously loading the 1.x version was affecting Apache::compat.
+[Stas]
+
+Fix a bug in special blocks handling (like END), which until now was
+dropping on the floor all blocks but the last one (mainly affecting
+registry handlers). [Stas]
+
+The filter streaming API print() function, now correctly handles a
+binary data [Stas]
+
+Fix Registry handlers, not to lose the execution errors, when they
+include END blocks [Stas]
+
+
+
 =item 1.99_13 - March 8, 2004
 
 respect $ENV{APACHE_TEST_STARTUP_TIMEOUT} settings if any [Stas]
@@ -174,6 +270,8 @@ failures. [Stas]
 Make sure that pnotes are destroyed after PerlCleanup handlers are
 finished and not before + test. [Stas]
 
+
+
 =item 1.99_12 - December 22, 2003
 
 Restore a proper behavior of all Registry handlers, but PerlRun, not
@@ -301,6 +399,8 @@ Fix Apache::Status::handler to return 'Apache::OK' [Juanma Barranquero
 <Perl> sections now properly set filename and line number information,
 making error messages report the correct location. [Philippe M. Chiasson]
 
+
+
 =item 1.99_11 - November 10, 2003
 
 add a build/win32_fetch_apxs script (called within the top-level
@@ -375,6 +475,8 @@ ModPerl::Util::exit is used. [Stas]
 To make the test-suite sandbox-friendly, which break when things try to
 run off /tmp, use t/logs as the location of the mod_cgid socket and
 TMPDIR env var [Haroon Rafique <haroon.rafique@utoronto.ca>]
+
+
 
 =item 1.99_10 - September 29, 2003
 
@@ -559,6 +661,8 @@ Fix Apache::Reload to gracefully handle the case with empty Touchfiles
 
 PerlRequire entried should be executed before PerlModule entries in
 VirtualHost containers, just like in the base server [Stas]
+
+
 
 =item 1.99_09 - April 28, 2003
 
@@ -845,6 +949,8 @@ Request input and output filters are now getting the EOS bucket, which
 wasn't passed through before. Now the context can be flushed on
 EOS. [Stas]
 
+
+
 =item 1.99_08 - January 10, 2003
 
 Correct ModPerl::RegistryCooker to reset %INC, after compile for .pl
@@ -996,10 +1102,14 @@ stuffed into.
 rename overloaded LoadModule directive to PerlLoadModule and adjust
 the test naming
 
+
+
 =item 1.99_07 - September 25, 2002
 
 fix =pod directive test config problem
 [Philippe M. Chiasson <gozer@cpan.org>]
+
+
 
 =item 1.99_06 - September 25, 2002
 
@@ -1038,6 +1148,8 @@ remove dup() when converting filehandles from apr_file_t to FILE*
 under perlio-disabled Perl (APR::PerlIO) [Stas Bekman]
 
 fix compilation if apache/apr do not have thread support
+
+
 
 =item 1.99_05 - August 20, 2002
 
@@ -1081,6 +1193,8 @@ adjust to filter register api change
 
 added APR::ThreadMutex module
 
+
+
 =item 1.99_04 - June 21, 2002
 
 various APR PerlIO updates [Stas Bekman]
@@ -1096,6 +1210,8 @@ get the -DPERL_CORE optimization working again
 PERL_SET_CONTEXT to the parent interpreter when cloning interpreters at
 request time, else dTHX might be NULL during clone in the given thread,
 which would crash the server.
+
+
 
 =item 1.99_03 - June 15, 2002
 
@@ -1120,6 +1236,8 @@ add MODPERL2 config define, as if the server had been started with -DMODPERL2
 compat additions and fixes: $r->lookup_{file,uri}, $r->is_main, Apache->define
 
 added compat for Apache::log_error [Stas Bekman]
+
+
 
 =item 1.99_02 - June 1, 2002
 
@@ -1222,6 +1340,8 @@ get rid of some "subroutine redefined" warnings in ModPerl::MM that
 show up with newer bleedperls.
 
 a few fixes for Apache::compat [Dave Rolsky <autarch@urth.org>]
+
+
 
 =item 1.99_01 - April 6, 2002
 

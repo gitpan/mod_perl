@@ -117,6 +117,39 @@ C<@INC>.
 =back
 
 
+=head1 Server Startup
+
+mod_perl 1.0 was always running its startup code immediately at the
+server startup. On a big setup it was causing a slow startup, since
+Apache always starts and immediately restarts itself, running the
+startup code twice. Therefore in mod_perl 2.0, by default perl won't
+be started until after the configuration phase. So, if for example you
+run:
+
+  % apachectl configtest
+
+none of your perl code will be executed.
+
+There are two cases when mod_perl 2.0 is forced to start early. First,
+is when
+C<L<PerlLoadModule|docs::2.0::user::config::config/C_PerlLoadModule_>>
+is used and the second is
+C<L<E<lt>PerlE<gt>|docs::2.0::api::Apache::PerlSections>> sections,
+both requiring a running perl, and triggering an early server startup.
+
+Therefore at the moment, if you want to trigger an early startup, like
+mod_perl 1.0 does, just add an empty
+C<L<E<lt>PerlE<gt>|docs::2.0::api::Apache::PerlSections>> section:
+
+  <Perl>
+  # trigger an early startup
+  </Perl>
+
+Right after loading the mod_perl module in F<httpd.conf> if you are
+using DSO, or just before your mod_perl configuration if you using a
+static build.
+
+
 =head1 Code Porting
 
 mod_perl 2.0 is trying hard to be back compatible with mod_perl
@@ -376,7 +409,7 @@ This will work in both mod_perl generations.
 
 C<Apache::Constants::SERVER_VERSION()> has been replaced with:
 
-  Apache::Server::get_server_version();
+  Apache::get_server_version();
 
 =head2 C<export()>
 
@@ -536,7 +569,7 @@ C<Apache-E<gt>request> available in the calls made from it:
 =head2 C<Apache-E<gt>define>
 
 C<Apache-E<gt>define> has been replaced with
-C<Apache::Server::exists_config_define()> residing inside
+C<Apache::exists_config_define()> residing inside
 C<Apache::ServerUtil>.
 
 See the
@@ -628,15 +661,14 @@ manpage.
 C<Apache-E<gt>httpd_conf> is avalable via
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
 
+
+
 =head2 C<Apache::exit()>
 
-C<Apache::exit()> has been replaced with C<ModPerl::Util::exit()>,
-which is a function (not a method) and accepts a single optional
-argument: status, whose default is 0 (== do nothing).
+C<Apache::exit()> has been replaced with
+C<L<ModPerl::Util::exit()|docs::2.0::api::ModPerl::Util/C_exit_>>.
 
-See the
-C<L<ModPerl::Util|docs::2.0::api::ModPerl::Util>>
-manpage.
+
 
 =head2 C<Apache::gensym()>
 
@@ -895,14 +927,21 @@ information.
 
 =head2 C<$r-E<gt>notes>
 
-Similar to C<headers_in()>, C<headers_out()> and C<err_headers_out()>
-in mod_perl 2.0, C<$r-E<gt>notes()> returns an
+Similar to
+C<L<headers_in()|docs::2.0::api::Apache::RequestRec/C_headers_in_>>,
+C<L<headers_out()|docs::2.0::api::Apache::RequestRec/C_headers_out_>>
+and
+C<L<err_headers_out()|docs::2.0::api::Apache::RequestRec/C_err_headers_out_>>
+in mod_perl 2.0, C<L<$r-E<gt>notes()|docs::2.0::api::Apache::RequestRec/C_notes_>> returns an
 C<L<APR::Table|docs::2.0::api::APR::Table>> object, which can be used
-as a tied hash or calling its I<get()>/I<set()>/I<add()>/I<unset()>
-methods.
+as a tied hash or calling its
+I<L<get()|docs::2.0::api::APR::Table/C_get_>> /
+I<L<set()|docs::2.0::api::APR::Table/C_set_>> /
+I<L<add()|docs::2.0::api::APR::Table/C_add_>> /
+I<L<unset()|docs::2.0::api::APR::Table/C_unset_>> methods.
 
 It's also possible to adjust the mod_perl 1.0 code using
-Apache::compat's
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>'s
 L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_with_mod_perl_2_0_API>:
 
    use Apache::compat;
@@ -1011,13 +1050,13 @@ need to set the I<Content-type> via C<$r-E<gt>content_type($type)>.
 
 =head2 C<$r-E<gt>server_root_relative>
 
-C<Apache::Server::server_root_relative> is a function in 2.0 and its first
+C<Apache::server_root_relative> is a function in 2.0 and its first
 argument is the I<pool> object. For example:
 
   # during request
-  my $conf_dir = Apache::Server::server_root_relative($r->pool, 'conf');
+  my $conf_dir = Apache::server_root_relative($r->pool, 'conf');
   # during startup
-  my $conf_dir = Apache::Server::server_root_relative($s->pool, 'conf');
+  my $conf_dir = Apache::server_root_relative($s->pool, 'conf');
 
 Alternatively:
 
@@ -1030,7 +1069,7 @@ Note that the old form
 
   my $conf_dir = Apache->server_root_relative('conf');
 
-is no longer valid - C<Apache::Server::server_root_relative> must be called
+is no longer valid - C<Apache::server_root_relative> must be called
 from either one of C<$r>, C<$s>, or C<$c>, or be explicitly
 passed a pool.
 
@@ -1192,7 +1231,7 @@ argument. For example:
 =head2 C<Apache::Util::unescape_uri()>
 
 C<Apache::Util::unescape_uri()> has been replaced with
-C<Apache::URI::unescape_url()>.
+C<Apache::unescape_url()>.
 
 =head2 C<Apache::Util::escape_html()>
 

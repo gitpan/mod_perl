@@ -15,13 +15,7 @@
 package Apache::Status;
 
 use strict;
-#use warnings; #XXX FATAL => 'all'; 
-no warnings; # 'redefine';
-
-# XXX: something is wrong with bleadperl, it warns about redefine
-# warnings, when no warnings 'redefine' is set (test with 5.8.0). even
-# when used with 'no warnings' it still barks on redefinining the
-# constants
+use warnings FATAL => 'all';
 
 use mod_perl 1.99;
 
@@ -29,6 +23,9 @@ use Apache::RequestIO ();
 use Apache::RequestRec ();
 use Apache::RequestUtil ();
 use Apache::ServerUtil ();
+
+use File::Spec ();
+
 use Apache::Const -compile => qw(OK);
 
 $Apache::Status::VERSION = '3.00'; # mod_perl 2.0
@@ -37,10 +34,11 @@ use constant IS_WIN32 => ($^O eq "MSWin32");
 
 our $newQ;
 
-if (eval {require Apache::Request}) {
+if (parse_version("Apache::Request") > 2 &&
+    eval { require Apache::Request }) {
     $newQ ||= sub { Apache::Request->new(@_) };
 }
-elsif (eval {require CGI}) {
+elsif (eval { require CGI }) {
     if ($CGI::VERSION >= 2.93) {
         $newQ ||= sub { CGI->new(@_) };
     }
@@ -124,6 +122,7 @@ sub menu_item {
     my($self, $key, $val, $sub) = @_;
     $status{$key} = $val;
     no strict;
+    no warnings 'redefine';
     *{"status_${key}"} = $sub if $sub and ref $sub eq 'CODE';
 }
 
@@ -843,6 +842,66 @@ sub myconfig {
     else {
         return Config::myconfig();
   }
+}
+
+# mp2 modules have to deal with situations where a binary incompatible
+# mp1 version of the same module is installed in the same
+# tree. therefore when checking for a certain version, one wants to
+# check the version of the module 'require()' will find without
+# loading that module. this function partially adopted from
+# ExtUtils::MM_Unix does just that. it returns the version number of
+# the first module that it finds, forcing numerical context, making
+# the return value suitable for immediate numerical comparison
+# operation. (i.e. 2.03-dev will be returned as 2.03,  0 will be
+# returned when the parsing has failed or a module wasn't found).
+sub parse_version {
+    my $name = shift;
+    die "no module name passed" unless $name;
+    my $file = File::Spec->catfile(split /::/, $name) . '.pm';
+    for my $dir (@INC) {
+        next if ref $dir; # skip code refs
+
+        my $pmfile = File::Spec->catfile($dir, $file);
+        next unless -r $pmfile;
+
+        open my $fh, $pmfile or die "can't open $pmfile: $!";
+
+        my $inpod = 0;
+        my $version;
+        while (<$fh>) {
+            $inpod = /^=(?!cut)/ ? 1 : /^=cut/ ? 0 : $inpod;
+            next if $inpod || /^\s*#/;
+
+            chomp;
+            next unless /([\$*])(([\w\:\']*)\bVERSION)\b.*\=/;
+            { local($1, $2); ($_ = $_) = /(.*)/; } # untaint
+            my $eval = qq{
+                package Apache::Status::_version;
+                no strict;
+
+                local $1$2;
+                \$$2=undef; do {
+                    $_
+                }; \$$2
+            };
+            no warnings;
+            $version = eval $eval;
+            warn "Could not eval '$eval' in $pmfile: $@" if $@;
+            last;
+        }
+
+        close $fh;
+
+        # avoid situations like "2.03-dev" and return a numerical
+        # version
+        if (defined $version) {
+            no warnings;
+            $version += 0; # force number
+            return $version;
+        }
+    }
+
+    return 0; # didn't find the file or the version number
 }
 
 1;

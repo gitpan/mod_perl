@@ -41,7 +41,8 @@ use ModPerl::Global ();
 use File::Spec::Functions ();
 use File::Basename;
 
-use Apache::Const -compile => qw(:common &OPT_EXECCGI);
+use Apache::Const  -compile => qw(:common &OPT_EXECCGI);
+use ModPerl::Const -compile => 'EXIT';
 
 unless (defined $ModPerl::Registry::MarkLine) {
     $ModPerl::Registry::MarkLine = 1;
@@ -194,10 +195,23 @@ sub run {
         %orig_inc = %INC;
     }
 
+    my $rc = Apache::OK;
     { # run the code and preserve warnings setup when it's done
-        no warnings;
+        no warnings FATAL => 'all';
+        #local $^W = 0;
         eval { $cv->($r, @_) };
+
+        # log script's execution errors
+        $rc = $self->error_check;
+
         ModPerl::Global::special_list_call(END => $package);
+
+        # log script's END blocks execution errors
+        my $new_rc = $self->error_check;
+
+        # use the END blocks return status if the script's execution
+        # was successful
+        $rc = $new_rc if $rc != Apache::OK;
     }
 
     if ($self->should_reset_inc_hash) {
@@ -216,11 +230,7 @@ sub run {
 
     #XXX: $self->chdir_file("$Apache::Server::CWD/");
 
-    if ( (my $err_rc = $self->error_check) != Apache::OK) {
-        return $err_rc;
-    }
-
-    return Apache::OK;
+    return $rc;
 }
 
 
@@ -513,6 +523,10 @@ sub flush_namespace_normal {
     no strict 'refs';
     my $tab = \%{ $self->{PACKAGE} . '::' };
 
+    # below we assign to a symbol first before undef'ing it, to avoid
+    # nuking aliases. If we undef directly we may undef not only the
+    # alias but the original function as well
+
     for (keys %$tab) {
         my $fullname = join '::', $self->{PACKAGE}, $_;
         # code/hash/array/scalar might be imported make sure the gv
@@ -677,7 +691,8 @@ sub compile {
 
     $self->debug("compiling $self->{FILENAME}") if DEBUG && D_COMPILE;
 
-    ModPerl::Global::special_list_clear(END => $self->{PACKAGE});
+    ModPerl::Global::special_list_register(END => $self->{PACKAGE});
+    ModPerl::Global::special_list_clear(   END => $self->{PACKAGE});
 
     {
         # let the code define its own warn and strict level 
@@ -699,7 +714,11 @@ sub compile {
 
 sub error_check {
     my $self = shift;
-    if ($@ and substr($@,0,4) ne " at ") {
+
+    # ModPerl::Util::exit() throws an exception object whose rc is
+    # ModPerl::EXIT
+    # (see modperl_perl_exit() and modperl_errsv() C functions)
+    if ($@ && !(ref $@ eq 'APR::Error' && $@ == ModPerl::EXIT)) {
         $self->log_error($@);
         return Apache::SERVER_ERROR;
     }

@@ -195,8 +195,8 @@ sub get_structures {
         my $class = $struct->{class};
 
         for my $e (@{ $struct->{elts} }) {
-            my($name, $default, $type) =
-              @{$e}{qw(name default type)};
+            my($name, $default, $type, $access_mode) =
+              @{$e}{qw(name default type access_mode)};
 
             (my $cast = $type) =~ s/:/_/g;
             my $val = get_value($e);
@@ -210,7 +210,25 @@ sub get_structures {
 
             my $attrs = $self->attrs($name);
 
-            my $code = <<EOF;
+            my $code;
+            if ($access_mode eq 'ro') {
+                $code = <<EOF;
+$type
+$name(obj)
+    $class obj
+
+$attrs
+
+    CODE:
+    RETVAL = ($cast) obj->$name;
+
+    OUTPUT:
+    RETVAL
+
+EOF
+            }
+            elsif ($access_mode eq 'rw') {
+                $code = <<EOF;
 $type
 $name(obj, val=$default)
     $class obj
@@ -231,6 +249,8 @@ $attrs
     RETVAL
 
 EOF
+            }
+
             push @{ $self->{XS}->{ $struct->{module} } }, {
                code  => $code,
                class => $class,
@@ -488,7 +508,7 @@ EOF
     print $fh "    items = items; /* -Wall */\n\n";
 
     if (my $newxs = $self->{newXS}->{$module}) {
-        for my $xs (@$newxs) {
+        for my $xs (sort { $a->[0] cmp $b->[0] } @$newxs) {
             print $fh qq{   cv = newXS("$xs->[0]", $xs->[1], __FILE__);\n};
             print $fh qq{   GvUNIQUE_on(CvGV(cv));\n} if GvUNIQUE;
         }
@@ -523,6 +543,9 @@ sub write_pm {
 $noedit_warning
 
 package $module;
+
+use strict;
+use warnings FATAL => 'all';
 
 $isa
 use $loader ();

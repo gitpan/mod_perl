@@ -364,6 +364,7 @@ AP_INIT_ITERATE("$h_name", $name, NULL, \\
 
 EOF
             print $c_fh <<EOF;
+
 $protostr
 {
     $prototype->{cfg}->{get};
@@ -487,12 +488,13 @@ my %trace = (
     'd' => 'directive processing',
     'e' => 'environment variables',
     'f' => 'filters',
-    'g' => 'Perl runtime interaction',
+    'g' => 'globals management',
     'h' => 'handlers',
     'i' => 'interpreter pool management',
     'm' => 'memory allocations',
     'o' => 'I/O',
-    's' => 'perl sections',
+    'r' => 'Perl runtime interaction',
+    's' => 'Perl sections',
     't' => 'benchmark-ish timings',
 );
 
@@ -640,7 +642,7 @@ my %sources = (
 my @c_src_names = qw(interp tipool log config cmd options callback handler
                      gtop util io io_apache filter bucket mgv pcw global env
                      cgi perl perl_global perl_pp sys module svptr_table
-                     const constants apache_compat);
+                     const constants apache_compat error);
 my @h_src_names = qw(perl_unembed);
 my @g_c_names = map { "modperl_$_" } qw(hooks directives flags xsinit);
 my @c_names   = ('mod_perl', (map "modperl_$_", @c_src_names));
@@ -774,7 +776,7 @@ sub generate {
     #$self->generate_constants_pod();
 }
 
-my $constant_prefixes = join '|', qw{APR?};
+my $constant_prefixes = join '|', qw{APR? MODPERL_RC};
 
 sub generate_constants {
     my($self, $h_fh, $c_fh) = @_;
@@ -798,7 +800,10 @@ my %shortcuts = (
 
 #backwards compat with older httpd/apr
 #XXX: remove once we require newer httpd/apr
-my %ifdef = map { $_, 1 } qw(APLOG_TOCLIENT APR_LIMIT_NOFILE);
+my %ifdef = map { $_, 1 } 
+    qw(APLOG_TOCLIENT APR_LIMIT_NOFILE), # added in ???
+    qw(AP_MPMQ_STARTING AP_MPMQ_RUNNING AP_MPMQ_STOPPING 
+       AP_MPMQ_MPM_STATE); # added in 2.0.49
 
 sub constants_ifdef {
     my $name = shift;
@@ -820,6 +825,7 @@ sub constants_lookup_code {
     my $postfix = lc $class;
     my $package = $class . '::';
     my $package_len = length $package;
+    my($first_let) = $class =~ /^(\w)/;
 
     my $func = canon_func(qw(constants lookup), $postfix);
     my $proto = "SV \*$func(pTHX_ const char *name)";
@@ -830,7 +836,7 @@ sub constants_lookup_code {
 
 $proto
 {
-    if (*name == 'A' && strnEQ(name, "$package", $package_len)) {
+    if (*name == '$first_let' && strnEQ(name, "$package", $package_len)) {
         name += $package_len;
     }
 

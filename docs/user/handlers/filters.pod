@@ -313,6 +313,12 @@ sent:
   ----------------------
   1st    eos
 
+META: EOS buckets are valid for Request filters. For Connection
+filters, you will get one only in the response filters only at the end
+of the connection. See the trick how to workaround this in
+C<Apache::Filter::HTTPHeadersFixup>. Need to mention that in a few
+other places in this doc.
+
 Notice that the EOS bucket may come attached to the last bucket
 brigade with data, instead of coming in its its own bucket brigade.
 Filters should never make an assumption that the EOS bucket is
@@ -2611,6 +2617,18 @@ META: Same goes for last-modified/etags, which may need to be unset,
 
 META: to be written. Meanwhile collecting important inputs from
 various sources.
+
+[
+
+If a filter desires to store the incoming buckets for post
+processing. It must check whether the bucket type is transient. If it
+is -- the data must be copied away. If not -- the buckets may contain
+corrupted data when used later. The right thing is accomplished
+transparently by apr_bucket_setaside, for which we need to provide a
+perl glue.
+
+]
+
 
 [
 

@@ -93,7 +93,12 @@ sub configure_libmodperl {
         $cfg = "#$msg";
         debug $msg;
     }
-    $self->preamble(IfModule => '!mod_perl.c', $cfg);
+
+    # modules like Embperl.so need mod_perl.so to be loaded first,
+    # so make sure that it's loaded before files inherited from the
+    # global httpd.conf
+    $self->preamble_first(IfModule => '!mod_perl.c', $cfg);
+
 }
 
 sub configure_inc {
@@ -123,9 +128,9 @@ sub configure_inc {
 }
 
 sub write_pm_test {
-    my($self, $module, $base, $sub) = @_;
+    my($self, $module, $sub, @base) = @_;
 
-    my $dir = catfile $self->{vars}->{t_dir}, $base;
+    my $dir = catfile $self->{vars}->{t_dir}, @base;
     my $t = catfile $dir, "$sub.t";
     return if -e $t;
 
@@ -175,6 +180,7 @@ sub configure_startup_pl {
         my $include_pl = catfile $self->{vars}->{t_conf}, 'modperl_inc.pl';
         my $fh = $self->genfile($include_pl);
         for (reverse @$inc) {
+            next unless $_;
             print $fh "use lib '$_';\n";
         }
         my $fixup = Apache::TestConfig->modperl_2_inc_fixup();
@@ -222,7 +228,7 @@ sub set_connection_handler {
     my($self, $module, $args) = @_;
     my $port = $self->new_vhost($module);
     my $vars = $self->{vars};
-    $self->postamble(Listen => $vars->{servername} . ':' . $port);
+    $self->postamble(Listen => '0.0.0.0:' . $port);
 }
 
 my %add_hook_config = (
@@ -480,14 +486,6 @@ sub configure_pm_tests_sort {
 sub configure_pm_tests {
     my $self = shift;
 
-    # since server wasn't started yet, the modules in blib under
-    # Apache2 can't be seen. So we must load Apache2.pm, without which
-    # run_apache_test_config might fail to require modules
-    require mod_perl;
-    if ($mod_perl::VERSION > 1.99) {
-        require Apache2;
-    }
-
     my @entries = ();
     $self->configure_pm_tests_pick(\@entries);
     $self->configure_pm_tests_sort(\@entries);
@@ -503,8 +501,10 @@ sub configure_pm_tests {
 
         $self->run_apache_test_configure($file, $module, $status);
 
-        my($base, $sub) =
+        my @base =
             map { s/^test//i; $_ } split '::', $module;
+
+        my $sub = pop @base;
 
         my $hook = ($subdir eq 'Hooks' ? $hooks{$sub} : '')
             || $hooks{$subdir} || $subdir;
@@ -546,7 +546,7 @@ sub configure_pm_tests {
             $self->postamble($self->$container($module), \@args) if @args;
         }
 
-        $self->write_pm_test($module, lc $base, lc $sub);
+        $self->write_pm_test($module, lc $sub, map { lc } @base);
     }
 }
 

@@ -161,16 +161,24 @@ dedicated virtual hosts.
 
 A I<process_connection> handler accepts a connection record object as
 its only argument, a socket object can be retrieved from the
-connection record object.
+connection record object. Here is a simplified handler skeleton:
 
   sub handler {
       my ($c) = @_;
-      my $socket = $c->client_socket;
+      my $sock = $c->client_socket;
+      $sock->opt_set(APR::SO_NONBLOCK, 0);
       # ...
       return Apache::OK;
   }
 
-
+Most likely you'll need to set the socket to perform blocking IO. On
+some platforms (e.g. Linux) Apache gives us a socket which is set for
+blocking, on other platforms (.e.g. Solaris) it doesn't. Unless you
+know which platforms your application will be running on, always
+explicitly set it to the blocking IO mode as in the example
+above. Alternatively, you could query whether the socket is already
+set to a blocking IO mode with help of C<L<the opt_get()
+method|docs::2.0::api::APR::Socket/C_opt_get_>>.
 
 Now let's look at the following two examples of connection
 handlers. The first using the connection socket to read and write the
@@ -228,24 +236,27 @@ Here is the code:
   use APR::Socket ();
   
   use Apache::Const -compile => 'OK';
+  use APR::Const    -compile => 'SO_NONBLOCK';
   
   use constant BUFF_LEN => 1024;
   
   sub handler {
       my $c = shift;
-      my $socket = $c->client_socket;
+      my $sock = $c->client_socket;
   
-      my $buff;
+      # set the socket to the blocking mode
+      $sock->opt_set(APR::SO_NONBLOCK => 0);
+  
       while (1) {
-          my $rlen = BUFF_LEN;
-          $socket->recv($buff, $rlen);
+          # read from the socket
+          my $buff = $sock->recv(BUFF_LEN);
+          my $rlen = length $buff;
+          last if $rlen == 0; # EOF
+          last if $buff =~ /^[\r\n]+$/;
   
-          last if $rlen <= 0 or $buff =~ /^[\r\n]+$/;
-  
-          my $wlen = $rlen;
-          $socket->send($buff, $wlen);
-  
-          last if $wlen != $rlen;
+          # write to the socket
+          my $wlen = $sock->send($buff);
+          last if $wlen != $rlen; # shouldn't happen
       }
   
       Apache::OK;
@@ -258,17 +269,17 @@ subroutine name defaults to I<handler>.  However, in the case of a
 protocol handler, the first argument is not a C<request_rec>, but a
 C<conn_rec> blessed into the C<Apache::Connection> class.  We have
 direct access to the client socket via C<Apache::Connection>'s
-I<client_socket> method.  This returns an object blessed into the
-C<APR::Socket> class.
+I<client_socket> method.  This returns an object, blessed into the
+C<APR::Socket> class. Before using the socket, we make sure that it's
+set to perform blocking IO, by using the C<APR::SO_NONBLOCK> constant,
+compiled earlier.
 
-Inside the read/send loop, the handler attempts to read C<BUFF_LEN>
-bytes from the client socket into the C<$buff> buffer.  The C<$rlen>
-parameter will be set to the number of bytes actually read.  The
-C<APR::Socket::recv()> method returns an APR status value, but we need
-only to check the read length to break out of the loop if it is less
-than or equal to C<0> bytes. The handler also breaks the loop after
-processing an input including nothing but new lines characters, which
-is how we abort the connection in the interactive mode.
+Inside the recv/send loop, the handler attempts to read C<BUFF_LEN>
+bytes from the client socket into the C<$buff> buffer. The handler
+breaks the loop if the returned buffer is empty, (there was nothing
+more to read (EOF)) or if the buffer contains nothing but new line
+character(s), which is how we know to abort the connection in the
+interactive mode.
 
 If the handler receives some data, it sends it unmodified back to the
 client with the C<APR::Socket::send()> method. When the loop is
@@ -344,7 +355,8 @@ handlers.
       my $last = 0;
   
       while (1) {
-          my $rv = $c->input_filters->get_brigade($bb_in, Apache::MODE_GETLINE);
+          my $rv = $c->input_filters->get_brigade($bb_in,
+                                                  Apache::MODE_GETLINE);
           if ($rv != APR::SUCCESS && $rv != APR::EOF) {
               my $error = APR::strerror($rv);
               warn __PACKAGE__ . ": get_brigade: $error\n";

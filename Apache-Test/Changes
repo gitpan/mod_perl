@@ -6,6 +6,96 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.11 - May 21, 2004
+
+if we fail to match the Apache revision (which is OK at the early
+stages, like 'perl Makefile.PL', default to a non-existing revision
+0. But provide no more misleading defaults (used to default to
+revision 2 and then looking for mod_perl2). [Stas]
+
+Improve the regex to match the Apache revision out of 'httpd -v'
+[Michael A Nachbaur <mike@nachbaur.com>]
+
+-minclients is now what -maxclients used to be, -maxclients is now
+really what it says it is [Stas]
+
+Fix Apache::TestRequest::lwp_as_string to work with LWP 5.79 [Stas]
+
+
+
+
+=item 1.10 - April 18, 2004
+
+Quote and escape the executables in the shell calls [Ken Coar, Stas]
+
+Quote and escape filtered args received during 'perl Makefile.PL'
+[Geoffrey Young, Ken Coar]
+
+add :withtestmore import tag to Apache::Test, which will export
+all standard Apache::Test symbols except those that collide with
+Test::More.  [Geoffrey Young]
+
+Use function prototypes in Apache::TestUtil functions t_cmp() and
+t_is_equal() to handle the case when an argument to the function, is a
+function call itself which may return undef (previously had to
+explicitly force a scalar context to get the undef value). The idea
+was borrowed from Test::More. [Stas]
+
+Fixed a Windows-only segment which would result in a
+'use of uninitialised value' error if a hash being traversed
+had an entry with a key but an undefined value.  [Ken]
+
+Support continuous configuration line when parsing the inherited
+configuration file [Stas]
+
+Since some of the inherited from the global httpd.conf modules require
+mod_perl to be loaded first, arrange for that to happen. [Stas]
+
+Don't try to set ulimit unlimited for coredumps on Solaris, unless run
+as root [Rob Kinyon <Rob.Kinyon@progressive-medical.com>]
+
+Added '-httpd_conf_extra <filename>' configuration option to
+allow a file of server config directives to be inherited
+in addition to the server's own httpd.conf file (or the one
+specified by -httpd_conf).  [Ken and Stas]
+
+Generated Listen directive now listen on 0.0.0.0 to force using
+IPv4 addresses on IPv6 systems until LWP supports IPv6. [Gozer]
+
+improved docs [David Wheeler <david@kineticode.com>]
+
+Add a virtual method Apache::TestRun::pre_configure, and fix the
+documentation to say that subclasses must not forget to run the
+superclass' method. [Stas]
+
+Apache::TestRunPerl now performs an early check whether it can load
+the right mod_perl environment. [William McKee <william@knowmad.com>,
+Stas]
+
+$ENV{APACHE_TEST_NO_STICKY_PREFERENCES}, if true, will both suppress
+generation of persistent preferences and ignore any that already exist.
+[Geoffrey Young]
+
+make the project's test suite relocatable, handling the case where
+after Apache-Test configuration was created and not cleaned up before
+the directory was moved. This is especially important for those cases
+where users try to run 'make test' as root from /root, A-T tells them
+that they can't do that (because of the perms) and suggests to try
+again, afer moving the whole project under /tmp or similar. [Stas]
+
+When running as 'root' make the client side drop the root permissions
+and run with the same permissions as the server side
+(e.g. nobody). This is needed in case the client side creates any
+files after the initial check (during server side startup and beyond),
+so that the server side could read/write them. [Stas]
+
+t_server_log_error_is_expected t_server_log_warn_is_expected
+t_client_log_error_is_expected t_client_log_warn_is_expected
+now support an optional argument, suggesting how many entries
+to expect [Stas]
+
+
+
 =item 1.09 - March 8, 2004
 
 remove the dependency on APR::UUID (i.e. mod_perl 2.0) in the
@@ -23,6 +113,8 @@ change -DAPACHE1 (and like defines) to -D APACHE1 to fix Win32
 compatibility issues [Steve Hay]
 
 fix the custom config use for Apache-Test's own upgrades [Stas]
+
+
 
 =item 1.08 - February 24, 2004
 
@@ -108,6 +200,8 @@ implementing custom interactive and non-interactive (with the -save
 option) reusable configuration for -httpd, -apxs, -user, -group, and
 -port [Randy Kobes, Stas]
 
+
+
 =item 1.07 - Decemeber 22, 2003
 
 allow conditional C module compilation on a more granular level.
@@ -143,6 +237,8 @@ twice [Stas]
 added bugreport and file argument options to 
 Apache::TestRun::generate_script() [Geoffrey Young]
 
+
+
 =item 1.06 - November 10, 2003
 
 added -startup_timeout and $ENV{APACHE_TEST_STARTUP_TIMEOUT} as places
@@ -160,6 +256,8 @@ sudo and su -u aren't portable, therefore use a simple setuid/setguid
 perl program instead, to check whether the root directory of the test
 suite is rwx by the user/group apache is going to run under (when
 running 'make test' as root). [Stas]
+
+
 
 =item 1.05 - October 23, 2003
 
@@ -205,6 +303,8 @@ doesn't have the PERLRUN target [Stas]
 Apache 1.3 servers now run in standard prefork mode under
 normal operation.  single server mode (httpd -X) was replaced
 with MaxClients set to 1 by default.  [Geoffrey Young]
+
+
 
 =item 1.04 - September 29, 2003
 
@@ -273,6 +373,8 @@ Apache::TestRequest API documenation [David Wheeler
 Enable TransferLog in the autogenerated httpd.conf only if
 mod_log_config is available [Stas]
 
+
+
 =item 1.03 - June 19, 2003
 
 Instrumented Makefile.PL to unconditionally remove any old
@@ -310,9 +412,13 @@ server-side, so we can use Apache::TestTrace in mod_perl handlers, and
 be able enable/disable tracing from the commmand line. This way we
 don't have to comment out debug prints. [Stas]
 
+
+
 =item 1.02
 
 not released
+
+
 
 =item 1.01 - May  1, 2003
 
@@ -337,6 +443,8 @@ L. Schwartz <merlyn@stonehenge.com>]
 
 Autoconfigure Alias /getfiles-* only if the corresponding targets
 exist [Stas]
+
+
 
 =item 1.00 - Apr 28, 2003 
 

@@ -44,7 +44,8 @@ MODULE=APR::Socket
 !apr_socket_accept
  apr_socket_listen
  apr_socket_connect
- apr_socket_recv | mpxs_ | sock, SV *:buf, SV *:len
+-apr_socket_recv | mpxs_
+ mpxs_APR__Socket_recv
  apr_socket_recvfrom
  apr_socket_send | mpxs_ | sock, SV *:buf, SV *:len=Nullsv
  apr_socket_sendto
@@ -58,10 +59,13 @@ MODULE=APR::Socket
 !apr_socket_addr_get
 !apr_socket_data_get
 !apr_socket_data_set
- apr_socket_opt_get
- apr_socket_opt_set
+-apr_socket_opt_get
+ mpxs_APR__Socket_opt_get
+-apr_socket_opt_set
+ mpxs_APR__Socket_opt_set
  apr_socket_timeout_get | mpxs_ | ...
- apr_socket_timeout_set
+-apr_socket_timeout_set
+ mpxs_APR__Socket_timeout_set
 -apr_socket_sendfile
 -apr_socket_sendv
 !apr_socket_from_file
@@ -152,9 +156,11 @@ MODULE=APR::Bucket
 MODULE=APR::Pool
 -apr_pool_num_bytes | | p, recurse=0 #only available with -DAPR_POOL_DEBUG
  apr_pool_cleanup_for_exec
- apr_pool_clear
+-apr_pool_clear
+mpxs_APR__Pool_clear
 >apr_pool_clear_debug
- apr_pool_destroy
+-apr_pool_destroy
+ DEFINE_destroy | mpxs_apr_pool_DESTROY | SV *:obj
  DEFINE_DESTROY | mpxs_apr_pool_DESTROY | SV *:obj
 >apr_pool_destroy_debug
  SV *:DEFINE_new | mpxs_apr_pool_create | SV *:parent_pool_obj
@@ -452,7 +458,10 @@ MODULE=APR::Util PACKAGE=guess
 -apr_vsnprintf
 # only available if APR_HAS_RANDOM
 -apr_generate_random_bytes
- apr_strerror              | MPXS_ | statcode
+
+MODULE=APR::Error
+-apr_strerror
+ char *:DEFINE_strerror | | apr_status_t:rc
 
 !MODULE=APR::General
 -apr_app_initialize

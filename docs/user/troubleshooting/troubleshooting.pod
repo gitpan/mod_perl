@@ -21,6 +21,34 @@ troubleshooting.
 =head1 Configuration and Startup
 
 
+
+=head2 "mod_perl.c" is not compatible with this version of Apache
+(found 20020628, need 20020903)
+
+That error message means that mod_perl was built against Apache
+released on or post-20020628, but you are trying to load it against
+one released on or post-20020903. You will see the same error message
+for any other Apache module -- this is an error coming from Apache,
+not mod_perl.
+
+Apache bumps up a special magic number every time it does a binary
+incompatible change, and then it makes sure that all modules that it
+loads were compiled against the same compatibility generation (which
+may include only one or quite a few Apache releases).
+
+You may encounter this situation when you upgrade to a newer Apache,
+without rebuilding mod_perl. Or when you have several versions of
+Apache installed on the same system. Or when you install prepackaged
+binary versions which aren't coming from the source and aren't made
+against the same Apache version.
+
+The solution is to have mod_perl built against the same Apache
+installed on your system. So either build from source or contact your
+binary version supplier and get a proper package(s) from them.
+
+
+
+
 =head2 Server Hanging at the Startup
 
 First you need to figure out where it hangs. strace(1) or an
@@ -136,6 +164,54 @@ PHSS_29484 and PHSS_29485. Once installed the issue should go away.
 
 
 =head1 Shutdown and Restart
+
+Issues happening during server shutdown and restart, or during
+specific interpreter shutdown at runtime with threaded mpm.
+
+
+
+
+=head2 Subroutines in E<lt>perlE<gt> sections under threaded mpm
+
+If you have defined a subroutine inside a E<lt>perlE<gt> section,
+under threaded mpm (or under perl with enabled ithreads which spawn
+its own ithreads), like so:
+
+  <Perl>
+    sub foo {}
+  </Perl>
+
+At the server shutdown, or when any interprter quits you will see the
+following error in the I<error_log>:
+
+  Attempt to free temp prematurely: SV 0x91b8e74,
+  Perl interpreter: 0x8547698 during global destruction.
+  Scalars leaked: 1
+
+This is a bug in Perl and as of Perl 5.8.4 it's not resolved. For more
+information see:
+
+http://rt.perl.org:80/rt3/Ticket/Display.html?id=29018
+
+
+
+
+=head2 Modules using C<Scalar::Util::weaken> under threaded mpm
+
+Modules using C<Scalar::Util::weaken> under threaded mpm may get:
+
+  Attempt to free unreferenced scalar SV 0x8154f74.
+
+when each interprter exits.
+
+This is a bug in Perl and as of Perl 5.8.4 it's not resolved. For more
+information see:
+
+http://rt.perl.org:80/rt3/Ticket/Display.html?id=24660
+
+
+
+
 
 
 

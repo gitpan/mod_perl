@@ -69,8 +69,8 @@ Returns the currently running callback, like 'PerlResponseHandler'.
 
 =head2 C<exit>
 
-Used internally to replace C<CORE::exit> and terminate the request,
-not the current process.
+Terminate the request, but not the current process (or not the current
+Perl interpreter with threaded mpms).
 
   ModPerl::Util::exit($status);
 
@@ -78,14 +78,58 @@ not the current process.
 
 =item opt arg1: C<$status> (integer)
 
-The exit status, similar to C<CORE::exit>. If not passed, the default
-value of 0 is used.
+The exit status, which as of this writing is ignored.
 
 =item ret: no return value
 
+=item since: 1.99_14
+
 =back
 
+Normally you will use the plain C<exit()> in your code. You don't need
+to use C<ModPerl::Util::exit> explicitly, since mod_perl overrides
+C<exit()> by setting C<CORE::GLOBAL::exit> to
+C<ModPerl::Util::exit>. Only if you redefine C<CORE::GLOBAL::exit>
+once mod_perl is running, you may want to use this function.
 
+The original C<exit()> is still available via C<CORE::exit()>.
+
+C<ModPerl::Util::exit> is implemented as a special C<die()> call,
+therefore if you call it inside C<eval BLOCK> or C<eval "STRING">,
+while an exception is being thrown, it is caught by C<eval>. For
+example:
+
+  exit;
+  print "Still running";
+
+will not print anything. But:
+
+  eval {
+     exit;
+  }
+  print "Still running";
+
+will print I<Still running>. So you either need to check whether L<the
+exception|docs::2.0::api::APR::Error> is specific to C<exit> and call
+C<exit()> again:
+
+  use ModPerl::Const -compile => 'EXIT';
+  eval {
+     exit;
+  }
+  exit if $@ && ref $@ eq 'APR::Error' && $@ == ModPerl::EXIT;
+  print "Still running";
+
+or use C<CORE::exit()>:
+
+  eval {
+     CORE::exit;
+  }
+  print "Still running";
+
+and nothing will be printed. The problem with the latter is the
+current process (or a Perl Interpreter) will be killed; something that
+you really want to avoid under mod_perl.
 
 
 =head1 See Also

@@ -33,9 +33,9 @@ restarts after starting to serve the clients.
 
 When the restart is completed, Apache 2.0 spawns the workers that will
 do the actual work. Depending on the used MPM, these can be threads,
-processes and a mixture of both. For example the I<worker> MPM spawns
-a number of processes, each running a number of threads. When each
-child process is started C<PerlChildInit> handlers are
+processes or a mixture of both. For example the I<worker> MPM spawns a
+number of processes, each running a number of threads. When each child
+process is started C<PerlChildInitHandler> handlers are
 executed. Notice that they are run for each starting process, not a
 thread.
 
@@ -57,6 +57,7 @@ phases:
   use Apache::Log ();
   use Apache::ServerUtil ();
   
+  use Fcntl qw(:flock);
   use File::Spec::Functions;
   
   use Apache::Const -compile => 'OK';
@@ -97,8 +98,10 @@ phases:
   sub say {
       my($caller) = (caller(1))[3] =~ /([^:]+)$/;
       if (defined $log_fh) {
+          flock $log_fh, LOCK_EX;
           printf $log_fh "[%s] - %-11s: %s\n", 
               scalar(localtime), $caller, $_[0];
+          flock $log_fh, LOCK_UN;
       }
       else {
           # when the log file is not open
@@ -132,7 +135,8 @@ And the I<httpd.conf> configuration section:
 When we perform a server startup followed by a shutdown, the
 I<logs/startup_log> is created if it didn't exist already (it shares
 the same directory with I<error_log> and other standard log files),
-and each stage appends to it its log information. So when we perform:
+and each stage appends to that file its log information. So when we
+perform:
 
   % bin/apachectl start && bin/apachectl stop
 
@@ -197,7 +201,7 @@ As we have seen in the
 C<L<MyApache::StartupLog::open_logs|/Startup_Phases_Demonstration_Module>>
 handler, the I<open_logs> phase handlers accept four arguments: the
 configuration pool, the logging stream pool, the temporary pool and
-the server object:
+the main server object:
 
   sub open_logs {
       my($conf_pool, $log_pool, $temp_pool, $s) = @_;
@@ -218,9 +222,29 @@ mode. Finally it logs the fact that it's running in the parent
 process.
 
 As you've seen in the example this handler is configured by adding to
-I<httpd.conf>:
+the top level of I<httpd.conf>:
 
   PerlOpenLogsHandler MyApache::StartupLog::open_logs
+
+This handler can be executed only by the main server. If you want to
+traverse the configured virtual hosts, you can accomplish that using a
+simple loop. For example to print out the configured port numbers do:
+
+  use Apache::Server ();
+  # ...
+  sub open_logs {
+      my($conf_pool, $log_pool, $temp_pool, $s) = @_;
+
+      my $port = $s->port;
+      warn "base port: $port\n";
+      for (my $vs = $s->next; $vs; $vs = $vs->next) {
+          my $port = $vs->port;
+          warn "vhost port: $port\n";
+      }
+      return Apache::OK;
+  }
+
+C<$s> is the base server object.
 
 The pool arguments in this phase and
 C<L<PerlPostConfigHandler|/PerlPostConfigHandler>> are:
@@ -277,15 +301,19 @@ example we used the I<post_config()> handler:
       return Apache::OK;
   }
 
-As you can see, its arguments are identical to the I<open_logs>
-phase's handler. In this example handler we don't do much but logging
-that the configuration was completed and returning right away.
+As you can see, its arguments are identical to the
+L<I<open_logs|/PerlOpenLogsHandler>> phase's handler. In this example
+handler we don't do much, but logging that the configuration was
+completed and returning right away.
 
 As you've seen in the example this handler is configured by adding to
 I<httpd.conf>:
 
   PerlPostConfigHandler MyApache::StartupLog::post_config
 
+Everything that applies to
+C<L<PerlOpenLogsHandler|/PerlOpenLogsHandler>> identically applies to
+this handler.
 
 =head2 PerlChildInitHandler
 

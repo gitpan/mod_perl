@@ -584,8 +584,17 @@ static int modperl_hook_post_config(apr_pool_t *pconf, apr_pool_t *plog,
      * change, even though it still points to the same physical file
      * (.e.g on win32 the filehandle will be different. Therefore
      * reset the tracing logfile setting here, since this is the
-     * earliest place, happening after the open_logs phase */
-    modperl_trace_logfile_set(s->error_log);
+     * earliest place, happening after the open_logs phase.
+     *
+     * Moreover, we need to dup the filehandle so that when the server
+     * shuts down, we will be able to log to error_log after Apache
+     * has closed it (which happens too early for our likening).
+     */
+    {
+        apr_file_t *dup;
+        MP_FAILURE_CROAK(apr_file_dup(&dup, s->error_log, pconf));
+        modperl_trace_logfile_set(dup);
+    }
 #endif
     
     ap_add_version_component(pconf, MP_VERSION_STRING);
@@ -645,13 +654,26 @@ int modperl_perl_destruct_level(void)
     return modperl_destruct_level;
 }
 
+#ifdef USE_ITHREADS
+
+static apr_status_t
+modperl_perl_call_endav_mip(pTHX_ modperl_interp_pool_t *mip,
+                            void *data)
+{
+    modperl_perl_call_endav(aTHX);
+    return APR_SUCCESS;
+}
+
+#endif /* USE_ITHREADS */
+
 static apr_status_t modperl_child_exit(void *data)
 {
     char *level = NULL;
     server_rec *s = (server_rec *)data;
-    
-    modperl_callback_process(MP_CHILD_EXIT_HANDLER, server_pool, s, MP_HOOK_VOID);
-    
+
+    modperl_callback_process(MP_CHILD_EXIT_HANDLER, server_pool, s,
+                             MP_HOOK_VOID);
+
     if ((level = getenv("PERL_DESTRUCT_LEVEL"))) {
         modperl_destruct_level = atoi(level);
     }
@@ -662,6 +684,17 @@ static apr_status_t modperl_child_exit(void *data)
 
     if (modperl_destruct_level) {
         apr_pool_clear(server_pool);
+    }
+    else {
+        /* run the END blocks of this child process if
+         * modperl_perl_destruct is not called for this process */
+#ifdef USE_ITHREADS
+        modperl_interp_mip_walk_servers(NULL, s,
+                                        modperl_perl_call_endav_mip,
+                                        (void*)NULL);
+#else
+        modperl_perl_call_endav(aTHX);
+#endif
     }
 
     server_pool = NULL;

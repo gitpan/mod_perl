@@ -13,13 +13,13 @@
  * limitations under the License.
  */
 
-#define mp_xs_sv2_modperl_filter(sv) \
-((SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG)) \
-|| (Perl_croak(aTHX_ "argument is not a blessed reference"),0) ? \
-modperl_filter_mg_get(aTHX_ sv) : NULL)
+#define mp_xs_sv2_modperl_filter(sv)                                    \
+    ((SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG))                      \
+     || (Perl_croak(aTHX_ "argument is not a blessed reference"),0) ?   \
+     modperl_filter_mg_get(aTHX_ sv) : NULL)
 
-#define mpxs_Apache__Filter_TIEHANDLE(stashsv, sv) \
-modperl_newSVsv_obj(aTHX_ stashsv, sv)
+#define mpxs_Apache__Filter_TIEHANDLE(stashsv, sv)      \
+    modperl_newSVsv_obj(aTHX_ stashsv, sv)
 
 #define mpxs_Apache__Filter_PRINT mpxs_Apache__Filter_print
 
@@ -31,7 +31,7 @@ static MP_INLINE apr_size_t mpxs_Apache__Filter_print(pTHX_ I32 items,
 
     mpxs_usage_va_1(modperl_filter, "$filter->print(...)");
 
-    MP_TRACE_f(MP_FUNC, "%s::print\n",
+    MP_TRACE_f(MP_FUNC, "from %s\n",
                ((modperl_filter_ctx_t *)modperl_filter->f->ctx)->handler->name);    
     if (modperl_filter->mode == MP_OUTPUT_FILTER_MODE) {
         mpxs_write_loop(modperl_output_filter_write, modperl_filter);
@@ -54,7 +54,7 @@ static MP_INLINE apr_size_t mpxs_Apache__Filter_read(pTHX_ I32 items,
 
     mpxs_usage_va_2(modperl_filter, buffer, "$filter->read(buf, [len])");
         
-    MP_TRACE_f(MP_FUNC, "%s::read\n",
+    MP_TRACE_f(MP_FUNC, "from %s\n",
                ((modperl_filter_ctx_t *)modperl_filter->f->ctx)->handler->name);
     
     if (items > 2) {
@@ -84,9 +84,9 @@ static MP_INLINE U32 *modperl_filter_attributes(SV *package, SV *cvrv)
 }
 
 #ifdef MP_TRACE
-#define trace_attr() \
-MP_TRACE_f(MP_FUNC, "applied %s attribute to %s handler\n", attribute, \
-           HvNAME(stash))
+#define trace_attr()                                                       \
+    MP_TRACE_f(MP_FUNC, "applied %s attribute to %s handler\n", attribute, \
+               HvNAME(stash))
 #else
 #define trace_attr()
 #endif
@@ -94,18 +94,18 @@ MP_TRACE_f(MP_FUNC, "applied %s attribute to %s handler\n", attribute, \
 /* we can't eval at this stage, since the package is not compiled yet,
  * we are still parsing the source.
  */
-#define MODPERL_FILTER_ATTACH_ATTR_CODE(cv, string, len)   \
-{                                                     \
-    char *str;                                        \
-    len -= 2;        /* s/ \( | \) //x       */       \
-    string++;        /* skip the opening '(' */       \
-    New(0, str, len+1, char);                         \
-    Copy(string, str, len+1, char);                   \
-    str[len] = '\0'; /* remove the closing ')' */     \
-    sv_magic(cv, Nullsv, '~', NULL, -1);              \
-    SvMAGIC(cv)->mg_ptr = str;                        \
-}
-    
+#define MODPERL_FILTER_ATTACH_ATTR_CODE(cv, string, len)        \
+    {                                                           \
+        char *str;                                              \
+        len -= 2;           /* s/ \( | \) //x       */          \
+        string++;           /* skip the opening '(' */          \
+        New(0, str, len+1, char);                               \
+        Copy(string, str, len+1, char);                         \
+        str[len] = '\0';    /* remove the closing ')' */        \
+        sv_magic(cv, Nullsv, '~', NULL, -1);                    \
+        SvMAGIC(cv)->mg_ptr = str;                              \
+    }
+
 
 static XS(MPXS_modperl_filter_attributes)
 {

@@ -65,23 +65,27 @@ my %usage = (
    'start-httpd'     => 'start the test server',
    'run-tests'       => 'run the tests',
    'times=N'         => 'repeat the tests N times',
-   'order=mode'      => 'run the tests in one of the modes: (repeat|rotate|random|SEED)',
+   'order=mode'      => 'run the tests in one of the modes: ' .
+                        '(repeat|rotate|random|SEED)',
    'stop-httpd'      => 'stop the test server',
    'verbose[=1]'     => 'verbose output',
-   'configure'       => 'force regeneration of httpd.conf (tests will not be run)',
+   'configure'       => 'force regeneration of httpd.conf ' .
+                        ' (tests will not be run)',
    'clean'           => 'remove all generated test files',
    'help'            => 'display this message',
    'bugreport'       => 'print the hint how to report problems',
    'preamble'        => 'config to add at the beginning of httpd.conf',
    'postamble'       => 'config to add at the end of httpd.conf',
    'ping[=block]'    => 'test if server is running or port in use',
-   'debug[=name]'    => 'start server under debugger name (e.g. gdb, ddd, ...)',
+   'debug[=name]'    => 'start server under debugger name (gdb, ddd, etc.)',
    'breakpoint=bp'   => 'set breakpoints (multiply bp can be set)',
-   'header'          => "add headers to (".join('|', @request_opts).") request",
+   'header'          => "add headers to (" .
+                         join('|', @request_opts) . ") request",
    'http11'          => 'run all tests with HTTP/1.1 (keep alive) requests',
    'ssl'             => 'run tests through ssl',
    'proxy'           => 'proxy requests (default proxy is localhost)',
-   'trace=T'         => 'change tracing default to: warning, notice, info, debug, ...',
+   'trace=T'         => 'change tracing default to: warning, notice, ' .
+                        'info, debug, ...',
    'save'            => 'save test paramaters into Apache::TestConfigData',
    (map { $_, "\U$_\E url" } @request_opts),
 );
@@ -146,7 +150,8 @@ sub split_test_args {
     my @leftovers = ();
     for (@$argv) {
         my $arg = $_;
-        #need the t/ for stat-ing, but don't want to include it in test output
+        # need the t/ for stat-ing, but don't want to include it in
+        # test output
         $arg =~ s@^(?:\./)?t/@@;
         my $file = catfile $t_dir, $arg;
         if (-d $file and $_ ne '/') {
@@ -190,7 +195,8 @@ sub die_on_invalid_args {
     # at this stage $self->{argv} should be empty
     my @invalid_argv = @{ $self->{argv} };
     if (@invalid_argv) {
-        error "unknown opts or test names: @invalid_argv\n-help will list options\n";
+        error "unknown opts or test names: @invalid_argv\n" .
+            "-help will list options\n";
         exit_perl 0;
     }
 
@@ -323,7 +329,8 @@ sub default_run_opts {
 
     unless (grep { exists $opts->{$_} } @std_run, @request_opts) {
         if (@$tests && $self->{server}->ping) {
-            #if certain tests are specified and server is running, dont restart
+            # if certain tests are specified and server is running,
+            # dont restart
             $opts->{'run-tests'} = 1;
         }
         else {
@@ -347,6 +354,12 @@ sub install_sighandlers {
 
     $SIG{__DIE__} = sub {
         return unless $_[0] =~ /^Failed/i; #dont catch Test::ok failures
+
+        # _show_results() calls die() under a few conditions, such as
+        # when no tests are run or when tests fail.  make sure the message
+        # is propagated back to the user.
+        print $_[0] if (caller(1))[3]||'' eq 'Test::Harness::_show_results';
+
         $server->stop(1) if $opts->{'start-httpd'};
         $server->failed_msg("error running tests");
         exit_perl 0;
@@ -365,19 +378,18 @@ sub install_sighandlers {
     #try to make sure we scan for core no matter what happens
     #must eval "" to "install" this END block, otherwise it will
     #always run, a subclass might not want that
-
     eval 'END {
-             return unless is_parent(); # because of fork
-             $self ||=
-                 Apache::TestRun->new(test_config => Apache::TestConfig->thaw);
-             {
-                 local $?; # preserve the exit status
-                 eval {
-                    $self->scan_core;
-                 };
-             }
-             $self->try_bug_report();
-         }';
+        return unless is_parent(); # because of fork
+        $self ||=
+            Apache::TestRun->new(test_config => Apache::TestConfig->thaw);
+        {
+            local $?; # preserve the exit status
+            eval {
+               $self->scan_core;
+            };
+        }
+        $self->try_bug_report();
+    }';
     die "failed: $@" if $@;
 
 }
@@ -457,6 +469,8 @@ sub configure_opts {
     $test_config->preamble_register($preamble);
     $test_config->postamble_register($postamble);
 }
+
+sub pre_configure { }
 
 sub configure {
     my $self = shift;
@@ -551,7 +565,8 @@ sub start {
     my $file = $server->debugger_file;
     if (-e $file and $opts->{'start-httpd'}) {
         if ($server->ping) {
-            warning "server is running under the debugger, defaulting to -run";
+            warning "server is running under the debugger, " .
+                "defaulting to -run";
             $opts->{'start-httpd'} = $opts->{'stop-httpd'} = 0;
         }
         else {
@@ -614,6 +629,17 @@ sub new_test_config {
 sub set_ulimit_via_sh {
     return if Apache::TestConfig::WINFU;
     return if $ENV{APACHE_TEST_ULIMIT_SET};
+
+    # only root can allow unlimited core dumps on Solaris (8 && 9?)
+    if (Apache::TestConfig::SOLARIS) {
+        my $user = getpwuid($>) || '';
+        if ($user ne 'root') {
+            warning "Skipping 'set unlimited ulimit for coredumps', " .
+                "since we are running as a non-root user on Solaris";
+            return;
+        }
+    }
+
     my $binsh = '/bin/sh';
     return unless -e $binsh;
     $ENV{APACHE_TEST_ULIMIT_SET} = 1;
@@ -668,6 +694,8 @@ sub run {
     $self->set_ulimit;
     $self->set_env; #make sure these are always set
 
+    $self->detect_relocation($orig_cwd);
+
     my(@argv) = @_;
 
     $self->getopts(\@argv);
@@ -675,12 +703,9 @@ sub run {
     # must be called after getopts so the tracing will be set right
     custom_config_load();
 
-    $self->pre_configure() if $self->can('pre_configure');
+    $self->pre_configure();
 
     $self->{test_config} = $self->new_test_config();
-
-    # make it easy to move the whole distro
-    $self->refresh unless -e $self->{test_config}->{vars}->{top_dir};
 
     $self->warn_core();
 
@@ -727,6 +752,60 @@ sub run {
     $self->stop;
 }
 
+# make it easy to move the whole distro w/o running
+# 't/TEST -clean' before moving. when moving the whole package,
+# the old cached config will stay, so we want to nuke it only if
+# we realize that it's no longer valid. we can't just check the
+# existance of the saved top_dir value, since the project may have
+# been copied and the old dir could be still there, but that's not
+# the one that we work in
+sub detect_relocation {
+    my($self, $cur_top_dir) = @_;
+
+    my $config_file = catfile qw(t conf apache_test_config.pm);
+    return unless -e $config_file;
+
+    my %inc = %INC;
+    eval { require "$config_file" };
+    %INC = %inc; # be stealth
+    warn($@), return if $@;
+
+    my $cfg = 'apache_test_config'->new;
+
+    # if the top_dir from saved config doesn't match the current
+    # top_dir, that means that the whole project was relocated to a
+    # different directory, w/o running t/TEST -clean first (in each
+    # directory with a test suite)
+    my $cfg_top_dir = $cfg->{vars}->{top_dir};
+    return unless $cfg_top_dir;
+    return if $cfg_top_dir eq $cur_top_dir;
+
+    # if that's the case silently fixup the saved config to use the
+    # new paths, and force a complete cleanup. if we don't fixup the
+    # config files, the cleanup process won't be able to locate files
+    # to delete and re-configuration will fail
+    {
+        # in place editing
+        local @ARGV = $config_file;
+        local $^I = ".bak";  # Win32 needs a backup
+        while (<>) {
+            s{$cfg_top_dir}{$cur_top_dir}g;
+            print;
+        }
+        unlink $config_file . $^I;
+    }
+
+    my $cleanup_cmd = "$^X $0 -clean";
+    warning "cleaning up the old config";
+    # XXX: do we care to check success?
+    system $cleanup_cmd;
+
+    # XXX: I tried hard to accomplish that w/o starting a new process,
+    # but too many things get on the way, so for now just keep it as an
+    # external process, as it's absolutely transparent to the normal
+    # app-run
+}
+
 my @oh = qw(jeez golly gosh darn shucks dangit rats nuts dangnabit crap);
 sub oh {
     $oh[ rand scalar @oh ];
@@ -756,7 +835,8 @@ sub scan_core_incremental {
             next unless -f;
             next unless /$core_pat/o;
             my $core = catfile $vars->{t_dir}, $_;
-            next if exists $core_files{$core} && $core_files{$core} == -M $core;
+            next if exists $core_files{$core} &&
+                $core_files{$core} == -M $core;
             $core_files{$core} = -M $core;
             push @cores, $core;
         }
@@ -881,6 +961,7 @@ sub adjust_t_perms {
 
         $self->check_perms($user, $uid, $gid);
 
+        $self->become_nonroot($user, $uid, $gid);
     }
 }
 
@@ -908,7 +989,8 @@ sub run_root_fs_test {
     # setgroups() call as explained in perlvar.pod)
     my $groups = "$gid $gid";
     $( = $) = $groups;
-    die "failed to change gid to $gid" unless $( eq $groups && $) eq $groups;
+    die "failed to change gid to $gid"
+        unless $( eq $groups && $) eq $groups;
 
     # only now can change uid and euid
     $< = $> = $uid+0;
@@ -945,7 +1027,7 @@ sub check_perms {
     # test that the base dir is rwx by the selected non-root user
     my $vars = $self->{test_config}->{vars};
     my $dir  = $vars->{t_dir};
-    my $perl = $vars->{perl};
+    my $perl = Apache::TestConfig::shell_ready($vars->{perl});
 
     # find where Apache::TestRun was loaded from, so we load this
     # exact package from the external process
@@ -988,6 +1070,26 @@ EOI
     }
 }
 
+# in case the client side creates any files after the initial chown
+# adjustments we want the server side to be able to read/write them, so
+# they better be with the same permissions. dropping root permissions
+# and becoming the same user as the server side solves this problem.
+sub become_nonroot {
+    my ($self, $user, $uid, $gid) = @_;
+
+    warning "the client side drops 'root' permissions and becomes '$user'";
+
+    # first must change gid and egid ("$gid $gid" for an empty
+    # setgroups() call as explained in perlvar.pod)
+    my $groups = "$gid $gid";
+    $( = $) = $groups;
+    die "failed to change gid to $gid" unless $( eq $groups && $) eq $groups;
+
+    # only now can change uid and euid
+    $< = $> = $uid+0;
+    die "failed to change uid to $uid" unless $< == $uid && $> == $uid;
+}
+
 sub run_request {
     my($test_config, $opts) = @_;
 
@@ -1023,7 +1125,8 @@ sub opt_ping {
     my $server = $test_config->server;
     my $pid = $server->ping;
     my $name = $server->{name};
-    my $exit = not $self->{opts}->{'run-tests'}; #support t/TEST -ping=block -run ...
+    # support t/TEST -ping=block -run ...
+    my $exit = not $self->{opts}->{'run-tests'};
 
     if ($pid) {
         if ($pid == -1) {
@@ -1134,8 +1237,10 @@ sub generate_script {
 
     $body .= Apache::TestConfig->modperl_2_inc_fixup;
 
-    if (@Apache::TestMM::Argv) {
-        $body .= "\n\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
+    my %args = @Apache::TestMM::Argv;
+    while (my($k, $v) = each %args) {
+        $v =~ s/\|/\\|/g;
+        $body .= "\n\$Apache::TestConfig::Argv{'$k'} = q|$v|;\n";
     }
 
     my $header = Apache::TestConfig->perlscript_header;
@@ -1307,6 +1412,11 @@ sub custom_config_file_stub_write {
 sub custom_config_save {
     my $self = shift;
 
+    if ($ENV{APACHE_TEST_NO_STICKY_PREFERENCES}) {
+        debug "skipping save of custom config data";
+        return;
+    }
+
     my $vars = $self->{test_config}->{vars};
     my $conf_opts = $self->{conf_opts};
     my $config_dump = '';
@@ -1315,8 +1425,8 @@ sub custom_config_save {
     return 0 unless $vars->{httpd} or $Apache::TestConfigData::vars->{httpd}
         or          $vars->{apxs}  or $Apache::TestConfigData::vars->{apxs};
 
-    # it doesn't matter how these vars were set (httpd may or may not get set
-    # using the path to apxs, w/o an explicit -httpd value)
+    # it doesn't matter how these vars were set (httpd may or may not
+    # get set using the path to apxs, w/o an explicit -httpd value)
     for (@data_vars_must) {
         next unless my $var = $vars->{$_} || $conf_opts->{$_};
         $config_dump .= qq{    '$_' => '$var',\n};
@@ -1324,7 +1434,7 @@ sub custom_config_save {
 
     # save these vars only if they were explicitly set via command line
     # options. For example if someone builds A-T as user 'foo', then
-    # installs it as root and we save it, all users will now try to 
+    # installs it as root and we save it, all users will now try to
     # configure under that user 'foo' which won't quite work.
     for (@data_vars_opt) {
         next unless my $var = $conf_opts->{$_};
@@ -1459,6 +1569,12 @@ EOC
 
 my $custom_config_loaded = 0;
 sub custom_config_load {
+
+    if ($ENV{APACHE_TEST_NO_STICKY_PREFERENCES}) {
+        debug "skipping load of custom config data";
+        return;
+    }
+
     debug "trying to load custom config data";
 
     return if $custom_config_loaded;
@@ -1712,9 +1828,15 @@ I<t/TEST.PL>:
       my $self = shift;
       # Don't load an installed mod_apreq
       Apache::TestConfig::autoconfig_skip_module_add('mod_apreq.c');
+  
+      $self->SUPER::pre_configure();
   }
 
 Notice that the extension is I<.c>, and not I<.so>.
+
+Don't forget to run the super class' c<pre_configure()> method.
+
+
 
 =head2 C<new_test_config>
 
@@ -1734,6 +1856,10 @@ C<APACHE_TEST_APXS>, C<APACHE_TEST_PORT>, C<APACHE_TEST_USER>, and
 C<APACHE_TEST_GROUP>) or by giving the relevant option (C<-httpd>,
 C<-apxs>, C<-port>, C<-user>, and C<-group>) when the C<TEST> script
 is run.
+
+To avoid either using previous persistent configurations or saving
+current configurations, set the C<APACHE_TEST_NO_STICKY_PREFERENCES>
+environment variable to a true value.
 
 Finally it's possible to permanently override the previously saved
 options by passing C<L<-save|/Saving_Custom_Configuration_Options>>.

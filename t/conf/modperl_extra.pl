@@ -12,7 +12,8 @@ use Apache::Process ();
 # reorg @INC to have first devel libs, then blib libs, and only then
 # perl core libs
 my $pool = Apache->server->process->pool;
-my $project_root = canonpath Apache::Server::server_root_relative($pool, "..");
+my $project_root = canonpath
+    Apache::Server::server_root_relative($pool, "..");
 my (@a, @b, @c);
 for (@INC) {
     if (m|^\Q$project_root\E|) {
@@ -49,8 +50,8 @@ $TestModperl::MethodObj = TestModperl::methodobj->new;
 #see t/response/TestModperl/env.pm
 $ENV{MODPERL_EXTRA_PL} = __FILE__;
 
-my $ap_mods = scalar grep { /^Apache/ } keys %INC;
-my $apr_mods = scalar grep { /^APR/ } keys %INC;
+my $ap_mods  = scalar grep { /^Apache/ } keys %INC;
+my $apr_mods = scalar grep { /^APR/    } keys %INC;
 
 Apache::Log->info("$ap_mods Apache:: modules loaded");
 Apache::Server->log->info("$apr_mods APR:: modules loaded");
@@ -84,8 +85,7 @@ Apache->server->add_config(['<Perl >', '1;', '</Perl>']);
 # the test needing these files may run more than once (t/SMOKE)
 {
     require Apache::Test;
-    my $dir = catdir Apache::Test::config()->{vars}->{documentroot}, 'hooks',
-        'startup';
+    my $dir = catdir Apache::Test::vars('documentroot'), qw(hooks startup);
     for (<$dir/*>) {
         my $file = ($_ =~ /(.*(?:open_logs|post_config)-\d+)/);
         unlink $file;
@@ -195,6 +195,23 @@ sub ModPerl::Test::exit_handler {
 
 END {
     warn "END in modperl_extra.pl, pid=$$\n";
+}
+
+package ModPerl::TestTiePerlSection;
+
+# the following is needed for the tied %Location test in <Perl>
+# sections. Unfortunately it can't be defined in the section itself
+# due to the bug in perl:
+# http://rt.perl.org:80/rt3/Ticket/Display.html?id=29018
+
+use Tie::Hash;
+our @ISA = qw(Tie::StdHash);
+sub FETCH {
+    my($hash, $key) = @_;
+    if ($key eq '/tied') {
+        return 'TIED';
+    }
+    return $hash->{$key};
 }
 
 package ModPerl::TestFilterDebug;
@@ -318,8 +335,14 @@ package ModPerl::TestMemoryLeak;
 use warnings;
 use strict;
 
+# XXX: as of 5.8.4 when spawning ithreads we get an annoying
+#  Attempt to free unreferenced scalar ... perlbug #24660
+# because of $gtop's CLONE'd object, so pretend that we have no gtop
+# for now if perl is threaded
 # GTop v0.12 is the first version that will work under threaded mpms
-use constant HAS_GTOP => eval { require GTop && GTop->VERSION >= 0.12 };
+use Config;
+use constant HAS_GTOP => eval { !$Config{useithreads} &&
+                                require GTop && GTop->VERSION >= 0.12 };
 
 my $gtop = HAS_GTOP ? GTop->new : undef;
 my @attrs = qw(size vsize resident share rss);

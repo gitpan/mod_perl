@@ -17,6 +17,8 @@ package Apache::ParseSource;
 use strict;
 use Apache::Build ();
 use Config;
+use File::Basename;
+use File::Spec::Functions qw(catdir);
 
 our $VERSION = '0.02';
 
@@ -56,7 +58,7 @@ sub DESTROY {
 {
     package Apache::ParseSource::Scan;
 
-    our @ISA = qw(C::Scan);
+    our @ISA = qw(ModPerl::CScan);
 
     sub get {
         local $SIG{__DIE__} = \&Carp::confess;
@@ -68,20 +70,31 @@ my @c_scan_defines = (
     'CORE_PRIVATE',   #so we get all of apache
     'MP_SOURCE_SCAN', #so we can avoid some c-scan barfing
     '_NETINET_TCP_H', #c-scan chokes on netinet/tcp.h
-    'APR_OPTIONAL_H', #c-scan chokes on apr_optional.h
+ #   'APR_OPTIONAL_H', #c-scan chokes on apr_optional.h
     'apr_table_do_callback_fn_t=void', #c-scan chokes on function pointers
 );
 
+
+# some types c-scan failing to resolve
+push @c_scan_defines, map { "$_=void" } 
+    qw(PPADDR_t PerlExitListEntry modperl_tipool_vtbl_t);
+
 sub scan {
-    require C::Scan;
-    C::Scan->VERSION(0.75);
+    require ModPerl::CScan;
+    ModPerl::CScan->VERSION(0.75);
     require Carp;
 
     my $self = shift;
 
-    my $c = C::Scan->new(filename => $self->{scan_filename});
+    my $c = ModPerl::CScan->new(filename => $self->{scan_filename});
 
-    $c->set(includeDirs => $self->includes);
+    my $includes = $self->includes;
+
+    # where to find perl headers, but we don't want to parse them otherwise
+    my $perl_core_path = catdir $Config{installarchlib}, "CORE";
+    push @$includes, $perl_core_path;
+
+    $c->set(includeDirs => $includes);
 
     my @defines = @c_scan_defines;
 
@@ -112,35 +125,85 @@ sub find_includes {
 
     require File::Find;
 
-    my(@dirs) = $self->include_dirs;
+    my @includes = ();
+    # don't pick preinstalled mod_perl headers if any, but pick the rest
+    {
+        my @dirs = $self->include_dirs;
+        die "could not find include directory (build the project first)"
+            unless -d $dirs[0];
 
-    unless (-d $dirs[0]) {
-        die "could not find include directory";
+        my $unwanted = join '|', qw(ap_listen internal version
+                                    apr_optional mod_include mod_cgi
+                                    mod_proxy mod_ssl ssl_ apr_anylock
+                                    apr_rmm ap_config mod_log_config
+                                    mod_perl modperl_);
+        my $unwanted = qr|^$unwanted|;
+        my $wanted = '';
+
+        push @includes, find_includes_wanted($wanted, $unwanted, @dirs);
     }
 
-    my @includes;
-    my $unwanted = join '|', qw(ap_listen internal version
-                                apr_optional mod_include mod_cgi mod_proxy
-                                mod_ssl ssl_ apr_anylock apr_rmm
-                                ap_config mod_log_config);
+    # now add the live mod_perl headers (to make sure that we always
+    # work against the latest source)
+    {
+        my @dirs = map { catdir $self->config->{cwd}, $_ }
+            catdir(qw(src modules perl)), 'xs';
 
+        my $unwanted = '';
+        my $wanted = join '|', qw(mod_perl modperl_);
+        $wanted = qr|^$wanted|;
+
+        push @includes, find_includes_wanted($wanted, $unwanted, @dirs);
+    }
+
+    # now reorg the header files list, so the fragile scan won't choke
+    my @apr = ();
+    my @mp = ();
+    my @rest = ();
+    for (@includes) {
+        if (/mod_perl.h$/) {
+            # mod_perl.h needs to be included before other mod_perl
+            # headers
+            unshift @mp, $_;
+        }
+        elsif (/modperl_\w+.h$/) {
+            push @mp, $_;
+        }
+        elsif (/apr_\w+\.h$/ ) {
+            # apr headers need to be included first
+            push @apr, $_;
+        }
+        else {
+            push @rest, $_;
+        }
+    }
+    @includes = (@apr, @rest, @mp);
+
+    return $self->{includes} = \@includes;
+}
+
+sub find_includes_wanted {
+    my($wanted, $unwanted, @dirs) = @_;
+    my @includes = ();
     for my $dir (@dirs) {
         File::Find::finddepth({
                                wanted => sub {
                                    return unless /\.h$/;
-                                   return if /^($unwanted)/o;
+
+                                   if ($wanted) {
+                                       return unless /$wanted/;
+                                   }
+                                   else {
+                                       return if /$unwanted/;
+                                   }
+
                                    my $dir = $File::Find::dir;
                                    push @includes, "$dir/$_";
                                },
                                follow => 1,
                               }, $dir);
     }
-
-    #include apr_*.h before the others
-    my @wanted = grep { /apr_\w+\.h$/ } @includes;
-    push @wanted, grep { !/apr_\w+\.h$/ } @includes;
-
-    return $self->{includes} = \@wanted;
+    return @includes;
 }
 
 sub generate_cscan_file {
@@ -149,11 +212,13 @@ sub generate_cscan_file {
     my $includes = $self->find_includes;
 
     my $filename = '.apache_includes';
-
     open my $fh, '>', $filename or die "can't open $filename: $!";
-    for (@$includes) {
-        print $fh qq(\#include "$_"\n);
+
+    for my $path (@$includes) {
+        my $filename = basename $path;
+        print $fh qq(\#include "$path"\n);
     }
+
     close $fh;
 
     return $filename;
@@ -165,33 +230,37 @@ my $filemode = join '|',
 my %defines_wanted = (
     Apache => {
         common     => [qw{OK DECLINED DONE}],
-        methods    => [qw{M_ METHODS}],
-        options    => [qw{OPT_}],
-        satisfy    => [qw{SATISFY_}],
-        remotehost => [qw{REMOTE_}],
-        http       => [qw{HTTP_}],
         config     => [qw{DECLINE_CMD}],
-        types      => [qw{DIR_MAGIC_TYPE}],
-        override   => [qw{OR_ ACCESS_CONF RSRC_CONF}],
+        http       => [qw{HTTP_}],
         log        => [qw(APLOG_)],
-        platform   => [qw{CRLF CR LF}],
+        methods    => [qw{M_ METHODS}],
         mpmq       => [qw{AP_MPMQ_}],
+        options    => [qw{OPT_}],
+        override   => [qw{OR_ ACCESS_CONF RSRC_CONF}],
+        platform   => [qw{CRLF CR LF}],
+        remotehost => [qw{REMOTE_}],
+        satisfy    => [qw{SATISFY_}],
+        types      => [qw{DIR_MAGIC_TYPE}],
     },
     APR => {
-        table     => [qw{APR_OVERLAP_TABLES_}],
-        poll      => [qw{APR_POLL}],
         common    => [qw{APR_SUCCESS}],
         error     => [qw{APR_E}],
+        filemode  => ["APR_($filemode)"],
+        filepath  => [qw{APR_FILEPATH_}],
         fileperms => [qw{APR_\w(READ|WRITE|EXECUTE)}],
         finfo     => [qw{APR_FINFO_}],
-        filepath  => [qw{APR_FILEPATH_}],
-        filemode  => ["APR_($filemode)"],
         flock     => [qw{APR_FLOCK_}],
-        socket    => [qw{APR_SO_}],
-        limit     => [qw{APR_LIMIT}],
         hook      => [qw{APR_HOOK_}],
+        limit     => [qw{APR_LIMIT}],
+        poll      => [qw{APR_POLL}],
+        socket    => [qw{APR_SO_}],
+        status    => [qw{APR_TIMEUP}],
+        table     => [qw{APR_OVERLAP_TABLES_}],
         uri       => [qw{APR_URI_}],
     },
+   ModPerl => {
+        common    => [qw{MODPERL_RC_}],
+   }
 );
 
 my %defines_wanted_re;
@@ -301,10 +370,12 @@ sub parse_enum {
         $code =~ s/\s*(\w+)\s*;\s*$//;
         $name = $1;
     }
+
     $code =~ s:/\*.*?\*/::sg;
     $code =~ s/\s*=\s*\w+//g;
     $code =~ s/^[^\{]*\{//s;
     $code =~ s/\}[^;]*;?//s;
+    $code =~ s/^\s*\n//gm;
 
     while ($code =~ /\b(\w+)\b,?/g) {
         push @e, $1;
@@ -343,7 +414,7 @@ sub get_functions {
             }
         }
 
-        #XXX: working around C::Scan confusion here
+        #XXX: working around ModPerl::CScan confusion here
         #macro defines ap_run_error_log causes
         #cpp filename:linenumber to be included as part of the type
         for (@$args) {

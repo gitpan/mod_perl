@@ -44,6 +44,12 @@ If mod_perl has been statically linked it's automatically enabled.
 For Win32 specific details, see the documentation on
 L<Win32 configuration|docs::2.0::os::win32::config>.
 
+Remember that you can't use mod_perl until you have configured Apache
+to use it. You need to configure L<Registry
+scripts|docs::2.0::user::intro::start_fast/Registry_Scripts> or
+L<custom
+handlers|docs::2.0::user::intro::start_fast/Handler_Modules>.
+
 
 
 =head1 Accessing the mod_perl 2.0 Modules
@@ -402,8 +408,8 @@ I<http://localhost/print_env1>.
 
 The directive C<PerlOptions> provides fine-grained configuration for
 what were compile-time only options in the first mod_perl generation.
-It also provides control over what class of C<PerlInterpreter> is used
-for a C<E<lt>VirtualHostE<gt>> or location configured with
+It also provides control over what class of Perl interpreter pool is
+used for a C<E<lt>VirtualHostE<gt>> or location configured with
 C<E<lt>LocationE<gt>>, C<E<lt>DirectoryE<gt>>, etc.
 
 L<$r-E<gt>is_perl_option_enabled($option)|docs::2.0::api::Apache::RequestUtil/C_is_perl_option_enabled_>
@@ -1000,11 +1006,12 @@ a combination of one or more option letters from the following list:
   d directive processing
   f filters
   e environment variables
-  g Perl runtime interaction
+  g globals management
   h handlers
   i interpreter pool management
   m memory allocations
   o I/O
+  r Perl runtime interaction
   s Perl sections
   t benchmark-ish timings
 
@@ -1202,11 +1209,11 @@ the previous example:
   </IfDefine>
 
 If you need to access any of the startup defines in the Perl code you
-use C<Apache::Server::exists_config_define>. For example in a startup file you
+use C<Apache::exists_config_define>. For example in a startup file you
 can say:
 
   use Apache::ServerUtil ();
-  if (Apache::Server::exists_config_define("PERLDB")) {
+  if (Apache::exists_config_define("PERLDB")) {
       require Apache::DB;
       Apache::DB->init;
   }
@@ -1214,7 +1221,7 @@ can say:
 For example to check whether the server has been started in a single
 mode use:
 
-  if (Apache::Server::exists_config_define("ONE_PROCESS")) {
+  if (Apache::exists_config_define("ONE_PROCESS")) {
       print "Running in a single mode";
   }
 
@@ -1234,9 +1241,9 @@ running under mod_perl 1.0 or 2.0:
   </IfDefine>
 
 From within Perl code this can be tested with
-C<Apache::Server::exists_config_define()>, for example:
+C<Apache::exists_config_define()>, for example:
 
-  if (Apache::Server::exists_config_define("MODPERL2")) {
+  if (Apache::exists_config_define("MODPERL2")) {
       # some 2.0 specific code
   }
 

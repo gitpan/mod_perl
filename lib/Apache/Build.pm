@@ -98,22 +98,14 @@ sub httpd_is_source_tree {
         defined $prefix && -d $prefix && -e "$prefix/CHANGES";
 }
 
-sub apxs {
+# try to find the apxs utility, set $apxs to the path if found,
+# otherwise to ''
+my $apxs; # undef so we know we haven't tried to set it yet
+sub find_apxs_util {
     my $self = shift;
 
-    my $is_query = (@_ == 2) && ($_[0] eq '-q');
+    $apxs = ''; # not found
 
-    $self = $self->build_config unless ref $self;
-
-    my $query_key;
-    if ($is_query) {
-        $query_key = 'APXS_' . uc $_[1];
-        if ($self->{$query_key}) {
-            return $self->{$query_key};
-        }
-    }
-
-    my $apxs;
     my @trys = ($Apache::Build::APXS,
                 $self->{MP_APXS},
                 $ENV{MP_APXS},
@@ -136,13 +128,35 @@ sub apxs {
         '/usr/local/apache/bin/apxs';
     }
 
+    my $apxs_try;
     for (@trys) {
-        next unless ($apxs = $_);
-        chomp $apxs;
-        last if -x $apxs;
+        next unless ($apxs_try = $_);
+        chomp $apxs_try;
+        if (-x $apxs_try) {
+            $apxs = $apxs_try;
+            last;
+        }
+    }
+}
+
+sub apxs {
+    my $self = shift;
+
+    $self->find_apxs_util() unless defined $apxs;
+
+    my $is_query = (@_ == 2) && ($_[0] eq '-q');
+
+    $self = $self->build_config unless ref $self;
+
+    my $query_key;
+    if ($is_query) {
+        $query_key = 'APXS_' . uc $_[1];
+        if ($self->{$query_key}) {
+            return $self->{$query_key};
+        }
     }
 
-    unless ($apxs and -x $apxs) {
+    unless ($apxs) {
         my $prefix = $self->{MP_AP_PREFIX} || "";
         return '' unless -d $prefix and $is_query;
         my $val = $apxs_query{$_[1]};
@@ -154,13 +168,15 @@ sub apxs {
     chomp $val if defined $val; # apxs post-2.0.40 adds a new line
 
     unless ($val) {
-        error "'$apxs @_' failed:";
-
-        if (my $error = qx($apxs @_ 2>&1)) {
+        # do we have an error or is it just an empty value?
+        my $error = qx($apxs @_ 2>&1);
+        chomp $error if defined $error; # apxs post-2.0.40 adds a new line
+        if ($error) {
+            error "'$apxs @_' failed:";
             error $error;
         }
         else {
-            error 'unknown error';
+            $val = '';
         }
     }
 
@@ -171,6 +187,18 @@ sub apxs_cflags {
     my $cflags = __PACKAGE__->apxs('-q' => 'CFLAGS');
     $cflags =~ s/\"/\\\"/g;
     $cflags;
+}
+
+sub apxs_extra_cflags {
+    my $flags = __PACKAGE__->apxs('-q' => 'EXTRA_CFLAGS');
+    $flags =~ s/\"/\\\"/g;
+    $flags;
+}
+
+sub apxs_extra_cppflags {
+    my $flags = __PACKAGE__->apxs('-q' => 'EXTRA_CPPFLAGS');
+    $flags =~ s/\"/\\\"/g;
+    $flags;
 }
 
 my %threaded_mpms = map { $_ => 1}
@@ -248,6 +276,15 @@ sub find_gtop_config {
         # 2.0.0 bugfix
         chomp(my $libdir = qx|pkg-config --variable=libdir libgtop-2.0|);
         $c{ldopts} =~ s|\$\(libdir\)|$libdir|;
+
+        chomp($c{ver} = qx|pkg-config --modversion libgtop-2.0|);
+        ($c{ver_maj}, $c{ver_min}) = split /\./, $c{ver};
+        if ($c{ver_maj} == 2 && $c{ver_min} >= 5) {
+            # some headers were removed in libgtop 2.5.0 so we need to
+            # be able to exclude them at compile time
+            $c{ccopts} .= ' -DGTOP_2_5_PLUS';
+        }
+
     }
     elsif (system('gnome-config --libs libgtop') == 0) {
         chomp($c{ccopts} = qx|gnome-config --cflags libgtop|);
@@ -381,6 +418,13 @@ sub ap_ccopts {
         $ccopts .= " -DMP_TRACE";
     }
 
+    # make sure apr.h can be safely included
+    # for example Perl's included -D_GNU_SOURCE implies
+    # -D_LARGEFILE64_SOURCE on linux, but this won't happen on
+    # Solaris, so we need apr flags living in apxs' EXTRA_CPPFLAGS
+    my $extra_cppflags = $self->apxs_extra_cppflags;
+    $ccopts .= " " . $extra_cppflags;
+
     $ccopts;
 }
 
@@ -413,11 +457,25 @@ sub ccopts_hpux {
     $$cflags .= " -Ae ";
 }
 
+# XXX: there could be more, but this is just for cosmetics
+my %cflags_dups = map { $_ => 1 } qw(-D_GNU_SOURCE -D_REENTRANT);
 sub ccopts {
     my($self) = @_;
 
     my $cflags = $self->perl_ccopts . ExtUtils::Embed::perl_inc() .
                  $self->ap_ccopts;
+
+    # remove duplicates of certain cflags coming from perl and ap/apr
+    my @cflags = ();
+    my %dups    = ();
+    for (split /\s+/, $cflags) {
+        if ($cflags_dups{$_}) {
+            next if $dups{$_};
+            $dups{$_}++;
+        }
+        push @cflags, $_;
+    }
+    $cflags = "@cflags";
 
     $cflags;
 }
@@ -1570,16 +1628,77 @@ sub inc {
     "@includes";
 }
 
+### Picking the right LFS support flags for mod_perl, by Joe Orton ###
+#
+# on Unix systems where by default off_t is a "long", a 32-bit integer,
+# there are two different ways to get "large file" support, i.e. the
+# ability to manipulate files bigger than 2Gb:
+#
+# 1) you compile using -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64.  This
+# makes sys/types.h expose off_t as a "long long", a 64-bit integer, and
+# changes the size of a few other types too.  The C library headers
+# automatically arrange to expose a correct implementation of functions
+# like lseek() which take off_t parameters.
+#
+# 2) you compile using -D_LARGEFILE64_SOURCE, and use what is called the
+# "transitional" interface.  This means that the system headers expose a
+# new type, "off64_t", which is a long long, but the size of off_t is not
+# changed.   A bunch of new functions like lseek64() are exposed by the C 
+# library headers, which take off64_t parameters in place of off_t.
+#
+# Perl built with -Duselargefiles uses approach (1).
+#
+# APR HEAD uses (2) by default. APR 0.9 does not by default use either
+# approach, but random users can take a httpd-2.0.49 tarball, and do:
+#
+#   export CPPFLAGS="-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+#   ./configure
+#
+# to build a copy of apr/httpd which uses approach (1), though this
+# isn't really a supported configuration.
+#
+# The problem that mod_perl has to work around is when you take a
+# package built with approach (1), i.e. Perl, and any package which was
+# *not* built with (1), i.e. APR, and want to interface between
+# them. [1]
+#
+# So what you want to know is whether APR was built using approach (1)
+# or not.  APR_HAS_LARGE_FILES in HEAD just tells you whether APR was
+# built using approach (2) or not, which isn't useful in solving this
+# problem.
+#
+# [1]: In some cases, it may be OK to interface between packages which
+# use (1) and packages which use (2).  APR HEAD is currently not such a
+# case, since the size of apr_ino_t is still changing when
+# _FILE_OFFSET_BITS is defined.
+#
+# If you want to see how this matters, get some httpd function to do at
+# the very beginning of main():
+#
+#   printf("sizeof(request_rec) = %lu, sizeof(apr_finfo_t) = %ul",
+#          sizeof(request_rec), sizeof(apr_finfo_t));
+#
+# and then put the same printf in mod_perl somewhere, and see the
+# differences. This is why it is a really terribly silly idea to ever
+# use approach (1) in anything other than an entirely self-contained
+# application.
+#
 # there is no conflict if both libraries either have or don't have
 # large files support enabled
 sub has_large_files_conflict {
     my $self = shift;
-    my $apr_config = $self->get_apr_config();
 
-    my $perl = $Config{uselargefiles} ? 1 : 0;
-    my $apr  = $apr_config->{HAS_LARGE_FILES} ? 1 : 0;
+    my $apxs_flags = join $self->apxs_extra_cflags, $self->apxs_extra_cppflags;
+    my $apr_lfs64  = $apxs_flags      =~ /-D_FILE_OFFSET_BITS=64/;
+    my $perl_lfs64 = $Config{ccflags} =~ /-D_FILE_OFFSET_BITS=64/;
 
-    return $perl ^ $apr;
+    # XXX: we don't really deal with the case where APR was built with
+    # -D_FILE_OFFSET_BITS=64 but perl wasn't, since currently we strip
+    # only perl's ccflags, not apr's flags. the reason we don't deal
+    # with it is that we didn't have such a case yet, but may need to
+    # deal with it later
+
+    return $perl_lfs64 ^ $apr_lfs64;
 }
 
 # if perl is built with uselargefiles, but apr not, the build won't

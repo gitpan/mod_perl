@@ -65,10 +65,12 @@
 #define MP_magical_tie(sv, mg_flags) \
     SvFLAGS((SV*)sv) |= mg_flags
 
+
+/* XXX: this should be removed */
 #define MP_FAILURE_CROAK(rc_run) do { \
         apr_status_t rc = rc_run; \
         if (rc != APR_SUCCESS) { \
-            Perl_croak(aTHX_ modperl_apr_strerror(rc)); \
+            Perl_croak(aTHX_ modperl_error_strerror(aTHX_ rc)); \
         } \
     } while (0)
 
@@ -101,8 +103,6 @@ MP_INLINE SV *modperl_ptr2obj(pTHX_ char *classname, void *ptr);
 
 MP_INLINE SV *modperl_perl_sv_setref_uv(pTHX_ SV *rv,
                                         const char *classname, UV uv);
-
-char *modperl_apr_strerror(apr_status_t rv);
 
 int modperl_errsv(pTHX_ int status, request_rec *r, server_rec *s);
 
@@ -169,12 +169,64 @@ SV *modperl_perl_gensym(pTHX_ char *pack);
 
 void modperl_clear_symtab(pTHX_ HV *symtab);
 
-#ifdef MP_TRACE
-void modperl_apr_table_dump(pTHX_ apr_table_t *table, char *name);
-#endif
-
 char *modperl_file2package(apr_pool_t *p, const char *file);
 
 SV *modperl_server_root_relative(pTHX_ SV *sv, const char *fname);
+
+/**
+ * convert a compiled *CV ref to its original source code
+ * @param p       pool object (with a shortest possible life scope)
+ * @param cv      compiled *CV
+ * @return string of original source code
+ */
+char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv);
+
+#ifdef MP_TRACE
+
+void modperl_apr_table_dump(pTHX_ apr_table_t *table, char *name);
+
+/* dump the contents of PL_modglobal */
+void modperl_perl_modglobal_dump(pTHX);
+
+#endif
+
+#if defined(MP_TRACE) && defined(APR_HAS_THREADS)
+#define MP_TRACEf_TID   "/tid 0x%lx"
+#define MP_TRACEv_TID   (unsigned long)apr_os_thread_current()
+#define MP_TRACEv_TID_  MP_TRACEv_TID,
+#define MP_TRACEv__TID  ,MP_TRACEv_TID
+#else
+#define MP_TRACEf_TID
+#define MP_TRACEv_TID
+#define MP_TRACEv_TID_
+#define MP_TRACEv__TID
+#endif /* APR_HAS_THREADS */
+
+#if defined(MP_TRACE) && defined(USE_ITHREADS)
+#define MP_TRACEf_PERLID   "/perl id 0x%lx"
+#define MP_TRACEv_PERLID   (unsigned long)my_perl
+#define MP_TRACEv_PERLID_  MP_TRACEv_PERLID,
+#define MP_TRACEv__PERLID  ,MP_TRACEv_PERLID
+#else
+#define MP_TRACEf_PERLID
+#define MP_TRACEv_PERLID
+#define MP_TRACEv_PERLID_
+#define MP_TRACEv__PERLID
+#endif /* USE_ITHREADS */
+
+/* dumping hundreds of lines in the trace, makes it less useful. Get a
+ * string chunk of MP_TRACE_STR_LEN bytes or less. Not too long so it
+ * won't wrap when posted in email. Notice that we copy 'count' bytes
+ * of the string even if count < MP_TRACE_STR_LEN, because the 'str'
+ * buffer doesn't necessarily have \0 terminator at 'count'. As this
+ * is for debug tracing, not to be used in production, it doesn't make
+ * any difference if it's not efficient.
+ */
+#define MP_TRACE_STR_LEN 35
+#define MP_TRACE_STR_TRUNC(p, str, count)                                \
+    count < MP_TRACE_STR_LEN                                             \
+        ? (char *)apr_pstrmemdup(p, str, count)                          \
+        : (char *)apr_psprintf(p, "%s...",                               \
+                               apr_pstrmemdup(p, str, MP_TRACE_STR_LEN))
 
 #endif /* MODPERL_UTIL_H */

@@ -49,7 +49,53 @@ $VERSION = '0.01';
 use constant HAS_DUMPER => eval { $] >= 5.6 && require Data::Dumper; };
 use constant INDENT     => 4;
 
-sub t_cmp {
+# because of the prototype and recursive call to itself a forward
+# declaration is needed
+sub t_is_equal ($$);
+
+# compare any two datastructures (must pass references for non-scalars)
+# undef()'s are valid args
+sub t_is_equal ($$) {
+    my ($a, $b) = @_;
+    return 0 unless @_ == 2;
+
+    if (defined $a && defined $b) {
+        my $ref_a = ref $a;
+        my $ref_b = ref $b;
+        if (!$ref_a && !$ref_b) {
+            return $a eq $b;
+        }
+        elsif ($ref_a eq 'ARRAY' && $ref_b eq 'ARRAY') {
+            return 0 unless @$a == @$b;
+            for my $i (0..$#$a) {
+                t_is_equal($a->[$i], $b->[$i]) || return 0;
+            }
+        }
+        elsif ($ref_a eq 'HASH' && $ref_b eq 'HASH') {
+            return 0 unless (keys %$a) == (keys %$b);
+            for my $key (sort keys %$a) {
+                return 0 unless exists $b->{$key};
+                t_is_equal($a->{$key}, $b->{$key}) || return 0;
+            }
+        }
+        elsif ($ref_a eq 'Regexp') {
+            return $b =~ $a;
+        }
+        else {
+            # try to compare the references
+            return $a eq $b;
+        }
+    }
+    else {
+        # undef == undef! a valid test
+        return (defined $a || defined $b) ? 0 : 1;
+    }
+    return 1;
+}
+
+
+
+sub t_cmp ($$;$) {
     Carp::carp(join(":", (caller)[1..2]) . 
         ' usage: $res = t_cmp($expected, $received, [$comment])')
             if @_ < 2 || @_ > 3;
@@ -57,7 +103,7 @@ sub t_cmp {
     t_debug("testing : " . pop) if @_ == 3;
     t_debug("expected: " . struct_as_string(0, $_[0]));
     t_debug("received: " . struct_as_string(0, $_[1]));
-    return t_is_equal(@_);
+    return t_is_equal($_[0], $_[1]);
 }
 
 *expand = HAS_DUMPER ?
@@ -245,49 +291,20 @@ sub struct_as_string{
     }
 }
 
-# compare any two datastructures (must pass references for non-scalars)
-# undef()'s are valid args
-sub t_is_equal {
-    my ($a, $b) = @_;
-    return 0 unless @_ == 2;
+my $banner_format = 
+    "\n*** The following %s expected and harmless ***\n";
 
-    if (defined $a && defined $b) {
-        my $ref_a = ref $a;
-        my $ref_b = ref $b;
-        if (!$ref_a && !$ref_b) {
-            return $a eq $b;
-        }
-        elsif ($ref_a eq 'ARRAY' && $ref_b eq 'ARRAY') {
-            return 0 unless @$a == @$b;
-            for my $i (0..$#$a) {
-                t_is_equal($a->[$i], $b->[$i]) || return 0;
-            }
-        }
-        elsif ($ref_a eq 'HASH' && $ref_b eq 'HASH') {
-            return 0 unless (keys %$a) == (keys %$b);
-            for my $key (sort keys %$a) {
-                return 0 unless exists $b->{$key};
-                t_is_equal($a->{$key}, $b->{$key}) || return 0;
-            }
-        }
-        elsif ($ref_a eq 'Regexp') {
-            return $b =~ $a;
-        }
-        else {
-            # try to compare the references
-            return $a eq $b;
-        }
-    }
-    else {
-        # undef == undef! a valid test
-        return (defined $a || defined $b) ? 0 : 1;
-    }
-    return 1;
+sub is_expected_banner {
+    my $type  = shift;
+    my $count = @_ ? shift : 1;
+    sprintf $banner_format, $count == 1
+        ? "$type entry is"
+        : "$count $type entries are";
 }
 
-my $banner_format = 
-    "\n*** The following %s entry is expected and it is harmless ***\n";
-sub t_server_log_is_expected { printf STDERR $banner_format, $_[0]; }
+sub t_server_log_is_expected {
+    print STDERR is_expected_banner(@_);
+}
 
 sub t_client_log_is_expected {
     my $vars = Apache::Test::config()->{vars};
@@ -296,14 +313,14 @@ sub t_client_log_is_expected {
     my $fh = Symbol::gensym();
     open $fh, ">>$log_file" or die "Can't open $log_file: $!";
     my $oldfh = select($fh); $| = 1; select($oldfh);
-    printf $fh $banner_format, $_[0];
+    print $fh is_expected_banner(@_);
     close $fh;
 }
 
-sub t_server_log_error_is_expected { t_server_log_is_expected("error");}
-sub t_server_log_warn_is_expected  { t_server_log_is_expected("warn"); }
-sub t_client_log_error_is_expected { t_client_log_is_expected("error");}
-sub t_client_log_warn_is_expected  { t_client_log_is_expected("warn"); }
+sub t_server_log_error_is_expected { t_server_log_is_expected("error", @_);}
+sub t_server_log_warn_is_expected  { t_server_log_is_expected("warn", @_); }
+sub t_client_log_error_is_expected { t_client_log_is_expected("error", @_);}
+sub t_client_log_warn_is_expected  { t_client_log_is_expected("warn", @_); }
 
 END {
     # remove files that were created via this package
@@ -577,8 +594,17 @@ function can be used as:
 
 After running this handler the I<error_log> file will include:
 
-  *** The following error entry is expected and it is harmless ***
+  *** The following error entry is expected and harmless ***
   [Tue Apr 01 14:00:21 2003] [error] failed because ...
+
+When more than one entry is expected, an optional numerical argument,
+indicating how many entries to expect, can be passed. For example:
+
+  t_server_log_error_is_expected(2);
+
+will generate:
+
+  *** The following 2 error entries are expected and harmless ***
 
 If the error is generated at compile time, the logging must be done in
 the BEGIN block at the very beginning of the file:
@@ -592,7 +618,7 @@ the BEGIN block at the very beginning of the file:
 After attempting to run this handler the I<error_log> file will
 include:
 
-  *** The following error entry is expected and it is harmless ***
+  *** The following error entry is expected and harmless ***
   [Tue Apr 01 14:04:49 2003] [error] Can't locate "DOES_NOT_exist.pm"
   in @INC (@INC contains: ...
 
@@ -637,9 +663,18 @@ For example the following client script fails to find the handler:
 After running this test the I<error_log> file will include an entry
 similar to the following snippet:
 
-  *** The following error entry is expected and it is harmless ***
+  *** The following error entry is expected and harmless ***
   [Tue Apr 01 14:02:55 2003] [error] [client 127.0.0.1] 
   File does not exist: /tmp/test/t/htdocs/error
+
+When more than one entry is expected, an optional numerical argument,
+indicating how many entries to expect, can be passed. For example:
+
+  t_client_log_error_is_expected(2);
+
+will generate:
+
+  *** The following 2 error entries are expected and harmless ***
 
 This function is exported by default.
 
