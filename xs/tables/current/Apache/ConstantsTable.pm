@@ -185,7 +185,24 @@ $Apache::ConstantsTable = {
       'TAKE23',
       'TAKE123',
       'TAKE13'
-    ]
+    ],
+    'mpmq' => [
+      'AP_MPMQ_NOT_SUPPORTED',
+      'AP_MPMQ_STATIC',
+      'AP_MPMQ_DYNAMIC',
+      'AP_MPMQ_MAX_DAEMON_USED',
+      'AP_MPMQ_IS_THREADED',
+      'AP_MPMQ_IS_FORKED',
+      'AP_MPMQ_HARD_LIMIT_DAEMONS',
+      'AP_MPMQ_HARD_LIMIT_THREADS',
+      'AP_MPMQ_MAX_THREADS',
+      'AP_MPMQ_MIN_SPARE_DAEMONS',
+      'AP_MPMQ_MIN_SPARE_THREADS',
+      'AP_MPMQ_MAX_SPARE_DAEMONS',
+      'AP_MPMQ_MAX_SPARE_THREADS',
+      'AP_MPMQ_MAX_REQUESTS_DAEMON',
+      'AP_MPMQ_MAX_DAEMONS',
+    ],
   },
   'APR' => {
     'uri' => [
@@ -225,7 +242,6 @@ $Apache::ConstantsTable = {
       'APR_SO_DEBUG',
       'APR_SO_NONBLOCK',
       'APR_SO_REUSEADDR',
-      'APR_SO_TIMEOUT',
       'APR_SO_SNDBUF',
       'APR_SO_RCVBUF',
       'APR_SO_DISCONNECTED'
@@ -329,6 +345,17 @@ $Apache::ConstantsTable = {
       'APR_EXCL',
       'APR_BUFFERED',
       'APR_DELONCLOSE'
+    ],
+    'filetype' => [
+      'APR_NOFILE',
+      'APR_REG',
+      'APR_DIR',
+      'APR_CHR',
+      'APR_BLK',
+      'APR_PIPE',
+      'APR_LNK',
+      'APR_SOCK',
+      'APR_UNKFILE'
     ],
     'error' => [
       'APR_ENOSTAT',

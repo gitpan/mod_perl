@@ -5,8 +5,6 @@ use Apache::Test;
 use Apache::TestUtil;
 use Apache::TestRequest qw(GET);
 
-# XXX: use the same server setup to test
-
 plan tests => 2;
 
 my $url = "/same_interp/perlrun/perlrun_require.pl";
@@ -19,7 +17,7 @@ for (1..2) {
         !defined($res),
         "1",
         $res,
-        "PerlRun requiering and external lib with subs",
+        "PerlRun requiring an external lib with subs",
     );
 }
 
@@ -42,7 +40,7 @@ sub get_body {
 sub skip_not_same_interp {
     my $skip_cond = shift;
     if ($skip_cond) {
-        skip "Skip couldn't find the same interpreter";
+        skip "Skip couldn't find the same interpreter", 0;
     }
     else {
         my($package, $filename, $line) = caller;

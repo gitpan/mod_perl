@@ -15,6 +15,7 @@ MODULE=Apache::RequestRec   PACKAGE=Apache::RequestRec
  mpxs_Apache__RequestRec_content_type   | | r, type=Nullsv
  mpxs_Apache__RequestRec_proxyreq       | | r, val=Nullsv
  mpxs_Apache__RequestRec_subprocess_env | | r, key=NULL, val=Nullsv
+ mpxs_Apache__RequestRec_finfo
 
 MODULE=Apache::RequestUtil   PACKAGE=guess
  mpxs_Apache__RequestRec_push_handlers
@@ -134,3 +135,6 @@ MODULE=Apache::Directive
 
 MODULE=Apache::CmdParms
  mpxs_Apache__CmdParms_info
+
+MODULE=Apache::MPM    PACKAGE=Apache::MPM   BOOT=1
+ mpxs_Apache__MPM_query

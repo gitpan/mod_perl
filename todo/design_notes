@@ -1,4 +1,8 @@
-direct C api mapping
+(dunno where to put it but don't want to lose these design notes, so
+just land them here for now)
+
+
+Filters: direct C api mapping
 --------------------
 
 Apache::register_output_filter($filtername, $callback, $filter_type)
@@ -20,7 +24,7 @@ $c->add_input_filter($name, $ctx)
 
 note: $ctx will default to NULL
 
-directives
+Filters: directives
 ----------
 
 PerlInputFilterHandler
@@ -93,34 +97,9 @@ note: no need to maintain a list of PerlFilters (like PerlModule,
 PerlRequire) since the directives trigger modperl_handler_new(), just
 like all other Perl*Handlers
 
-{get,set,push}_handlers
+Filters: {get,set,push}_handlers
 -----------------------
 would be nice for Perl{Input,Output}FilterHandler to work with the
 modperl {get,set,push}_handlers api just like other Perl*Handlers
 
 
-tie handle interface
---------------------
-both input/output filters should provide a tiehandle and/or perlio
-interface.
-
-Perl tiehandle methods include the following, '+' indicates must have, '-'
-indicates not possible / doesn't make sense (though might require noop
-stubs), '~' indicates would be nice if possible, '?' indicates unsure:
-
-+ TIEHANDLE
-+ PRINT
-+ PRINTF
-+ WRITE
-+ READLINE
-+ GETC
-+ READ
-+ CLOSE
-? UNTIE
-? DESTROY
-+ BINMODE (noop)
-? OPEN
-~ EOF
-- FILENO
-~ SEEK
-~ TELL

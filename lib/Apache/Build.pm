@@ -102,7 +102,15 @@ sub apxs {
     my $apxs;
     my @trys = ($Apache::Build::APXS,
                 $self->{MP_APXS},
-                $ENV{MP_APXS});
+                $ENV{MP_APXS},
+                catfile $self->{MP_AP_PREFIX}, 'bin', 'apxs');
+
+    if (WIN32) {
+        my $ext = '.bat';
+        for (@trys) {
+            $_ .= $ext if ($_ and $_ !~ /$ext$/);
+        }
+    }
 
     unless (IS_MOD_PERL_BUILD) {
         #if we are building mod_perl via apxs, apxs should already be known
@@ -196,9 +204,62 @@ sub mpm_name {
 
 #--- Perl Config stuff ---
 
+my %gtop_config = ();
+sub find_gtop {
+    my $self = shift;
+
+    return %gtop_config if %gtop_config;
+
+    if (%gtop_config = find_gtop_config()) {
+        return %gtop_config;
+    }
+
+    if ($self->find_dlfile('gtop')) {
+        $gtop_config{ldopts} = $self->gtop_ldopts_old();
+        $gtop_config{ccopts} = '';
+        return %gtop_config;
+    }
+
+    return ();
+}
+
+sub find_gtop_config {
+    my %c = ();
+
+    if (system('pkg-config --exists libgtop-2.0') == 0) {
+        # 2.x
+        chomp($c{ccopts} = qx|pkg-config --cflags libgtop-2.0|);
+        chomp($c{ldopts} = qx|pkg-config --libs   libgtop-2.0|);
+
+        # 2.0.0 bugfix
+        chomp(my $libdir = qx|pkg-config --variable=libdir libgtop-2.0|);
+        $c{ldopts} =~ s|\$\(libdir\)|$libdir|;
+    }
+    elsif (system('gnome-config --libs libgtop') == 0) {
+        chomp($c{ccopts} = qx|gnome-config --cflags libgtop|);
+        chomp($c{ldopts} = qx|gnome-config --libs   libgtop|);
+
+        # buggy ( < 1.0.9?) versions fixup
+        $c{ccopts} =~ s|^/|-I/|;
+        $c{ldopts} =~ s|^/|-L/|;
+    }
+
+    if ($c{ccopts}) {
+        chomp(my $ginc = `glib-config --cflags`);
+        $c{ccopts} .= " $ginc";
+    }
+
+    if (%c) {
+        $c{ccopts} = " $c{ccopts}";
+        $c{ldopts} = " $c{ldopts}";
+    }
+
+    return %c;
+}
+
 my @Xlib = qw(/usr/X11/lib /usr/X11R6/lib);
 
-sub gtop_ldopts {
+sub gtop_ldopts_old {
     my $self = shift;
     my $xlibs = "";
 
@@ -212,6 +273,14 @@ sub gtop_ldopts {
     }
 
     return " -lgtop -lgtop_sysdeps -lgtop_common $xlibs";
+}
+
+sub gtop_ldopts {
+    exists $gtop_config{ldopts} ? $gtop_config{ldopts} : '';
+}
+
+sub gtop_ccopts {
+    exists $gtop_config{ccopts} ? $gtop_config{ccopts} : '';
 }
 
 sub ldopts {
@@ -266,6 +335,7 @@ sub ap_ccopts {
 
     if ($self->{MP_USE_GTOP}) {
         $ccopts .= " -DMP_USE_GTOP";
+        $ccopts .= $self->gtop_ccopts;
     }
 
     if ($self->{MP_MAINTAINER}) {
@@ -769,8 +839,15 @@ sub apr_config_path {
                 if exists $self->{MP_AP_PREFIX} and -d $self->{MP_AP_PREFIX};
         }
 
-        for (@tries) {
-            my $try = catfile $_, "apr-config";
+        @tries = map { catfile $_, "apr-config" } @tries;
+        if (WIN32) {
+            my $ext = '.bat';
+            for (@tries) {
+                $_ .= $ext if ($_ and $_ !~ /$ext$/);
+            }
+        }
+
+        for my $try (@tries) {
             next unless -x $try;
             $self->{apr_config_path} = $try;
         }
@@ -1541,7 +1618,8 @@ BEGIN {
 }
 EOF
 
-    my $content = join "\n\n", 'package Apache2;', $fixup, "1;";
+    my $content = join "\n\n", noedit_warning_hash(),
+        'package Apache2;', $fixup, "1;";
     my $file = catfile qw(lib Apache2.pm);
     open my $fh, '>', $file or die "Can't open $file: $!";
     print $fh $content;

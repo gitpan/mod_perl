@@ -5632,6 +5632,16 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'apr_finfo_t *',
+    'name' => 'mpxs_Apache__RequestRec_finfo',
+    'args' => [
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      }
+    ]
+  },
+  {
     'return_type' => 'SV *',
     'name' => 'mpxs_Apache__RequestRec_pnotes',
     'args' => [
@@ -6602,20 +6612,6 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
-    'return_type' => '',
-    'name' => 'mpxs_apr_sockaddr_port_get',
-    'args' => [
-      {
-        'type' => 'PerlInterpreter *',
-        'name' => 'my_perl'
-      },
-      {
-        'type' => 'apr_sockaddr_t *',
-        'name' => 'sockaddr'
-      }
-    ]
-  },
-  {
     'return_type' => 'void',
     'name' => 'mpxs_apr_strerror',
     'attr' => [
@@ -6885,6 +6881,41 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'cmd_parms *',
         'name' => 'cmd_parms'
+      }
+    ]
+  },
+  {
+    'return_type' => 'SV *',
+    'name' => 'mpxs_Apache__MPM_query',
+    'attr' => [
+      'static',
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'self'
+      },
+      {
+        'type' => 'int',
+        'name' => 'query_code'
+      }
+    ]
+  },
+  {
+    'return_type' => 'void',
+    'name' => 'mpxs_Apache__MPM_BOOT',
+    'attr' => [
+      'static'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
       }
     ]
   },

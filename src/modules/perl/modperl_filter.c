@@ -20,6 +20,25 @@
 
 #define MP_FILTER_POOL(f) f->r ? f->r->pool : f->c->pool
 
+/* allocate wbucket memory using malloc and not request pools, since
+ * we may need many of these if the filter is invoked multiple
+ * times */
+#define WBUCKET_INIT(wb, p, next_filter)                   \
+    if (!wb) {                                             \
+        wb = (modperl_wbucket_t *)safemalloc(sizeof(*wb)); \
+        wb->pool    = p;                                   \
+        wb->filters = &next_filter;                        \
+        wb->outcnt  = 0;                                   \
+        wb->r       = NULL;                                \
+        wb->header_parse = 0;                              \
+    }
+
+#define FILTER_FREE(filter)        \
+    if (filter->wbucket) {         \
+        safefree(filter->wbucket); \
+    }                              \
+    safefree(filter);
+
 /* this function is for tracing only, it's not optimized for performance */
 static int is_modperl_filter(ap_filter_t *f)
 {
@@ -94,6 +113,12 @@ MP_INLINE apr_status_t modperl_wbucket_pass(modperl_wbucket_t *wb,
     apr_bucket_brigade *bb;
     apr_bucket *bucket;
     const char *work_buf = buf;
+
+    /* reset the counter to 0 as early as possible and in one place,
+     * since this function will always either path the data out (and
+     * it has 'len' already) or return an error.
+     */
+     wb->outcnt = 0;
 
     if (wb->header_parse) {
         request_rec *r = wb->r;
@@ -181,7 +206,6 @@ MP_INLINE apr_status_t modperl_wbucket_flush(modperl_wbucket_t *wb,
     if (wb->outcnt) {
         rv = modperl_wbucket_pass(wb, wb->outbuf, wb->outcnt,
                                   add_flush_bucket);
-        wb->outcnt = 0;
     }
     else if (add_flush_bucket) {
         rv = send_output_flush(*(wb->filters));
@@ -218,6 +242,27 @@ MP_INLINE apr_status_t modperl_wbucket_write(pTHX_ modperl_wbucket_t *wb,
 
 /* generic filter routines */
 
+/* all ap_filter_t filter cleanups should go here */
+static apr_status_t modperl_filter_f_cleanup(void *data)
+{
+    ap_filter_t *f            = (ap_filter_t *)data;
+    modperl_filter_ctx_t *ctx = (modperl_filter_ctx_t *)(f->ctx);
+
+    /* mod_perl filter ctx cleanup */
+    if (ctx->data){
+#ifdef USE_ITHREADS
+        dTHXa(ctx->perl);
+#endif
+        if (SvOK(ctx->data) && SvREFCNT(ctx->data)) {
+            SvREFCNT_dec(ctx->data);
+            ctx->data = NULL;
+        }
+        ctx->perl = NULL;
+    }
+    
+    return APR_SUCCESS;
+}
+
 modperl_filter_t *modperl_filter_new(ap_filter_t *f,
                                      apr_bucket_brigade *bb,
                                      modperl_filter_mode_e mode,
@@ -226,14 +271,19 @@ modperl_filter_t *modperl_filter_new(ap_filter_t *f,
                                      apr_off_t readbytes)
 {
     apr_pool_t *p = MP_FILTER_POOL(f);
-    modperl_filter_t *filter = apr_pcalloc(p, sizeof(*filter));
+    modperl_filter_t *filter;
+
+    /* we can't allocate memory from the pool here, since potentially
+     * a filter can be called hundreds of times during the same
+     * request/connection resulting in enormous memory demands
+     * (sizeof(*filter)*number of invocations)
+     */
+    Newz(0, filter, 1, modperl_filter_t);
 
     filter->mode = mode;
     filter->f = f;
     filter->pool = p;
-    filter->wbucket.pool = p;
-    filter->wbucket.filters = &f->next;
-    filter->wbucket.outcnt = 0;
+    filter->wbucket = NULL;
 
     if (mode == MP_INPUT_FILTER_MODE) {
         filter->bb_in  = NULL;
@@ -343,6 +393,7 @@ static int modperl_run_filter_init(ap_filter_t *f,
     conn_rec    *c = f->c;
     server_rec  *s = r ? r->server : c->base_server;
     apr_pool_t  *p = r ? r->pool : c->pool;
+    modperl_filter_t *filter = modperl_filter_new(f, NULL, mode, 0, 0, 0);
 
     MP_dINTERP_SELECT(r, c, s);    
 
@@ -352,14 +403,14 @@ static int modperl_run_filter_init(ap_filter_t *f,
                               "Apache::Filter", f,
                               NULL);
 
-    modperl_filter_mg_set(aTHX_ AvARRAY(args)[0],
-                          modperl_filter_new(f, NULL, mode, 0, 0, 0));
+    modperl_filter_mg_set(aTHX_ AvARRAY(args)[0], filter);
 
     /* XXX filters are VOID handlers.  should we ignore the status? */
     if ((status = modperl_callback(aTHX_ handler, p, r, s, args)) != OK) {
         status = modperl_errsv(aTHX_ status, r, s);
     }
 
+    FILTER_FREE(filter);
     SvREFCNT_dec((SV*)args);
 
     MP_INTERP_PUTBACK(interp);
@@ -705,7 +756,8 @@ MP_INLINE apr_status_t modperl_output_filter_flush(modperl_filter_t *filter)
         filter->flush = 0;
     }
 
-    filter->rc = modperl_wbucket_flush(&filter->wbucket, add_flush_bucket);
+    WBUCKET_INIT(filter->wbucket, filter->pool, filter->f->next);
+    filter->rc = modperl_wbucket_flush(filter->wbucket, add_flush_bucket);
     if (filter->rc != APR_SUCCESS) {
         return filter->rc;
     }
@@ -745,7 +797,8 @@ MP_INLINE apr_status_t modperl_output_filter_write(pTHX_
                                                    const char *buf,
                                                    apr_size_t *len)
 {
-    return modperl_wbucket_write(aTHX_ &filter->wbucket, buf, len);
+    WBUCKET_INIT(filter->wbucket, filter->pool, filter->f->next);
+    return modperl_wbucket_write(aTHX_ filter->wbucket, buf, len);
 }
 
 apr_status_t modperl_output_filter_handler(ap_filter_t *f,
@@ -766,6 +819,7 @@ apr_status_t modperl_output_filter_handler(ap_filter_t *f,
         filter = modperl_filter_new(f, bb, MP_OUTPUT_FILTER_MODE,
                                     0, 0, 0);
         status = modperl_run_filter(filter);
+        FILTER_FREE(filter);
     }
     
     switch (status) {
@@ -799,6 +853,7 @@ apr_status_t modperl_input_filter_handler(ap_filter_t *f,
         filter = modperl_filter_new(f, bb, MP_INPUT_FILTER_MODE,
                                     input_mode, block, readbytes);
         status = modperl_run_filter(filter);
+        FILTER_FREE(filter);
     }
     
     switch (status) {
@@ -848,6 +903,11 @@ static int modperl_filter_add_connection(conn_rec *c,
             ctx->handler = handlers[i];
 
             f = addfunc(name, (void*)ctx, NULL, c);
+
+            /* ap_filter_t filter cleanup */
+            apr_pool_cleanup_register(c->pool, (void *)f,
+                                      modperl_filter_f_cleanup,
+                                      apr_pool_cleanup_null);
 
             if (handlers[i]->attrs & MP_FILTER_HAS_INIT_HANDLER &&
                 handlers[i]->next) {
@@ -947,6 +1007,11 @@ static int modperl_filter_add_request(request_rec *r,
 
             f = addfunc(name, (void*)ctx, r, r->connection);
 
+            /* ap_filter_t filter cleanup */
+            apr_pool_cleanup_register(r->pool, (void *)f,
+                                      modperl_filter_f_cleanup,
+                                      apr_pool_cleanup_null);
+
             if (handlers[i]->attrs & MP_FILTER_HAS_INIT_HANDLER &&
                 handlers[i]->next) {
                 int status = modperl_run_filter_init(
@@ -1029,6 +1094,11 @@ void modperl_filter_runtime_add(pTHX_ request_rec *r, conn_rec *c,
         ctx->handler = handler;
         f = addfunc(name, (void*)ctx, r, c);
 
+        /* ap_filter_t filter cleanup */
+        apr_pool_cleanup_register(pool, (void *)f,
+                                  modperl_filter_f_cleanup,
+                                  apr_pool_cleanup_null);
+
         /* has to resolve early so we can check for init functions */ 
         if (!modperl_mgv_resolve(aTHX_ handler, pool, handler->name, TRUE)) {
             Perl_croak(aTHX_ "unable to resolve handler %s\n", handler->name);
@@ -1088,7 +1158,10 @@ void modperl_brigade_dump(apr_bucket_brigade *bb, FILE *fp)
     fprintf(fp, "dump of brigade 0x%lx\n",
             (unsigned long)bb);
 
-    APR_BRIGADE_FOREACH(bucket, bb) {
+    for (bucket = APR_BRIGADE_FIRST(bb);
+         bucket != APR_BRIGADE_SENTINEL(bb);
+         bucket = APR_BUCKET_NEXT(bucket))
+    {
         fprintf(fp, "   %d: bucket=%s(0x%lx), length=%ld, data=0x%lx\n",
                 i, bucket->type->name,
                 (unsigned long)bucket,

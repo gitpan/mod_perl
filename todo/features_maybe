@@ -1,12 +1,29 @@
-config features:
-----------------
+#########################
+# Nice to have features #
+#########################
 
-- could add support for embedding apache directives into perl
+* PerlPreConnectionHandler is implemented, but the 'void *csd' arg in
+  the callback is ignored. will require a modification of
+  modperl_callback_run_handlers to pass yet another optional argument.
+
+  Status: most likely nobody will ever want to use this option, so
+  don't waste time working on it.
+
+* Apache::FakeRequest:
+  since APR can be used outside of httpd, and we can alloc request_rec
+  and similar structures, it should be possible to bootstrap an
+  inside-httpd interface and outside-httpd interface.  its not really
+  worthwhile looking at until APR actually installs its *.so or *.a
+  libraries somewhere apxs can find them.  and, there's a bunch of util
+  functions (e.g. URI stuff) that is supposed to move from httpd into
+  apr-util.
+
+* could add support for embedding apache directives into perl
   directives values, e.g. interpolating $ServerRoot
 
   PerlSwitches -I$ServerRoot/lib/perl
 
-- Since now we have protocol modules, it'd be nice to have a similar
+* Since now we have protocol modules, it'd be nice to have a similar
   thing to PerlCleanupHandler, which works only for HTTP requests. 
   It should probably be called PerlConnectionCleanupHandler.
 
@@ -15,6 +32,9 @@ config features:
 
   We could also have PerlServerCleanupHandler, but that's exactly what
   PerlChildExitHandler does. Consider having ServerCleanup as an alias.
+
+config features:
+----------------
 
 - tie %ENV to r->subprocess_env so stores are added to
   r->subprocess_env and fetches are looked up in there and elsewhere
@@ -47,6 +67,11 @@ config features:
 
 -  PerlModule can be made more efficient using Perl_load_module
 
+  Status: it's possible to implement, but currently there is no way to
+          prevent from Perl logging the loading error messages to the
+          console
+  http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2003-03/msg00319.html
+
 perl language features:
 ----------------------
 
@@ -61,10 +86,10 @@ perl language features:
 - possible to support BEGIN,CHECK,INIT blocks similar to how END is
   supported via ModPerl::Global::special_list_{call,clear}
 
+
+
 optimization features:
 ---------------------
-
-- use 5.7.1+'s PerlIO rather than tied filehandles
 
 - copy-on-write SvPVX
 
@@ -120,7 +145,6 @@ modules:
   APR::File->mktemp (apr_file_mktemp) and a perlio layer
   defined in terms of apr_file_t to use it.
 
-
 new modules:
 -----------
 
@@ -137,4 +161,3 @@ apache features that would be neat for mod_perl:
 -----------------------------------------------
 
 - "autoload" hook for configuration directives
-

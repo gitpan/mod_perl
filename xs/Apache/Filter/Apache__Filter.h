@@ -155,7 +155,28 @@ static MP_INLINE SV *mpxs_Apache__Filter_ctx(pTHX_
 {
     modperl_filter_ctx_t *ctx = (modperl_filter_ctx_t *)(filter->ctx);
 
+    /* XXX: is it possible that the same filter, during a single
+     * request or connection cycle, will be invoked by different perl
+     * interpreters? if that happens we are in trouble, if we need to
+     * return an SV living in a different interpreter. may be there is
+     * a way to use one of the perl internal functions to clone an SV
+     * (and it can contain any references)
+     */
+    
     if (data != Nullsv) {
+        if (ctx->data) {
+            if (SvOK(ctx->data) && SvREFCNT(ctx->data)) {
+                /* release the previously stored SV so we don't leak
+                 * an SV */
+                SvREFCNT_dec(ctx->data);
+            }
+        }
+
+#ifdef USE_ITHREADS
+        if (!ctx->perl) {
+            ctx->perl = aTHX;
+        }
+#endif
         ctx->data = SvREFCNT_inc(data);
     }
 

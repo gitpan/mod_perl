@@ -57,6 +57,11 @@ sub server_file_rel2abs {
                  [ $self->apxs('PREFIX'),
                        'apxs-derived ServerRoot' ]);
 
+    # remove surrounding quotes if any
+    # e.g. Include "/tmp/foo.html"
+    $file =~ s/^\s*["']?//;
+    $file =~ s/["']?\s*$//;
+
     if (file_name_is_absolute($file)) {
         debug "$file is already absolute";
         $result = $file;
@@ -86,10 +91,10 @@ sub server_file_rel2abs {
     }
 
     if (-e $result) {
-        debug "$file successfully resolved to existing file $result"; 
+        debug "$file successfully resolved to existing file $result";
     }
     else {
-        warning "configuration file $result does not exist";
+        warning "file $result does not exist";
 
         # old behavior was to return the resolved but non-existent
         # file.  preserve that behavior and return $result anyway.
@@ -243,8 +248,9 @@ sub inherit_config_file_or_directory {
         (my $directive, $_) = split /\s+/, $_, 2;
 
         if ($directive eq "Include") {
-            my $include = $self->server_file_rel2abs($_);
-            $self->inherit_config_file_or_directory($include);
+            foreach my $include (glob($self->server_file_rel2abs($_))) {
+                $self->inherit_config_file_or_directory($include);
+            }
         }
 
         #parse what we want
@@ -340,11 +346,13 @@ sub get_httpd_defines {
             s/\s+$//;
             my($key, $val) = split '=', $_, 2;
             $self->{httpd_defines}->{$key} = $val ? strip_quotes($val) : 1;
+            debug "isolated httpd_defines $key = " . $self->{httpd_defines}->{$key};
         }
-        elsif (/(version|built|module magic number):\s+(.*)/i) {
+        elsif (/(version|built|module magic number|server mpm):\s+(.*)/i) {
             my $val = $2;
             (my $key = uc $1) =~ s/\s/_/g;
             $self->{httpd_info}->{$key} = $val;
+            debug "isolated httpd_info $key = " . $val;
         }
     }
 
@@ -356,8 +364,16 @@ sub get_httpd_defines {
               MODULE_MAGIC_NUMBER_MINOR)} = split ':', $mmn;
     }
 
-    if (my $mpm_dir = $self->{httpd_defines}->{APACHE_MPM_DIR}) {
-        $self->{mpm} = basename $mpm_dir;
+    # get the mpm information where available
+    # lowercase for consistency across the two extraction methods
+    # XXX or maybe consider making have_apache_mpm() case-insensitive?
+    if (my $mpm = $self->{httpd_info}->{SERVER_MPM}) {
+        # 2.1
+        $self->{mpm} = lc $mpm;
+    }
+    elsif (my $mpm_dir = $self->{httpd_defines}->{APACHE_MPM_DIR}) {
+        # 2.0
+        $self->{mpm} = lc basename $mpm_dir;
     }
     else {
         # Apache 1.3 - no mpm to speak of

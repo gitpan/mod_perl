@@ -37,11 +37,12 @@ my %aliases = (
     cache_it        => 'NOP',
     read_script     => 'read_script',
     rewrite_shebang => 'rewrite_shebang',
-    set_script_name => 'set_script_name',
+    get_script_name => 'get_script_name',
     chdir_file      => 'chdir_file_normal',
     get_mark_line   => 'get_mark_line',
     compile         => 'compile',
     error_check     => 'error_check',
+    should_reset_inc_hash => 'TRUE',
     strip_end_data_segment             => 'strip_end_data_segment',
     convert_script_to_compiled_handler => 'convert_script_to_compiled_handler',
 );

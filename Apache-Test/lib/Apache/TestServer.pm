@@ -265,16 +265,16 @@ sub pid {
     $pid;
 }
 
-sub select_port {
+sub select_next_port {
     my $self = shift;
 
     my $max_tries = 100; #XXX
-
-    while (! $self->port_available(++$self->{port_counter})) {
-        return 0 if --$max_tries <= 0;
+    while ($max_tries-- > 0) {
+        return $self->{port_counter}
+            if $self->port_available(++$self->{port_counter});
     }
 
-    return $self->{port_counter};
+    return 0;
 }
 
 sub port_available {
@@ -584,10 +584,9 @@ sub wait_till_is_up {
 
     my $server_up = sub {
         local $SIG{__WARN__} = sub {}; #avoid "cannot connect ..." warnings
-        if (my $r = Apache::TestRequest::GET('/index.html')) {
-            return $r->code;
-        }
-        0;
+        # avoid fatal errors when LWP is not available
+        my $r = eval { Apache::TestRequest::GET('/index.html') };
+        return !$@ && defined $r ? $r->code : 0;
     };
 
     if ($server_up->()) {

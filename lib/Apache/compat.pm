@@ -50,6 +50,150 @@ BEGIN {
     $INC{'Apache/Table.pm'} = __FILE__;
 }
 
+# api => "overriding code"
+# the overriding code, needs to "return" the original CODE reference
+# when eval'ed , so that it can be restored later
+my %overridable_mp2_api = (
+    'Apache::RequestRec::notes' => <<'EOI',
+{
+    require Apache::RequestRec;
+    my $orig_sub = *Apache::RequestRec::notes{CODE};
+    *Apache::RequestRec::notes = sub {
+        my $r = shift;
+        return wantarray()
+            ?       ($r->table_get_set(scalar($r->$orig_sub), @_))
+            : scalar($r->table_get_set(scalar($r->$orig_sub), @_));
+    };
+    $orig_sub;
+}
+EOI
+
+    'Apache::RequestRec::finfo' => <<'EOI',
+{
+    require APR::Finfo;
+    my $orig_sub = *APR::Finfo::finfo{CODE};
+    sub Apache::RequestRec::finfo {
+        my $r = shift;
+        stat $r->filename;
+        \*_;
+    }
+    $orig_sub;
+}
+EOI
+
+    'Apache::Connection::local_addr' => <<'EOI',
+{
+    require Apache::Connection;
+    require Socket;
+    require APR::SockAddr;
+    my $orig_sub = *Apache::Connection::local_addr{CODE};
+    *Apache::Connection::local_addr = sub {
+        my $c = shift;
+        Socket::pack_sockaddr_in($c->$orig_sub->port,
+                                 Socket::inet_aton($c->$orig_sub->ip_get));
+    };
+    $orig_sub;
+}
+EOI
+
+    'Apache::Connection::remote_addr' => <<'EOI',
+{
+    require Apache::Connection;
+    require APR::SockAddr;
+    require Socket;
+    my $orig_sub = *Apache::Connection::remote_addr{CODE};
+    *Apache::Connection::remote_addr = sub {
+        my $c = shift;
+        if (@_) {
+            my $addr_in = shift;
+            my($port, $addr) = Socket::unpack_sockaddr_in($addr_in);
+            $c->$orig_sub->ip_set($addr);
+            $c->$orig_sub->port_set($port);
+        }
+        else {
+            Socket::pack_sockaddr_in($c->$orig_sub->port,
+                                     Socket::inet_aton($c->$orig_sub->ip_get));
+        }
+    };
+    $orig_sub;
+}
+EOI
+
+    'APR::URI::unparse' => <<'EOI',
+{
+    require APR::URI;
+    my $orig_sub = *APR::URI::unparse{CODE};
+    *APR::URI::unparse = sub {
+        my($uri, $flags) = @_;
+
+        if (defined $uri->hostname && !defined $uri->scheme) {
+            # we do this only for back compat, the new APR::URI is
+            # protocol-agnostic and doesn't fallback to 'http' when the
+            # scheme is not provided
+            $uri->scheme('http');
+        }
+
+        $orig_sub->(@_);
+    };
+    $orig_sub;
+}
+EOI
+
+);
+
+my %overridden_mp2_api = ();
+
+# this function enables back-compatible APIs which can't coexist with
+# mod_perl 2.0 APIs with the same name and therefore it should be
+# avoided if possible.
+#
+# it expects a list of fully qualified functions, like
+# "Apache::RequestRec::finfo"
+sub override_mp2_api {
+    my (@subs) = @_;
+
+    for my $sub (@subs) {
+        unless (exists $overridable_mp2_api{$sub}) {
+            die __PACKAGE__ . ": $sub is not overridable";
+        }
+        if (exists $overridden_mp2_api{$sub}) {
+            warn __PACKAGE__ . ": $sub has been already overridden";
+            next;
+        }
+        $overridden_mp2_api{$sub} = eval $overridable_mp2_api{$sub};
+        unless (exists $overridden_mp2_api{$sub} &&
+                ref($overridden_mp2_api{$sub}) eq 'CODE') {
+            die "overriding $sub didn't return a CODE ref";
+        }
+    }
+}
+
+# restore_mp2_api does the opposite of override_mp2_api(), it removes
+# the overriden API and restores the original mod_perl 2.0 API
+sub restore_mp2_api {
+    my (@subs) = @_;
+
+    for my $sub (@subs) {
+        unless (exists $overridable_mp2_api{$sub}) {
+            die __PACKAGE__ . ": $sub is not overridable";
+        }
+        unless (exists $overridden_mp2_api{$sub}) {
+            warn __PACKAGE__ . ": can't restore $sub, " .
+                "as it has not been overridden";
+            next;
+        }
+        # XXX: 5.8.2+ can't delete and assign at once - gives:
+        #    Attempt to free unreferenced scalar
+        # after perl_clone. the 2 step works ok. to reproduce:
+        # t/TEST -maxclients 1 perl/ithreads2.t compat/request.t
+        my $original_sub = $overridden_mp2_api{$sub};
+        delete $overridden_mp2_api{$sub};
+        no warnings 'redefine';
+        no strict 'refs';
+        *$sub = $original_sub;
+    }
+}
+
 sub request {
     my $what = shift;
 
@@ -125,6 +269,9 @@ sub httpd_conf {
     my $err = $obj->add_config([split /\n/, join '', @_]);
     die $err if $err;
 }
+
+# mp2 always can stack handlers
+sub can_stack_handlers { 1; }
 
 sub push_handlers {
     shift;
@@ -246,15 +393,6 @@ sub err_header_out {
         : scalar($r->table_get_set(scalar($r->err_headers_out), @_));
 }
 
-{
-    my $notes_sub = *Apache::RequestRec::notes{CODE};
-    *Apache::RequestRec::notes = sub {
-        my $r = shift;
-        return wantarray()
-            ?       ($r->table_get_set(scalar($r->$notes_sub), @_))
-            : scalar($r->table_get_set(scalar($r->$notes_sub), @_));
-    }
-}
 
 sub register_cleanup {
     shift->pool->cleanup_register(@_);
@@ -342,12 +480,6 @@ sub seqno {
 
 sub chdir_file {
     #XXX resolve '.' in @INC to basename $r->filename
-}
-
-sub finfo {
-    my $r = shift;
-    stat $r->filename;
-    \*_;
 }
 
 *log_reason = \&log_error;
@@ -552,22 +684,6 @@ sub Apache::URI::parse {
     $uri ||= $r->construct_url;
 
     APR::URI->parse($r->pool, $uri);
-}
-
-{
-    my $sub = *APR::URI::unparse{CODE};
-    *APR::URI::unparse = sub {
-        my($uri, $flags) = @_;
-
-        if (defined $uri->hostname && !defined $uri->scheme) {
-            # we do this only for back compat, the new APR::URI is
-            # protocol-agnostic and doesn't fallback to 'http' when the
-            # scheme is not provided
-            $uri->scheme('http');
-        }
-
-        $sub->(@_);
-    };
 }
 
 package Apache::Table;

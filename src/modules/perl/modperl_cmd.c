@@ -310,6 +310,7 @@ MP_CMD_SRV_DECLARE(perl)
     char line[MAX_STRING_LEN];
     apr_table_t *args;
     ap_directive_t **current = mconfig;
+    int line_num;
 
     if (!endp) {
         return modperl_cmd_unclosed_directive(parms);
@@ -321,6 +322,7 @@ MP_CMD_SRV_DECLARE(perl)
         return errmsg;
     }
 
+    line_num = parms->config_file->line_number+1;
     while (!ap_cfg_getline(line, sizeof(line), parms->config_file)) {
         /*XXX: Not sure how robust this is */
         if (strEQ(line, "</Perl>")) {
@@ -337,7 +339,7 @@ MP_CMD_SRV_DECLARE(perl)
     }
     
     (*current)->filename = parms->config_file->name;
-    (*current)->line_num = parms->config_file->line_number;
+    (*current)->line_num = line_num;
     (*current)->directive = apr_pstrdup(p, "Perl");
     (*current)->args = code;
     (*current)->data = args;
@@ -359,9 +361,15 @@ MP_CMD_SRV_DECLARE(perldo)
     apr_table_t *options = NULL;
     const char *handler_name = NULL;
     modperl_handler_t *handler = NULL;
-    const char *package_name = NULL;
+    const char *pkg_base = NULL;
+    const char *pkg_namespace = NULL;
+    const char *pkg_name = NULL;
+    const char *line_header = NULL;
+    ap_directive_t *directive = parms->directive;
     int status = OK;
     AV *args = Nullav;
+    SV *dollar_zero = Nullsv;
+    int dollar_zero_tainted;
 #ifdef USE_ITHREADS
     MP_dSCFG(s);
     pTHX;
@@ -392,16 +400,45 @@ MP_CMD_SRV_DECLARE(perldo)
         
         handler = modperl_handler_new(p, handler_name);
             
-        if (!(package_name = apr_table_get(options, "package"))) {
-            package_name = apr_pstrdup(p, MP_DEFAULT_PERLSECTION_PACKAGE);
-            apr_table_set(options, "package", package_name);
+        if (!(pkg_base = apr_table_get(options, "package"))) {
+            pkg_base = apr_pstrdup(p, MP_DEFAULT_PERLSECTION_PACKAGE);
         }
+       
+        pkg_namespace = modperl_file2package(p, directive->filename);
+
+        pkg_name = apr_psprintf(p, "%s::%s::line_%d", 
+                                    pkg_base, 
+                                    pkg_namespace, 
+                                    directive->line_num);
+
+        apr_table_set(options, "package", pkg_name);
+
+        line_header = apr_psprintf(p, "\n#line %d %s\n", 
+                                   directive->line_num,
+                                   directive->filename);
 
         /* put the code about to be executed in the configured package */
-        arg = apr_pstrcat(p, "package ", package_name, ";", arg, NULL);
+        arg = apr_pstrcat(p, "package ", pkg_name, ";", line_header,
+                          arg, NULL);
     }
 
+    /* Set $0 to the current configuration file */
+    dollar_zero = get_sv("0", TRUE);
+    dollar_zero_tainted = SvTAINTED(dollar_zero);
+
+    if (dollar_zero_tainted) {
+        SvTAINTED_off(dollar_zero); 
+    }
+
+    ENTER;
+    save_item(dollar_zero);
+    sv_setpv(dollar_zero, directive->filename);
     eval_pv(arg, FALSE);
+    LEAVE;
+
+    if (dollar_zero_tainted) {
+        SvTAINTED_on(dollar_zero);
+    }
 
     if (SvTRUE(ERRSV)) {
         SV *strict;
@@ -410,8 +447,8 @@ MP_CMD_SRV_DECLARE(perldo)
         }
         else {
             modperl_log_warn(s, apr_psprintf(p, "Syntax error at %s:%d %s", 
-                                             parms->directive->filename, 
-                                             parms->directive->line_num, 
+                                             directive->filename, 
+                                             directive->line_num, 
                                              SvPVX(ERRSV)));
 
         }
@@ -429,7 +466,7 @@ MP_CMD_SRV_DECLARE(perldo)
         SvREFCNT_dec((SV*)args);
 
         if (!(saveconfig = MP_PERLSECTIONS_SAVECONFIG_SV) || !SvTRUE(saveconfig)) {
-            HV *symtab = (HV*)gv_stashpv(package_name, FALSE);
+            HV *symtab = (HV*)gv_stashpv(pkg_name, FALSE);
             if (symtab) {
                 modperl_clear_symtab(aTHX_ symtab);
             }

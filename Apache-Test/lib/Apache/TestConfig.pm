@@ -233,7 +233,7 @@ sub new {
 
     $vars->{scheme}       ||= 'http';
     $vars->{servername}   ||= $self->default_servername;
-    $vars->{port}           = $self->select_port;
+    $vars->{port}           = $self->select_first_port;
     $vars->{remote_addr}  ||= $self->our_remote_addr;
 
     $vars->{user}         ||= $self->default_user;
@@ -399,7 +399,7 @@ sub add_config {
         $args = join "\n", @$directive;
     }
     else {
-        $args = "$directive " .
+        $args = join " ", grep length($_), $directive,
           (ref($arg) && (ref($arg) eq 'ARRAY') ? "@$arg" : $arg || "");
     }
 
@@ -539,7 +539,7 @@ sub default_servername {
 }
 
 # memoize the selected value (so we make sure that the same port is used
-# via select). The problem is that select_port() is called 3 times after
+# via select). The problem is that select_first_port() is called 3 times after
 # -clean, and it's possible that a lower port will get released
 # between calls, leading to various places in the test suite getting a
 # different base port selection.
@@ -549,7 +549,7 @@ sub default_servername {
 # bind() will actually get the port. So there is a need in another
 # check and reconfiguration just before the server starts.
 #
-sub select_port {
+sub select_first_port {
     my $self = shift;
 
     my $port ||= $ENV{APACHE_PORT} || $self->{vars}{port} || DEFAULT_PORT;
@@ -589,7 +589,12 @@ my $remote_addr;
 sub our_remote_addr {
     my $self = shift;
     my $name = $self->default_servername;
-    $remote_addr ||= Socket::inet_ntoa((gethostbyname($name))[-1]);
+    my $iaddr = (gethostbyname($name))[-1];
+    unless (defined $iaddr) {
+        error "Can't resolve host: '$name' (check /etc/hosts)";
+        exit 1;
+    }
+    $remote_addr ||= Socket::inet_ntoa($iaddr);
 }
 
 sub default_loopback {
@@ -601,7 +606,7 @@ sub port {
 
     unless ($module) {
         my $vars = $self->{vars};
-        return $self->select_port() unless $vars->{scheme} eq 'https';
+        return $self->select_first_port() unless $vars->{scheme} eq 'https';
         $module = $vars->{ssl_module_name};
     }
     return $self->{vhosts}->{$module}->{port};
@@ -1343,9 +1348,13 @@ EOF
 }
 
 sub need_reconfiguration {
-    my $self = shift;
+    my($self, $conf_opts) = @_;
     my @reasons = ();
     my $vars = $self->{vars};
+
+    if (my $port = $conf_opts->{port} || $Apache::TestConfig::Argv{port}) {
+        push @reasons, "'-port $port' requires reconfiguration";
+    }
 
     my $exe = $vars->{apxs} || $vars->{httpd};
     # if httpd.conf is older than executable

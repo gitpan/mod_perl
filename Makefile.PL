@@ -30,9 +30,9 @@ use File::Copy 'cp';
 use File::Basename 'basename';
 
 use Apache::Build ();
-use Apache::TestReportPerl ();
 use Apache::TestSmokePerl ();
 use Apache::TestTrace;
+use ModPerl::TestReport ();
 use ModPerl::TestRun ();
 use ModPerl::Code ();
 use ModPerl::BuildMM ();
@@ -62,11 +62,12 @@ my @xs_h_files = map catfile("xs", $_),
 my @exe_files =  map "bin/$_", qw(mp2doc mp2bug);
 
 ModPerl::BuildMM::WriteMakefile(
-    NAME      => 'mod_perl',
-    VERSION   => $VERSION,
-    EXE_FILES => \@exe_files,
-    DEFINE    => get_DEFINE(),
-    macro     => {
+    NAME          => 'mod_perl',
+    VERSION       => $VERSION,
+    ABSTRACT_FROM => 'lib/mod_perl.pm',
+    EXE_FILES     => \@exe_files,
+    DEFINE        => get_DEFINE(),
+    macro         => {
         MODPERL_SRC        => $code->path,
         MODPERL_MAKEFILE   => basename($build->default_file('makefile')),
         MAKE_F             => '$(MAKE) ' . (WIN32 ? '/f' : '-f'),
@@ -210,8 +211,8 @@ sub configure {
     $build->save;
 
     ModPerl::TestRun->generate_script;
+    ModPerl::TestReport->generate_script;
     Apache::TestSmokePerl->generate_script;
-    Apache::TestReportPerl->generate_script;
 
     my $tables_dir = tables_dir($httpd_version);
 

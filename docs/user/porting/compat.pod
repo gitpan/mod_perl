@@ -528,6 +528,11 @@ See the
 C<L<Apache::ServerUtil|docs::2.0::api::Apache::ServerUtil>>
 manpage.
 
+=head2 C<Apache-E<gt>can_stack_handlers>
+
+C<Apache-E<gt>can_stack_handlers> is no longer needed, as mod_perl 2.0
+can always stack handlers.
+
 =head2 C<Apache-E<gt>untaint>
 
 C<Apache-E<gt>untaint> has moved to
@@ -576,6 +581,20 @@ or:
   Apache->server->set_handlers(...);
 
 C<Apache-E<gt>set_handlers> is avalable via
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
+
+=head2 C<Apache-E<gt>httpd_conf>
+
+C<Apache-E<gt>httpd_conf> is now C<$s-E<gt>add_config> or
+C<$r-E<gt>add_config>. e.g.:
+
+  require Apache::ServerUtil;
+  Apache->server->add_config(['require valid-user']);
+
+See the C<L<Apache::ServerUtil|docs::2.0::api::Apache::ServerUtil>>
+manpage.
+
+C<Apache-E<gt>httpd_conf> is avalable via
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
 
 =head2 C<Apache::exit()>
@@ -660,7 +679,33 @@ passed as the first argument to the callback function.
 See the C<L<APR::Pool|docs::2.0::api::APR::Pool>> manpage.
 
 
+=head2 C<$s-E<gt>uid>
 
+See the next entry.
+
+=head2 C<$s-E<gt>gid>
+
+apache-1.3 had server_rec records for server_uid and
+server_gid. httpd-2.0 doesn't have them, because in httpd-2.0 the
+directives User and Group are platform specific. And only UNIX
+supports it: http://httpd.apache.org/docs-2.0/mod/mpm_common.html#user
+
+It's possible to emulate mod_perl 1.0 API doing:
+
+  sub Apache::Server::uid { $< }
+  sub Apache::Server::gid { $( }
+
+but the problem is that if the server is started as I<root>, but its
+child processes are run under a different username, e.g. I<nobody>, at
+the startup the above function will report the C<uid> and C<gid>
+values of I<root> and not I<nobody>, i.e. at startup it won't be
+possible to know what the User and Group settings are in I<httpd.conf>.
+
+META: though we can probably access the parsed config tree and try to
+fish these values from there. The real problem is that these values
+won't be available on all platforms and therefore we should probably
+not support them and let developers figure out how to code around it
+(e.g. by using C<$E<lt>> and C<$(>).
 
 
 =head1 Request Object Methods
@@ -779,17 +824,41 @@ manpage.
 
 =head2 C<$r-E<gt>finfo>
 
-Probably won't be implemented, because Apache 2.0's finfo
-datastructure can't be mapped into the Perl finfo datastructure.
+As Apache 2.0 doesn't provide an access to the stat structure, but
+hides it in the opaque object C<$r-E<gt>finfo> now returns an
+C<L<APR::Finfo|docs::2.0::api::APR::Finfo>> object. You can then
+invoke the C<L<APR::Finfo|docs::2.0::api::APR::Finfo>> accessor
+methods on it.
 
-C<L<Apache::compat|docs::2.0::api::Apache::compat>> handles that for
-now with:
+It's also possible to adjust the mod_perl 1.0 code using
+Apache::compat's
+L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_with_mod_perl_2_0_API>.
+For example:
 
-  sub finfo {
-      my $r = shift;
-      stat $r->filename;
-      \*_;
-  }
+  use Apache::compat;
+  Apache::compat::override_mp2_api('Apache::RequestRec::finfo');
+  my $is_writable = -w $r->finfo;
+  Apache::compat::restore_mp2_api('Apache::RequestRec::finfo');
+
+which internally does just the following:
+
+ stat $r->filename and return \*_;
+
+So may be it's easier to just change the code to use this directly, so
+the above example can be adjusted to be:
+
+  my $is_writable = -w $r->filename;
+
+with the performance penalty of an extra C<stat()> system call. If you
+don't want this extra call, you'd have to write:
+
+  use APR::Finfo;
+  use Apache::RequestRec;
+  use APR::Const -compile => qw(WWRITE);
+  my $is_writable = $r->finfo->protection & APR::WWRITE,
+
+See the C<L<APR::Finfo|docs::2.0::api::APR::Finfo>> manpage for more
+information.
 
 =head2 C<$r-E<gt>notes>
 
@@ -799,15 +868,18 @@ C<L<APR::Table|docs::2.0::api::APR::Table>> object, which can be used
 as a tied hash or calling its I<get()>/I<set()>/I<add()>/I<unset()>
 methods.
 
-If C<L<Apache::compat|docs::2.0::api::Apache::compat>> is loaded the
-old API:
+It's also possible to adjust the mod_perl 1.0 code using
+Apache::compat's
+L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_with_mod_perl_2_0_API>:
 
+   use Apache::compat;
+   Apache::compat::override_mp2_api('Apache::RequestRec::notes');
    $r->notes($key => $val);
    $val = $r->notes($key);
+   Apache::compat::restore_mp2_api('Apache::RequestRec::notes');
 
-is supported as well.
-
-See the L<Apache::RequestRec> manpage.
+See the C<L<Apache::RequestRec|docs::2.0::api::Apache::RequestRec>>
+manpage.
 
 =head2 C<$r-E<gt>header_in>
 
@@ -1006,13 +1078,30 @@ information, so if you had a code like:
 now it'll be written as:
 
   require APR::SockAddr;
-  my $serverport = $c->local_addr->port_get;
+  my $serverport = $c->local_addr->port;
   my $serverip   = $c->local_addr->ip_get;
-  my $remoteport = $c->remote_addr->port_get;
+  my $remoteport = $c->remote_addr->port;
   my $remoteip   = $c->remote_addr->ip_get;
 
-META: it's not simple to fix this in the compat layer, since it'll
-break the API for normal Apache 2.0 modules. Stay tuned for solutions.
+It's also possible to adjust the code using Apache::compat's
+L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_with_mod_perl_2_0_API>:
+
+  use Socket 'sockaddr_in';
+  use Apache::compat;
+  
+  Apache::compat::override_mp2_api('Apache::Connection::local_addr');
+  my ($serverport, $serverip) = sockaddr_in($r->connection->local_addr);
+  Apache::compat::restore_mp2_api('Apache::Connection::local_addr');
+  
+  Apache::compat::override_mp2_api('Apache::Connection::remote_addr');
+  my ($remoteport, $remoteip) = sockaddr_in($r->connection->remote_addr);
+  Apache::compat::restore_mp2_api('Apache::Connection::remote_addr');
+
+
+
+
+
+
 
 =head1 C<Apache::File>
 
@@ -1147,13 +1236,27 @@ prints:
 
   http://localhost.localdomain:8529/TestAPI::uri
 
-Notice that if C<L<Apache::compat|docs::2.0::api::Apache::compat>> is
-loaded, C<unparse()> will transparently set I<scheme> to I<http> to
-preserve the backwards compatibility with mod_perl 1.0.
-
 See the C<L<APR::URI|docs::2.0::api::APR::URI>> manpage for more
 information.
 
+It's also possible to adjust the behavior to be mod_perl 1.0
+compatible using Apache::compat's
+L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_with_mod_perl_2_0_API>,
+in which case C<unparse()> will transparently set I<scheme> to
+I<http>.
+
+  # request http://localhost.localdomain:8529/TestAPI::uri
+  Apache::compat::override_mp2_api('APR::URI::unparse');
+  my $parsed = $r->parsed_uri;
+  # set hostname, but not the scheme
+  $parsed->hostname($r->get_server_name);
+  $parsed->port($r->get_server_port);
+  print $parsed->unparse;
+  Apache::compat::restore_mp2_api('APR::URI::unparse');
+
+prints:
+
+  http://localhost.localdomain:8529/TestAPI::uri
 
 
 

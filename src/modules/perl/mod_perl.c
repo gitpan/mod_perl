@@ -52,7 +52,6 @@ static struct {
 static void modperl_boot(pTHX_ void *data)
 {
     MP_dBOOT_DATA;
-    MP_dSCFG(s);
     int i;
 
     modperl_env_clear(aTHX);
@@ -70,9 +69,6 @@ static void modperl_boot(pTHX_ void *data)
 
     /* outside mod_perl this is done by ModPerl::Const.xs */
     newXS("ModPerl::Const::compile", XS_modperl_const_compile, __FILE__);
-
-    newCONSTSUB(PL_defstash, "Apache::MPM_IS_THREADED",
-                newSViv(scfg->threaded_mpm));
 
 #ifdef MP_PERL_5_6_x
     /* make sure DynaLoader is loaded before XSLoader
@@ -884,6 +880,9 @@ int modperl_response_handler_cgi(request_rec *r)
         modperl_global_request_set(r);
     }
 
+    /* need to create a block around the IO setup so the temp vars
+     * will be automatically cleaned up when we are done with IO */
+    ENTER;SAVETMPS;
     h_stdin  = modperl_io_override_stdin(aTHX_ r);
     h_stdout = modperl_io_override_stdout(aTHX_ r);
 
@@ -897,6 +896,7 @@ int modperl_response_handler_cgi(request_rec *r)
 
     modperl_io_restore_stdin(aTHX_ h_stdin);
     modperl_io_restore_stdout(aTHX_ h_stdout);
+    FREETMPS;LEAVE;
 
 #ifdef USE_ITHREADS
     if (MpInterpPUTBACK(interp)) {

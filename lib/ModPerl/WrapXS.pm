@@ -687,6 +687,8 @@ my $methods_compat = {
                           ''],
     SERVER_VERSION    => ['get_server_version',
                           ''],
+    can_stack_handlers=> [undef,
+                          'there is no more need for that method'],
 
     # Apache::RequestRec
     soft_timeout      => [undef,
@@ -722,8 +724,6 @@ my $methods_compat = {
     chdir_file        => [undef, # XXX: to be resolved
                           'temporary unavailable till the issue with chdir' .
                           ' in the threaded env is resolved'],
-    finfo             => [undef,
-                          'not in the Apache 2.0 API'],
     log_reason        => ['log_error',
                           'not in the Apache 2.0 API'],
     READLINE          => [undef, # XXX: to be resolved

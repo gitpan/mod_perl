@@ -96,7 +96,6 @@ ModPerl-Registry/t/redirect.t
 ModPerl-Registry/t/special_blocks.t
 README
 RELEASE
-ROADMAP
 STATUS
 bin/mp2bug
 bin/mp2doc
@@ -238,6 +237,7 @@ lib/ModPerl/Manifest.pm
 lib/ModPerl/MapUtil.pm
 lib/ModPerl/ParseSource.pm
 lib/ModPerl/StructureMap.pm
+lib/ModPerl/TestReport.pm
 lib/ModPerl/TestRun.pm
 lib/ModPerl/TypeMap.pm
 lib/ModPerl/WrapXS.pm
@@ -324,6 +324,7 @@ t/compat/send_fd.t
 t/conf/extra.conf.in
 t/conf/extra.last.conf.in
 t/conf/modperl_extra.pl
+t/conf/perlsection.conf
 t/directive/perl.t
 t/directive/perlloadmodule2.t
 t/directive/perlloadmodule3.t
@@ -338,6 +339,7 @@ t/error/syntax.t
 t/filter/TestFilter/both_str_con_add.pm
 t/filter/TestFilter/both_str_req_add.pm
 t/filter/TestFilter/both_str_req_mix.pm
+t/filter/TestFilter/both_str_req_proxy.pm
 t/filter/TestFilter/in_bbs_body.pm
 t/filter/TestFilter/in_bbs_consume.pm
 t/filter/TestFilter/in_bbs_inject_header.pm
@@ -363,6 +365,7 @@ t/filter/TestFilter/out_str_reverse.pm
 t/filter/both_str_con_add.t
 t/filter/both_str_req_add.t
 t/filter/both_str_req_mix.t
+t/filter/both_str_req_proxy.t
 t/filter/in_bbs_body.t
 t/filter/in_bbs_consume.t
 t/filter/in_bbs_inject_header.t
@@ -425,6 +428,7 @@ t/modperl/readline.t
 t/modperl/request_rec_perlio_api.t
 t/modperl/sameinterp.t
 t/modperl/status.t
+t/modules/apache_status.t
 t/modules/cgi.t
 t/modules/cgi2.t
 t/modules/cgipost.t
@@ -433,6 +437,7 @@ t/modules/cgiupload.t
 t/modules/cgiupload2.t
 t/modules/include.t
 t/modules/include2.t
+t/modules/include_subreq.t
 t/modules/proxy.t
 t/perl/hash_attack.t
 t/perl/ithreads.t
@@ -450,6 +455,7 @@ t/response/TestAPI/internal_redirect.pm
 t/response/TestAPI/lookup_uri.pm
 t/response/TestAPI/lookup_uri2.pm
 t/response/TestAPI/module.pm
+t/response/TestAPI/query.pm
 t/response/TestAPI/r_subclass.pm
 t/response/TestAPI/request_rec.pm
 t/response/TestAPI/response.pm
@@ -458,10 +464,12 @@ t/response/TestAPI/rutil.pm
 t/response/TestAPI/sendfile.pm
 t/response/TestAPI/server_rec.pm
 t/response/TestAPI/server_util.pm
+t/response/TestAPI/show.pm
 t/response/TestAPI/slurp_filename.pm
 t/response/TestAPI/uri.pm
 t/response/TestAPR/base64.pm
 t/response/TestAPR/date.pm
+t/response/TestAPR/finfo.pm
 t/response/TestAPR/netlib.pm
 t/response/TestAPR/os.pm
 t/response/TestAPR/perlio.pm
@@ -488,6 +496,7 @@ t/response/TestCompat/apache_table.pm
 t/response/TestCompat/apache_uri.pm
 t/response/TestCompat/apache_util.pm
 t/response/TestCompat/conn_authen.pm
+t/response/TestCompat/conn_rec.pm
 t/response/TestCompat/request.pm
 t/response/TestCompat/request_body.pm
 t/response/TestCompat/send_fd.pm
@@ -538,17 +547,22 @@ t/response/TestModules/cgipost.pm
 t/response/TestModules/cgipost2.pm
 t/response/TestModules/cgiupload.pm
 t/response/TestModules/cgiupload2.pm
+t/response/TestModules/include_subreq.pm
 t/response/TestModules/proxy.pm
 t/response/TestPerl/api.pm
 t/response/TestPerl/hash_attack.pm
 t/response/TestPerl/ithreads.pm
 todo/README
-todo/api.txt
-todo/deprecated_features.txt
-todo/filters.txt
-todo/missing_old_features.txt
-todo/possible_new_features.txt
-todo/utils.txt
+todo/bugs_apr_ext
+todo/bugs_build
+todo/bugs_mp
+todo/bugs_registry
+todo/design_notes
+todo/features_deprecated
+todo/features_maybe
+todo/features_missing
+todo/features_new
+todo/release
 util/apr_arg_check.pl
 util/apr_pool_check.pl
 util/cvsize.pl
@@ -596,6 +610,7 @@ xs/Apache/Const/Makefile.PL
 xs/Apache/Directive/Apache__Directive.h
 xs/Apache/Filter/Apache__Filter.h
 xs/Apache/Log/Apache__Log.h
+xs/Apache/MPM/Apache__MPM.h
 xs/Apache/Makefile.PL
 xs/Apache/Module/Apache__Module.h
 xs/Apache/RequestIO/Apache__RequestIO.h
@@ -628,4 +643,4 @@ xs/tables/current/Apache/FunctionTable.pm
 xs/tables/current/Apache/StructureTable.pm
 xs/tables/current/ModPerl/FunctionTable.pm
 xs/typemap
-META.yml                                 Module meta-data (added by MakeMaker)
+META.yml                                Module meta-data (added by MakeMaker)

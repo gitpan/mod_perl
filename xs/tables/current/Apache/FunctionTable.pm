@@ -3104,6 +3104,20 @@ $Apache::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'apr_status_t',
+    'name' => 'ap_mpm_query',
+    'args' => [
+      {
+        'type' => 'int',
+        'name' => 'query_code'
+      },
+      {
+        'type' => 'int',
+        'name' => 'result'
+      }
+    ]
+  },
+  {
     'return_type' => 'void',
     'name' => 'ap_mpm_rewrite_args',
     'args' => [
@@ -11561,48 +11575,6 @@ $Apache::FunctionTable = [
   },
   {
     'return_type' => 'apr_status_t',
-    'name' => 'apr_sockaddr_ip_set',
-    'args' => [
-      {
-        'type' => 'apr_sockaddr_t *',
-        'name' => 'sockaddr'
-      },
-      {
-        'type' => 'const char *',
-        'name' => 'addr'
-      }
-    ]
-  },
-  {
-    'return_type' => 'apr_status_t',
-    'name' => 'apr_sockaddr_port_get',
-    'args' => [
-      {
-        'type' => 'apr_port_t *',
-        'name' => 'port'
-      },
-      {
-        'type' => 'apr_sockaddr_t *',
-        'name' => 'sockaddr'
-      }
-    ]
-  },
-  {
-    'return_type' => 'apr_status_t',
-    'name' => 'apr_sockaddr_port_set',
-    'args' => [
-      {
-        'type' => 'apr_sockaddr_t *',
-        'name' => 'sockaddr'
-      },
-      {
-        'type' => 'apr_port_t',
-        'name' => 'port'
-      }
-    ]
-  },
-  {
-    'return_type' => 'apr_status_t',
     'name' => 'apr_socket_addr_get',
     'args' => [
       {
@@ -12885,16 +12857,6 @@ $Apache::FunctionTable = [
       {
         'type' => 'apr_pool_t *',
         'name' => 'token_context'
-      }
-    ]
-  },
-  {
-    'return_type' => 'apr_port_t',
-    'name' => 'apr_uri_default_port_for_scheme',
-    'args' => [
-      {
-        'type' => 'const char *',
-        'name' => 'scheme_str'
       }
     ]
   },

@@ -6,6 +6,41 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.07 - Decemeber 22, 2003
+
+allow conditional C module compilation on a more granular level.
+#define HTTPD_TEST_REQUIRE_APACHE 2.0.49 is now recognized.
+[Geoffrey Young]
+
+Another attempt at providing a test function that verifies whether
+Apache when switching from 'root' to 'nobody' or another user will be
+able to access and create files under the t/ directory. This time
+using perl's vars $(, $< since POSIX equivalents seem to be broken on
+some systems. Also using a better test that actually tries to
+write/read/execute in the path under test. [Stas]
+
+Cleanly exit (and complain) if the default hostname resolution has
+failed (usually due to a missing localhost entry in /etc/hosts) [Stas]
+
+Fix Apache::TestConfigParse to handle quoted Include arguments [Stas]
+
+Fix Apache::TestServer::wait_till_is_up not to bail out if the server
+takes time to start and LWP is not available. [Stas]
+
+Fix Apache::TestConfigParse to handle glob includes, like Include
+conf/*.conf on RedHat [Philippe M. Chiasson]
+
+Fix Apache::TestConfig::add_config not to append " " at the end of the
+config lines. This was a problem with config sections imported from
+.pm files, the appended "" made it impossible to have multi-line
+directives using \ [Stas]
+
+Fix a bug in '-port select' which was incorrectly using the same port
+twice [Stas]
+
+added bugreport and file argument options to 
+Apache::TestRun::generate_script() [Geoffrey Young]
+
 =item 1.06 - November 10, 2003
 
 added -startup_timeout and $ENV{APACHE_TEST_STARTUP_TIMEOUT} as places

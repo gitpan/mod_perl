@@ -10,9 +10,6 @@ require 5.006;
 use strict;
 use warnings FATAL => 'all';
 
-# we try to develop so we reload ourselves without die'ing on the warning
-no warnings qw(redefine); # XXX, this should go away in production!
-
 our $VERSION = '1.99';
 
 use Apache::Response ();
@@ -173,12 +170,14 @@ sub run {
     my $r       = $self->{REQ};
     my $package = $self->{PACKAGE};
 
-    $self->set_script_name;
     $self->chdir_file;
 
     my $cv = \&{"$package\::handler"};
 
-    my %orig_inc = %INC;
+    my %orig_inc;
+    if ($self->should_reset_inc_hash) {
+        %orig_inc = %INC;
+    }
 
     { # run the code and preserve warnings setup when it's done
         no warnings;
@@ -186,11 +185,16 @@ sub run {
         ModPerl::Global::special_list_call(END => $package);
     }
 
-    # %INC cleanup in case .pl files do not declare package ...;
-    for (keys %INC) {
-        next if $orig_inc{$_};
-        next if /\.pm$/;
-        delete $INC{$_};
+    if ($self->should_reset_inc_hash) {
+        # to avoid the bite of require'ing a file with no package delaration
+        # Apache::PerlRun in mod_perl 1.15_01 started to localize %INC
+        # later on it has been adjusted to preserve loaded .pm files,
+        # which presumably contained the package declaration
+        for (keys %INC) {
+            next if $orig_inc{$_};
+            next if /\.pm$/;
+            delete $INC{$_};
+        }
     }
 
     $self->flush_namespace;
@@ -356,10 +360,13 @@ sub convert_script_to_compiled_handler {
 
     $self->strip_end_data_segment;
 
+    my $script_name = $self->get_script_name || $0;
+
     my $eval = join '',
                     'package ',
                     $self->{PACKAGE}, ";",
-                    "sub handler {\n",
+                    "sub handler {",
+                    "local \$0 = '$script_name';",
                     $line,
                     ${ $self->{CODE} },
                     "\n}"; # last line comment without newline?
@@ -455,6 +462,17 @@ sub should_compile_if_modified {
 sub should_compile_once {
     not shift->is_cached;
 }
+
+#########################################################################
+# func: should_reset_inc_hash
+# dflt: FALSE
+# desc: decide whether to localize %INC for required .pl files from the script
+# args: $self - registry blessed object
+# rtrn: TRUE if should reset
+#       FALSE otherwise
+#########################################################################
+
+*should_reset_inc_hash = \&FALSE;
 
 #########################################################################
 # func: flush_namespace
@@ -568,15 +586,15 @@ sub rewrite_shebang {
 }
 
 #########################################################################
-# func: set_script_name
-# dflt: set_script_name
-# desc: set $0 to the script's name
+# func: get_script_name
+# dflt: get_script_name
+# desc: get the script's name to set into $0
 # args: $self - registry blessed object
-# rtrn: nothing
+# rtrn: path to the script's filename
 #########################################################################
 
-sub set_script_name {
-    *0 = \(shift->{FILENAME});
+sub get_script_name {
+    shift->{FILENAME};
 }
 
 #########################################################################

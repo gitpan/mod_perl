@@ -13,7 +13,7 @@ use Apache::TestTrace;
 
 use File::Find qw(finddepth);
 use File::Spec::Functions qw(catfile);
-use File::Basename qw(basename);
+use File::Basename qw(basename dirname);
 use Getopt::Long qw(GetOptions);
 use Config;
 
@@ -65,6 +65,17 @@ sub fixup {
     #else Test::Harness uses the perl in our PATH
     #which might not be the one we want
     $^X = $Config{perlpath} unless -e $^X;
+}
+
+# if the test suite was aborted because of a user-error we don't want
+# to call the bugreport and invite users to submit a bug report -
+# after all it's a user error. but we still want the program to fail,
+# so raise this flag in such a case.
+my $user_error = 0;
+sub user_error {
+    my $self = shift;
+    $user_error = shift if @_;
+    $user_error;
 }
 
 sub new {
@@ -322,13 +333,11 @@ sub install_sighandlers {
 
 sub try_bug_report {
     my $self = shift;
-    if ($? && $self->{opts}->{bugreport}) {
+    if ($? && !$self->user_error &&
+        $self->{opts}->{bugreport} && $self->can('bug_report')) {
         $self->bug_report;
     }
 }
-
-# virtual method: does nothing
-sub bug_report {}
 
 #throw away cached config and start fresh
 sub refresh {
@@ -354,7 +363,8 @@ sub configure_opts {
         $ENV{APACHE_TEST_HTTP11} = 1;
     }
 
-    if (my @reasons = $self->{test_config}->need_reconfiguration) {
+    if (my @reasons = 
+        $self->{test_config}->need_reconfiguration($self->{conf_opts})) {
         warning "forcing re-configuration:";
         warning "\t- $_." for @reasons;
         unless ($refreshed) {
@@ -810,6 +820,46 @@ sub restore_t_perms {
     }
 }
 
+# this sub is executed from an external process only, since it
+# "sudo"'s into a uid/gid of choice
+sub run_root_fs_test {
+    my($uid, $gid, $dir) = @_;
+
+    # first must change gid and egid ("$gid $gid" for an empty
+    # setgroups() call as explained in perlvar.pod)
+    my $groups = "$gid $gid";
+    $( = $) = $groups;
+    die "failed to change gid to $gid" unless $( eq $groups && $) eq $groups;
+
+    # only now can change uid and euid
+    $< = $> = $uid+0;
+    die "failed to change uid to $uid" unless $< == $uid && $> == $uid;
+
+    my $file = catfile $dir, ".apache-test-file-$$-".time.int(rand);
+    eval "END { unlink q[$file] }";
+
+    # unfortunately we can't run the what seems to be an obvious test:
+    # -r $dir && -w _ && -x _
+    # since not all perl implementations do it right (e.g. sometimes
+    # acls are ignored, at other times setid/gid change is ignored)
+    # therefore we test by trying to attempt to read/write/execute
+
+    # -w
+    open TEST, ">$file" or die "failed to open $file: $!";
+
+    # -x
+    -f $file or die "$file cannot be looked up";
+    close TEST;
+
+    # -r
+    opendir DIR, $dir or die "failed to open dir $dir: $!";
+    defined readdir DIR or die "failed to read dir $dir: $!";
+    close DIR;
+
+    # all tests passed
+    print "OK";
+}
+
 sub check_perms {
     my ($self, $user, $uid, $gid) = @_;
 
@@ -818,22 +868,21 @@ sub check_perms {
     my $dir  = $vars->{t_dir};
     my $perl = $vars->{perl};
 
-    my $check = <<"EOC";
-$perl -e '
-    require POSIX;
-    POSIX::setuid($uid);
-    POSIX::setgid($gid);
-    print -r q{$dir} &&  -w _ && -x _ ? q{OK} : q{NOK};
-'
-EOC
-    $check =~ s/\n/ /g;
-    warning "$check\n";
+    # find where Apache::TestRun was loaded from, so we load this
+    # exact package from the external process
+    my $inc = dirname dirname $INC{"Apache/TestRun.pm"};
+    my $sub = "Apache::TestRun::run_root_fs_test";
+    my $check = <<"EOI";
+$perl -Mlib=$inc -MApache::TestRun -e 'eval { $sub($uid, $gid, q[$dir]) }';
+EOI
+    warning "testing whether '$user' is able to -rwx $dir\n$check\n";
 
     my $res = qx[$check] || '';
     warning "result: $res";
     unless ($res eq 'OK') {
+        $self->user_error(1);
         #$self->restore_t_perms;
-        error(<<"EOI") && die "\n";
+        error <<"EOI";
 You are running the test suite under user 'root'.
 Apache cannot spawn child processes as 'root', therefore
 we attempt to run the test suite with user '$user' ($uid:$gid).
@@ -842,15 +891,20 @@ The problem is that the path (including all parent directories):
 must be 'rwx' by user '$user', so Apache can read and write under that
 path.
 
-There are several ways to resolve this issue. One is to move '$dir' to
-'/tmp/' and repeat the 'make test' phase. The other is not to run
-'make test' as root.
+There are several ways to resolve this issue. One is to move and
+rebuild the distribution to '/tmp/' and repeat the 'make test'
+phase. The other is not to run 'make test' as root (i.e. building
+under your /home/user directory).
 
 You can test whether some directory is suitable for 'make test' under
-'root', by running the following test:
+'root', by running a simple test. For example to test a directory
+'$dir', run:
+
   % $check
-from that directory.
+Only if the test prints 'OK', the directory is suitable to be used for
+testing.
 EOI
+        exit_perl 0;
     }
 }
 
@@ -983,9 +1037,18 @@ EOM
 # generate t/TEST script (or a different filename) which will drive
 # Apache::TestRun
 sub generate_script {
-    my ($class, $file) = @_;
+    my ($class, @opts) = @_;
 
-    $file ||= catfile 't', 'TEST';
+    my %opts = ();
+
+    # back-compat
+    if (@opts == 1) {
+        $opts{file} = $opts[0];
+    }
+    else {
+        %opts = @opts;
+        $opts{file} ||= catfile 't', 'TEST';
+    }
 
     my $body = "BEGIN { eval { require blib; } }\n";
 
@@ -998,12 +1061,19 @@ sub generate_script {
     my $header = Apache::TestConfig->perlscript_header;
 
     $body .= join "\n",
-        $header, "use $class ();", "$class->new->run(\@ARGV);";
+        $header, "use $class ();";
 
-    Apache::Test::config()->write_perlscript($file, $body);
+    if (my $report = $opts{bugreport}) {
+        $body .= "\n\npackage $class;\n" .
+                 "sub bug_report { print '$report' }\n\n";
+    }
+    
+    $body .= "$class->new->run(\@ARGV);";
+
+    Apache::Test::config()->write_perlscript($opts{file}, $body);
 }
 
-# in idiomatic perl functions return 1 on success 0 on
+# in idiomatic perl functions return 1 on success and 0 on
 # failure. Shell expects the opposite behavior. So this function
 # reverses the status.
 sub exit_perl {
