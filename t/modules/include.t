@@ -1,32 +1,6 @@
-use strict;
-use warnings FATAL => 'all';
 
-use Apache::Test;
-use Apache::TestRequest;
-use Apache::TestUtil;
+use Apache::testold;
+skip_test if $net::callback_hooks{USE_DSO}; 
+my $ua = LWP::UserAgent->new;    # create a useragent to test
 
-#test for mod_include include virtual of a mod_perl script
-my @patterns = (
-    'mod_perl mod_include test',
-    'Hello World',
-    'cgi.pm',
-    'footer',
-);
-
-plan tests => 2 + @patterns, ['include'];
-
-my $location = "/includes/test.shtml";
-
-my($res, $str);
-
-$res = GET $location;
-
-ok $res->is_success;
-
-$str = $res->content;
-
-ok $str;
-
-for my $pat (@patterns) {
-    ok t_cmp(qr{$pat}, $str, "/$pat/");
-}
+print fetch($ua, "http://$net::httpserver$net::perldir/io/include.pl");
