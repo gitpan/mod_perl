@@ -110,12 +110,12 @@ else { \
 
 #endif
 
+#define PERL_EXIT_CLEANUP log_transaction(r);
+
 #if MODULE_MAGIC_NUMBER >= 19961007
 #define CHAR_P const char *
-#define PERL_EXIT_CLEANUP multi_log_transaction(r);
 #else
 #define CHAR_P char * 
-#define PERL_EXIT_CLEANUP common_log_transaction(r);
 #endif
 
 /* bleh */

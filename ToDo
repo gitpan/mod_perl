@@ -5,8 +5,7 @@ get rid of basic_http_header usage
 
 rework PerlCleanupHandler to use register_cleanup() instead of logger slot
 
-add $r->notes method, kinda like the C r->notes table, but we can store 
-arbitrary Perl structures
+extend $r->notes method so we can store arbitrary Perl structures
 
 think about re-introducing perl_alloc..perl_free option for each
 request now that embedding bugs are fixed in Perl 5.004  
@@ -37,11 +36,20 @@ complete <Perl></Perl> configuration section
 if Perl*Handler's are prototyped with $$ call it as a method?
 (test with -DPERL_HANDLER_METHODS)
 
+look closer at and consider Eric Bartley's patch so we can say:
+  Perl*Handler Class->method
+ 
 provide an optional and configurable Safe wrapper around embedded scripts
+
+explore mechanisms for sharing database connections amoung server children
+
+figure out how to route request to specific child to maintain state
+
+call $r->rflush if $| is non-zero?
 
 find good ways to decrease size of httpd (perl-runtime!)
 
-port to win32
+port to win32 (need apache there first of course!)
 
 more tests for the test suite
 

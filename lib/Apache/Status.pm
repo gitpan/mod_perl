@@ -5,6 +5,8 @@ my(%status) = (
    inc => "Loaded Modules",
    rgysubs => "Compiled Registry Scripts",
    symdump => "Symbol Table Dump",
+   inh_tree => "Inheritance Tree",
+   isa_tree => "ISA Tree",	       
 );
 
 sub menu_item {
@@ -98,6 +100,9 @@ sub status_rgysubs {
     }
     \@retval;
 }
+
+sub status_inh_tree { ["<pre>", Devel::Symdump->inh_tree, "</pre>"] }
+sub status_isa_tree { ["<pre>", Devel::Symdump->isa_tree, "</pre>"] }
 
 1;
 

@@ -53,7 +53,7 @@
 #include "mod_perl.h"
 #include "http_conf_globals.h"
 
-/* $Id: Apache.xs,v 1.48 1997/04/02 01:30:38 dougm Exp $ */
+/* $Id: Apache.xs,v 1.49 1997/04/16 03:44:46 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -315,6 +315,35 @@ get_remote_host(r)
     OUTPUT:
     RETVAL
 
+char *
+auth_name(r)
+    Apache    r
+
+    CODE:
+    RETVAL = (char *)auth_name(r);
+
+    OUTPUT:
+    RETVAL
+
+char *
+auth_type(r)
+    Apache    r
+
+    CODE:
+    RETVAL = (char *)auth_type(r);
+
+    OUTPUT:
+    RETVAL
+
+char *
+document_root(r)
+    Apache    r
+
+    CODE:
+    RETVAL = (char *)document_root(r);
+
+    OUTPUT:
+    RETVAL
 
 #functions from http_protocol.c
 
@@ -356,6 +385,13 @@ send_fd(r, f)
 
     CODE:
     RETVAL = send_fd(f, r);
+
+int
+rflush(r)
+    Apache     r
+
+    CODE:
+    RETVAL = rflush(r);
 
 void
 read_client_block(r, buffer, bufsiz)
@@ -862,6 +898,26 @@ err_headers_out(r, ...)
 	PUSHelt(hdrs[i].key, hdrs[i].val, 0);
     }
 
+SV *
+notes(r, key, ...)
+    Apache    r
+    char *key
+
+    PREINIT:
+    char *val;
+
+    CODE:
+    if((val = table_get(r->notes, key)))
+      RETVAL = newSVpv(val, 0);
+    else
+      RETVAL = newSV(0);
+
+    if(items > 2)
+        table_set(r->notes, key, SvPV(ST(2), na));
+
+    OUTPUT:
+    RETVAL
+
 char *
 content_type(r, ...)
     Apache	r
@@ -979,7 +1035,7 @@ path_info(r, ...)
     RETVAL
 
 void
-query_string(r)
+query_string(r, ...)
     Apache	r
 
     PREINIT:
@@ -990,6 +1046,9 @@ query_string(r)
 	sv_setpv(sv, r->args);
     SvTAINTED_on(sv);
     XPUSHs(sv_2mortal(sv));
+
+    if(items > 1)
+        r->args = pstrdup(r->pool, (char *)SvPV(ST(1), na));
 
 #  /* Various other config info which may change with .htaccess files
 #   * These are config vectors, with one void* pointer for each module
@@ -1109,21 +1168,27 @@ remote_logname(conn)
     RETVAL
 
 char *
-user(conn)
+user(conn, ...)
     Apache::Connection	conn
 
     CODE:
     RETVAL = conn->user;
 
+    if(items > 1)
+        conn->user = pstrdup(conn->pool, (char *)SvPV(ST(1), na));
+
     OUTPUT:
     RETVAL
 
 char *
-auth_type(conn)
+auth_type(conn, ...)
     Apache::Connection	conn
 
     CODE:
     RETVAL = conn->auth_type;
+
+    if(items > 1)
+        conn->auth_type = pstrdup(conn->pool, (char *)SvPV(ST(1), na));
 
     OUTPUT:
     RETVAL

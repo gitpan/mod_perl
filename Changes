@@ -16,6 +16,23 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.97 - 04/15/97
+
+don't add mod_perl/x.xx to Server: unless 'perl Makefile.PL ADD_VERSION=1'
+
+applied patch from Andreas to better Makefile.PL
+
+if httpd is 1.2b8, remove bogus target from modules/Makefile
+
+applied patch from Rob Hartill to add $r->rflush method
+
+applied patch Eric Bartley <bartley@PDN.CC.PURDUE.EDU> to:
+add $r->notes, $r->auth_name, $r->auth_type, $r->document_root methods
+ability to set $r->args, $r->connection->user and $r->connection->auth_type
+
+applied patch from Dean Gaudet so $r->exit uses log_transaction 
+instead of multi_log_transaction
+
 =item 0.95_06
 
 fixed typo in new merge function that broke PerlHeaderParserHandler

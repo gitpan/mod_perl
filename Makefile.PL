@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.96";
+$VERSION = "0.97";
 #
 # Check if Readline is installed
 #
@@ -107,6 +107,7 @@ $PERL_TRACE = 0;
 $ALL_HOOKS  = 0;
 $APACHE_SRC = "";
 $PERL_SECTIONS = 0;
+$ADD_VERSION = 0;
 
 #callback hooks
 @callback_hooks = qw{
@@ -205,7 +206,7 @@ foreach $adir (@adirs) {
 
 	mkpath "$adir/modules/perl";
 	#ignore make's output here
-	`(cd $adir/modules/perl; make clean 2> /dev/null)`;
+	`(cd $adir/modules/perl && make clean 2> /dev/null)`;
 
 	local(*MANI);
 	open *MANI, "MANIFEST" or die "open MANIFEST $!";
@@ -226,11 +227,15 @@ foreach $adir (@adirs) {
 	    cp $conf, "src/Configuration";
 	    $conf = "src/Configuration";
 
-	    system $^X, "-pi", "-e",  
-	    q{next unless /EXTRA_CFLAGS\s*=/;}.
-            q{next if /mod_perl/; chomp;}.
-            qq{\$_ .= q: -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;},
-	    $conf;
+	    if ($ADD_VERSION) {
+		system $^X, "-pi", "-e",  
+		q{next unless /EXTRA_CFLAGS\s*=/;}.
+		    q{next if /mod_perl/; chomp;}.
+			qq{\$_ .= q: -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;},
+			$conf;
+	    }
+
+	    $b8_chop = (split "/", $PWD)[1];
 
 	    my $ldopts = "`$^X $PWD/src/modules/perl/ldopts`";
 	    system $^X, "-pi", "-e",  
@@ -267,11 +272,11 @@ EOT
 	$dash_make = " -make $PWD/src/$mft_map{$adir} "
 	    if $can_dash_make{$adir} and $mft_map{$adir};
 	#print STDERR "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)\n";
-	system "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)";
-	if(-e "$adir/modules/Makefile" and -d "/afs") {
-	    print "getting rid of bizarre afs target in modules/Makefile\n";
+	system "(cd $adir && ./Configure${dash_make} -file $PWD/$conf)";
+	if($do_b8_chop and -e "$adir/modules/Makefile") {
+	    print "getting rid of $b8_chop target in modules/Makefile\n";
 	    system $^X, "-pi~", "-e", 
-	    's/=afs\s+/=/g', "$adir/modules/Makefile";
+	    "s/=$b8_chop".'\s+/=/g', "$adir/modules/Makefile";
 	}
     }
 
@@ -440,7 +445,7 @@ sub MY::top_targets {
     $string .= <<'EOF';
 
 apache_httpd: $(APACHE_SRC)/Configuration	
-	(cd $(APACHE_SRC); $(MAKE);)
+	(cd $(APACHE_SRC) && $(MAKE) CC="$(CC)";)
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \
@@ -532,6 +537,7 @@ sub httpd_version {
 			return undef;
 		    }
 		    ++$can_dash_make{$dir} if $frest >= 3;
+		    ++$do_b8_chop if($frest == 8);
 		    if($frest >= 8) {
 			#warn "Don't need our own Makefile.tmpl (b$frest)!\n";
 			return "NONE";
