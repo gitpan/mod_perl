@@ -3,7 +3,7 @@ package Apache;
 use vars qw($VERSION);
 use Apache::Constants ();
 
-$VERSION = "1.08";
+$VERSION = "1.09";
 
 bootstrap Apache $VERSION;
 
@@ -27,6 +27,12 @@ sub content {
 sub args {
     my($r) = @_;
     parse_args(wantarray, $r->query_string);
+}
+
+sub cgi_var {
+    my($r, $key) = @_;
+    my $val = $r->cgi_env($key);
+    return $val;
 }
 
 sub read {
@@ -536,6 +542,13 @@ you can say:
 When given a key => value pair, this will set an environment variable.
 
  $r->cgi_env(REMOTE_GROUP => "camels");
+
+=item $r->cgi_var($key);
+
+Calls $r->cgi_env($key) in a scalar context to prevent the mistake
+of calling in a list context.
+
+    my $doc_root = $r->cgi_env('DOCUMENT_ROOT');
 
 =item $r->send_cgi_header()
 

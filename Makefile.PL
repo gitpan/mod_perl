@@ -2,7 +2,7 @@ use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
 
-$VERSION = "0.85_03";
+$VERSION = "0.85_04";
 
 print "WARNING: \$r->read is no longer an alias for \$r->read_client_block\n",
       "          see perldoc Apache for more information\n";
@@ -13,10 +13,14 @@ system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
 
 # Automatic setup support
 my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
-@vers_map{'1.1.1', '1.2'} = qw(Makefile.tmpl Makefile.tmpl-1.2);
+%vers_map = (
+   '1.1.1' => "Makefile.tmpl",
+   '1.2'   => "Makefile.tmpl-1.2",
+   '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
+);	     
 
 foreach $src_dir (qw(../apache_1.1.1/src), <../apache_1.2*/src>,
-		  <../apache_*/src>, <../stronghold*/src>, <../src>, <src>) 
+		  <../apache*/src>, <../stronghold*/src>, <../src>, <src>) 
 {
     next if $seen{$src_dir}++;
     next unless $vers = httpd_version($src_dir);
@@ -24,6 +28,7 @@ foreach $src_dir (qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 	print STDERR "Apache version '$vers' unsupported\n";
 	next;
     }
+    print STDERR "$src_dir -> $vers_map{$vers}\n";
     push @adirs, $src_dir;
 }
 
@@ -51,13 +56,27 @@ foreach $adir (@adirs) {
 	next unless $ans eq "y";
 	system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
 	system "cp", "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
+	print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
 	$APACHE_SRC = $adir;
 	
 	mkdir "$adir/modules", 0755;
-	print "rm -rf $adir/modules/perl\n";
-	system "rm", "-rf", "$adir/modules/perl";
-	print "cp -r src/modules/perl $adir/modules\n";
-	system "cp", "-r", "src/modules/perl", "$adir/modules";
+	mkdir "$adir/modules/perl", 0755;
+	#ignore make's output here
+	`(cd $adir/modules/perl; make clean > /dev/null)`;
+
+	local(*MANI);
+	open *MANI => "MANIFEST" or die "open MANIFEST $!";
+	$adir =~ s,/src$,,;
+	#only rm and cp files mod_perl ships with
+	while(<MANI>) {
+	    next unless m,^src/modules/perl/,; chomp;
+	    #print "rm -f $adir/$_\n";
+	    system "rm", "-f", "$adir/$_";
+	    #print "cp $_ $adir/$_\n";
+	    system "cp", $_, "$adir/$_";
+	}
+	close MANI;
+	$adir .= "/src";
 	
 	open(CONF, $conf) || die "Can't open $conf: $!";
 	while (<CONF>) {
@@ -150,7 +169,9 @@ test:
 sub httpd_version {
     my($dir) = @_;
     my $fh = new FileHandle "$dir/httpd.h" or return;
-    my($server, $version, $rest, $string);
+    my($server, $version, $rest);
+    my($fserver, $fversion, $frest);
+    my($string, $extra, @vers);
     while(<$fh>) {
 	next unless s/^#define\s+SERVER_VERSION\s+"(.*)\s*".*/$1/;
 	chomp($string = $_);
@@ -158,14 +179,20 @@ sub httpd_version {
 	#print STDERR "Examining SERVER_VERSION '$string'...";
 	#could be something like:
 	#Stronghold-1.4b1-dev Ben-SSL/1.3 Apache/1.1.1 
-	foreach (split /\s+/, $string) {
-	    ($server,$version,$rest) =  
+	@vers = split /\s+/, $string;
+	foreach (@vers) {
+	    ($fserver,$fversion,$frest) =  
 		m,^([^/]+)/(\d\.\d+\.?\d*)(.*),i;
-	    last if lc($server) eq "apache";
+	    if($fserver eq "Ben-SSL") {
+		$extra = $fserver;
+		print STDERR "I see $fserver/$fversion, ok\n";
+		next;
+	    }
+	    #last if $server eq "Apache";
 	}
 
-	if(lc $server eq "apache") {
-	    #print STDERR "ok\n";
+	if($fserver eq "Apache") {
+	    ($server, $version) = ($fserver, $fversion);
 	}
 	else {
 	    #print STDERR "unrecognized.\n";
@@ -177,9 +204,10 @@ sub httpd_version {
 	    next;
 	}
 
-	print STDERR "Found $server '$version' in $dir/httpd.h\n";
-	last;
+	print STDERR "Found $fserver '$fversion' in $dir/httpd.h\n";
     }
     $fh->close;
-    return($version);
+    #print STDERR "return $version$extra\n";
+    return($version.$extra);
 }
+

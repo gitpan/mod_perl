@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.36 1996/12/05 02:47:50 dougm Exp $ */
+/* $Id: Apache.xs,v 1.37 1996/12/10 23:12:42 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -518,9 +518,9 @@ cgi_env(r, ...)
    }
    if(GIMME == G_ARRAY) {
        CGIENVinit;
-       if (tz != NULL) 
+       if (tz != NULL) {
 	   PUSHelt("TZ", tz, 0);
-
+       }
        for (i = 0; i < env_arr->nelts; ++i) {
 	   if (!elts[i].key) continue;
 	   PUSHelt(elts[i].key, elts[i].val, 0);

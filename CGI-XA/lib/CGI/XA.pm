@@ -25,7 +25,7 @@ use FileHandle ();
 # this package will be. If Lincoln integrates the changes, I'll drop
 # it.
 
-$Revision = q$Id: XA.pm,v 1.10 1996/09/05 21:54:07 dougm Exp $;
+$Revision = q$Id: XA.pm,v 1.11 1996/12/10 23:12:42 dougm Exp $;
 
 # The path separator is a slash, backslash or semicolon, depending
 # on the paltform.
@@ -1123,14 +1123,15 @@ sub submit {
 	     $lck = substr($k,1) if substr($k,0,1) eq "-";
 	     $p{$lck} = $p{$k} if $lck ne $k;;
 	 }
-	 $p{value} ||= $p{label};
+	 $p{label} = $p{name};
      } else {
 	 @p{qw/name value other/} = @p;
     }
+    $p{value} = $p{label} unless defined $p{value};
     $self->escapeHTML($p{label});
     $self->escapeHTML($p{value});
     my($name) = ' NAME=".submit"';
-    $name = qq/ NAME="$p{name}"/ if $p{name};
+    $name = qq/ NAME="$p{label}"/ if $p{label};
     $p{value} = qq/ VALUE="$p{value}"/ if defined($p{value});
     $p{other} ||= '';
     return qq/<INPUT TYPE="submit"$name$p{value}$p{other}>/;
@@ -1282,7 +1283,7 @@ sub checkbox {
 	$p{value} = defined $p{value} ? $p{value} : 'on';
     }
     $self->escapeHTML($p{name});
-   $p{label} ||= $p{name};
+    $p{label} = $p{name} unless defined $p{label};
     $self->escapeHTML($p{value});
     $p{other} ||= '';
     return qq[<INPUT TYPE="checkbox" NAME="$p{name}" VALUE="$p{value}"$p{checked}$p{other}>$p{label}\n];

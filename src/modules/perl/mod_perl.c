@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.30 1996/12/05 02:43:00 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.31 1996/12/10 23:12:42 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -111,18 +111,21 @@ module perl_module = {
    PERL_LOGGER_HOOK,          /* logger */
 };
 
+#ifndef PERL_DO_ALLOC
+#  ifdef APACHE_SSL
+#    define PERL_DO_ALLOC 1
+#  else
+#    define PERL_DO_ALLOC 0
+#  endif
+#endif
 
 void perl_init (server_rec *s, pool *p)
 {
   char *argv[3];
-  int status, i, do_alloc=0;
+  int status, i;
   perl_server_config *cls;
 
-#ifndef APACHE_SSL  
-  do_alloc = 1;
-#endif
-
-  if(avoid_alloc_hack++ != do_alloc) {
+  if(avoid_alloc_hack++ != PERL_DO_ALLOC) {
     CTRACE(stderr, "perl_init: skipping perl_alloc + perl_construct\n");
     return;
   }
@@ -155,7 +158,7 @@ void perl_init (server_rec *s, pool *p)
     argv[2] = "0";
   } 
 
-  CTRACE(stderr, "parsing perl script: %s %s...", argv[1],argv[2]);
+  CTRACE(stderr, "parsing perl script: %s %s...", argv[1],argv[2]==NULL?"":"0");
   status = perl_parse(perl, xs_init, 2, argv, NULL);
   if (status != OK) {
      CTRACE(stderr,"not ok, status=%d\n", status);
@@ -326,15 +329,16 @@ int perl_call(char *imp, request_rec *r)
      * default to the class implementor's handler() function
      * attempt to load the class module if it is not already
      */
-    if(!GvCV(gv_fetchmethod(NULL, imp))) { 
-      if(!gv_stashpv(imp, FALSE)) {
-	CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
-	perl_require_module(imp, r->server);
+    if(instr(imp, "::")) {
+      if(!perl_get_cv(imp, FALSE) || !GvCV(gv_fetchmethod(NULL, imp))) { 
+	if(!gv_stashpv(imp, FALSE)) {
+	  CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
+	  perl_require_module(imp, r->server);
+	}
+	sv_catpv(sv, "::handler");
+	CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
       }
-      sv_catpv(sv, "::handler");
-      CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
     }
-
     /* use G_EVAL so we can trap errors */
     count = perl_call_sv(sv, G_EVAL | G_SCALAR);
     
@@ -354,7 +358,7 @@ int perl_call(char *imp, request_rec *r)
     FREETMPS;
     LEAVE;
 
-    /* perl_clear_env(); XXX not sure this is the right place */
+    perl_clear_env();
 
     return status;
 }

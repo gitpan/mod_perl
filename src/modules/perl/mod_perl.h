@@ -33,7 +33,7 @@ extern "C" {
   if(name != NULL) { \
     status = perl_call(name, r); \
     CTRACE(stderr, "perl_call %s handler '%s' returned: %d\n", h,name,status); \
-  if((status == 1) || (status == 200)) \
+  if((status == 1) || (status == 200) || (status > 600)) \
     status = OK; \
   } \
   else \
