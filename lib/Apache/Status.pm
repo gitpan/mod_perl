@@ -1,6 +1,5 @@
 package Apache::Status;
 use strict;
-eval { use Devel::Symdump (); };
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -26,10 +25,12 @@ sub handler {
     no strict 'refs';
     $r->print(header());
     if(defined &$sub) {
-	require CGI::Switch;
+	$r->module('CGI::Switch');
+	$r->module('Devel::Symdump');
 	$r->print(@{ &{$sub}($r,CGI::Switch->new) });
     }
     elsif (exists $Apache::Registry->{$qs}) { 
+	$r->module('Devel::Symdump');
 	$r->print(symdump($qs));
     }
     else {

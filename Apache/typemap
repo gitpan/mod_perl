@@ -30,10 +30,14 @@ Apache::Scoreboard      O_HvRV
 
 HV *		T_HvRV
 AV *		T_AvRV
-
+const char *		T_PV_CONST
 
 ######################################################################
 OUTPUT
+
+T_PV_CONST
+	SvREADONLY_on((SV*)$arg);
+	sv_setpv((SV*)$arg, $var);
 
 # The Perl object is blessed into 'CLASS', which should be a
 # char* having the name of the package for the blessing.
@@ -64,6 +68,9 @@ T_AvRV
 
 ######################################################################
 INPUT
+
+T_PV_CONST
+	$var = ($type)SvPV($arg,na)
 
 O_OBJECT
 	if( sv_isobject($arg) && (SvTYPE(SvRV($arg)) == SVt_PVMG) )

@@ -10,26 +10,67 @@
 #PerlSendHeader On
 #PerlSetupEnv   On
 
-print "Content-type: text/html\n\n";
-print "perlio test...\n";
+my $sub = "test_$ENV{QUERY_STRING}";
+if (defined &{$sub}) {
+    &{$sub};
+}
+else {
+    print "Status: 200 Bottles of beer on the wall\n",
+    "X-Perl-Version: $]\n";
+    print "X-Message: hello\n";
+    print "Content-type: text/plain\n\n";
 
-my(@args);
+    print "perlio test...\n";
+    print "\$^X is $^X\n";
+    my(@args);
 
-if (@args = split(/\+/, $ENV{QUERY_STRING})) {
-    print "ARGS: ",
-    join(", ", map { $_ = qq{"$_"} } @args), "\n\n";
-} else {
-    print "No command line arguments passed to script\n\n";
+    if (@args = split(/\+/, $ENV{QUERY_STRING})) {
+	print "ARGS: ",
+	join(", ", map { $_ = qq{"$_"} } @args), "\n\n";
+    } else {
+	print "No command line arguments passed to script\n\n";
+    }
+
+    my($key,$val);
+    while (($key,$val) = each %ENV) {
+	print "$key=$val\n";
+    }
+
+
+    if ($ENV{CONTENT_LENGTH}) {
+	$len = $ENV{CONTENT_LENGTH};
+	read(STDIN, $content, $len);
+	print "\nContent\n-------\n$content";
+    }
 }
 
-my($key,$val);
-while (($key,$val) = each %ENV) {
-   print "$key=$val\n";
+sub test_1 {
+    print "Content-type: text/html\n",
+          "X-sub: " . "test_1\n";
+    print "\r\n";
+    print "1";
 }
 
+sub test_2 {
+    my $msg = <<"EOF";
+X-sub: test_2 
+Content-type: text/html
 
-if ($ENV{CONTENT_LENGTH}) {
-    $len = $ENV{CONTENT_LENGTH};
-    read(STDIN, $content, $len);
-    print "\nContent\n-------\n$content";
+2
+EOF
+    chomp $msg;
+    print $msg;
 }
+
+sub test_3 {
+    my $h = {
+	"Content-type" => "text/plain",
+	"X-sub" => "test_3",
+    };
+    for (keys %$h) {
+	print "$_: $h->{$_}\r\n";
+    }
+    print "\r\n";
+    print "3";
+}
+ 

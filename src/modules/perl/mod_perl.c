@@ -1,5 +1,5 @@
 /* ====================================================================
- * Copyright (c) 1995,1996 The Apache Group.  All rights reserved.
+ * Copyright (c) 1995-1997 The Apache Group.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.50 1997/04/23 02:29:32 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.51 1997/04/30 03:00:43 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -64,9 +64,10 @@ static IV mp_request_rec;
 static int seqno = 0;
 static int avoid_alloc_hack = 0;
 static int perl_is_running = 0;
-static int sent_header = 0;
+static int sent_header = 1;
 static int dir_cleanups = 0;
 static int stack_cleanups = 0;
+static int set_pid = 0;
 static PerlInterpreter *perl = NULL;
 #ifdef PERL_STACKED_HANDLERS
 static HV *stacked_handlers = Nullhv;
@@ -340,7 +341,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 
 void perl_startup (server_rec *s, pool *p)
 {
-    char *argv[] = { "httpd", NULL, NULL, NULL, NULL };
+    char *argv[] = { server_argv0, NULL, NULL, NULL, NULL };
     char *constants[] = { "Apache::Constants", "OK", "DECLINED", NULL };
     int status, i, argc=2, t=0, w=0;
     perl_server_config *cls;
@@ -436,12 +437,9 @@ void perl_startup (server_rec *s, pool *p)
 
     /* import Apache::Constants qw(OK DECLINED) */
     perl_call_argv("Exporter::import", G_DISCARD | G_EVAL, constants);
+
     if(perl_eval_ok(s) != OK) 
 	perror("Apache::Constants->import failed");
-
-#ifdef USE_SFIO
-    sv_setiv(GvSV(gv_fetchpv("|", TRUE, SVt_PV)), 1); /* $|=1 */
-#endif
 
     {
 	GV *gv = gv_fetchpv("Apache::__T", GV_ADDMULTI, SVt_PV);
@@ -515,6 +513,7 @@ void *create_perl_dir_config (pool *p, char *dirname)
     cld->PerlHandler = NULL;
     cld->setup_env = 1;
     cld->sendheader = 0;
+    cld->new_sendheader = 0;
     PERL_AUTHEN_CREATE(cld);
     PERL_AUTHZ_CREATE(cld);
     PERL_ACCESS_CREATE(cld);
@@ -559,6 +558,7 @@ int perl_handler(request_rec *r)
 
     (void)perl_request_rec(r); 
 
+    IoFLAGS(GvIOp(defoutgv)) &= ~IOf_FLUSH; /* reset $| */
     /* hookup STDIN & STDOUT to the client */
     perl_stdout2client(r);
     perl_stdin2client(r);
@@ -579,6 +579,7 @@ int perl_handler(request_rec *r)
 	perl_setup_env(r);
 
     seqno++;
+    register_cleanup(r->pool, NULL, perl_end_cleanup, NULL);
     PERL_CALLBACK_RETURN("PerlHandler", cld->PerlHandler);
     return status;
 }
@@ -660,6 +661,12 @@ int PERL_LOG_HOOK(request_rec *r)
     return rstatus;
 }
 #endif
+
+void perl_end_cleanup(void *data)
+{
+    perl_clear_env;
+    CTRACE(stderr, "perl_end_cleanup...ok\n");
+}
 
 void perl_cleanup_handler(void *data)
 {
@@ -818,7 +825,7 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 		CTRACE(stderr, "sub undef!  skipping callback...\n");
 		continue;
 	    }
-	    status = perl_call(sub, r);
+	    status = perl_call_handler(sub, r);
 
 	    if((status != OK) && (status != DECLINED)) {
 		if(do_clear)
@@ -858,14 +865,14 @@ return NULL
 #endif
 
 /* XXX this still needs work, getting there... */
-int perl_call(SV *sv, request_rec *r)
+int perl_call_handler(SV *sv, request_rec *r)
 {
     int count, status, is_method=0;
     dSP;
     HV *stash = Nullhv;
     SV *class = newSVsv(sv);
     CV *cv;
-    char *method;
+    char *method = "handler";
     int defined_sub = 0;
 
     if(SvTYPE(sv) == SVt_PV) {
@@ -883,8 +890,6 @@ int perl_call(SV *sv, request_rec *r)
 	    imp = method;
 	    ++is_method;
 	}
-	else
-	    method = "handler";
 
 	if(class) stash = gv_stashpv(SvPV(class,na),FALSE);
 	   
@@ -993,8 +998,6 @@ int perl_call(SV *sv, request_rec *r)
     PUTBACK;
     FREETMPS;
     LEAVE;
-
-    perl_clear_env;
 
     return status;
 }
@@ -1114,6 +1117,7 @@ CHAR_P perl_cmd_sendheader (cmd_parms *cmd, void *rec, int arg) {
 
 CHAR_P perl_cmd_new_sendheader (cmd_parms *cmd, void *rec, int arg) {
     ((perl_dir_config *)rec)->new_sendheader = arg;
+    sent_header = !arg;
     return NULL;
 }
 
@@ -1216,9 +1220,18 @@ static int sfapachewrite(f, buffer, n, disc)
     int             n;      /* number of bytes to send */
     Sfdisc_t*       disc;   /* discipline */        
 {
-    request_rec	*r = ((Apache_t*)disc)->r;
-    /* CTRACE(stderr, "sfapachewrite: send %d bytes\n", n); */
-    SENDN_TO_CLIENT;
+    /* feed buffer to Apache->print */
+    CV *cv = GvCV(gv_fetchpv("Apache::print", FALSE, SVt_PVCV));
+    dSP;
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(sp);
+    XPUSHs(perl_bless_request_rec(((Apache_t*)disc)->r));
+    XPUSHs(sv_2mortal(newSVpv(buffer,n)));
+    PUTBACK;
+    (void)(*CvXSUB(cv))(cv); 
+    FREETMPS;
+    LEAVE;
     return n;
 }
 

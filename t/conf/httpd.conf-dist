@@ -27,7 +27,8 @@ Options ExecCGI
 SetHandler perl-script
 PerlHandler Apache::Registry
 Options ExecCGI
-PerlSendHeader On
+#PerlNewSendHeader will become PerlSendHeader if all goes well
+PerlNewSendHeader On
 PerlSetupEnv   On
 </Location>
 

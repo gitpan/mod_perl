@@ -23,6 +23,7 @@
 #include "http_core.h"
 #include "http_request.h"
 #include "util_script.h"
+#include "http_conf_globals.h"
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -49,7 +50,7 @@ typedef server_rec  * Apache__Server;
       hv_clear(PerlEnvHV)
 
 #define perl_set_pid \
-      sv_setiv(GvSV(gv_fetchpv("$", TRUE, SVt_PV)), (I32)getpid())
+      if(!set_pid++) sv_setiv(GvSV(gv_fetchpv("$", TRUE, SVt_PV)), (I32)getpid())
 
 #ifdef PERL_TRACE
 #define CTRACE fprintf
@@ -107,7 +108,7 @@ CTRACE(stderr, "%s handlers returned %d\n", h, status)
 #define PERL_CALLBACK_RETURN(h,name) \
 if(name != NULL) { \
     SV *sv = newSVpv(name,0); \
-    status = perl_call(sv, r); \
+    status = perl_call_handler(sv, r); \
     SvREFCNT_dec(sv); \
     CTRACE(stderr, "perl_call %s '%s' returned: %d\n", h,name,status); \
 } \
@@ -391,14 +392,14 @@ int multi_log_transaction(request_rec *r);
 int basic_http_header(request_rec *r);
 /* prototypes */
 int perl_handler_ismethod(HV *class, char *sub);
-int perl_call(SV *sv, request_rec *r);
+int perl_call_handler(SV *sv, request_rec *r);
 int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 int perl_handler(request_rec *r);
-void perl_startup (server_rec *s, pool *p);
+void perl_startup(server_rec *s, pool *p);
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
-void *create_perl_dir_config (pool *p, char *dirname);
-void *create_perl_server_config (pool *p, server_rec *s);
+void *create_perl_dir_config(pool *p, char *dirname);
+void *create_perl_server_config(pool *p, server_rec *s);
 int perl_translate(request_rec *r);
 int perl_authenticate(request_rec *r);
 int perl_authorize(request_rec *r);
@@ -449,3 +450,4 @@ SV  *perl_bless_request_rec(request_rec *);
 void perl_set_request_rec(request_rec *); 
 int mp_void_fprintf(FILE *, const char *, ...);
 void perl_cleanup_handler(void *data);
+void perl_end_cleanup(void *data);

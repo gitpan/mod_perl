@@ -1,20 +1,16 @@
 
 in no particular order:
 
-get rid of basic_http_header usage
+cleanup Makefile.PL!!!
+
+get rid of basic_http_header usage (almost there)
 
 make sure we can handle graceful restart
-
-rework PerlCleanupHandler to use register_cleanup() instead of logger slot
 
 extend $r->notes method so we can store arbitrary Perl structures
 
 think about re-introducing perl_alloc..perl_free option for each
 request now that embedding bugs are fixed in Perl 5.004  
-
-figure out why the heck filehandles used with file upload show up under
-'unknown' in our symbol table dump, and why the heck they are even in the
-symbol table (stems from CGI.pm now XA.pm)
 
 Apache::Registry should honor __END__ and __DATA__,
 but how to get it right?
@@ -33,20 +29,12 @@ which will be passed to the handler as arguments, e.g.
  (calls &FooPackage::handler($r, "One", "Two", "Three");
 
 complete <Perl></Perl> configuration section 
-
-if Perl*Handler's are prototyped with $$ call it as a method?
-(test with -DPERL_HANDLER_METHODS)
-
-look closer at and consider Eric Bartley's patch so we can say:
-  Perl*Handler Class->method
  
 provide an optional and configurable Safe wrapper around embedded scripts
 
 explore mechanisms for sharing database connections amoung server children
 
 figure out how to route request to specific child to maintain state
-
-call $r->rflush if $| is non-zero?
 
 find a good way to make Apache::exit override CORE::exit no matter where we are
 

@@ -1,5 +1,5 @@
 # ====================================================================
-# Copyright (c) 1995 The Apache Group.  All rights reserved.
+# Copyright (c) 1995-1997 The Apache Group.  All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -50,8 +50,10 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.22 1997/04/23 02:29:32 dougm Exp $
+# $Id: Makefile,v 1.23 1997/04/30 03:00:43 dougm Exp $
 #
+
+#__ORIGINAL__
 
 SHELL = /bin/sh
 
@@ -61,40 +63,44 @@ LIB=libmodperl.a
 
 #on/off switches for Perl API hooks
 #comment out to enable callbacks at a certain stage in the request
-PERL_INIT   = -DNO_PERL_INIT
+PERL_INIT    = -DNO_PERL_INIT
 PERL_CLEANUP = -DNO_PERL_CLEANUP
-PERL_TRANS  = -DNO_PERL_TRANS
-PERL_AUTHEN = -DNO_PERL_AUTHEN
-PERL_AUTHZ  = -DNO_PERL_AUTHZ
-PERL_ACCESS = -DNO_PERL_ACCESS
-PERL_TYPE   = -DNO_PERL_TYPE 
-PERL_FIXUP  = -DNO_PERL_FIXUP 
-PERL_LOG    = -DNO_PERL_LOG 
+PERL_TRANS   = -DNO_PERL_TRANS
+PERL_AUTHEN  = -DNO_PERL_AUTHEN
+PERL_AUTHZ   = -DNO_PERL_AUTHZ
+PERL_ACCESS  = -DNO_PERL_ACCESS
+PERL_TYPE    = -DNO_PERL_TYPE 
+PERL_FIXUP   = -DNO_PERL_FIXUP 
+PERL_LOG     = -DNO_PERL_LOG 
 PERL_HEADER_PARSER = -DNO_PERL_HEADER_PARSER
 
 PERL_STACKED_HANDLERS = -DNO_PERL_STACKED_HANDLERS
-PERL_SECTIONS = -DNO_PERL_SECTIONS
-PERL_METHOD_HANDLERS = -DNO_PERL_METHOD_HANDLERS
+PERL_SECTIONS         = -DNO_PERL_SECTIONS
+PERL_METHOD_HANDLERS  = -DNO_PERL_METHOD_HANDLERS
 
 PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOG) \
-$(PERL_HEADER_PARSER) $(PERL_INIT) $(PERL_CLEANUP) \
-$(PERL_STACKED_HANDLERS) $(PERL_SECTIONS) $(PERL_METHOD_HANDLERS)
+ $(PERL_HEADER_PARSER) $(PERL_INIT) $(PERL_CLEANUP) \
+ $(PERL_STACKED_HANDLERS) $(PERL_SECTIONS) $(PERL_METHOD_HANDLERS)
+
+#STATIC_SRC = Apache.c
+#STATIC_EXTS = Apache
 
 #TRACE = -DPERL_TRACE
+#APACHE_SSL = -DAPACHE_SSL
 PERL=/opt/perl5.003/bin/perl
 PERL_STATIC_EXTS =
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
 
-XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- -std $(PERL_STATIC_EXTS)`
+XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- -std $(PERL_STATIC_EXTS) $(STATIC_EXTS)`
 LD_OPTS = `$(EXTUTILS_EMBED) -e ccdlflags -e ldopts -- $(PERL_STATIC_EXTS)`
 
 CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
 
 # AUX_CFLAGS comes from higher level Makefile
-CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex $(AUX_CFLAGS) $(PERL_CCFLAGS)
+CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex $(AUX_CFLAGS) $(APACHE_SSL) $(PERL_CCFLAGS) -DPERL_VERSION=$(PERL_VERSION)
 
 default:	$(LIB)
 
@@ -104,7 +110,7 @@ perlxsi.c:
 Apache.c: Apache.xs
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Apache.xs >Apache.c
 
-PERLSRC=mod_perl.c perlxsi.c
+PERLSRC=mod_perl.c perlxsi.c $(STATIC_SRC)
 
 OBJS=$(PERLSRC:.c=.o)
 

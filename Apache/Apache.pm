@@ -6,7 +6,7 @@ use DynaLoader ();
 
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(exit warn);
-$VERSION = "1.12";
+$VERSION = "1.13";
 $Apache::CRLF = "\015\012";
 
 bootstrap Apache $VERSION;
@@ -84,18 +84,6 @@ sub READLINE {
 }
 
 *PRINT = \&print;
-sub print {
-    my($r) = shift;
-    if(!$r->sent_header) {
-	$r->send_cgi_header(join '', @_);
-	$r->sent_header(1);
-    }
-    else {
-	$r->hard_timeout("Apache->print");
-	$r->write_client(@_);
-	$r->kill_timeout;
-    }
-}
 
 sub send_cgi_header {
     my($r, $headers) = @_;
@@ -124,6 +112,7 @@ sub send_cgi_header {
 		}
 		else {
 		    $r->header_out(Location => $val);
+		    $r->err_header_out(Location => $val);
 		    $r->status(302);
 		    next;
 		}
@@ -138,10 +127,18 @@ sub send_cgi_header {
 	    }
 	}
 	else {
-	    warn "Illegal header '$_'";
+	    #we didn't find the header terminator, punt away
+	    if(!$r->sent_header()) {
+		$r->send_http_header;
+	    }
+	    $r->print($_);
 	}
     }
-    $r->send_http_header;
+    if($headers =~ /${dlm}${dlm}$/ or
+       $headers =~ /^(${dlm}){1,2}$/) 
+    {
+        $r->send_http_header;
+    }
 }
 
 sub as_string {
@@ -215,9 +212,9 @@ B<Perl*Handler>s can obtain a reference to the request object when it
 is passed to them via C<@_>.  However, scripts that run under 
 L<Apache::Registry>, for example, need a way to access the request object.
 L<Apache::Registry> will make a request object availible to these scripts
-by passing an object reference to C<Apache->request($r)>.
+by passing an object reference to C<Apache-E<gt>request($r)>.
 If handlers use modules such as C<Apache::CGI> that need to access
-L<Apache->request>, they too should do this (e.g. Apache::Status).
+L<Apache-E<gt>request>, they too should do this (e.g. Apache::Status).
 
 =item $r->as_string
 
@@ -357,12 +354,20 @@ This method uses read_client_block() to read data from the client,
 looping until it gets all of C<$bytes_to_read> or a timeout happens.
 
 In addition, this method sets a timeout before reading with
-C<$r->hard_timeout>
+C<$r-E<gt>hard_timeout>
 
 =item $r->get_remote_host
 
-Lookup the client DNS hostname.  Might return I<undef> if the
-hostname is not known.
+Lookup the client's DNS hostname. If the configuration directive
+B<HostNameLookups> is set to off, this returns the dotted decimal
+representation of the client's IP address instead. Might return
+I<undef> if the hostname is not known.
+
+=item $r->get_remote_logname
+
+Lookup the remote user's system name.  Might return I<undef> if the
+remote system is not running an RFC 1413 server or if the configuration
+directive B<IdentityCheck> is not turned on.
 
 =back
 
@@ -378,18 +383,58 @@ connection object (blessed into the B<Apache::Connection> package).
 This is really a C<conn_rec*> in disguise.  The following methods can
 be used on the connection object:
 
-$c->remote_host
+=over 4
 
-$c->remote_ip
+=item $c->remote_host
 
-$c->remote_logname
+If the configuration directive B<HostNameLookups> is set to on:  then
+the first time C<$r-E<gt>get_remote_host> is called the server does a DNS
+lookup to get the remote client's host name.  The result is cached in
+C<$c-E<gt>remote_host> then returned. If the server was unable to resolve
+the remote client's host name this will be set to "". Subsequent calls
+to C<$r-E<gt>get_remote_host> return this cached value.
 
-$c->user; #Returns the remote username if authenticated.
+If the configuration directive B<HostNameLookups> is set to off: calls
+to C<$r-E<gt>get_remote_host> return a string that contains the dotted
+decimal representation of the remote client's IP address. However this
+string is not cached, and C<$c-E<gt>remote_host> is undefined. So, it's
+best to to call C<$r-E<gt>get_remote_host> instead of directly accessing
+this variable.
 
-$c->auth_type; #Returns the authentication scheme used, if any.
+=item $c->remote_ip
 
-$c->aborted; #returns true if the client stopped talking to us
+The dotted decimal representation of the remote client's IP address.
+This is set by then server when the connection record is created so
+is always defined.
 
+=item $c->remote_logname
+
+If the configuration directive B<IdentityCheck> is set to on:  then the
+first time C<$r-E<gt>get_remote_logname> is called the server does an RFC
+1413 (ident) lookup to get the remote user's system name. Generally for
+UNI* systems this is their login. The result is cached in C<$c->remote_logname>
+then returned.  Subsequent calls to C<$r-E<gt>get_remote_host> return the
+cached value.
+
+If the configuration directive B<IdentityCheck> is set to off: then 
+C<$r-E<gt>get_remote_logname> does nothing and C<$c-E<gt>remote_logname> is
+always undefined.
+
+=item $c->user 
+
+If an authentication check was successful, the authentication handler
+caches the user name here.
+
+=item $c->auth_type
+
+Returns the authentication scheme that successfully authenticate
+C<$c-E<gt>user>, if any.
+
+=item $c->aborted
+
+Returns true if the client stopped talking to us.
+
+=back
 
 =back
 
@@ -416,6 +461,38 @@ C<PerlSetVar> directive.
 Returns an array reference of hash references, containing information
 related to the B<require> directive.  This is normally used for access
 control, see L<Apache::AuthzAge> for an example.
+
+=item $r->auth_type
+
+Returns a reference to the current value of the per directory
+configuration directive B<AuthType>. Normally this would be set to
+C<Basic> to use the basic authentication scheme defined in RFC 1945,
+I<Hypertext Transfer Protocol -- HTTP/1.0>. However, you could set to
+something else and implement your own authentication scheme.
+
+=item $r->auth_name
+
+Returns a reference to the current value of the per directory
+configuration directive B<AuthName>.  The AuthName directive creates
+protection realm within the server's document space. To quote RFC 1945
+"These realms allow the protected resources on a server to be
+partitioned into a set of protection spaces, each with its own
+authentication scheme and/or authorization database." The client uses
+the root URL of the server to determine which authentication
+credentials to send with each HTTP request. These credentials are
+tagged with the name of the authentication realm that created them.
+Then during the authentication stage the server uses the current
+authentication realm, from C<$r-E<gt>auth_name>, to determine which set of
+credentials to authenticate.
+
+=item $r->document_root
+
+Returns a reference to the current value of the per server
+configuration directive B<DocumentRoot>. To quote the Apache server
+documentation, "Unless matched by a directive like Alias, the server
+appends the path from the requested URL to the document root to make
+the path to the document." This same value is passed to CGI
+scripts in the C<DOCUMENT_ROOT> environment variable.
 
 =item $r->allow_options
 
@@ -470,8 +547,7 @@ content to the client.
 
 =item $r->send_http_header
 
-Send the response line and all headers to the client.  (This method
-will actually call $r->basic_http_header first).
+Send the response line and all headers to the client.
 
 This method will create headers from the $r->content_xxx() and
 $r->no_cache() attributes (described below) and then append the
@@ -498,6 +574,17 @@ Set the handler for a request.
 Normally set by the configuration directive C<AddHandler>.
   
  $r->handler( "perl-script" );
+
+=item $r->notes( $key, [$value] )
+
+Return the value of a named entry in the Apache C<notes> table, or
+optionally set the value of a named entry.  This table is used by Apache
+modules to pass messages amongst themselves. Generally if you are
+writing handlers in mod_perl you can use Perl variables for this.
+
+   $r->notes("MY_HANDLER", OK);
+
+   $val = $r->notes("MY_HANDLER");
 
 =item $r->content_type( [$newval] )
 
@@ -576,8 +663,8 @@ and the client should be told not to cache it.
 
 =item $r->print()
 
-This method sends data to the client with C<$r->write_client>, but first
-sets a timeout before sending with C<$r->hard_timeout>.
+This method sends data to the client with C<$r-E<gt>write_client>, but first
+sets a timeout before sending with C<$r-E<gt>hard_timeout>.
 
 =item $r->send_fd( $filehandle )
 

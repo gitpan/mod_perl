@@ -1,5 +1,5 @@
 /* ====================================================================
- * Copyright (c) 1995,1996 The Apache Group.  All rights reserved.
+ * Copyright (c) 1995-1997 The Apache Group.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -51,9 +51,8 @@
  */
 
 #include "mod_perl.h"
-#include "http_conf_globals.h"
 
-/* $Id: Apache.xs,v 1.50 1997/04/23 02:29:32 dougm Exp $ */
+/* $Id: Apache.xs,v 1.51 1997/04/30 03:00:43 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -66,8 +65,8 @@ int
 max_requests_per_child(...)
 
     CODE:
+    items = items; /*avoid warning*/
     RETVAL = max_requests_per_child;
-    CTRACE(stderr, "Apache%smax_requests_per_child = %d\n", items ? "->" : "::", RETVAL);
 
     OUTPUT:
     RETVAL
@@ -90,6 +89,7 @@ seqno(...)
 #endif
 
     CODE:
+    items = items; /*avoid warning*/
 #ifdef STATUS
     sync_scoreboard_image();
     for (i = 0; i<HARD_SERVER_LIMIT; ++i) {
@@ -101,8 +101,6 @@ seqno(...)
 #else
     RETVAL = mod_perl_seqno();
 #endif
-
-    CTRACE(stderr, "Apache%sseqno = %d\n", items ? "->" : "::", RETVAL);
 	   
     OUTPUT:
     RETVAL
@@ -296,11 +294,9 @@ requires(r)
 		     newSViv((IV)reqs[x].method_mask), 0);
 	    hv_store(hv, "requirement", 11, 
 		     newSVpv(reqs[x].requirement,0), 0);
-	    av_push(av, newRV((SV*)hv));
-	    /* SvREFCNT_dec(hv); *//* XXX since newRV() incremented it? */
+	    av_push(av, newRV_noinc((SV*)hv));
 	}
-	ST(0) = newRV((SV*)av); 
-	SvREFCNT_dec(av); 
+	ST(0) = newRV_noinc((SV*)av); 
     }
 
 int 
@@ -318,35 +314,21 @@ get_remote_host(r)
     OUTPUT:
     RETVAL
 
+const char *
+get_remote_logname(r)
+    Apache	r
+
 char *
 auth_name(r)
     Apache    r
-
-    CODE:
-    RETVAL = (char *)auth_name(r);
-
-    OUTPUT:
-    RETVAL
 
 char *
 auth_type(r)
     Apache    r
 
-    CODE:
-    RETVAL = (char *)auth_type(r);
-
-    OUTPUT:
-    RETVAL
-
 char *
 document_root(r)
     Apache    r
-
-    CODE:
-    RETVAL = (char *)document_root(r);
-
-    OUTPUT:
-    RETVAL
 
 char *
 server_root_relative(r, name)
@@ -385,6 +367,10 @@ void
 send_http_header(r)
     Apache	r
 
+    CODE:
+    send_http_header(r);
+    mod_perl_sent_header(&sv_undef, 1);
+
 void
 basic_http_header(r)
     Apache	r
@@ -405,7 +391,11 @@ rflush(r)
     Apache     r
 
     CODE:
+#if MODULE_MAGIC_NUMBER >= 19970103
     RETVAL = rflush(r);
+#else
+    RETVAL = bflush(r->connection->client);
+#endif
 
 void
 read_client_block(r, buffer, bufsiz)
@@ -428,6 +418,37 @@ read_client_block(r, buffer, bufsiz)
 	ST(1) = &sv_undef;
     }
 
+void 
+print(r, ...)
+    Apache	r
+
+    CODE:
+    if(!mod_perl_sent_header(&sv_undef, 0)) {
+	SV *sv = sv_newmortal();
+	SV *rp = ST(0);
+
+	if(items > 2)
+	    do_join(sv, &sv_no, MARK+1, SP); /* $sv = join '', @_[1..$#_] */
+        else
+	    sv_setsv(sv, ST(1));
+
+	PUSHMARK(sp);
+	XPUSHs(rp);
+	XPUSHs(sv);
+	PUTBACK;
+	perl_call_pv("Apache::send_cgi_header", G_SCALAR);
+    }
+    else {
+	CV *cv = GvCV(gv_fetchpv("Apache::write_client", FALSE, SVt_PVCV));
+	hard_timeout("Apache->print", r);
+	PUSHMARK(mark);
+	(void)(*CvXSUB(cv))(cv); /* &Apache::write_client; */
+
+	if(IoFLAGS(GvIOp(defoutgv)) & IOf_FLUSH) /* if $| != 0; */
+	    rflush(r);
+	kill_timeout(r);
+    }
+
 int
 write_client(r, ...)
     Apache	r
@@ -442,7 +463,7 @@ write_client(r, ...)
 	buffer = SvPV(ST(i), n);
 	RETVAL += SENDN_TO_CLIENT;
     }
-    
+
 #functions from http_request.c
 void
 internal_redirect_handler(r, location)
@@ -1053,13 +1074,13 @@ query_string(r, ...)
     Apache	r
 
     PREINIT:
-    SV *sv = newSV(0);
+    SV *sv = sv_newmortal();
 
     PPCODE: 
     if(r->args)
 	sv_setpv(sv, r->args);
     SvTAINTED_on(sv);
-    XPUSHs(sv_2mortal(sv));
+    XPUSHs(sv);
 
     if(items > 1)
         r->args = pstrdup(r->pool, (char *)SvPV(ST(1), na));

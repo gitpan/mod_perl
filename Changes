@@ -16,6 +16,62 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.97_02 - 04/29/97
+
+added documentation for stacked handlers and a little for method handlers.
+
+$^X is now set to server_argv0 as suggested by Frank Cringle
+
+Apache::Registry will now require CGI.pm version 2.35 or higher if you
+are using it.  Makefile.PL will also test and warn if it is < 2.35
+
+removed examplish modules from the distribution into the contrib directory: 
+AuthzAge.pm, AccessLimitNum.pm, MsqlProxy.pm, SSI.pm
+the contrib directory will be tar'd and uploaded to CPAN when updated.
+
+added headers.t test for Perl(New)SendHeader
+
+added option to link httpd with static Apache.o (the original way), 
+(Eric Bartley reported problems on aix with Apache.so, others?)
+like so:  perl Makefile.PL STATIC=1
+
+only bother setting $$ once per-child
+
+%ENV is now cleared by a registered cleanup function, rather than
+after PerlHandler is called
+
+applied patch from Andreas to ensure APACHE_SSL is defined if
+we're configuring with it 
+
+putback -DSERVER_SUBVERSION now that netscape workaround is in 1.2b9
+
+PerlNewSendHeader enhancement so headers don't need to be part of
+a single print statement.
+
+applied fix from Rob Hartill so Makefile.PL can parse beta version >= 10!
+
+properly initialize cld->new_sendheader thanks to Rob Hartill
+
+$r->print is now an xsub for speedup, even with the new
+extra operation of checking $|, it's faster:
+
+ Benchmark: timing 100 iterations of 0.97_01, 0.97_02...
+    0.97_01:  9 secs ( 2.03 usr  0.19 sys =  2.22 cpu)
+    0.97_02:  8 secs ( 1.84 usr  0.17 sys =  2.01 cpu)
+
+sfapachewrite() will now call Apache->print 
+
+if $| is non-zero, call rflush() after writing to the client
+
+$| is reset to 0 before PerlHandler is called
+
+applied patch from Eric Bartley to:
+-add get_remote_logname() method
+-update Apache.pm documentation including:
+ get_remote_logname, auth_type, auth_name, document_root, notes
+
+fix so $r->rflush works with older apache's
+
 =item 0.97_01 - 04/22/97
 
 added experimental `PerlNewSendHeader' config directive

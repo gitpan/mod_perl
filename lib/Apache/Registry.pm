@@ -8,8 +8,8 @@ use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.28 1997/04/01 04:15:11 dougm Exp $
-$VERSION = (qw$Revision: 1.28 $)[1];
+#$Id: Registry.pm,v 1.29 1997/04/30 03:00:43 dougm Exp $
+$VERSION = (qw$Revision: 1.29 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -92,7 +92,7 @@ sub handler {
 			    '',
 			    'package ',
 			    $package,
-			    ';use Apache qw(exit warn);sub handler {',
+			    ';use Apache qw(exit);sub handler {',
 			    $sub,
 			    "\n}", # last line comment without newline?
 			   );
@@ -121,7 +121,7 @@ sub handler {
 	my $err = $@;
 	if($INC{'CGI.pm'}) {
 	    use Exporter ();
-	    eval { Exporter::require_version('CGI', 2.32); }; 
+	    eval { Exporter::require_version('CGI', 2.35); }; 
 	    $err .= $@ if $@;
 	}
 	if ($err) {

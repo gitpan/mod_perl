@@ -34,7 +34,7 @@ $r->send_http_header;
 my(@args);
 
 if (@args = $r->args) {
-    $r->write_client(
+    $r->print(
        "ARGS: ",
        join(", ", map { $_ = qq{"$_"} } @args),
        "\n\n");

@@ -24,6 +24,9 @@ changes, simply because a CGI script has a very short lifetime of one
 HTTP request, allowing you to get away with "quick and dirty"
 scripting.  Using mod_perl and Apache::Registry requires you to be
 more careful, but it also gives new meaning to the work "quick"!
+Apache::Registry maintains a cache of compiled scripts, which happens
+the first time a script is accessed by a child server or once again if
+the file is updated on disk.
 
 Although it may be all you need, a speedy CGI replacement is only a
 small part of this project. Callback hooks are in place for each stage
@@ -113,6 +116,7 @@ The following configuration directives take one argument, which is the name
 of the subroutine to call.  If the value is not a subroutine name, mod_perl
 assumes it is a class name which implements a 'handler' subroutine.
 
+    PerlInitHandler
     PerlTransHandler    
     PerlAuthenHandler
     PerlAuthzHandler
@@ -121,6 +125,7 @@ assumes it is a class name which implements a 'handler' subroutine.
     PerlFixupHandler
     PerlLogHandler
     PerlHeaderParser (requires apache1.2b5 or higher)
+    PerlCleanupHandler
 
 =head1 I/O 
 
@@ -251,6 +256,199 @@ a connection, minimizing resource consumption.  Example:
 Although B<$dbh> shown here will go out of scope when the script ends,
 the Apache::DBI module's reference to it does not, keep the connection
 open.
+
+=item STACKED HANDLERS
+
+With the mod_perl stacked handlers mechanism, it is possible for more
+than one Perl*Handler to be defined and run during each stage of a 
+request.  
+
+Perl*Handler directives can define any number of subroutines,
+e.g. (in config files)
+ 
+ PerlTransHandler OneTrans TwoTrans RedTrans BlueTrans
+
+With the method, Apache->push_handlers, callbacks can be added to
+the stack by scripts at runtime by mod_perl scripts.
+
+Apache->push_handlers takes the callback hook name as it's first
+argument and a subroutine name or reference as it's second. e.g.:
+
+ Apache->push_handlers("PerlLogHandler", \&first_one);
+
+ $r->push_handlers("PerlLogHandler", sub {
+     print STDERR "__ANON__ called\n";
+     return 0;
+ });
+
+After each request, this stack is cleared out.
+
+All handlers will be called unless a handler returns a status other than
+OK or DECLINED, this needs to be considered more.  Post apache-1.2 will
+have a DONE return code to signal termiation of a stage, which Rob and
+I came up with while back when first discussing the idea of stacked
+handlers.  2.0 won't come for quite sometime, so mod_perl will most
+likely handle this before then. 
+
+example uses:
+
+CGI.pm maintains a global object for it's plain function interface.
+Since the object is global, it does not go out of scope, DESTROY is
+never called.  CGI->new can call: 
+
+ Apache->push_handlers("PerlCleanupHandler", \&CGI::_reset_globals);
+
+This function will be called during the final stage of a request,
+refreshing CGI.pm's globals before the next request comes in.  
+
+Apache::DCELogin establishes a DCE login context which must exist for
+the lifetime of a request, so the DCE::Login object is stored in a
+global variable.  Without stacked handlers, users must set 
+
+ PerlCleanupHandler Apache::DCELogin::purge
+
+in the configuration files to destroy the context.  This is not
+"user-friendly".  Now, Apache::DCELogin::handler can call:
+
+ Apache->push_handlers("PerlCleanupHandler", \&purge);
+
+Persistent database connection modules such as Apache::DBI could push
+a PerlCleanupHandler handler that iterates over %Connected, refreshing
+connections or just checking that ones have not gone stale.  Remember,
+by the time we get to PerlCleanupHandler, the client has what it wants
+and has gone away, we can spend as much time as we want here without
+slowing down response time to the client.
+
+PerlTransHandlers may decide, based or uri or other condition, whether
+or not to handle a request, e.g. Apache::MsqlProxy.  Without stacked
+handlers, users must configure:
+
+ PerlTransHandler Apache::MsqlProxy::translate
+ PerlHandler      Apache::MsqlProxy
+
+PerlHandler is never actually invoked unless translate() sees the
+request is a proxy request ($r->proxyreq), if it is a proxy request,
+translate() set $r->handler("perl-script"), only then will PerlHandler
+handle the request.  Now, users do not have to specify 'PerlHandler
+Apache::MsqlProxy', the translate() function can set it with
+push_handlers().
+
+Includes, footers, headers, etc., piecing together a document,
+imagine (no need for SSI parsing!):
+
+ PerlHandler My::Header Some::Body A::Footer
+
+This was my first test:
+
+ #My.pm
+ package My;
+
+ sub header {
+     my $r = shift;
+     $r->content_type("text/plain");
+     $r->send_http_header;
+     $r->print("header text\n");
+ }
+ sub body   { shift->print("body text\n")   }
+ sub footer { shift->print("footer text\n") }
+ 1;
+ __END__ 
+ #in config
+ <Location /foo>
+ SetHandler "perl-script"
+ PerlHandler My::header My::body My::footer
+ </Location>
+
+Parsing the output of another PerlHandler?  this is a little more
+tricky, but consider:
+
+ <Location /foo>
+   SetHandler "perl-script"
+   PerlHandler OutputParser SomeApp 
+ </Location>
+ <Location /bar>
+   SetHandler "perl-script"
+   PerlHandler OutputParser AnotherApp
+ </Location>
+
+Now, OutputParser goes first, but it untie's *STDOUT and re-tie's to
+it's own package like so:
+
+ package OutputParser;
+
+ sub handler {
+     my $r = shift; 
+     untie *STDOUT;	
+     tie *STDOUT => 'OutputParser', $r;
+ }
+
+ sub TIEHANDLE {
+     my($class, $r) = @_;
+     bless { r => $r}, $class;
+ }
+
+ sub PRINT {
+     my $self = shift;
+     for (@_) {
+         #do whatever you want to $_
+	 $self->{r}->print($_ . "[insert stuff]");
+     }
+ }
+
+ 1;
+ __END__
+
+tie of *STDOUT has worked since perl5.003_02 or so, no matter if sfio
+is configured.  
+
+To build in this feature, configure with:
+
+ % perl Makefile.PL PERL_STACKED_HANDLERS=1 [PERL_FOO_HOOK=1,etc]
+
+Another method 'Apache->can_stack_handlers' will return TRUE if
+mod_perl was configured with PERL_STACKED_HANDLERS=1, FALSE
+otherwise. 
+
+=head1 PERL METHOD HANDLERS
+
+If a Perl*Handler is prototyped with '$$', this handler will be
+invoked as method.  e.g.
+
+ package My;
+ @ISA = qw(BaseClass);
+
+ sub handler ($$) {
+     my($class, $r) = @_;
+     ...;
+ }
+
+ package BaseClass;
+
+ sub method ($$) {
+     my($class, $r) = @_;
+     ...;
+ }
+
+ __END__
+
+Configuration:
+
+ PerlHandler My
+
+or
+
+ PerlHandler My->handler
+
+Since the handler is invoked as a method, it may inherit from other
+classes:
+
+ PerlHandler My->method
+
+In this case, the 'My' package inherits this method from 'BaseClass'.
+
+To build in this feature, configure with:
+
+ % perl Makefile.PL PERL_METHOD_HANDLERS=1 [PERL_FOO_HOOK=1,etc]
 
 =head1 WARNINGS
 

@@ -17,14 +17,10 @@ eg/perlio.pl
 eg/registry.pl
 eg/rgy-cgi-pm.pl
 eg/README
-lib/Apache/AccessLimitNum.pm
-lib/Apache/AuthzAge.pm
 lib/Apache/CGI.pm
 lib/Apache/Debug.pm
-lib/Apache/MsqlProxy.pm
 lib/Apache/Options.pm
 lib/Apache/Registry.pm
-lib/Apache/SSI.pm
 src/Makefile.tmpl
 src/Makefile.tmpl-1.2
 Apache/Apache.pm
@@ -42,6 +38,7 @@ t/conf/httpd.conf.pl
 t/conf/mod_perl_srm.conf
 t/constants/export.t
 t/net/config.pl.dist
+t/net/headers.t
 t/net/cgi.t
 t/net/api.t
 t/net/http-get.t
