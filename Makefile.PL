@@ -10,7 +10,7 @@ use File::Copy qw(cp);
 #version 1.5 that ships with 5.003 is broken!
 *cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
 
-$VERSION = "0.98_12";
+$VERSION = "0.99";
 
 use subs qw(_prompt iedit);
 
@@ -75,6 +75,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
 
 $PERL_STATIC_EXTS = "";
 $Port = $PORT = 8529;
+$DO_HTTPD = $ENV{DO_HTTPD} || 0;
 $NO_HTTPD = $ENV{NO_HTTPD} || 0;
 $PERL_TRACE = 0;
 $ALL_HOOKS  = 0;
@@ -123,8 +124,7 @@ if($ALL_HOOKS) {
 }
 
 foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
-		  <../apache*/src>, <../stronghold*/src>, 
-    <../src>, <./src>) 
+		  <../apache*/src>, <../stronghold*/src>, "../src", "./src") 
 {
     next unless -d $src_dir;
     next if $seen{$src_dir}++;
@@ -161,14 +161,16 @@ foreach $adir (@adirs) {
     $httpd_h = "$adir/httpd.h";
 
     if (-e $httpd_h) {
-	unless($APACHE_SRC) {
-	    $ans = _prompt("Configure mod_perl with $adir ?", "y");
-	    next unless $ans =~ /^y$/i;
+	unless($NO_HTTPD and not $DYNAMIC) {
+	    unless($DO_HTTPD) {
+		$ans = _prompt("Configure mod_perl with $adir ?", "y");
+		next unless $ans =~ /^y$/i;
+	    }
 	    $APACHE_SRC = $adir;
+	    $IsBenSSL = -e "$adir/apache_ssl.c";
+	    last unless(-e $conf || -e "$conf.tmpl"); #building from 'make offsite-tar' 
 	}
-	$IsBenSSL = -e "$adir/apache_ssl.c";
-	last unless(-e $conf || -e "$conf.tmpl"); #building from 'make offsite-tar' 
-	unless ($NO_HTTPD) {
+	unless ($DO_HTTPD or $NO_HTTPD) {
 	    $ans = _prompt("Shall I build httpd in $adir for you?", "y");
 	    ++$NO_HTTPD unless $ans =~ /^y$/i;
 	}
@@ -217,10 +219,6 @@ foreach $adir (@adirs) {
 	    if $can_dash_make{$adir} and $mft_map{$adir};
 	#print STDERR "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)\n";
 	system "(cd $adir && ./Configure${dash_make} -file $PWD/$conf)";
-	if($do_b8_chop and -e "$adir/modules/Makefile") {
-	    print "getting rid of $b8_chop target in modules/Makefile\n";
-	    iedit "$adir/modules/Makefile", "s/=$b8_chop".'\s+/=/g'; 
-	}
     }
 
     open FH, "$APACHE_SRC/Makefile";
@@ -242,7 +240,12 @@ unless ($NO_HTTPD) {
 	    "(need 1.2b5 or higher)";
     }
 
-    cp "src/modules/perl/Apache.xs", "Apache/Apache.xs" if $DYNAMIC;
+    if($DYNAMIC) {
+	for (qw(Apache Constants)) {
+	    cp "src/modules/perl/${_}.xs", "${_}/${_}.xs" if $DYNAMIC;
+	}
+    }
+
     setup_for_static();
 
     for (@callback_hooks) {
@@ -275,7 +278,8 @@ unless ($NO_HTTPD) {
     my $ssl_name = is_ssl();
     if($ssl_name) {
 	print "I see you are building with $ssl_name,\nI'll set the SSL flags in mod_perl's Makefile\n";
-
+	print "Before running `make test', you must add your `StrongholdKey' to t/conf/httpd.conf\n" if 
+	    $ssl_name =~ /stronghold/i;
 	iedit "$APACHE_SRC/modules/perl/Makefile",	"s/^#APACHE_SSL/APACHE_SSL/";
     }
 
@@ -409,9 +413,10 @@ EOT
 
 
 sub is_ssl {
+    my $d = shift || $APACHE_SRC;
     for (keys %SSL) {
 	#warn "looking for $APACHE_SRC/$_\n";
-	return $SSL{$_} if -e "$APACHE_SRC/$_";
+	return $SSL{$_} if -e "$d/$_";
     }
     return 0;
 }
@@ -454,6 +459,7 @@ WriteMakefile(
 	PERL_VERSION => $]+0,
 	HTTPD => (is_ssl() ? "httpsd" : "httpd"),
 	PORT => $PORT,
+	PWD => $PWD,
     },
     dist    => {
 	COMPRESS=> 'gzip -9f', SUFFIX=>'gz', 
@@ -493,8 +499,7 @@ apache_httpd: $(APACHE_SRC)/Configuration
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \
-	     $(TAR) -cf Apache.tar Apache.pm Apache/ $(ARCHNAME)/auto/Apache; )
-	$(MV) $(INSTALLSITELIB)/Apache.tar .
+	     $(TAR) -cf $(PWD)/Apache.tar Apache.pm Apache/ $(ARCHNAME)/auto/Apache; )
 
 offsite-tar:
 	$(CP) MANIFEST MANIFEST.orig
@@ -578,17 +583,13 @@ sub httpd_version {
 	    if($fserver eq "Apache") {
 		($server, $version) = ($fserver, $fversion);
 		if($version == 1.2 and $frest =~ s/^b(\d+).*/$1/) {
-		    if($frest < 6) {
-			warn "Apache/1.2b$frest is not supported, skipping.\n";
-			return undef;
-		    }
-		    ++$can_dash_make{$dir} if $frest >= 3;
-		    ++$do_b8_chop if($frest == 8);
-		    if($frest >= 8) {
-			#warn "Don't need our own Makefile.tmpl (b$frest)!\n";
-			++$Has_b11 if $frest == 11;
+		    if($frest >= 8 and is_ssl($dir)) {
+			$do_link_swap++;
+			$can_dash_make{$dir}++;
 			return "NONE";
 		    }
+		    warn "Apache/1.2b$frest is not supported, upgrade to 1.2.0.\n";
+		    return undef;
 		}
 		elsif($version >= 1.2) {
 		    $can_dash_make{$dir}++;
@@ -599,12 +600,6 @@ sub httpd_version {
 		#print STDERR "'$fserver/$fversion' unrecognized.\n";
 		next;
 	    }
-
-	    if("$version$rest" eq "1.2-dev") {
-		print STDERR "Apache/1.2-dev not supported, upgrade to 1.2bX\n";
-		next;
-	    }
-
 	    print STDERR "Found $fserver '$fversion' in $dir/httpd.h\n";
 	}
     }
@@ -692,25 +687,17 @@ sub conf_fixup {
 		
     }
 
-#    if(has_module($cfg, 'php')) {
-#	iedit $cfg, "s/(Rule WANTHSREGEX)\=(default)/\$1=no/";
-#	warn "setting Rule WANTHSREGEX=no\n";
-#    }
-#    else {
-    if($Has_b11) {
-	warn "swaping link order back to b10\n";
-	my $repl = quotemeta('$(REGLIB) $(LIBS)');
-	iedit $mf, "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;";
-    }
-#    }
-
-    $b8_chop = (split "/", $PWD)[1];
-
     my $ldopts = "`$^X $PWD/src/modules/perl/ldopts $PERL_STATIC_EXTS`";
     iedit $cfg,
     q{next unless /EXTRA_LIBS\s*=/;}.
     q{next if /perl/; chomp;}.
     qq{\$_ .= q| $ldopts\n|;};
+
+    if(is_ssl() =~ /stronghold/i and $do_link_swap) {
+	warn "swapping link order in $mf for Stronghold\n";
+	my $repl = quotemeta('$(REGLIB) $(LIBS)');
+	iedit $mf, "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;";
+    }
 
     open(CONF, $cfg) || die "Can't open $cfg: $!";
     while (<CONF>) {

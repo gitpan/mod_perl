@@ -16,6 +16,37 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.99
+
+added DO_HTTPD option to avoid configuration prompts, suggested by
+Michael Alan Dorman 
+
+only build Constants.s[ol] with DYNAMIC=1
+
+swap link order in Makefile.tmpl for Stronghold as we did for b11
+thanks to Ted Corning for spotting
+
+applied patch from Rob so 'make tar_Apache' creates the tarball in $PWD
+
+@Lists in <Perl> sections can now deal with TAKE2, TAKE23, TAKE3, etc.
+
+updated FAQ pointers to Frank's new version
+
+Apache::Registry will return OK instead of $r->status, suggested by Owen Scott Medd
+
+skip t/constants/export test on platforms that don't support dl
+
+removed Apache::CGI stub
+
+removed alias for Apache::CGI::exit and Apache::TieHandle::TIEHANDLE
+
+cleanup up Makefile.PL, no longer support 1.2bx's
+
+another patch applied from Alexander Demenshin who found av_undef
+does not take care of everything, we must SvREFCNT_dec too!
+
+fix bug with PERL_METHOD_HANDLERS spotted by Eric Bartley
+
 =item 0.98_12
 
 applied patch from Alexander Demenshin <aldem@techie.com> to plug
@@ -1331,3 +1362,5 @@ Thanks for getting this started Gisle!
 
 
 =back
+
+=cut

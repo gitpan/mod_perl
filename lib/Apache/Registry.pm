@@ -7,8 +7,8 @@ use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.31 1997/05/19 22:25:31 dougm Exp $
-$VERSION = (qw$Revision: 1.31 $)[1];
+#$Id: Registry.pm,v 1.32 1997/06/12 00:17:41 dougm Exp $
+$VERSION = (qw$Revision: 1.32 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -136,7 +136,7 @@ sub handler {
 	for (@cleanup) { &{$_}($r) }
 	@cleanup = ();
 
-	return $r->status;
+	return OK;
     } else {
 	return NOT_FOUND unless $Debug & 2;
 	return Apache::Debug::dump($r, NOT_FOUND);
@@ -177,6 +177,9 @@ sub push_cleanup {
     my $self = shift;
     push @cleanup, @_;
 }
+
+#trick so we show up under CPAN/modules/by-module/CGI/
+package CGI::Apache;
 
 1;
 
@@ -246,8 +249,7 @@ before running the script.
 
 =head1 ENVIRONMENT
 
-The Apache functions `warn' and `exit' override the Perl core built-in
-functions.
+The Apache function `exit' overrides the Perl core built-in function.
 
 The environment variable B<GATEWAY_INTERFACE> is set to C<CGI-Perl/1.1>.
 

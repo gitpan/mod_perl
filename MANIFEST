@@ -1,6 +1,5 @@
 Changes
 Constants/Constants.pm
-Constants/Constants.xs
 Constants/Makefile.PL
 FileHandle.patch
 INSTALL
@@ -17,7 +16,6 @@ eg/perlio.pl
 eg/registry.pl
 eg/rgy-cgi-pm.pl
 eg/README
-lib/Apache/CGI.pm
 lib/Apache/Debug.pm
 lib/Apache/Options.pm
 lib/Apache/Registry.pm
@@ -26,6 +24,7 @@ src/Makefile.tmpl-1.2
 Apache/Apache.pm
 Apache/typemap
 Apache/Makefile.PL
+src/modules/perl/Constants.xs
 src/modules/perl/Apache.xs
 src/modules/perl/ldopts
 src/modules/perl/config.c

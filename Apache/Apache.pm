@@ -170,10 +170,6 @@ sub TIEHANDLE {
     $r ||= Apache->request;
 }
 
-#some backwards-compatible stuff
-*Apache::TieHandle::TIEHANDLE = \&TIEHANDLE;
-*CGI::Apache::exit = \&Apache::exit;
-
 1;
 
 __END__
@@ -214,7 +210,7 @@ is passed to them via C<@_>.  However, scripts that run under
 L<Apache::Registry>, for example, need a way to access the request object.
 L<Apache::Registry> will make a request object availible to these scripts
 by passing an object reference to C<Apache-E<gt>request($r)>.
-If handlers use modules such as C<Apache::CGI> that need to access
+If handlers use modules such as C<CGI::Apache> that need to access
 L<Apache-E<gt>request>, they too should do this (e.g. Apache::Status).
 
 =item $r->as_string
@@ -492,14 +488,14 @@ Returns a reference to the current value of the per server
 configuration directive B<DocumentRoot>. To quote the Apache server
 documentation, "Unless matched by a directive like Alias, the server
 appends the path from the requested URL to the document root to make
-the path to the document." This same value is passed to CGI
+the path to the document."  This same value is passed to CGI
 scripts in the C<DOCUMENT_ROOT> environment variable.
 
 =item $r->allow_options
 
 The $r->allow_options method can be used for
 checking if it is ok to run a perl script.  The B<Apache::Options>
-module provide the constants to check against.
+module provides the constants to check against.
 
  if(!($r->allow_options & OPT_EXECCGI)) {
      $r->log_reason("Options ExecCGI is off in this directory", 
@@ -524,7 +520,7 @@ Returns the hostname used by this server.
 
 Returns the port that this servers listens too.
 
-=item $s->is_virtal
+=item $s->is_virtual
 
 Returns true if this is a virtual server.
 
@@ -662,7 +658,7 @@ These headers are used if the status indicates an error.
 This is a flag that indicates that the data being returned is volatile
 and the client should be told not to cache it.
 
-=item $r->print()
+=item $r->print( @list )
 
 This method sends data to the client with C<$r-E<gt>write_client>, but first
 sets a timeout before sending with C<$r-E<gt>hard_timeout>.
@@ -833,7 +829,7 @@ In opposite to unescape_url it translates the plus sign to space.
 
 Test to see if a callback hook is enabled
 
- for (qw(Access Authen Authz Fixup HeaderParser Log Trans Type)) {
+ for (qw(Access Authen Authz Cleanup Fixup HeaderParser Init Log Trans Type)) {
     print "$_ hook enabled\n" if Apache::perl_hook($_);
  }  
 
@@ -844,9 +840,9 @@ Test to see if a callback hook is enabled
 perl(1),
 Apache::Constants(3),
 Apache::Registry(3),
-Apache::CGI(3),
 Apache::Debug(3),
-Apache::Options(3)
+Apache::Options(3),
+CGI::Apache(3),
 
 =head1 AUTHORS
 

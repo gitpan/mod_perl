@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.55 1997/06/06 00:48:01 dougm Exp $ */
+/* $Id: Apache.xs,v 1.56 1997/06/12 00:17:41 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -1389,10 +1389,4 @@ names(server)
     RETVAL = server->names;
 
     OUTPUT:
-    RETVAL
-
-int
-make_child(server_conf, child_num)
-    Apache::Server	server_conf
-    int child_num
 

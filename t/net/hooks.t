@@ -7,7 +7,8 @@ require LWP::UserAgent;
 #generating a hook::handler() for each and writing t/docs/.htaccess
 #next request invokes each handler, each appending to t/docs/hooks.txt
 @urls = ("$net::perldir/hooks.pl", "/test.html");
-push @urls, qw(/stacked/test.html) if -d "../docs/stacked";
+push @urls, qw(/stacked/test.html) if 
+    -d "../docs/stacked" or -d "./docs/stacked";
 
 my $ua = new LWP::UserAgent;    # create a useragent to test
 

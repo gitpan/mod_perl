@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.58 1997/06/06 00:48:01 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.59 1997/06/12 00:17:41 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -327,7 +327,6 @@ int mod_perl_sent_header(SV *self, int val)
 
 int perl_handler(request_rec *r)
 {
-    dSP;
     int status = OK;
     perl_dir_config *cld = get_module_config (r->per_dir_config,
 					      &perl_module);   
@@ -469,6 +468,7 @@ void mod_perl_end_cleanup(void *data)
 {
     perl_clear_env;
     av_undef(GvAV(incgv));
+    SvREFCNT_dec(GvAV(incgv));
     GvAV(incgv) = Nullav;
     GvAV(incgv) = av_copy_array(orig_inc);
     /* reset $/ */
@@ -483,7 +483,7 @@ void mod_perl_cleanup_handler(void *data)
     I32 i;
 
     MP_TRACE(fprintf(stderr, "running registered cleanup handlers...\n")); 
-    for(i=0; i<=av_len(cleanup_av); i++) { 
+    for(i=0; i<=AvFILL(cleanup_av); i++) { 
 	cv = *av_fetch(cleanup_av, i, 0);
 	perl_call_handler(cv, (request_rec *)r, Nullav);
     }
@@ -604,7 +604,7 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 	do_clear = 1;
     }
 
-    for(i=0; i<=av_len(handlers); i++) {
+    for(i=0; i<=AvFILL(handlers); i++) {
 	MP_TRACE(fprintf(stderr, "calling &{%s->[%d]}\n", hook, (int)i));
 
 	if(!(sub = *av_fetch(handlers, i, FALSE))) {
@@ -643,7 +643,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
     int defined_sub = 0, anon = 0;
 
     if(SvTYPE(sv) == SVt_PV) {
-	char *imp = SvPV(class,na);
+	char *imp = pstrdup(r->pool, (char *)SvPV(class,na));
 
 	if((anon = strnEQ(imp,"sub ",4))) {
 #ifdef HAVE_PERL_5__4
@@ -652,7 +652,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 	    defined_sub++;
 	    goto callback; /* XXX, I swear I've never used goto before! */
 #else
-	    warn("Need Perl version 5.003_98+ to use anonymous subs!\n");
+	    warn("Need Perl version 5.004+ to use anonymous subs!\n");
 	    return SERVER_ERROR;
 #endif
 	}
@@ -682,7 +682,8 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 	MP_TRACE(fprintf(stderr, "perl_call: method=`%s'\n", method));
 	MP_TRACE(fprintf(stderr, "perl_call: stash=`%s'\n", 
 			 stash ? HvNAME(stash) : "unknown"));
-
+#else
+	method = NULL; /* avoid warning */
 #endif
 
 
@@ -758,7 +759,7 @@ callback:
 
     XPUSHs((SV*)perl_bless_request_rec(r)); 
     {
-	I32 i, len = (args ? av_len(args) : 0);
+	I32 i, len = (args ? AvFILL(args) : 0);
 	
 	if(args) {
 	    EXTEND(sp, len);

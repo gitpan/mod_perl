@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern,  5-Jun-1997 -->
+<!-- Changed by: Doug MacEachern, 11-Jun-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.25 $ $Date: 1997/06/06 00:48:01 $</i>
+<br><i> $Revision: 1.26 $ $Date: 1997/06/12 00:17:41 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -82,20 +82,20 @@ WDB		cdpf	Database query/edit tool using DBI	JROWE
 AgentDeny	bdpf	Deny abusive User-Agents		ROBH
 
 * PerlAuthenHandler's
-DCELogin	bdpf	Obtain a DCE login context		DOUGM
 AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
 AuthenDBI	bmpO	Authenticate via Perl's DBI		SKANE
+AuthenLDAP	i	LDAP authentication module		MARKK
 Authen		bmpf	Perl Apache authentication utilities	SKANE
 AuthenDBIConnectbdpf	Authenticate to backend database 	JGROV
-BasicCookieAuth	cdpf	Accept cookie or basic auth creds	PMKANE
 AuthCookie	cdpf	Authen + Authz via cookies		EBARTLEY
+BasicCookieAuth	cdpf	Accept cookie or basic auth creds	PMKANE
+DCELogin	bdpf	Obtain a DCE login context		DOUGM
 
 * PerlAuthzHandler's
 AuthCookie	cdpf	Authen + Authz via cookies		EBARTLEY
 AuthzAge	bmpf	Authorize based on age			APML
 AuthzDCE	cdpf	DFS/DCE ACL based access control	DOUGM
 RoleAuthz	i	Role-based authorization		DOUGM
-
 
 * PerlAccessHandler's
 AccessLimitNum	bmpf	Limit user access by number of requests	APML
@@ -116,20 +116,28 @@ HttpEquiv	bdpf	HTML HTTP-EQUIV tags to HTTP headers	ROBH
 * PerlLogHandler's
 DumpHeaders	bdpf	Watch HTTP transaction via headers	DOUGM
 
+* Server Configuration
+ConfigLDAP	i	Config via LDAP and &lt;Perl&gt;		MARKK
+ConfigDBI	i	Config via DBI and &lt;Perl&gt;		MARKIM
+ModuleConfig	cmcO	Interface to configuration API		DOUGM
+
+* Database
+DBI		bmpO	Persistent DBI connection mgmt.		MERGL
+Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
+Mysql		cdpO	Persistent connection mgmt. for Mysql	NJENSEN
+
 * Misc
 Byterun		i	Run Perl bytecode modules		DOUGM
 Constants	Rmcf	Constants defined in httpd.h		APML
-DBI		bmpO	Persistent database connection mgmt.	MERGL
 Debug		Rmpf	mod_perl debugging utilities		APML
 Include		Rmpf	mod_include + Apache::Registry handler	APML
-ModuleConfig	cmcO	Interface to configuration API		DOUGM
 OutputChain     cmpO	Chain output of stacked handlers	HONZAP
 Options		Rmpf	Import Apache::Constants 'options'	APML
+PUT		cdpf	HTTP PUT method handler module		PLISTER
 Safe		cmpO	Adaptation of "safecgiperl"		APML
 Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 Session		cmpf	Maintain client <-> httpd session/state	APML
 State		i	Powerful state engine			RSE
-Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
 
 </pre>
 <a name="where">
@@ -159,7 +167,10 @@ HONZAP   Honza Pazdziora &lt;adelton@INFORMATICS.MUNI.CZ&gt;
 JGROV	 John D Groenveld &lt;groenvel@cse.psu.edu&gt;
 JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;
 MARKIM	 Mark A. Imbriaco &lt;mark@itribe.net&gt;
+MARKK	 Mark Kennedy &lt;mtk@ny.ubs.com&gt;
 MERGL	 Edmund Mergl &lt;E.Mergl@bawue.de&gt;
+NJENSEN	 Neil Jensen &lt;njensen@habaneros.com&gt;
+PLISTER  Peter Lister &lt;p.lister@cranfield.ac.uk&gt;
 PMKANE	 Patrick Michael Kane &lt;modus@enews.com&gt;
 ROBH	 Rob Hartill &lt;robh@imdb.com&gt;
 RSE      Ralf S. Engelschall &lt;rse@engelschall.com&gt;

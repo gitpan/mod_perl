@@ -47,9 +47,15 @@ When asked:
 answering 'y' will run ../apache_xxx/Configure 
 and httpd will be built when running 'make'
 
-You can avoid this prompt by starting with the following command:
+To avoid this prompt and default to the first apache source tree found
+to configure and build against, use the following command:
 
-  perl Makefile.PL NO_HTTPD=1
+  perl Makefile.PL DO_HTTPD=1
+
+To avoid the prompts and avoid building httpd, use the following
+command:
+
+   perl Makefile.PL NO_HTTPD=1
 
 You may wish see the instructions below on how to build by hand.
 
@@ -181,6 +187,9 @@ Then, you may rebuild following the instructions above to:
   or
 
  Building apache and mod_perl by hand
+
+Before running `make test', you must add your `StrongholdKey' 
+to t/conf/httpd.conf
 
 I you are configuring by hand, be sure to edit
 src/modules/perl/Makefile and uncomment #APACHE_SSL
@@ -327,6 +336,23 @@ the output of 'make test'
 
 if you get a core dump, please send a backtrace if possible.
 
+If the dump is happening in libperl a -DDEBUGGING enabled libperl
+would help show us what's really happening. 
+
+Go to your Perl source tree:
+% rm *.[oa]
+% make LIBPERL=libperld.a
+% cp libperld.a $Config{archlibexp}/CORE
+% cd $Config{archlibexp}/CORE
+% mv libperl.a libperle.a
+% ln -s libperld.a libperl.a
+
+$Config{archlibexp} is:
+% perl -V:archlibexp
+
+Rebuild httpd, let's see a new backtrace.  After we're done debugging,
+ln -s libperle.a libperl.a
+
 if you can compile but not run a mod_perlend mail to modperl@listproc.itribe.net with the output of:
 
 Output of C<perl -v; perl -V>
@@ -336,4 +362,4 @@ version of the mod_perl package.
 which script from the eg/ directory you are using.
 (please try a script from there first.)
 
-your apache server ver
+your apache server version

@@ -5,6 +5,18 @@
 
 # Change 1..1 below to 1..last_test_to_print .
 # (It may become useful if the test is moved to ./t subdirectory.)
+BEGIN {
+    use Config;
+    if($Config{dlsrc} eq "dl_none.xs" 
+       or
+       not -e "Constants/Constants.xs"
+       ) {
+	print "1..1\nok 1\n";
+	print "dynamic Apache::Constants not built, skipping tests\n";
+	exit;
+    }
+}
+
 use Apache::Constants;
 
 $version = SERVER_VERSION; 

@@ -36,8 +36,8 @@ type check, fixup and logger stages of a request.
 
 =head1 FAQ
 
-Patrick Kane <modus@enews.com> maintains the mod_perl FAQ available at:
-http://chaos.dc.enews.com/mod_perl/
+The mod_perl FAQ is maintained by Frank Cringle <fdc@cliwe.ping.de>:
+http://www.ping.de/~fdc/mod_perl/
 
 =head1 Apache/Perl API
 
@@ -474,10 +474,10 @@ entirely in Perl.
 <Perl> sections can contain *any* and as much Perl code as you
 wish.  These sections are compiled into a special package who's symbol
 table mod_perl can then walk and grind the names and values of Perl
-variables/structures through the Apache core config gears.    Most of the configurations
-directives can be represented as C<$Scalars> or C<@Lists>.  A C<@List>
-inside these sections is simply converted into a single-space
-delimited string for you inside.  Here's an example:
+variables/structures through the Apache core config gears.    Most of
+the configurations directives can be represented as C<$Scalars> or
+C<@Lists>.  A C<@List> inside these sections is simply converted into
+a single-space delimited string for you inside.  Here's an example:
 
  #httpd.conf
  <Perl>
@@ -505,6 +505,18 @@ C<%Hash>, e.g.:
      },
  };
 
+ #If a Directive can take say, two *or* three arguments
+ #you may push strings and the lowest number of arguments
+ #will be shifted off the @List
+ #or use array reference to handle any number greater than
+ #the minimum for that directive
+  
+ push @Redirect, "/foo", "http://www.foo.com/";
+
+ push @Redirect, "/imdb", "http://www.imdb.com/";
+
+ push @Redirect, [qw(temp "/here" "http://www.there.com")];
+
 Other section counterparts include C<%VirtualHost>, C<%Directory> and
 C<%Files>. 
 
@@ -514,6 +526,22 @@ See eg/httpd.conf.pl and eg/perl_sections.txt for some examples.
 
 Currently for <Perl> sections to work, the C<PerlScript> configuration
 directive must be defined, C</dev/null> will do just fine.
+
+A tip for syntax checking outside of httpd:
+
+ <Perl>
+ #!perl
+ 
+ #... code here ...
+
+ __END__
+ </Perl>
+
+Now you may run C<perl -cx httpd.conf>.
+
+It may be the case that <Perl> sections are not completed or an
+oversight was made in an certain area.  If they do not behave as you
+expect, please send a report to the modperl mailing list.
 
 To configure this feature build with 
  'perl Makefile.PL PERL_SECTIONS=1'

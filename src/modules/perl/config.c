@@ -339,18 +339,22 @@ const char *limit (cmd_parms *cmd, void *dummy, const char *arg);
 void add_per_dir_conf (server_rec *s, void *dir_config);
 void add_per_url_conf (server_rec *s, void *url_config);
 void add_file_conf (core_dir_config *conf, void *url_config);
+const command_rec *find_command_in_modules (const char *cmd_name, module **mod);
 
-char *perl_av2string(AV *av) 
+char *perl_av2string(AV *av, pool *p) 
 {
-    I32 i, len = av_len(av);
+    I32 i, len = AvFILL(av);
     SV *sv = newSV(0);
+    char *retval;
 
     for(i=0; i<=len; i++) {
 	sv_catsv(sv, *av_fetch(av, i, FALSE));
 	if(i != len)
 	    sv_catpvn(sv, " ", 1);
     }
-    return SvPV(sv,na);
+    retval = pstrdup(p, (char *)SvPVX(sv));
+    SvREFCNT_dec(sv);
+    return retval;
 }
 
 CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
@@ -400,7 +404,7 @@ void perl_section_hash_walk(cmd_parms *cmd, void *cfg, HV *hv)
 	char *value = NULL;
 	if(SvROK(tmpval)) {
 	    if(SvTYPE(SvRV(tmpval)) == SVt_PVAV) {
-		value = perl_av2string((AV*)SvRV(tmpval)); 
+		value = perl_av2string((AV*)SvRV(tmpval), cmd->pool); 
 	    }
 	    else if(SvTYPE(SvRV(tmpval)) == SVt_PVHV) {
 		HV *lim = (HV*)SvRV(tmpval);
@@ -624,6 +628,87 @@ CHAR_P perl_end_section (cmd_parms *cmd, void *dummy) {
     return perl_end_magic;
 }
 
+void perl_handle_command(cmd_parms *cmd, void *dummy, char *line) {
+    CHAR_P errmsg;
+    errmsg = handle_command(cmd, dummy, line);
+    MP_TRACE(fprintf(stderr, "handle_command (%s): %s\n", line, 
+		     (errmsg ? errmsg : "OK")));
+}
+
+void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *dummy)
+{
+    I32 alen = AvFILL(av);
+    I32 i, j;
+    I32 oldwarn = dowarn; /*XXX, hmm*/
+    dowarn = FALSE;
+
+    if(!n) n = alen+1;
+
+    for(i=0; i<=alen; i+=n) {
+	SV *fsv;
+	if(AvFILL(av) < 0)
+	    break;
+
+	fsv = *av_fetch(av, 0, FALSE);
+
+	if(SvROK(fsv)) {
+	    i -= n;
+	    perl_handle_command_av((AV*)SvRV(av_shift(av)), 0, 
+				   key, cmd, dummy);
+	}
+	else {
+	    SV *sv = newSV(0);
+	    sv_catpv(sv, key);
+	    sv_catpvn(sv, " ", 1);
+
+	    for(j=1; j<=n; j++) {
+		sv_catsv(sv, av_shift(av));
+		if(j != n)
+		    sv_catpvn(sv, " ", 1);
+	    }
+
+	    perl_handle_command(cmd, dummy, SvPVX(sv));
+	    SvREFCNT_dec(sv);
+	}
+    }
+    dowarn = oldwarn; 
+}
+
+extern module *top_module;
+
+#ifdef PERL_TRACE
+char *splain_args(enum cmd_how args_how) {
+    switch(args_how) {
+    case RAW_ARGS:
+	return "RAW_ARGS";
+    case TAKE1:
+	return "TAKE1";
+    case TAKE2:
+	return "TAKE2";
+    case ITERATE:
+	return "ITERATE";
+    case ITERATE2:
+	return "ITERATE2";
+    case FLAG:
+	return "FLAG";
+    case NO_ARGS:
+	return "NO_ARGS";
+    case TAKE12:
+	return "TAKE12";
+    case TAKE3:
+	return "TAKE3";
+    case TAKE23:
+	return "TAKE23";
+    case TAKE123:
+	return "TAKE123";
+    case TAKE13:
+	return "TAKE13";
+    default:
+	return "__UNKNOWN__";
+    };
+}
+#endif
+
 CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 {
     CHAR_P errmsg;
@@ -657,7 +742,6 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	SV *sv;
 	HV *hv;
 	AV *av;
-	int have_line = 0;
 
 	if(SvTYPE(val) != SVt_PVGV) 
 	    continue;
@@ -666,9 +750,10 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	    if(SvTRUE(sv)) {
 		MP_TRACE(fprintf(stderr, "SVt_PV: %s\n", SvPV(sv,na)));
 		sprintf(line, "%s %s", key, SvPV(sv,na));
-		have_line++;
+		perl_handle_command(cmd, dummy, line);
 	    }
 	}
+
 	if((hv = GvHV((GV*)val))) {
 	    if(strEQ(key, "Location")) 	
 		perl_urlsection(cmd, dummy, hv);
@@ -680,14 +765,36 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 		perl_filesection(cmd, (core_dir_config *)dummy, hv);
 	}
 	else if((av = GvAV((GV*)val))) {	
-	    sprintf(line, "%s %s", key, perl_av2string(av));
-	    have_line++;
-	}
-	if(have_line) {
-	    errmsg = handle_command(cmd, dummy, line);
-	    MP_TRACE(fprintf(stderr, "handle_command (%s): %s\n", line, 
-			     (errmsg ? errmsg : "OK")));
-	    have_line = 0;
+	    module *mod = top_module;
+	    const command_rec *c = 
+		find_command_in_modules ((const char *)key, &mod);
+	    I32 shift, alen = AvFILL(av);
+
+	    if(!c) fprintf(stderr, "command_rec for directive `%s' not found!\n", key);
+
+	    MP_TRACE(fprintf(stderr, 
+			     "`@%s' directive is %s, (%d elements)\n", 
+			     key, splain_args(c->args_how), AvFILL(av)+1));
+
+	    switch (c->args_how) {
+		
+	    case TAKE23:
+	    case TAKE2:
+		shift = 2;
+		break;
+
+	    case TAKE3:
+		shift = 3;
+		break;
+
+	    default:
+		MP_TRACE(fprintf(stderr, 
+				 "default: iterating over @%s\n", key));
+		shift = 1;
+		break;
+	    }
+	    if(shift > alen) shift = 1; /* elements are refs */ 
+	    perl_handle_command_av(av, shift, key, cmd, dummy);
 	}
     }
     SvREFCNT_dec(code);
