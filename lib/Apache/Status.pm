@@ -7,27 +7,35 @@ my(%status) = (
    symdump => "Symbol Table Dump",
 );
 
+sub menu_item {
+    my($self, $key, $val, $sub) = @_;
+    $status{$key} = $val;
+    no strict;
+    *{"status_${key}"} = $sub 
+	if $sub and ref $sub eq 'CODE';
+}
+
 sub handler {
     my($r) = @_;
     Apache->request($r); #for Apache::CGI
-    require Apache::CGI;
-    my $q = new Apache::CGI;
     my $qs = $r->args;
     my $sub = "status_$qs";
-    $r->print($q->header, $q->start_html, $q->start_form);
     no strict 'refs';
+    $r->print(header());
     if(defined &$sub) {
-	$r->print(header(), @{ &{$sub}($r,$q) });
+	require CGI::Switch;
+	$r->print(@{ &{$sub}($r,CGI::Switch->new) });
     }
     elsif (exists $Apache::Registry->{$qs}) { 
-	$r->print(header(), symdump($qs));
+	$r->print(symdump($qs));
     }
     else {
 	my $uri = $r->uri;
-	$r->print(header(),
+	$r->print(
  	    map { qq[<a href="$uri?$_">$status{$_}</a><br>\n] } keys %status
         );
     }
+    $r->print("</body></html>");
 
     1;
 }
@@ -35,8 +43,14 @@ sub handler {
 sub header {
     my $start = scalar localtime $^T;    
     my $srv = Apache::Constants::SERVER_VERSION();
-    "Embedded Perl version <b>$]</b> for <b>$srv</b> process <b>$$</b>, <br>
-     running since $start<hr>\n";
+    return <<"EOF";
+<html>
+<head><title>Apache::Status</title></head>
+<body>
+Embedded Perl version <b>$]</b> for <b>$srv</b> process <b>$$</b>, 
+<br> running since $start<hr>
+EOF
+
 }
 
 sub symdump {
@@ -104,6 +118,19 @@ Configure like so:
  SetHandler  perl-script
  PerlHandler Apache::Status
  </Location>
+
+Other modules can "plugin" a menu item like so:
+
+ Apache::Status->menu_item(
+    'DBI' => "DBI connections", #item for Apache::DBI module
+    sub {
+        my($r,$q) = @_; #request and CGI objects
+        my(@strings);
+        push @strings,  "blobs of html";
+        return \@s;     #return an array ref
+    }
+ ) if Apache->module("Apache::Status"); #only if Apache::Status is loaded
+
 
 =head1 PREREQUISITES
 

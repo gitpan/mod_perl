@@ -10,6 +10,13 @@ $Apache::CRLF = "\015\012";
 
 bootstrap Apache $VERSION;
 
+*Apache::warn = \&Apache::log_error;
+
+sub module {
+    my($self, $module) = @_;
+    eval "require $module;";
+}
+
 sub parse_args {
     my($wantarray,$string) = @_;
     return unless defined $string and $string;
@@ -39,11 +46,7 @@ sub cgi_var {
     return $val;
 }
 
-sub READ {
-    my($r, $buff, $len, $offset) = @_;
-    return $r->read($$buff, $len, $offset);
-}
-
+*READ = \&read;
 sub read {
     my($r, $bufsiz) = @_[0,2];
     my($nrd, $buf, $total);
@@ -53,8 +56,8 @@ sub read {
     $r->hard_timeout("Apache->read");
 
     while($bufsiz) {
-	$nrd = $r->read_client_block($buf, $bufsiz);
-	if($nrd > 0) {
+	$nrd = $r->read_client_block($buf, $bufsiz) || 0;
+	if(defined $nrd and $nrd > 0) {
 	    $bufsiz -= $nrd;
 	    $total += $nrd;
 	    $_[1] .= $buf;
@@ -67,6 +70,16 @@ sub read {
     }
     $r->kill_timeout;
     return $total;
+}
+
+sub GETC { my $c; shift->read($c,1); $c; }
+
+#shouldn't use <STDIN> anyhow, but we'll be nice
+sub READLINE { 
+    my $r = shift;
+    my $line; 
+    $r->read($line, $r->header_in('Content-length'));
+    $line;
 }
 
 *PRINT = \&print;
@@ -146,18 +159,14 @@ sub as_string {
     join "\n", @retval, "";
 }
 
-sub untaint {
-    my $self = shift;
-    for (@_) {
-	$_ =~ /^(.*)$/s; $_ = $1;
-    }
-}
-
+#some backwards-compatible stuff
 sub Apache::TieHandle::TIEHANDLE {
     my($class, $r) = @_;
     warn("use of Apache::TieHandle depreciated, *STDOUT is already tie'd");
     $r ||= Apache->request;
 }
+
+*Apache::CGI::exit = \&Apache::exit;
 
 1;
 
@@ -210,6 +219,16 @@ Returns a string representation of the request object.
 
 If the current request is a sub-request, this method returns a blessed 
 reference to the main request structure.
+
+=item $r->prev
+
+This method returns a blessed reference to the previous (internal) request
+structure.
+
+=item $r->next
+
+This method returns a blessed reference to the next (internal) request
+structure.
 
 =item $r->is_main
 

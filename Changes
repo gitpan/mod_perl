@@ -16,6 +16,66 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.95 
+
+******************************************
+*** CGI-XA/* removed from distribution ***
+CGI.pm-2.32 is now mod_perl compatible, and 
+now ships with CGI::Switch and CGI::Apache. 
+******************************************
+
+various documentation updates
+
+renamed Apache::CGI to CGI::Apache 
+(you should be using CGI::Switch anyhow!!!)
+
+Perl*Handler package names no longer require a '::' to default
+to PackageName::handler() when Perl*Handler is just PackageName
+
+renamed eg/MyPackage.pl to startup.pl, pruned way down to
+discourage use of PerlScript and avoid the confusion it has caused in
+the past 
+
+updated Makefile.tmpl-1.2 to work with 1.2b8-dev, there will be
+a "Multiple rules lines" warning, once 1.2b8 is released, we'll 
+take this out
+
+added $r->prev and $r->next methods 
+
+added Apache->taint method
+
+Apache->untaint method now in Apache.xs
+
+added $r->seqno method suggested by Lincoln Stein
+
+added GETC and READLINE for tie *STDIN completeness
+
+fixed Apache::CGI+file upload w/ patch from Andreas
+
+data read from client ($r->read*, $r->args), %ENV, $r->cgi_env and
+$r->*header*_* is now marked as tainted, t/net/test now tests this
+(only with with `PerlTaintCheck On' of course)
+
+various cleanup, including shifting things so Apache.o can be detached
+from httpd to Apache.sl if the need arises 
+
+now -Wall clean, except for Perl's dXSUB_SYS->dummy
+
+set $|=1 by default #ifdef USE_SFIO
+
+added Apache->module method
+
+added Apache::Status->menu_item method
+
+fixed warnings in Apache->read spotted by Owen Scott Medd
+
+applied Apache::Registry fixes from Andreas
+
+applied NeXT fixes from Jeff Hallgren and Andreas
+
+applied XA.pm patch from Owen Scott Medd <osm@INTERGUIDE.COM> 
+so filehandles can be ref's
+
 =item 0.94 - 03/09/97
 
 removed pp_hot.patch from distibution

@@ -1,5 +1,3 @@
-require Apache::CGI;
-
 #does the same as tryit.cgi from the CGI.pm distribution
 #run under Apache::Registry
 use strict;

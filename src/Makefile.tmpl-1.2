@@ -30,8 +30,7 @@ PERL=/afs/ri/project/perl/bin/perl
 PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
-	(cd modules/perl; \
-	$(MAKE) CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB=$(RANLIB) PERL=$(PERL);)
+	(cd modules/perl && $(MAKE) CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)' PERL=$(PERL);)
 
 httpd: $(REGLIB) $(OBJS)
 	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS) $(PERL_LD_OPTS)

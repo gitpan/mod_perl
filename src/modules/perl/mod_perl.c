@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.40 1997/03/10 00:25:45 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.43 1997/03/20 23:15:20 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -60,8 +60,9 @@
 
 #include "mod_perl.h"
 
+static IV mp_request_rec;
+static int seqno = 0;
 static int avoid_alloc_hack = 0;
-
 static PerlInterpreter *perl = NULL;
 
 static command_rec perl_cmds[] = {
@@ -189,11 +190,11 @@ void perl_init (server_rec *s, pool *p)
     perl_destruct_level = 0;
 
     /* fake-up what the shell usually gives perl */
-    if(t = cls->PerlTaintCheck) {
+    if((t = cls->PerlTaintCheck)) {
 	argv[1] = "-T";
 	argc++;
     }
-    if(w = cls->PerlWarn) {
+    if((w = cls->PerlWarn)) {
 	argv[1+t] = "-w";
 	argc++;
     }
@@ -218,17 +219,10 @@ void perl_init (server_rec *s, pool *p)
     }
     CTRACE(stderr, "ok\n");
 
-    for(i = 0; i < cls->NumPerlModules; i++) {
-	if(perl_require_module(cls->PerlModules[i], s) != OK) {
-	    fprintf(stderr, "Can't load Perl module `%s', exiting...\n", cls->PerlModules[i]);
-	    exit(1);
-	}
-    }
-
     /* trick require now that TieHandle.pm is gone */
     hv_fetch(perl_get_hv("INC", TRUE), "Apache/TieHandle.pm", 19, 1);
 
-    perl_clear_env();
+    perl_clear_env;
 
     CTRACE(stderr, "running perl interpreter...");
     status = perl_run(perl);
@@ -239,10 +233,22 @@ void perl_init (server_rec *s, pool *p)
     }
     CTRACE(stderr, "ok\n");
 
+    for(i = 0; i < cls->NumPerlModules; i++) {
+	if(perl_require_module(cls->PerlModules[i], s) != OK) {
+	    fprintf(stderr, "Can't load Perl module `%s', exiting...\n", 
+		    cls->PerlModules[i]);
+	    exit(1);
+	}
+    }
+
     /* import Apache::Constants qw(OK DECLINED) */
     perl_call_argv("Exporter::import", G_DISCARD | G_EVAL, constants);
     if(perl_eval_ok(s) != OK) 
 	perror("Apache::Constants->import failed");
+
+#ifdef USE_SFIO
+    sv_setiv(GvSV(gv_fetchpv("|", TRUE, SVt_PV)), 1); /* $|=1 */
+#endif
 
     {
 	GV *gv = gv_fetchpv("Apache::__T", GV_ADDMULTI, SVt_PV);
@@ -295,7 +301,7 @@ int perl_handler(request_rec *r)
     perl_dir_config *cld = get_module_config (r->per_dir_config,
 					      &perl_module);   
 
-    perl_set_request_rec(r); 
+    (void)perl_request_rec(r); 
 
     /* hookup STDIN & STDOUT to the client */
     perl_stdout2client(r);
@@ -314,6 +320,7 @@ int perl_handler(request_rec *r)
     if(cld->setup_env) 
 	perl_setup_env(r);
 
+    seqno++;
     PERL_CALLBACK_RETURN("handler", cld->PerlHandler);
 }
 
@@ -410,21 +417,19 @@ int perl_call(char *imp, request_rec *r)
     PUTBACK;
     
     /* reset $$ */
-    perl_set_pid();
+    perl_set_pid;
 
     /* if a Perl*Handler is not a defined function name,
      * default to the class implementor's handler() function
      * attempt to load the class module if it is not already
      */
-    if(instr(imp, "::")) {
-	if(!perl_get_cv(imp, FALSE) || !GvCV(gv_fetchmethod(NULL, imp))) { 
-	    if(!gv_stashpv(imp, FALSE)) {
-		CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
-		perl_require_module(imp, r->server);
-	    }
-	    sv_catpv(sv, "::handler");
-	    CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
+    if(!perl_get_cv(imp, FALSE) || !GvCV(gv_fetchmethod(NULL, imp))) { 
+	if(!gv_stashpv(imp, FALSE)) {
+	    CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
+	    perl_require_module(imp, r->server);
 	}
+	sv_catpv(sv, "::handler");
+	CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
     }
 
     /* use G_EVAL so we can trap errors */
@@ -449,7 +454,7 @@ int perl_call(char *imp, request_rec *r)
     FREETMPS;
     LEAVE;
 
-    perl_clear_env();
+    perl_clear_env;
 
     return status;
 }
@@ -526,4 +531,226 @@ CHAR_P set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val)
     table_set(((perl_dir_config *)rec)->vars, key, val);
     CTRACE(stderr, "set_perl_var: '%s' = '%s'\n", key, val);
     return NULL;
+}
+
+/* just so we can be -Wall clean, maybe better to re-work PERL_TRACE */
+int mp_void_fprintf(FILE *fp, const char *fmt, ...)
+{
+    return 1;
+}
+
+request_rec *perl_request_rec(request_rec *r)
+{
+    /* This will depreciate */
+    /* CTRACE(stderr, "perl_request_rec\n"); */
+    if(r != NULL) {
+	mp_request_rec = (IV)r;
+	return NULL;
+    }
+    else
+	return (request_rec *)mp_request_rec;
+}
+
+SV *perl_bless_request_rec(request_rec *r)
+{
+    SV *sv = sv_newmortal();
+    sv_setref_pv(sv, "Apache", (void*)r);
+    CTRACE(stderr, "blessing request_rec\n");
+    return sv;
+}
+
+int perl_eval_ok(server_rec *s)
+{
+    SV *sv;
+    sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
+    if(SvTRUE(sv)) {
+	CTRACE(stderr, "perl_eval error: %s\n", SvPV(sv,na));
+	log_error(SvPV(sv, na), s);
+	return -1;
+    }
+    return 0;
+}
+
+int perl_require_module(char *mod, server_rec *s)
+{
+    SV *sv = sv_newmortal();
+    SV *m = newSVpv(mod,0);
+    CTRACE(stderr, "loading perl module '%s'...", mod); 
+    sv_setpv(sv, "require ");
+    sv_catsv(sv, m);
+    perl_eval_sv(sv, G_DISCARD);
+    if(perl_eval_ok(s) != OK) {
+	CTRACE(stderr, "not ok\n");
+	return -1;
+    }
+    CTRACE(stderr, "ok\n");
+    return 0;
+}
+
+void perl_setup_env(request_rec *r)
+{ 
+    int klen;
+    array_header *env_arr = table_elts (r->subprocess_env); 
+    HV *cgienv = PerlEnvHV;
+    CGIENVinit; 
+
+    if (tz != NULL) 
+	hv_store(cgienv, "TZ", 2, newSVpv(tz,0), 0);
+    
+    for (i = 0; i < env_arr->nelts; ++i) {
+	if (!elts[i].key) continue;
+	klen = strlen(elts[i].key);  
+	hv_store(cgienv, elts[i].key, klen,
+		 newSVpv(elts[i].val,0), 0);
+	HV_SvTAINTED_on(cgienv, elts[i].key, klen);
+    }
+    CTRACE(stderr, "perl_setup_env...%d keys\n", i);
+}
+
+#ifdef USE_SFIO
+
+typedef struct {
+    Sfdisc_t     disc;   /* the sfio discipline structure */
+    request_rec	*r;
+} Apache_t;
+
+static int sfapachewrite(f, buffer, n, disc)
+    Sfio_t* f;      /* stream involved */
+    char*           buffer;    /* buffer to read into */
+    int             n;      /* number of bytes to send */
+    Sfdisc_t*       disc;   /* discipline */        
+{
+    request_rec	*r = ((Apache_t*)disc)->r;
+    /* CTRACE(stderr, "sfapachewrite: send %d bytes\n", n); */
+    SENDN_TO_CLIENT;
+    return n;
+}
+
+static int sfapacheread(f, buffer, bufsiz, disc)
+    Sfio_t* f;      /* stream involved */
+    char*           buffer;    /* buffer to read into */
+    int             bufsiz;      /* number of bytes to read */
+    Sfdisc_t*       disc;   /* discipline */        
+{
+    long nrd;
+    request_rec	*r = ((Apache_t*)disc)->r;
+    CTRACE(stderr, "sfapacheread: want %d bytes\n", bufsiz); 
+    PERL_READ_FROM_CLIENT;
+    return bufsiz;
+}
+
+Sfdisc_t * sfdcnewapache(request_rec *r)
+{
+    Apache_t*   disc;
+    
+    if(!(disc = (Apache_t*)malloc(sizeof(Apache_t))) )
+	return (Sfdisc_t *)disc;
+    CTRACE(stderr, "sfdcnewapache(r)\n");
+    disc->disc.readf   = (Sfread_f)sfapacheread; 
+    disc->disc.writef  = (Sfwrite_f)sfapachewrite;
+    disc->disc.seekf   = (Sfseek_f)NULL;
+    disc->disc.exceptf = (Sfexcept_f)NULL;
+    disc->r = r;
+    return (Sfdisc_t *)disc;
+}
+#endif
+
+/* need Perl 5.003_02+, linked with sfio */
+void perl_stdout2client(request_rec *r)
+{
+#ifdef USE_SFIO
+    sfdisc(PerlIO_stdout(), SF_POPDISC);
+    sfdisc(PerlIO_stdout(), sfdcnewapache(r));
+#else
+    CTRACE(stderr, "tie *STDOUT => Apache\n");
+    sv_magic((SV *)gv_fetchpv("STDOUT", TRUE, SVt_PVIO), 
+	     (SV *)perl_bless_request_rec(r),
+	     'q', Nullch, 0);
+#endif
+}
+
+void perl_stdin2client(request_rec *r)
+{
+#ifdef USE_SFIO
+    sfdisc(PerlIO_stdin(), SF_POPDISC);
+    sfdisc(PerlIO_stdin(), sfdcnewapache(r));
+    sfsetbuf(PerlIO_stdin(), NULL, 0);
+#else
+    CTRACE(stderr, "tie *STDIN => Apache\n");
+    sv_magic((SV *)gv_fetchpv("STDIN", TRUE, SVt_PVIO), 
+	     (SV *)perl_bless_request_rec(r),
+	     'q', Nullch, 0);
+#endif
+}
+
+int mod_perl_seqno(void)
+{
+    return seqno;
+}
+
+int perl_hook(char *name)
+{
+    switch (*name) {
+	case 'A':
+	    if (strEQ(name, "Authen")) 
+#ifdef PERL_AUTHEN
+		return 1;
+#else
+	return 0;    
+#endif
+	if (strEQ(name, "Authz"))
+#ifdef PERL_AUTHZ
+	    return 1;
+#else
+	return 0;    
+#endif
+	if (strEQ(name, "Access"))
+#ifdef PERL_AUTHZ
+	    return 1;
+#else
+	return 0;    
+#endif
+	break;
+	case 'F':
+	    if (strEQ(name, "Fixup")) 
+#ifdef PERL_FIXUP
+		return 1;
+#else
+	return 0;    
+#endif
+	break;
+#if MODULE_MAGIC_NUMBER >= 19970103
+	case 'H':
+	    if (strEQ(name, "HeaderParser")) 
+#ifdef PERL_HEADER_PARSER
+		return 1;
+#else
+	return 0;    
+#endif
+	break;
+#endif
+	case 'L':
+	    if (strEQ(name, "Log")) 
+#ifdef PERL_LOG
+		return 1;
+#else
+	return 0;    
+#endif
+	break;
+	case 'T':
+	    if (strEQ(name, "Trans")) 
+#ifdef PERL_TRANS
+		return 1;
+#else
+	return 0;    
+#endif
+        if (strEQ(name, "Type")) 
+#ifdef PERL_TYPE
+	    return 1;
+#else
+	return 0;    
+#endif
+	break;
+    }
+    return 0;
 }

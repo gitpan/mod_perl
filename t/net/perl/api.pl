@@ -3,7 +3,7 @@ use strict;
 use vars qw($r);
 sub test { $r->print(sprintf "%s", $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n") }
 
-my $tests = 20;
+my $tests = 21;
 my $i;
 $r = Apache->request;
 $r->content_type("text/html");
@@ -13,7 +13,7 @@ $r->print("1..$tests\n");
 %ENV = $r->cgi_env;
 
 test ++$i, $ENV{GATEWAY_INTERFACE};
-
+test ++$i, $r->seqno;
 test ++$i, $r->protocol;
 #hostname
 test ++$i, $r->status;

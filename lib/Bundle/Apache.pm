@@ -32,6 +32,8 @@ CGI - CGI.pm
 
 Apache::ePerl - Mark Imbriaco's mod_perl adaptation of 'ePerl'
 
+Apache::DBI   - Wrapper around DBI->connect to transparently maintain persistent connections
+
 =head1 DESCRIPTION
 
 This bundle contains modules used by Apache mod_perl.

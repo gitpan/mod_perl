@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.94";
+$VERSION = "0.95";
 
 my $PWD = cwd;
 
@@ -379,7 +379,6 @@ start_httpd: test_pre_init
 	@(cd t/conf; test -f httpd.conf || cp httpd.conf-dist httpd.conf)
 	@(cd t/net; test -f config.pl || cp config.pl.dist config.pl)
 	@$(TOUCH) /tmp/mod_perl_srm.conf
-	env PERL5LIB=./blib/lib:./blib/arch \
 	$(APACHE_SRC)/$(HTTPD) -X -d `pwd`/t & 
 	@echo httpd listening on port $(PORT)
 	@echo will write error_log to: /tmp/mod_perl_error_log

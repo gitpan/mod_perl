@@ -3,28 +3,21 @@ in no particular order:
 
 get rid of basic_http_header usage
 
-figure out why sometimes we need to set $|=1 with sfio
-
 figure out why the heck filehandles used with file upload show up under
 'unknown' in our symbol table dump, and why the heck they are even in the
 symbol table (stems from CGI.pm now XA.pm)
 
-more timeout handling?
-
-Apache::Registry should parse command line if present in scripts
-e.g. #!/usr/local/bin/perl -w
-
-Apache::Registry should honor __END__, but how to get it right?
-
-Apache::DBI module for managing persistent database connections
+Apache::Registry should honor __END__ and __DATA__,
+but how to get it right?
 
 extend Perl*Handler model so they can be stacked
 (e.g. PerlTransHandler OneSub TwoSub RedSub BlueSub)
 
 provide an optional and configurable Safe wrapper around embedded scripts
 
+find good ways to decrease size of httpd (perl-runtime!)
+
 more tests for the test suite
 
 add more examples
-
 

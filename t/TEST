@@ -20,8 +20,9 @@ unshift(@INC, "../blib/lib", "../blib/arch");
 BEGIN {
     #shutdown httpd before make aborts
     $SIG{'__DIE__'} = sub {
+	return unless $_[0] =~ /^Failed/i; 
 	system "kill `cat /tmp/mod_perl_httpd.pid`";
-        CORE::die(@_);
+	warn "httpd terminated\n";
     }
 }
 

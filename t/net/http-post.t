@@ -38,8 +38,9 @@ foreach $script (@test_scripts) {
     $response = $ua->request($request, undef, undef);
 
     $str = $response->as_string;
-
     print "$str\n";
+
+    die "$1\n" if $str =~ /(Internal Server Error)/;
 
     test ++$i, ($response->is_success and $str =~ /^REQUEST_METHOD=POST$/m);
     test ++$i, ($str =~ /^CONTENT_LENGTH=(\d+)$/m && $1 == length($form));

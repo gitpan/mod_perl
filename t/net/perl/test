@@ -6,10 +6,12 @@ use vars qw($Scalar @Array %Hash); #for testing perl-status
 
 $Scalar = 1;
 @Array  = qw(one two three);
-%Hash   = map { $_, $Scalar++ } @Array;
+%Hash   = qw(one 1 two 2 three 3);
 
 my $r = Apache->request;
-%ENV = $r->cgi_env;
+$ENV{PATH} = "/bin";
+
+#$r->warn("sequence number: " . $r->seqno);
 
 $r->content_type("text/html");
 $r->send_http_header;
@@ -21,8 +23,12 @@ if (@args = $r->args) {
        "ARGS: ",
        join(", ", map { $_ = qq{"$_"} } @args),
        "\n\n");
+
+    eval { system @args };
+    die "TaintCheck failed, I can `system @args'" unless $@;
+    warn "TRAPPED: `system \$r->args' '$@'\n";
 } else {
-    $r->write_client("No command line arguments passed to script\n\n");
+    $r->print("No command line arguments passed to script\n\n");
 }
 
 my($key,$val);
@@ -30,9 +36,22 @@ while (($key,$val) = each %ENV) {
    $r->print("$key=$val\n");
 }
 
+eval { system $ENV{SERVER_SOFTWARE} };
+die "TaintCheck failed, I can `system $ENV{SERVER_SOFTWARE}'" unless $@;
+warn "TRAPPED: `system \$ENV{SERVER_SOFTWARE}' '$@'\n";
+
+eval { system $r->header_in('User-Agent') };
+die "TaintCheck failed, I can `system \$r->header_in('User-Agent')'" unless $@;
+warn "TRAPPED: `system \$r->header_in('User-Agent')' '$@'\n";
+
 if ($ENV{CONTENT_LENGTH}) {
     #$len = $ENV{CONTENT_LENGTH};
     my $content = $r->content;
-    
+
+    eval { system $content };
+    die "TaintCheck failed, I can `system $content'" unless $@;
+    warn "TRAPPED: `system \$r->content' '$@'\n";
+
     $r->print("\nContent\n-------\n$content");
 }
+

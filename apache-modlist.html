@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern,  4-Mar-1997 -->
+<!-- Changed by: Doug MacEachern, 19-Mar-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.13 $ $Date: 1997/03/05 03:13:58 $</i>
+<br><i> $Revision: 1.16 $ $Date: 1997/03/20 23:15:20 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -112,11 +112,11 @@ HttpEquiv	bdpf	HTML HTTP-EQUIV tags to HTTP headers	ROBH
 DumpHeaders	bdpf	Watch HTTP transaction via headers	DOUGM
 
 * Misc
+DBI		bmpO	Persistent database connection mgmt.	MERGL
+Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
 Constants	Rmcf	Constants defined in httpd.h		APML
 Options		Rmpf	Import Apache::Constants 'options'	APML
 Debug		Rmpf	mod_perl debugging utilities		APML
-CGI		RmpO	Sub-class of CGI.pm for non-sfio users	APML
-DBI		cmpO	Persistent database connection mgmt.	APML
 Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 ModuleConfig	cmcO	Interface to configuration API		DOUGM
 
@@ -136,11 +136,13 @@ how you can go about getting your hands on a copy.
 <h3>Contacts</h3>
 <pre>
 APML	 The Apache/Perl Mailing List &lt;modperl@listproc.itribe.net&gt;
+BMILLETT Brian Millett <bpm@techapp.com>
 DOUGM	 Doug MacEachern &lt;dougm@osf.org&gt;
 GRICHTER Gerald Richter &lt;richter@ecos.de&gt;
 JGROV	 John D Groenveld &lt;groenvel@cse.psu.edu&gt;
 JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;
 MARKIM	 Mark A. Imbriaco &lt;mark@itribe.net&gt;
+MERGL	 Edmund Mergl &lt;E.Mergl@bawue.de&gt;
 PMKANE	 Patrick Michael Kane &lt;modus@enews.com&gt;
 ROBH	 Rob Hartill &lt;robh@imdb.com&gt;
 

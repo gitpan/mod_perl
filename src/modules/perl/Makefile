@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.18 1997/03/05 03:13:58 dougm Exp $
+# $Id: Makefile,v 1.19 1997/03/18 05:40:35 dougm Exp $
 #
 
 SHELL = /bin/sh

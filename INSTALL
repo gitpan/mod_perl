@@ -193,6 +193,10 @@ Here's how I configure my perl with sfio:
 
  % Configure -des -Duseperlio -Dusesfio 
 
+With Perl version 5.003_93 or higher, there is no need to configure
+with sfio for using Perl's read() and print() functions, STDIN and
+STDOUT are tie'd to the client connection.
+
 =back
 
 =head1 Support

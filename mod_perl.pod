@@ -5,38 +5,45 @@ mod_perl - Embed a Perl interpreter in the Apache server
 
 =head1 DESCRIPTION
 
+The Apache/Perl integration project brings together the full power of
+the Perl programming language and the Apache HTTP server.  This is
+achieved by linking the Perl runtime library into the server and
+providing an object oriented Perl interface to the server's C language
+API. 
+These pieces are seamlessly glued together by the `mod_perl' server
+plugin, making it is possible to write Apache modules entirely in
+Perl.  In addition, the persistent interpreter embedded in the server
+avoids the overhead of starting an external interpreter and the
+penalty of Perl start-up (compile) time.  
 
-This Apache module embeds a perl interpreter in the HTTP server.  
-One benefit of this is that we are able to run scripts without 
-going through the expensive (fork/exec/parameter passing/parsing, 
-perl-startup time, etc.) CGI interface.  
-Not only will scripts run faster, they have direct access to the C API 
-of the server, allowing the developer to extend Apache server 
-functionality with modules written in Perl.
+Without question, the most popular Apache/Perl module is
+Apache::Registry module.  This module emulates the CGI environment,
+allowing programmers to write scripts that run under CGI or
+mod_perl without change.  Existing CGI scripts may require some
+changes, simply because a CGI script has a very short lifetime of one
+HTTP request, allowing you to get away with "quick and dirty"
+scripting.  Using mod_perl and Apache::Registry requires you to be
+more careful, but it also gives new meaning to the work "quick"!
 
-The current approach of mod_perl is to allocate and construct one
-perl interpreter when the server starts.  At the same time, load,
-parse and run one perl script, which may pull in other perl code such
-as your favorite modules.  This also allows you to initiate persistent
-connections such as to a database server.  Then, a subroutine in
-memory is called to handle each request.  The interpreter is destroyed
-upon restart or shutdown of the server.
-
+Although it may be all you need, a speedy CGI replacement is only a
+small part of this project. Callback hooks are in place for each stage
+of a request.  Apache-Perl modules may step in during the handler,
+header parser, uri translate, authentication, authorization, access,
+type check, fixup and logger stages of a request.     
 
 =head1 FAQ
 
 Patrick Kane <modus@enews.com> maintains the mod_perl FAQ available at:
 http://chaos.dc.enews.com/mod_perl/
 
-
 =head1 Apache/Perl API
 
 See 'perldoc Apache' for info on how to use the Perl-Apache API.
 
-See the lib/ directory for example modules.
+See the lib/ directory for example modules and L<apache-modlist.html>
+for a comprehensive list.
 
 See the eg/ directory for example scripts.
-
 
 =head1 mod_perl
 
@@ -61,9 +68,10 @@ may wish to change this:
 
     PerlSendHeader On	
 
-With the recommended configuration, these options and Perl linked with sfio 
-(see I/O section), scripts running under Apache::Registry will look just like 
-"normal" CGI scripts.  See eg/perlio.pl as an example.
+With the recommended configuration, these options and Perl version
+5.003_93 or higher (or 5.003_xx version with sfio), scripts running
+under Apache::Registry will look just like "normal" CGI scripts.  See
+eg/perlio.pl as an example.  
  
 You may load additional modules via:
 
@@ -77,7 +85,7 @@ Optionally:
 
     PerlScript  /full/path/to/script_to_load_at_startup.pl
 
-This script will be loaded when the server starts. See eg/MyPackage.pl
+This script will be loaded when the server starts. See eg/startup.pl
 for an example to start with.
 
 In an access.conf <Directory /foo> or .htaccess you need:
@@ -86,12 +94,19 @@ In an access.conf <Directory /foo> or .htaccess you need:
 
 This is the name of the subroutine to call to handle each request. 
 e.g. 
-in the PerlScript MyPackage.pl this is "MyPackage::handler".
 in the PerlModule Apache::Registry this is "Apache::Registry::handler".
 
-There are several stages of a request where the Apache API allows a module
-to step in and do something.  The Apache documentation will tell you all about
-those stages and what your modules can do.  
+If PerlHandler is not a defined subroutine, mod_perl assumes it is a
+package name which defines a subroutine named "handler".
+
+    PerlHandler   Apache::Registry
+
+Would load Registry.pm (if it is not already) and call it's subroutine
+"handler".
+
+There are several stages of a request where the Apache API allows a
+module to step in and do something.  The Apache documentation will
+tell you all about those stages and what your modules can do.  
 By default, these hooks are disabled at compile time, see the INSTALL
 document for information on enabling these hooks.
 The following configuration directives take one argument, which is the name
@@ -125,34 +140,37 @@ sub-directories or files.
 =head1 I/O 
 
 Apache's i/o is not stream oriented.  So, unless you have perl version
-5.003_93 or higher, by default, you cannot 
-print() to STDOUT from your script, use $r->print() instead.  
-Nor can you read() from STDIN, use $r->read() or the $r->content 
-methods to read POST data.
-In post 5.003 versions of Perl, two mechanisms have been introduced which allows
-redirecting the STDIN and STDOUT streams.  
+5.003_93 or higher, by default, you cannot print() to STDOUT from your
+script, use $r->print() instead.  Nor can you read() from STDIN, use
+$r->read() or the $r->content methods to read POST data.
+In post 5.003 versions of Perl, two mechanisms have been introduced
+which allows redirecting the STDIN and STDOUT streams.  
 
-One mechanism takes advantage of the PerlIO abstraction and sfio discipline
-structures, such that STDIN and STDOUT are hooked up to the client by default
-if you configured perl with -Dusesfio (see Perl's INSTALL doc).
+One mechanism takes advantage of the PerlIO abstraction and sfio
+discipline structures, such that STDIN and STDOUT are hooked up to the
+client by default if you configured perl with -Dusesfio (see Perl's
+INSTALL doc). 
 
 Otherwise, mod_perl will tie() STDOUT and STDIN to the client.  
 In order for this to work, you must have Perl version 5.003_93 or higher.
 
 =head1 Using CGI.pm and CGI::*
 
-For users of CGI.pm, see the Apache::CGI, CGI::XA and CGI::Switch 
-modules.
+CGI.pm users B<must> have version B<2.32> of the package or higher, earlier
+versions will not work under mod_perl.  If you have Perl version
+5.003_93 or higher (or _xx+ version w/ sfio) , scripts may 'use CGI'.
+Otherwise, scripts need to 'use CGI::Switch' so i/o goes through
+Apache-> methods, this will also work with later versions of Perl.
 
 The CGI::* modules (CGI::Request etal.) can be used untouched if
-your Perl is configured to use sfio and the following directives
-are present in the directory configuration:
+your Perl is configured to use sfio and the following directive
+is present in the directory configuration:
 
     PerlSendHeader On	
-    PerlSetupEnv   On
 
-If you use the C<SendHeaders()> function, be sure to call $req_obj->cgi->done
-when you are done with a request, just as you would under I<CGI::MiniSrv>.
+If you use the C<SendHeaders()> function, be sure to call
+$req_obj->cgi->done when you are done with a request, just as you
+would under I<CGI::MiniSrv>. 
 
 =head1 MEMORY CONSUMPTION
 
@@ -181,14 +199,19 @@ Here's my httpd linked with libperl.sl, not having served a single request:
 
  10393 dougm      5    0   476K  368K sleep   0:00  0.12%  0.10% httpd-s
 
-Now, once the server starts receiving requests, the embedded interpreter
-will compile code for each 'require' file it has not seen yet,
-each new Apache::Registry subroutine that's compiled, along with whatever
-modules it's use'ing or require'ing.  Not to mention AUTOLOADing.
-(Modules that you 'use' will be compiled when the server starts unless 
-they are inside an eval block.)
-httpd will grow just as big as our /usr/bin/perl would, or a CGI process
-for that matter, it all depends on your setup.
+Now, once the server starts receiving requests, the embedded
+interpreter will compile code for each 'require' file it has not seen
+yet, each new Apache::Registry subroutine that's compiled, along with
+whatever modules it's use'ing or require'ing.  Not to mention
+AUTOLOADing.  (Modules that you 'use' will be compiled when the server
+starts unless they are inside an eval block.)  httpd will grow just as
+big as our /usr/bin/perl would, or a CGI process for that matter, it
+all depends on your setup. 
+
+Newer Perl versions also have other options to reduce runtime memory
+consumption.  See Perl's INSTALL file for details on C<-DPACK_MALLOC>
+and C<-DTWO_POT_OPTIMIZE>.  With these options, my httpd shrinks down
+~150K. 
 
 For me, once everything is compiled, the processes no longer grow, I can live
 with the size at that point. For others, this size might be too big, or they 
@@ -214,6 +237,35 @@ httpd.conf, enable with:
  PerlTaintCheck On
 
 Now, any and all code compiled inside httpd will be checked.
+
+=head1 PERSISTENT DATABASE CONNECTIONS
+
+Another popular use of mod_perl is to take advantage of it's
+persistance to maintain open database connections.  The basic idea
+goes like so:
+
+ #Apache::Registry script
+ use strict;
+ use vars qw($dbh);
+
+ $dbh ||= SomeDbPackage->connect(...);
+
+Since C<$dbh> is a global variable, it will not go out of scope,
+keeping the connection open for the lifetime of a server process,
+establishing it during the script's first request for that process.
+
+It's recommended that you use one of the Apache::* database connection
+wrappers.  Currently for DBI users there is L<Apache::DBI> and for
+Sybase users L<Apache::Sybase::DBlib>.  These modules hide the
+peculiar code example above.  In addition, different scripts may share
+a connection, minimizing resource consumption.  Example:
+
+ use strict;
+ my $dbh = Apache::DBI->connect(...);
+
+Although B<$dbh> shown here will go out of scope when the script ends,
+the Apache::DBI module's reference to it does not, keep the connection
+open.
 
 =head1 WARNINGS
 

@@ -6,8 +6,8 @@ use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.24 1997/03/10 00:25:45 dougm Exp $
-$VERSION = (qw$Revision: 1.24 $)[1];
+#$Id: Registry.pm,v 1.27 1997/03/20 23:15:20 dougm Exp $
+$VERSION = (qw$Revision: 1.27 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -18,11 +18,13 @@ sub handler {
     my($r) = @_;
     Apache->request($r);
     my $filename = $r->filename;
-    my $oldwarn = $^W; 
+    my $oldwarn = $^W;
+    $r->log_error("Apache::Registry::handler for $filename in process $$")
+	if $Debug & 4;
 
     if (-r $filename && -s _) {
 	if (!($r->allow_options & OPT_EXECCGI)) {
-	    $r->log_reason("Options ExecCGI is off in this directory", 
+	    $r->log_reason("Options ExecCGI is off in this directory",
 			   $filename);
 	    return FORBIDDEN;
  	}
@@ -31,7 +33,7 @@ sub handler {
 	    return FORBIDDEN;
 	}
 	unless (-x _) {
-	    $r->log_reason("file permissions deny server execution", 
+	    $r->log_reason("file permissions deny server execution",
 			   $filename);
 	    return FORBIDDEN;
 	}
@@ -39,7 +41,7 @@ sub handler {
 	my $mtime = -M _;
 
 	# turn into a package name
-	$r->log_error(sprintf "Apache::Registry::handler checking out %s",
+	$r->log_error(sprintf "Apache::Registry::handler examining %s",
 		      $r->uri) if $Debug & 4;
 	my $script_name = $r->path_info ?
 	    substr($r->uri, 0, length($r->uri)-length($r->path_info)) :
@@ -47,39 +49,51 @@ sub handler {
 
 	# Escape everything into valid perl identifiers
 	$script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
-	# second pass only for words starting with a digit
-	$script_name =~ s|/(\d)|sprintf("/_%2x",unpack("C",$1))|eg;
 
-	# Dress it up as a real package name
-	$script_name =~ s|/|::|g;
+	# second pass cares for slashes and words starting with a digit
+	$script_name =~ s{
+			  (/)        # directory
+			  (\d?)      # package's first character
+			 }[
+			   "::" . ($2 ? sprintf("_%2x",unpack("C",$2)) : "")
+			  ]egx;
+
 	my $package = "Apache::ROOT$script_name";
-	$r->log_error("Apache::Registry::handler determined package as $package") 
+	$r->log_error("Apache::Registry::handler package $package")
 	   if $Debug & 4;
 
 	if (
-	    defined $Apache::Registry->{$package}{mtime}
+	    defined($Apache::Registry->{$package}{mtime})
 	    &&
 	    $Apache::Registry->{$package}{mtime} <= $mtime
 	   ){
 	    # we have compiled this subroutine already, nothing left to do
-	} else {
-           $r->log_error("Apache::Registry::handler reading $filename")
-	       if $Debug & 4;
-	    my $fh = new FileHandle $filename;
-	    my $sub = parse_cmdline($fh);
-	    $sub .= join '', <$fh>;
-	    $fh->close;
-	    undef $fh;
+ 	} else {
+	    $r->log_error("Apache::Registry::handler reading $filename")
+		if $Debug & 4;
+	    my($sub);
+	    {
+		my $fh = new FileHandle $filename;
+		(my $oldrs, local $/) = ($/, undef);
+		$sub = <$fh>;
+		$sub = parse_cmdline($sub);
+		$/ = $oldrs;
+	    }
+
 	    # compile this subroutine into the uniq package name
             $r->log_error("Apache::Registry::handler eval-ing") if $Debug & 4;
- 	    undef &{"$package\:\:handler"}; #avoid warnings 
+ 	    undef &{"$package\::handler"} unless $Debug & 4; #avoid warnings
 
-            my $eval = join '', 
-	       "package $package;",
-	       'use Apache qw(exit warn);',
-	       "sub handler { $sub; }";
-            {
-                # hide our variables within this block
+	    my $eval = join(
+			    '',
+			    'package ',
+			    $package,
+			    ';use Apache qw(exit warn);sub handler {',
+			    $sub,
+			    "\n}", # last line comment without newline?
+			   );
+	    {
+		# hide our variables within this block
                 my($r,$filename,$script_name,$mtime,$package,$sub);
 		Apache->untaint($eval);
                 eval $eval;
@@ -108,31 +122,34 @@ sub handler {
     }
 }
 
-#XXX not good enough yet  
+#XXX not good enough yet
 my(%switches) = (
-   'T' => sub { 
-     Apache::warn("Apache::Registry: -T switch ignored, enable with 'PerlTaintCheck On'\n")
-	 unless $Apache::__T; "";
+   'T' => sub {
+       Apache::warn("Apache::Registry: -T switch ignored, ".
+		    "enable with 'PerlTaintCheck On'\n")
+	   unless $Apache::__T; "";
    },
    'w' => sub { 'BEGIN {$^W = 1;}' },
 );
 
 sub parse_cmdline {
-    my $fh = shift;
-    my $line = scalar <$fh>;
+    my $sub = shift;
+    my($line) = $sub =~ /^(.*)$/m;
     my(@cmdline) = split /\s+/, $line;
-    return $line unless shift(@cmdline) =~ /^\#!/;
-    $line = "";
-    my($s, @s);
+    return $sub unless shift(@cmdline) =~ /^\#!/;
+    my($s, @s, $prepend);
+    $prepend = "";
     for $s (@cmdline) {
 	next unless $s =~ s/^-//;
+	last if substr($s,0,1) eq "-";
 	for (split //, $s) {
 	    next unless $switches{$_};
 	    #print STDERR "parsed `$_' switch\n";
-	    $line .= &{$switches{$_}};
+	    $prepend .= &{$switches{$_}};
 	}
     }
-    return "$line\n";
+    $sub =~ s/^/$prepend/ if $prepend;
+    return $sub;
 }
 
 1;
@@ -141,15 +158,15 @@ __END__
 
 =head1 NAME
 
-Apache::Registry - Run unaltered CGI scripts under mod_perl
+Apache::Registry - Run unaltered CGI scrips under mod_perl
 
 =head1 SYNOPSIS
 
  #in httpd.conf
 
- PerlAlias /perl/ /perl/apache/scripts/ #optional
- PerlModule Apache::Registry 
- 
+ Alias /perl/ /perl/apache/scripts/ #optional
+ PerlModule Apache::Registry
+
  <Location /perl>
  SetHandler perl-script
  PerlHandler Apache::Registry
@@ -158,12 +175,12 @@ Apache::Registry - Run unaltered CGI scripts under mod_perl
 
 =head1 DESCRIPTION
 
-URIs in the form of:
- http://www.host.com/perl/file.pl
-
-Will be compiled as the body of a perl subroutine and executed.
-Each server process or 'child' will compile the subroutine once 
-and store it in memory until the file is updated on the disk.
+URIs in the form of C<http://www.host.com/perl/file.pl> will be
+compiled as the body of a perl subroutine and executed.  Each server
+process or 'child' will compile the subroutine once and store it in
+memory. It will recompile it whenever the file is updated on disk.
+Think of it as an object oriented server with each script implementing
+a class loaded at runtime.
 
 The file looks much like a "normal" script, but it is compiled or 'evaled'
 into a subroutine.
@@ -181,18 +198,17 @@ mod_perl without change.  Existing CGI scripts may require some
 changes, simply because a CGI script has a very short lifetime of one
 HTTP request, allowing you to get away with "quick and dirty"
 scripting.  Using mod_perl and Apache::Registry requires you to be
-more careful, but it also gives new meaning to the work "quick"!
+more careful, but it also gives new meaning to the word "quick"!
 
-Be sure to read all mod_perl releated documentation for more details, 
+Be sure to read all mod_perl related documentation for more details,
 including instructions for setting up an environment that looks exactly
 like CGI:
 
  print "Content-type: text/html\n\n";
  print "Hi There!";
 
-
 Note that each httpd process or "child" must compile each script once,
-so the first request to one server may seem slow, but each request 
+so the first request to one server may seem slow, but each request
 there after will be faster.  If your scripts are large and/or make use
 of many Perl modules, this difference should be noticeable to the human
 eye.
@@ -209,15 +225,16 @@ functions.
 
 The environment variable B<GATEWAY_INTERFACE> is set to C<CGI-Perl/1.1>.
 
+=head1 COMMANDLINE SWITCHES IN FIRST LINE
+
 Normally when a Perl script is run from the command line or under CGI,
 arguments on the `#!' line are passed to the perl interpreter for processing.
-However, since the interpreter is only started once, when the server
-starts, not all switches are recognized.
 
-Currently C<-w> will turn on warnings using the C<$^W> global variable.
-Another common switch used with CGI scripts is C<-T> to turn on taint
-checking.  This can only be enabled when the server starts with the 
-configuration directive:
+Apache::Registry currently only honors the C<-w> switch and will turn
+on warnings using the C<$^W> global variable.  Another common switch
+used with CGI scripts is C<-T> to turn on taint checking.  This can
+only be enabled when the server starts with the configuration
+directive:
 
  PerlTaintCheck On
 
@@ -231,17 +248,18 @@ You may set the debug level with the $Apache::Registry::Debug bitmask
  1 => log recompile in errorlog
  2 => Apache::Debug::dump in case of $@
  4 => trace pedantically
- 
+
 =head1 CAVEATS
 
 Apache::Registry makes things look just the CGI environment, however, you
 must understand that this *is not CGI*.  Each httpd child will compile
-your script into memory and keep it there, whereas CGI will run it once, 
-cleaning out the entire process space.  Many times you have heard 
-"always use C<-w>, always use C<-w> and 'use strict'".  
-This is more important here than anywhere else!  
+your script into memory and keep it there, whereas CGI will run it once,
+cleaning out the entire process space.  Many times you have heard
+"always use C<-w>, always use C<-w> and 'use strict'".
+This is more important here than anywhere else!
 
-Your scripts cannot contain the __END__ token to terminate compilation.
+Your scripts cannot contain the __END__ or __DATA__ token to terminate
+compilation.
 
 =head1 SEE ALSO
 
@@ -249,6 +267,6 @@ perl(1), mod_perl(3), Apache(3), Apache::Debug(3)
 
 =head1 AUTHORS
 
-Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> and 
+Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> and
 Doug MacEachern <dougm@osf.org>
 

@@ -1,8 +1,8 @@
 use Apache ();
 my $tests = 0;
 use Cwd;
-my $pwd = cwd;
-Apache->untaint($pwd);
+
+my $pwd = fastcwd;
 my $ht_access  = "$pwd/t/docs/.htaccess";
 my $hooks_file = "$pwd/t/docs/hooks.txt";
 
@@ -34,11 +34,11 @@ for (qw(Access Authen Authz Fixup HeaderParser Log Type Trans)) {
     $tests++; 
     $retval = -1; #we want to decline Trans, but ok for Authen, etc.
     $hook = "Perl${_}Handler";
-    $package = "Apache::$hook";
+    $package = $hook; #"Apache::$hook";
     unless ($_ eq "Trans") { #must be in server configs
 	$retval = 0;
 	open FH, ">>$ht_access" or warn "can't open $ht_access" and next;
-	print FH "$hook $package\:\:handler\n";
+	print FH "$hook $package\n";
 	close FH;
     }
 
@@ -60,6 +60,12 @@ PACKAGE
 
     $r->print($@) if $@;
 }
+
+#if(Apache::perl_hook("Log") and Apache::perl_hook("Fixup")) {
+#    undef &PerlLogHandler::handler;
+#    @PerlLogHandler::ISA = qw(PerlFixupHandler);
+#    $r->warn("PerlLogHandler isa PerlFixupHandler");
+#}
 
 $r->print($tests);
 

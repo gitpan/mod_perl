@@ -1,6 +1,3 @@
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -12,9 +9,6 @@ extern "C" {
 #undef setreuid
 #undef sync
 #undef my_memcmp
-#ifdef __cplusplus
-}
-#endif
 
 #include "httpd.h"
 #include "http_config.h"
@@ -23,14 +17,35 @@ extern "C" {
 #include "http_main.h"
 #include "http_core.h"
 #include "http_request.h"
+#include "util_script.h"
+
+typedef request_rec * Apache;
+typedef conn_rec    * Apache__Connection;
+typedef server_rec  * Apache__Server;
 
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
 
+#define PerlEnvHV GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV))
+
+#ifndef SvTAINTED_on
+#define SvTAINTED_on(sv) if (tainting) sv_magic(sv, Nullsv, 't', Nullch, 0)
+#endif
+
+#define HV_SvTAINTED_on(hv,key,klen) \
+    SvTAINTED_on(*hv_fetch(hv, key, klen, 0)) 
+
+/* flush %ENV */
+#define perl_clear_env \
+      hv_clear(PerlEnvHV)
+
+#define perl_set_pid \
+      sv_setiv(GvSV(gv_fetchpv("$", TRUE, SVt_PV)), (I32)getpid())
+
 #ifdef PERL_TRACE
 #define CTRACE fprintf
 #else
-#define CTRACE
+#define CTRACE mp_void_fprintf
 #endif
 
 #define PERL_GATEWAY_INTERFACE "CGI-Perl/1.1"
@@ -79,6 +94,43 @@ nrd = read_client_block(r, buffer, bufsiz);
 #define PERL_READ_FROM_CLIENT \
 PERL_READ_SETUP; \
 PERL_READ_CLIENT
+
+#if MODULE_MAGIC_NUMBER >= 19961211
+#define SENDN_TO_CLIENT rwrite(buffer, n, r) 
+
+#else
+
+/* this was private in http_protocol.c */
+#define SET_BYTES_SENT(r) \
+  do { if (r->sent_bodyct) \
+	  bgetopt (r->connection->client, BO_BYTECT, &r->bytes_sent); \
+  } while (0)
+
+#define SENDN_TO_CLIENT \
+    bwrite(r->connection->client, buffer, n); \
+    SET_BYTES_SENT(r)
+#endif
+
+#define PUSHelt(key,val,klen) \
+{ \
+    SV *psv = (SV*)newSVpv(val, 0); \
+    SvTAINTED_on(psv); \
+    XPUSHs(sv_2mortal((SV*)newSVpv(key, klen))); \
+    XPUSHs(sv_2mortal((SV*)psv)); \
+}
+
+#define CGIENVinit \
+       int i; \
+       char *tz = NULL; \
+       table_entry *elts = NULL; \
+       if(table_get(env_arr,"GATEWAY_INTERFACE") != PERL_GATEWAY_INTERFACE) { \
+           add_common_vars(r); \
+           add_cgi_vars(r); \
+           elts = (table_entry *)env_arr->elts; \
+           tz = getenv("TZ"); \
+           table_set (env_arr, "PATH", DEFAULT_PATH); \
+           table_set (env_arr, "GATEWAY_INTERFACE", PERL_GATEWAY_INTERFACE); \
+       }
 
 /* on/off switches for callback hooks during request stages */
 
@@ -244,8 +296,11 @@ typedef struct {
 
 extern module perl_module;
 
+/* a couple for -Wall sanity sake */
+int multi_log_transaction(request_rec *r);
+int basic_http_header(request_rec *r);
 /* prototypes */
-
+int perl_call(char *imp, request_rec *r);
 int perl_handler(request_rec *r);
 void perl_init (server_rec *s, pool *p);
 void *create_perl_dir_config (pool *p, char *dirname);
@@ -271,13 +326,15 @@ void xs_init (void);
 #else
 void xs_init _((void));
 #endif
-void perl_set_request_rec(request_rec *);
-void perl_set_pid(void);
+int mod_perl_seqno(void);
+int perl_hook(char *name);
+request_rec *perl_request_rec(request_rec *);
 void perl_stdin2client(request_rec *);
 void perl_stdout2client(request_rec *); 
 int perl_require_module(char *, server_rec *);
 int  perl_eval_ok(server_rec *);
 void perl_setup_env(request_rec *r);
-void perl_clear_env(void);
 SV  *perl_bless_request_rec(request_rec *); 
 void perl_set_request_rec(request_rec *); 
+int mp_void_fprintf(FILE *, const char *, ...);
+
