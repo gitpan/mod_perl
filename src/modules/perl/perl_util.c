@@ -45,15 +45,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  * ====================================================================
- *
- * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Software Foundation.  For more
- * information on the Apache Software Foundation, please see
- * <http://www.apache.org/>.
- *
- * Portions of this software are based upon public domain software
- * originally written at the National Center for Supercomputing Applications,
- * University of Illinois, Urbana-Champaign.
  */
 
 #include "mod_perl.h"
@@ -433,7 +424,7 @@ void perl_run_endav(char *s)
 static I32
 errgv_empty_set(IV ix, SV* sv)
 { 
-    sv_setpv(sv, "");
+    sv_setsv(sv, &sv_no);
     return TRUE;
 }
 
@@ -686,17 +677,27 @@ void mod_perl_init_ids(void)  /* $$, $>, $), etc */
 
 int perl_eval_ok(server_rec *s)
 {
+    int status;
     SV *sv;
     dTHR;
     dTHRCTX;
 
     sv = ERRSV;
-    if(SvTRUE(sv)) {
-	MP_TRACE_g(fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na)));
-	mod_perl_error(s, SvPV(sv, na));
-	return -1;
+    if (SvTRUE(sv)) {
+        if (SvMAGICAL(sv) && (SvCUR(sv) > 4) &&
+            strnEQ(SvPVX(sv), " at ", 4))
+        {
+            /* Apache::exit was called */
+            return DECLINED;
+        }
+        if (perl_sv_is_http_code(ERRSV, &status)) {
+            return status;
+        }
+        MP_TRACE_g(fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na)));
+        mod_perl_error(s, SvPV(sv, na));
+        return SERVER_ERROR;
     }
-    return 0;
+    return OK;
 }
 
 int perl_sv_is_http_code(SV *errsv, int *status) 

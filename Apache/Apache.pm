@@ -20,7 +20,7 @@ if (caller eq "CGI::Apache") {
 
 {
     no strict;
-    $VERSION = "1.26";
+    $VERSION = "1.27";
     __PACKAGE__->mod_perl::boot($VERSION);
 }
 
@@ -49,33 +49,39 @@ sub content {
     return unless $ct =~ m!^application/x-www-form-urlencoded!;
     my $buff;
     $r->read($buff, $r->header_in("Content-length"));
-    parse_args(wantarray, $buff);
+    return $buff unless wantarray;
+    parse_args(1, $buff);
 }
 
 sub args {
     my($r, $val) = @_;
-    parse_args(wantarray, 
-	       $val ? $r->query_string($val) : $r->query_string);
+    my $args = @_ > 1 ? $r->query_string($val) : $r->query_string;
+    return $args unless wantarray;
+    parse_args(1, $args);
 }
 
 *READ = \&read unless defined &READ;
 
 sub read {
-    my($r, $bufsiz) = @_[0,2];
+    my($r, $bufsiz, $offset) = @_[0,2,3];
     my($nrd, $buf, $total);
     $nrd = $total = 0;
     $buf = "";
-    $_[1] ||= "";
-    #$_[1] = " " x $bufsiz unless defined $_[1]; #XXX?
+    $_[1] = "" unless $offset;
 
-    $r->hard_timeout("Apache->read");
+    $r->soft_timeout("Apache->read");
 
     while($bufsiz) {
 	$nrd = $r->read_client_block($buf, $bufsiz) || 0;
 	if(defined $nrd and $nrd > 0) {
 	    $bufsiz -= $nrd;
-	    $_[1] .= $buf;
- 	    #substr($_[1], $total, $nrd) = $buf;
+            if ($offset) {
+                substr($_[1], $offset) .= $buf;
+                #$_[1] .= $buf;
+            }
+            else {
+                $_[1] .= $buf;
+            }
 	    $total += $nrd;
 	    next if $bufsiz;
 	    last;
@@ -113,7 +119,7 @@ sub new_read {
 	return 0;
     }
 
-    $r->hard_timeout("Apache->read");
+    $r->soft_timeout("Apache->read");
     
     while($bufsiz) {
 	$nrd = $r->get_client_block($buf, $bufsiz) || 0;
@@ -180,7 +186,10 @@ sub send_cgi_header {
 	    else {
 		$not_sent = 1;
 	    }
-	    $r->send_http_header if $not_sent;
+            if ($not_sent) {
+                $r->send_http_header;
+                $r->sent_header(-2);
+            }
 	    $r->print($headers); #send rest of buffer, without stripping newlines!!!
 	    last;
 	}
@@ -419,13 +428,16 @@ returned.  When called in a list context, a list of parsed I<key> =>
 I<value> pairs are returned.  *NOTE*: you can only ask for this once,
 as the entire body is read from the client.
 
-=item $r->read($buf, $bytes_to_read)
+=item $r->read($buf, $bytes_to_read, [$offset])
 
 This method is used to read data from the client, 
 looping until it gets all of C<$bytes_to_read> or a timeout happens.
 
+An offset may be specified to place the read data at some other place
+than the beginning of the string.
+
 In addition, this method sets a timeout before reading with
-C<$r-E<gt>hard_timeout>.
+C<$r-E<gt>soft_timeout>.
 
 =item $r->get_remote_host
 
@@ -909,7 +921,7 @@ and the client should be told not to cache it.
 =item $r->print( @list )
 
 This method sends data to the client with C<$r-E<gt>write_client>, but first
-sets a timeout before sending with C<$r-E<gt>hard_timeout>. This method is
+sets a timeout before sending with C<$r-E<gt>soft_timeout>. This method is
 called instead of CORE::print when you use print() in your mod_perl programs.
 
 This method treats scalar references specially. If an item in @list is a
@@ -1127,22 +1139,6 @@ Set to true when the server is starting.
 =item $Apache::Server::ReStarting
 
 Set to true when the server is starting.
-
-=item $Apache::Server::ConfigTestOnly
-
-Set to true when the server is running in configuration test mode
-(C<httpd -t>).
-
-   <Perl>
-    # don't continue if it's a config test!
-    print("Skipping the <Perl> code!\n"),
-    return if $Apache::Server::ConfigTestOnly;
-   
-    print "Running the <Perl> code!\n"
-    # some code here
-   
-   </Perl>
-
 
 =back
 

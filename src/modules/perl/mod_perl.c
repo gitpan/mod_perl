@@ -45,15 +45,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  * ====================================================================
- *
- * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Software Foundation.  For more
- * information on the Apache Software Foundation, please see
- * <http://www.apache.org/>.
- *
- * Portions of this software are based upon public domain software
- * originally written at the National Center for Supercomputing Applications,
- * University of Illinois, Urbana-Champaign.
  */
 
 
@@ -128,7 +119,7 @@ static command_rec perl_cmds[] = {
       OR_ALL, TAKE2, "Perl config var and value" },
     { "PerlAddVar", (crft) perl_cmd_var,
       (void*)1,
-      OR_ALL, TAKE2, "Perl config var and value" },
+      OR_ALL, ITERATE2, "Perl config var and value" },
     { "PerlSetEnv", (crft) perl_cmd_setenv,
       NULL,
       OR_ALL, TAKE2, "Perl %ENV key and value" },
@@ -533,7 +524,7 @@ static void mp_server_notstarting(void *data)
     if(!PERL_IS_DSO) \
         register_cleanup(p, NULL, mp_server_notstarting, mod_perl_noop) 
 
-#define MP_APACHE_VERSION "1.26"
+#define MP_APACHE_VERSION "1.27"
 
 void mp_check_version(void)
 {
@@ -735,8 +726,6 @@ void perl_startup (server_rec *s, pool *p)
     perl_tainting_set(s, cls->PerlTaintCheck);
     (void)GvSV_init("Apache::__SendHeader");
     (void)GvSV_init("Apache::__CurrentCallback");
-    if (ap_configtestonly)
-    	GvSV_setiv(GvSV_init("Apache::Server::ConfigTestOnly"), TRUE);
 
     Apache__ServerReStarting(FALSE); /* just for -w */
     Apache__ServerStarting_on();
@@ -846,6 +835,9 @@ int mod_perl_sent_header(request_rec *r, int val)
 {
     dPPDIR;
 
+    if (val == DONE) {
+        val = r->assbackwards = 1; /* so apache does not send another header */
+    }
     if(val) MP_SENTHDR_on(cld);
     val = MP_SENTHDR(cld) ? 1 : 0;
     return MP_SENDHDR(cld) ? val : 1;
@@ -861,10 +853,21 @@ int perl_handler(request_rec *r)
     dPPDIR;
     dPPREQ;
     dTHR;
-    GV *gv = gv_fetchpv("SIG", TRUE, SVt_PVHV);
+    GV *gv;
+
+#ifdef USE_ITHREADS
+    dTHX;
+
+    if (!aTHX) {
+        PERL_SET_CONTEXT(perl);
+    }
+#endif
 
     (void)acquire_mutex(mod_perl_mutex);
-    
+
+    gv = gv_fetchpv("SIG", TRUE, SVt_PVHV);
+
+   
 #if 0
     /* force 'PerlSendHeader On' for sub-requests
      * e.g. Apache::Sandwich 
@@ -909,6 +912,13 @@ int perl_handler(request_rec *r)
     LEAVE;
     MP_TRACE_g(fprintf(stderr, "perl_handler LEAVE: SVs = %5d, OBJs = %5d\n", 
 		     (int)sv_count, (int)sv_objcount));
+
+    if (r->prev && (r->prev->status != HTTP_OK) &&
+        mod_perl_sent_header(r, 0))
+    {
+        /* avoid recursive error for ErrorDocuments */
+        status = OK;
+    }
 
     (void)release_mutex(mod_perl_mutex);
     return status;
@@ -962,7 +972,7 @@ void PERL_CHILD_EXIT_HOOK(server_rec *s, pool *p)
 
 static int do_proxy (request_rec *r)
 {
-    return 
+    return r->parsed_uri.scheme &&
 	!(r->parsed_uri.hostname
 	  && strEQ(r->parsed_uri.scheme, ap_http_method(r))
 	  && ap_matches_request_vhost(r, r->parsed_uri.hostname,
@@ -976,11 +986,13 @@ int PERL_POST_READ_REQUEST_HOOK(request_rec *r)
 {
     dSTATUS;
     dPSRV(r->server);
+#ifdef PERL_TRANS
 #if MODULE_MAGIC_NUMBER > 19980270
-    if(r->parsed_uri.scheme && r->parsed_uri.hostname && do_proxy(r)) {
+    if (cls->PerlTransHandler && do_proxy(r)) {
 	r->proxyreq = 1;
 	r->uri = r->unparsed_uri;
     }
+#endif
 #endif
 #ifdef PERL_INIT
     PERL_CALLBACK("PerlInitHandler", cls->PerlInitHandler);
@@ -1221,7 +1233,7 @@ int perl_handler_ismethod(HV *pclass, char *sub)
     }
 
 #ifdef CVf_METHOD
-    if (CvFLAGS(cv) & CVf_METHOD) {
+    if (cv && (CvFLAGS(cv) & CVf_METHOD)) {
         is_method = 1;
     }
 #endif
@@ -1310,6 +1322,14 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
     I32 i, do_clear=FALSE;
     SV *sub, **svp; 
     int hook_len = strlen(hook);
+
+#ifdef USE_ITHREADS
+    dTHX;
+
+    if (!aTHX) {
+        PERL_SET_CONTEXT(perl);
+    }
+#endif
 
     if(handlers == Nullav) {
 	if(hv_exists(stacked_handlers, hook, hook_len)) {
@@ -1644,14 +1664,17 @@ callback:
     
     SPAGAIN;
 
-    if(perl_eval_ok(r->server) != OK) {
-	dTHRCTX;
-	MP_STORE_ERROR(r->uri, ERRSV);
-        if (r->notes) {
-            ap_table_set(r->notes, "error-notes", SvPVX(ERRSV));
+    if ((status = perl_eval_ok(r->server)) != OK) {
+        dTHRCTX;
+        if (status == SERVER_ERROR) {
+            MP_STORE_ERROR(r->uri, ERRSV);
+            if (r->notes) {
+                ap_table_set(r->notes, "error-notes", SvPVX(ERRSV));
+            }
         }
-	if(!perl_sv_is_http_code(ERRSV, &status))
-	    status = SERVER_ERROR;
+        else if (status == DECLINED) {
+            status = r->status == 200 ? OK : r->status;
+        }
     }
     else if(count != 1) {
 	mod_perl_error(r->server,

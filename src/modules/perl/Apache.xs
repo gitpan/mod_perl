@@ -45,15 +45,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  * ====================================================================
- *
- * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Software Foundation.  For more
- * information on the Apache Software Foundation, please see
- * <http://www.apache.org/>.
- *
- * Portions of this software are based upon public domain software
- * originally written at the National Center for Supercomputing Applications,
- * University of Illinois, Urbana-Champaign.
  */
 
 #define CORE_PRIVATE
@@ -110,6 +101,7 @@ static perl_handler_table handler_table[] = {
     {HandlerDirEntry("PerlFixupHandler", PerlFixupHandler)},
     {HandlerDirEntry("PerlHandler", PerlHandler)},
     {HandlerDirEntry("PerlLogHandler", PerlLogHandler)},
+    {HandlerDirEntry("PerlCleanupHandler", PerlCleanupHandler)},
     { FALSE, NULL }
 };
 
@@ -138,7 +130,7 @@ static void perl_handler_merge_avs(char *hook, AV **dest)
     base = (AV*)SvRV(*svp);
     for(i=0; i<=AvFILL(base); i++) { 
 	SV *sv = *av_fetch(base, i, FALSE);
-	av_push(*dest, sv);
+	av_push(*dest, SvREFCNT_inc(sv));
     }
 }
 
@@ -367,6 +359,11 @@ static void rwrite_neg_trace(request_rec *r)
 		 r->connection->client->flags & B_EOUT);
 }
 
+#define check_auth_type(r) \
+    if (!auth_type(r)) { \
+        (void)mod_perl_auth_type(r, "Basic"); \
+    }
+
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
 PROTOTYPES: DISABLE
@@ -559,6 +556,7 @@ CLOSE(...)
     
     CODE:
     items = items;
+    ix = ix;
     /*NOOP*/
 
 Apache
@@ -567,7 +565,7 @@ TIEHANDLE(classname, r=NULL)
     Apache r
 
     CODE:
-    RETVAL = r ? r : perl_request_rec(NULL);
+    RETVAL = (r && classname) ? r : perl_request_rec(NULL);
 
     OUTPUT:
     RETVAL
@@ -586,7 +584,7 @@ OPEN(self, arg1, arg2=Nullsv)
 
     CODE:
     sv_unmagic((SV*)gv, 'q'); /* untie *STDOUT */
-    if (arg2) {
+    if (arg2 && self) {
         arg = newSVsv(arg1);
         sv_catsv(arg, arg2);
     }
@@ -668,6 +666,10 @@ unescape_url_info(url)
     CODE:
     register char * trans = url ;
     char digit ;
+
+    if (!url || !*url) {
+        XSRETURN_UNDEF;
+    }
 
     RETVAL = url;
 
@@ -828,8 +830,9 @@ mod_perl_auth_name(r, val=NULL)
     char *val
 
 const char *
-auth_type(r)
+mod_perl_auth_type(r, val=NULL)
     Apache    r
+    char *val
 
 const char *
 document_root(r, ...)
@@ -882,6 +885,10 @@ void
 note_basic_auth_failure(r)
     Apache r
 
+    CODE:
+    check_auth_type(r);
+    note_basic_auth_failure(r);
+
 void
 get_basic_auth_pw(r)
     Apache r
@@ -891,12 +898,23 @@ get_basic_auth_pw(r)
     int ret;
 
     PPCODE:
+    check_auth_type(r);
     ret = get_basic_auth_pw(r, &sent_pw);
     XPUSHs(sv_2mortal((SV*)newSViv(ret)));
     if(ret == OK)
 	XPUSHs(sv_2mortal((SV*)newSVpv((char *)sent_pw, 0)));
     else
 	XPUSHs(&sv_undef);
+
+char *
+user(r, ...)
+    Apache   r
+
+    CODE:
+    get_set_PVp(r->connection->user,r->pool);
+
+    OUTPUT:
+    RETVAL
 
 void
 basic_http_header(r)
@@ -919,7 +937,6 @@ send_http_header(r, type=NULL)
         r->content_type = pstrdup(r->pool, type);
     send_http_header(r);
     mod_perl_sent_header(r, 1);
-    r->status = 200; /* XXX, why??? */
 
 #ifndef PERL_OBJECT
 
@@ -944,37 +961,44 @@ rflush(r)
 void
 read_client_block(r, buffer, bufsiz)
     Apache	r
-    char    *buffer
+    SV    *buffer
     int      bufsiz
 
     PREINIT:
-    long nrd = 0;
+    long nrd = 0, old_read_length;
     int rc;
 
     PPCODE:
-    buffer = (char*)safemalloc(bufsiz);
-    if ((rc = setup_client_block(r, REQUEST_CHUNKED_ERROR)) != OK) {
-	aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, r->server, 
-		    "mod_perl: setup_client_block failed: %d", rc);
-	XSRETURN_UNDEF;
+    if (!r->read_length) {
+        if ((rc = setup_client_block(r, REQUEST_CHUNKED_ERROR)) != OK) {
+            aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, r->server, 
+                        "mod_perl: setup_client_block failed: %d", rc);
+            XSRETURN_UNDEF;
+        }
     }
 
-    if(should_client_block(r)) {
-	nrd = get_client_block(r, buffer, bufsiz);
-	r->read_length = 0;
-    } 
+    old_read_length = r->read_length;
+    r->read_length = 0;
+
+    if (should_client_block(r)) {
+        (void)SvUPGRADE(buffer, SVt_PV);
+        SvGROW(buffer, bufsiz+1);
+        nrd = get_client_block(r, SvPVX(buffer), bufsiz);
+    }
+    r->read_length += old_read_length;
 
     if (nrd > 0) {
-	XPUSHs(sv_2mortal(newSViv((long)nrd)));
-	sv_setpvn((SV*)ST(1), buffer, nrd);
+        XPUSHs(sv_2mortal(newSViv((long)nrd)));
 #ifdef PERL_STASH_POST_DATA
-        table_set(r->subprocess_env, "POST_DATA", buffer);
+        table_set(r->subprocess_env, "POST_DATA", SvPVX(buffer));
 #endif
-        safefree(buffer);
-	SvTAINTED_on((SV*)ST(1));
+        SvCUR_set(buffer, nrd);
+        *SvEND(buffer) = '\0';
+        SvPOK_only(buffer);
+        SvTAINTED_on(buffer);
     } 
     else {
-	ST(1) = &sv_undef;
+        sv_setsv(buffer, &sv_undef);
     }
 
 int
@@ -989,22 +1013,25 @@ should_client_block(r)
 void
 get_client_block(r, buffer, bufsiz)
     Apache	r
-    char    *buffer
+    SV    *buffer
     int      bufsiz
 
     PREINIT:
     long nrd = 0;
 
     PPCODE:
-    buffer = (char*)palloc(r->pool, bufsiz);
-    nrd = get_client_block(r, buffer, bufsiz);
+    (void)SvUPGRADE(buffer, SVt_PV);
+    SvGROW(buffer, bufsiz+1);
+    nrd = get_client_block(r, SvPVX(buffer), bufsiz);
     if ( nrd > 0 ) {
-	XPUSHs(sv_2mortal(newSViv((long)nrd)));
-	sv_setpvn((SV*)ST(1), buffer, nrd);
-	SvTAINTED_on((SV*)ST(1));
+        XPUSHs(sv_2mortal(newSViv((long)nrd)));
+        SvCUR_set(buffer, nrd);
+        *SvEND(buffer) = '\0';
+        SvPOK_only(buffer);
+        SvTAINTED_on(buffer);
     } 
     else {
-	ST(1) = &sv_undef;
+	sv_setsv(ST(1), &sv_undef);
     }
 
 int
@@ -1037,7 +1064,7 @@ print(r, ...)
     }
     else {
 	CV *cv = GvCV(gv_fetchpv("Apache::write_client", FALSE, SVt_PVCV));
-	hard_timeout("mod_perl: Apache->print", r);
+	soft_timeout("mod_perl: Apache->print", r);
 	PUSHMARK(mark);
 #ifdef PERL_OBJECT
 	(void)(*CvXSUB(cv))(cv, pPerl); /* &Apache::write_client; */
@@ -1503,8 +1530,10 @@ bytes_sent(r, ...)
 
     RETVAL = last->bytes_sent;
 
-    if(items > 1)
-        r->bytes_sent = (long)SvIV(ST(1));
+    if(items > 1) {
+        long nbytes = last->bytes_sent = (long)SvIV(ST(1));
+        ap_bsetopt(last->connection->client, BO_BYTECT, &nbytes);
+    }
 
     OUTPUT:
     RETVAL
@@ -1864,7 +1893,9 @@ filename(r, ...)
     get_set_PVp(r->filename,r->pool);
 #ifndef WIN32
     if(items > 1)
-	stat(r->filename, &r->finfo);
+	if ((laststatval = stat(r->filename, &r->finfo)) < 0) {
+            r->finfo.st_mode = 0;
+	}
 #endif
 
     OUTPUT:
@@ -1880,21 +1911,18 @@ path_info(r, ...)
     OUTPUT:
     RETVAL
 
-void
+char *
 query_string(r, ...)
     Apache	r
 
-    PREINIT:
-    SV *sv = sv_newmortal();
+    CODE:
+    get_set_PVp(r->args,r->pool);
 
-    PPCODE: 
-    if(r->args)
-	sv_setpv(sv, r->args);
-    SvTAINTED_on(sv);
-    XPUSHs(sv);
+    OUTPUT:
+    RETVAL
 
-    if(items > 1)
-        r->args = pstrdup(r->pool, (char *)SvPV(ST(1),na));
+    CLEANUP:
+    if (ST(0) != &sv_undef) SvTAINTED_on(ST(0));
 
 #  /* Various other config info which may change with .htaccess files
 #   * These are config vectors, with one void* pointer for each module
@@ -2000,10 +2028,15 @@ DESTROY(r)
 	    "Apache::SubRequest::DESTROY(0x%lx)\n", (unsigned long)r));
 
 int
-run(r)
+run(r, allow_send_header=0)
     Apache::SubRequest r
+    int allow_send_header
 
     CODE:
+    if (allow_send_header) {
+        r->assbackwards = 0;
+    }
+
     RETVAL = run_sub_req(r);
 
     OUTPUT:

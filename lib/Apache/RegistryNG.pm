@@ -17,7 +17,7 @@ $VERSION = '1.00';
 # see also: Apache::RegistryBB
  
 sub namespace_from {
-    shift->filename;
+    shift->{r}->filename;
 }
 
 sub handler ($$) {
@@ -45,7 +45,7 @@ sub handler ($$) {
 	$pr->sub_wrap;
 	my $rc = $pr->compile;
         return $rc if $rc != OK;
-	$pr->update_mtime;
+	$pr->set_mtime;
     }
 
     $rc = $pr->run(@_);

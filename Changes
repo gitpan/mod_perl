@@ -8,12 +8,163 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.24_01 - October 10, 2000
+
+fix bug in $r->args that treats ?0 as the empty string instead of zero,
+thanks to Matt Sergeant for the spot
+
+add proper offset support to Apache::read
+
+config/test fixups for libapreq/win32
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+skip modules/ssi test if mod_include is not installed
+
+Apache::test enhancements
+[Ken Williams <ken@forum.swarthmore.edu>]
+
+fix Apache::exit() so it does it does not trigger a warning
+
+change Apache::PerlRun's Apache class relationship from is-a to has-a
+[Ken Williams <ken@forum.swarthmore.edu>]
+
+Apache::SubRequest->run(1) allows ap_send_http_headers() to output for
+subrequests
+
+Apache::{Registry,PerlRun} will now log an error if $filename is NOT_FOUND
+thanks to Martin Wood for the spot
+
+fix bug where Apache::send_http_header was resetting r->status = 200
+thanks to brian d foy for the spot
+
+make extra sure Apache::Constants::AUTOLOAD does not recurse looking
+for sub __AUTOLOAD [Jim Winstead <jimw@trainedmonkey.com>]
+
+fix %Apache::ReadConfig:: processing for PerlRequire'd files
+[Salvador Ortiz Garcia <sog@msg.com.mx>]
+
+$r->get_basic_auth_pw and $r->note_basic_auth_failure will default
+$r->auth_type to "Basic" if not already set
+
+$r->auth_type is now writeable, e.g. $r->auth_type("Basic")
+
+fix $r->read() so it will not block if all data has already been read
+and so that Apache will not hang during ap_discard_request_body() on
+error or redirect after all data has been read
+
+fix for Makefile.PL ADD_MODULE=src/module/foo/libfoo.a
+[Nelson Oliveira <NOliveira@extend.com>]
+
+added Apache::user method in preparation for 2.0, now that `user' hangs
+off of the request_rec rather than request_rec->connection in Apache 2.0
+
+disable r->proxyreq checking unless PerlTransHandler is enabled and
+configured
+
+fix 'make tar_Apache' [Jesse Erlbaum <jesse@VM.COM>]
+
+fix for Perl{Module,Require} in .htaccess,
+thanks to Will Trillich and Andrew Gideon for the spot
+
+static+apaci fixes for aix [Jens-Uwe Mager <jum@helios.de>]
+
+fix bug in Perl{Set,Add}Var so $r->dir_config->get('key') sees the
+same values as $r->dir_config('key'), thanks to Geoffrey Young for the spot
+
+PerlAddVar is now an ITERATE2 directive rather than TAKE2
+
+added Apache::Server::error_fname method
+
+eg/makepl_args.mod_perl updated
+[Neil Conway <nconway@klamath.dyndns.org>]
+
+'make test' config fixes for mod_ssl
+[David Mitchell <davem@fdgroup.co.uk>, Mark Murphy <mark@opus.pass.wayne.edu>,
+Stephen Schaefer <stephen@networks.com>]
+
+plug leak in DIR_MERGE, thanks to Matt Sergeant for the spot
+
+fixes to run and pass 'make test' on ActivePerl [Randy Kobes, Gerald Richter]
+
+Makefile.PL:post_initialize fix for win32, thanks to john sterling for 
+the spot
+
+fixes for ActivePerl [Gurusamy Sarathy <gsar@ActiveState.com>]
+
+change apaci/Makefile.tmpl and src/modules/perl/Makefile so Perl's
+include path comes before /usr/local/include, e.g. to make sure Perl's 
+patchlevel.h is used, thanks to Ryan Morgan for the spot
+
+avoid duplicate buffer copy in {read,get}_client_block by reading
+directly into Perl's SV buffer
+
+modules/request test fix
+[Ken Williams <ken@forum.swarthmore.edu>]
+
+switch usage of hard_timeout() to soft_timeout(), so if SIGALRM
+happens during Apache::{print,read}, the script will continue run,
+allowing proper cleanup (e.g. DESTROY)
+
+fix refcnt bug in $r->get_handlers,
+thanks Geoffrey Young for the spot
+
+add PerlCleanupHandler to the {get,set}_handlers table,
+thanks Geoffrey Young for the spot
+
+fix $r->args(undef), thanks to Greg Cope for the spot
+
+quotemeta path_info in Registry regexp
+[Tobias Hoellrich <thoellri@adobe.com>]
+
+flush r->finfo cache if r->filename fails
+[Roger Espel Llima <espel@iagora.net>]
+
+fix per-dir merging of PerlSetupEnv [Eric Cholet <cholet@logilune.com>]
+
+INSTALL.raven update [Adam Qualset <adam@covalent.net>]
+
+backed out $Apache::Server::ConfigTestOnly until proper Apache support
+is in place
+
+fix $r->bytes_sent($bytes)
+
+support version parsing of 1.3.13-dev's httpd.h
+
+fix for 'sub handler : method {}' support when method is not found
+[Eric Cholet <cholet@logilune.com>]
+
+Apache::ExtUtils will now generate and END routine to call
+ap_remove_module() [Christopher Chan-N <uichannui@tiny.org>]
+
+rename Apache::{PerlRun,RegistryNG}::update_mtime to set_mtime, so
+Apache::update_mtime is not overridden
+thanks to Michael Blakeley for the spot
+
+constant 'DECLINED' wasn't imported by Apache::RegistryBB, thanks to
+Michael Blakeley for the spot [Eric Cholet <cholet@logilune.com>]
+
+fixes for building with stronghold
+[Sander van Zoest <sander@vanZoest.com>]
+
+Apache::Resource was not converting PERL_RLIMIT_AS to MB values
+thanks to Ian Kallen for the spot
+
+fix unescape_url_info() when url is undef or "",
+thanks to Kenneth Lee for the spot
+
+fix 1.24's Apache::Table->unset changes for win32
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+fix broken Win32 build (unresolved external symbol _ap_configtestonly)
+[Eric Cholet <cholet@logilune.com>]
+
 =item 1.24 - May 16, 2000
 
 'sub handler : method {}' is now treated as a method handler
 
 variable $Apache::Server::ConfigTestOnly is set to 1 if Apache
 is running in configuration test mode (httpd -t)
+(not unavailable under Win32)
 [Eric Cholet <cholet@logilune.com>]
 
 add PerlAddVar directive, like PerlSetVar, but uses ap_table_add

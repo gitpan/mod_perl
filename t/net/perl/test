@@ -78,6 +78,9 @@ if($Apache::TestSIG) {
     #Process $$ going to Apache::exit with status=$s
 }
 
+my $scalar_args = $r->args;
+print "SCALAR_ARGS=$scalar_args\n" if defined $scalar_args;
+
 if (@args = $r->args) {
     $r->print(
        "ARGS: ",
@@ -99,6 +102,7 @@ unless ($Apache::__T) {
 if ($ENV{CONTENT_LENGTH}) {
     #$len = $ENV{CONTENT_LENGTH};
     my $content = $r->content;
+    my $r_content_will_not_block_when_called_twice = $r->content;
     eval { system $content }; 
     die "TaintCheck failed, I can `system \$content' ($content:$ENV{CONTENT_LENGTH})" unless $@;
     #warn "TRAPPED: `system \$r->content' '$@'\n";

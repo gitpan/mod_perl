@@ -45,15 +45,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  * ====================================================================
- *
- * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Software Foundation.  For more
- * information on the Apache Software Foundation, please see
- * <http://www.apache.org/>.
- *
- * Portions of this software are based upon public domain software
- * originally written at the National Center for Supercomputing Applications,
- * University of Illinois, Urbana-Champaign.
  */
 
 #define CORE_PRIVATE 
@@ -164,6 +155,24 @@ char *mod_perl_auth_name(request_rec *r, char *val)
     return conf->auth_name;
 #else
     return (char *) auth_name(r);
+#endif
+}
+
+char *mod_perl_auth_type(request_rec *r, char *val)
+{
+#ifndef WIN32 
+    core_dir_config *conf = 
+      (core_dir_config *)get_module_config(r->per_dir_config, &core_module); 
+
+    if(val) {
+	conf->auth_type = pstrdup(r->pool, val);
+	set_module_config(r->per_dir_config, &core_module, (void*)conf); 
+	MP_TRACE_g(fprintf(stderr, "mod_perl: setting auth_type to %s\n", conf->auth_name));
+    }
+
+    return conf->auth_type;
+#else
+    return (char *) auth_type(r);
 #endif
 }
 
@@ -298,7 +307,7 @@ void *perl_create_dir_config (pool *p, char *dirname)
     cld->env  = make_table(p, 5); 
     cld->flags = MPf_ENV;
     cld->SendHeader = MPf_None;
-    cld->SetupEnv = MPf_On;
+    cld->SetupEnv = MPf_None;
     cld->PerlHandler = PERL_CMD_INIT;
     PERL_DISPATCH_CREATE(cld);
     PERL_AUTHEN_CREATE(cld);
@@ -445,7 +454,7 @@ CHAR_P perl_cmd_push_handlers(char *hook, PERL_CMD_TYPE **cmd, char *arg, pool *
     sva = newSVpv(arg,0); 
     if(!*cmd) { 
         *cmd = newAV(); 
-	register_cleanup(p, (void*)*cmd, mod_perl_cleanup_av, mod_perl_noop);
+	register_cleanup(p, (void*)*cmd, mod_perl_cleanup_sv, mod_perl_noop);
 	MP_TRACE_d(fprintf(stderr, "init `%s' stack\n", hook)); 
     } 
     MP_TRACE_d(fprintf(stderr, "perl_cmd_push_handlers: @%s, '%s'\n", hook, arg)); 
@@ -591,17 +600,19 @@ CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg)
 		dTHRCTX;
 		return SvPV(ERRSV,n_a);
 	    }
-	}
-	else {
-	    return NULL;
+#ifdef PERL_SECTIONS
+            else {
+                if (CAN_SELF_BOOT_SECTIONS) {
+                    perl_section_self_boot(parms, dummy, arg);
+                }
+	    }
+#endif
 	}
     }
-    *(char **)push_array(cls->PerlModule) = pstrdup(parms->pool, arg);
-
-#ifdef PERL_SECTIONS
-    if(CAN_SELF_BOOT_SECTIONS)
-	perl_section_self_boot(parms, dummy, arg);
-#endif
+    else {
+        /* Delay processing it until Perl starts */
+        *(char **)push_array(cls->PerlModule) = pstrdup(parms->pool, arg);
+    }
 
     return NULL;
 }
@@ -621,18 +632,19 @@ CHAR_P perl_cmd_require (cmd_parms *parms, void *dummy, char *arg)
 		dTHRCTX;
 		return SvPV(ERRSV,n_a);
 	    }
+#ifdef PERL_SECTIONS
 	    else {
-		return NULL;
+                if (CAN_SELF_BOOT_SECTIONS) {
+                    perl_section_self_boot(parms, dummy, arg);
+                }
 	    }
+#endif
 	}
     }
-
-    *(char **)push_array(cls->PerlRequire) = pstrdup(parms->pool, arg);
-
-#ifdef PERL_SECTIONS
-    if(CAN_SELF_BOOT_SECTIONS)
-	perl_section_self_boot(parms, dummy, arg);
-#endif
+    else {
+        /* Delay processing it until Perl starts */
+        *(char **)push_array(cls->PerlRequire) = pstrdup(parms->pool, arg);
+    }
 
     return NULL;
 }
@@ -726,17 +738,18 @@ CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg) {
 
 CHAR_P perl_cmd_var(cmd_parms *cmd, void *config, char *key, char *val)
 {
+    perl_dir_config *rec = (perl_dir_config *)config;
+
     MP_TRACE_d(fprintf(stderr, "perl_cmd_var: '%s' = '%s'\n", key, val));
-    if (cmd->path) {
-        perl_dir_config *rec = (perl_dir_config *) config;
-        if (cmd->info) {
-            table_add(rec->vars, key, val);
-        }
-        else {
-            table_set(rec->vars, key, val);
-        }
+
+    if (cmd->info) {
+        table_add(rec->vars, key, val);
     }
     else {
+        table_set(rec->vars, key, val);
+    }
+
+    if (cmd->path == NULL) {
         dPSRV(cmd->server);
         if (cmd->info) {
             table_add(cls->vars, key, val);
@@ -745,6 +758,7 @@ CHAR_P perl_cmd_var(cmd_parms *cmd, void *config, char *key, char *val)
             table_set(cls->vars, key, val);
         }
     }
+
     return NULL;
 }
 
@@ -832,13 +846,13 @@ CHAR_P perl_pod_end_section (cmd_parms *cmd, void *dummy) {
     return NULL;
 }
 
-void mod_perl_cleanup_av(void *data)
+void mod_perl_cleanup_sv(void *data)
 {
-    AV *av = (AV*)data;
-    if(SvREFCNT((SV*)av)) {
-	MP_TRACE_g(fprintf(stderr, "cleanup_av: SvREFCNT(0x%lx)==%d\n", 
-			   (unsigned long)av, (int)SvREFCNT((SV*)av)));
-	SvREFCNT_dec((SV*)av);
+    SV *sv = (SV*)data;
+    if (SvREFCNT(sv)) {
+        MP_TRACE_g(fprintf(stderr, "cleanup_sv: SvREFCNT(0x%lx)==%d\n",
+                           (unsigned long)sv, (int)SvREFCNT(sv)));
+        SvREFCNT_dec(sv);
     }
 }
 
@@ -938,7 +952,7 @@ static void *perl_perl_merge_cfg(pool *p, void *basev, void *addv, char *meth)
 	*basevp = (mod_perl_perl_dir_config *)basev,
 	*addvp  = (mod_perl_perl_dir_config *)addv;
 
-    SV *sv, 
+    SV *sv=Nullsv, 
 	*basesv = basevp ? basevp->obj : Nullsv,
 	*addsv  = addvp  ? addvp->obj  : Nullsv;
 
@@ -967,16 +981,23 @@ static void *perl_perl_merge_cfg(pool *p, void *basev, void *addv, char *meth)
 	if((perl_eval_ok(NULL) == OK) && (count == 1)) {
 	    sv = POPs;
 	    ++SvREFCNT(sv);
-	    mrg->obj = sv;
 	    mrg->pclass = SvCLASS(sv);
 	}
 	PUTBACK;
 	FREETMPS;LEAVE;
     }
     else {
-	mrg->obj = newSVsv(basesv);
-	mrg->pclass = basevp->pclass;
+        sv = newSVsv(basesv);
+        mrg->pclass = basevp->pclass;
     }
+
+    if (sv) {
+        mrg->obj = sv;
+        register_cleanup(p, (void*)mrg,
+                         perl_perl_cmd_cleanup, mod_perl_noop);
+
+    }
+
     return (void *)mrg;
 }
 

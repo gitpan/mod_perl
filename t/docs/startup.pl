@@ -11,7 +11,9 @@ BEGIN {
     use lib map { "$Apache::Server::CWD/$_" } qw(t/docs blib/lib blib/arch);
     require "blib.pl" if -e "./t/docs/blib.pl";
     #Perl ignores w/ -T
-    unshift @INC, split ":", $ENV{PERL5LIB} if $ENV{PERL5LIB};
+    if ($ENV{PERL5LIB} and $ENV{PASS_PERL5LIB}) {
+         unshift @INC, map { Apache->untaint($_) } split ":", $ENV{PERL5LIB};
+    }
 
     $Apache::Server::Starting or warn "Server is not starting !?\n";
     \$Apache::Server::Starting == \$Apache::ServerStarting or 
@@ -171,7 +173,7 @@ sub Apache::AuthenTest::handler {
     my($res, $sent_pwd) = $r->get_basic_auth_pw;
     return $res if $res; #decline if not Basic
 
-    my $user = lc $r->connection->user;
+    my $user = lc $r->user;
     $r->notes("DoAuthenTest", 1);
     
     unless($user eq "dougm" and $sent_pwd eq "mod_perl") {

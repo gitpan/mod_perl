@@ -62,7 +62,7 @@ sub handler {
 	$r->log_error(sprintf "Apache::Registry::handler examining %s",
 		      $uri) if $Debug && $Debug & 4;
 	my $path_info = $r->path_info;
-	my $script_name = $path_info && $uri =~ /$path_info$/ ?
+	my $script_name = $path_info && $uri =~ /\Q$path_info\E$/ ?
 	    substr($uri, 0, length($uri)-length($path_info)) :
 	    $uri;
 
@@ -165,6 +165,7 @@ sub handler {
 #	}
 	return $r->status($old_status);
     } else {
+        $r->log_error("$filename not found or unable to stat");
 	return NOT_FOUND unless $Debug && $Debug & 2;
 	return Apache::Debug::dump($r, NOT_FOUND);
     }

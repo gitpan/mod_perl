@@ -135,6 +135,7 @@ my(@do_clean) = qw{
    t/modules/ssi.t       
    t/logs/error_log
    t/conf/srm.conf
+   t/conf/dev-null
    t/logs/httpd.pid
    src/modules/perl/mod_perl_version.h
    t/net/perl/cgi.pl
@@ -864,6 +865,8 @@ unless (-e "t/net/config.pl") {
     cp "t/net/config.pl.dist", "t/net/config.pl";
 }
 
+init_config_pl() if $Is_Win32;
+
 write_my_config($APACHE_SRC);
 
 unless($Is_Win32 or -e "t/conf/httpd.conf" or ($NO_HTTPD && !$PREP_HTTPD)) {
@@ -872,7 +875,38 @@ unless($Is_Win32 or -e "t/conf/httpd.conf" or ($NO_HTTPD && !$PREP_HTTPD)) {
 
 init_tests_and_config() if $USE_APXS;
 
+sub init_config_pl {
+    my $mmn = magic_number($APACHE_SRC) || 0;
+
+    my $hf = FileHandle->new(">>t/net/config.pl") or 
+      die "can't open t/net/config.pl $!";
+
+    my $apaci_cfg = APACI->init;
+
+    my($k,$v);
+    my(%all) = %callback_hooks;
+    while (($k,$v) = each %experimental) {
+        $all{$k} = ($experimental{$k} > 1) ? 1 : 0;
+    }
+    print $hf "%callback_hooks = (\n";
+    while (($k,$v) = each %all) {
+        print $hf "   $k => $v,\n";
+        my $yes_no = $v ? "yes" : "no";
+        print $apaci_cfg "$k = $yes_no\n" if $apaci_cfg;
+    }
+    print $hf "   MMN => $mmn,\n";
+    print $hf "   USE_DSO => 1,\n" if $USE_DSO;
+    print $hf ");\n1;\n";
+    $hf->close;
+    $apaci_cfg->close if $apaci_cfg;
+}
+
 sub init_tests_and_config {
+    local *FH;
+    open FH, ">t/conf/dev-null";
+    print FH "#mod_ssl has a problem with /dev/null\n";
+    close FH;
+
     cp "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
     chmod 0644, "t/conf/httpd.conf";
 
@@ -907,31 +941,8 @@ sub init_tests_and_config {
 	    iedit "t/conf/httpd.conf", "s/^#(PerlOpmask)/\$1/";
 	}
     }
-    {
-	my $mmn = magic_number($APACHE_SRC) || 0;
 
-	my $hf = FileHandle->new(">>t/net/config.pl") or 
-	    die "can't open t/net/config.pl $!";
-
-	my $apaci_cfg = APACI->init;
-
-	my($k,$v);
-	my(%all) = %callback_hooks;
-	while(($k,$v) = each %experimental) {
-	    $all{$k} = ($experimental{$k} > 1) ? 1 : 0;
-	}
-	print $hf "%callback_hooks = (\n";
-	while(($k,$v) = each %all) {
-	    print $hf "   $k => $v,\n";
-	    my $yes_no = $v ? "yes" : "no";
-	    print $apaci_cfg "$k = $yes_no\n" if $apaci_cfg;
-	}
-        print $hf "   MMN => $mmn,\n";
-	print $hf "   USE_DSO => 1,\n" if $USE_DSO;
-	print $hf ");\n1;\n";
-	$hf->close;
-	$apaci_cfg->close if $apaci_cfg;
-    }
+    init_config_pl();
 
     if($USE_APACI and not $PREP_HTTPD and not $USE_APXS) {
 	my $shrpenv = $Config{shrpenv} || "";
@@ -947,8 +958,13 @@ sub init_tests_and_config {
 	}
 
 	$cmd .= "./configure " .
-		  "--activate-module=src/modules/perl/libperl.a" .
-                    " --disable-rule=EXPAT";
+		  "--activate-module=src/modules/perl/libperl.a";
+   
+        # Do not disable the rule EXPAT for Stronghold, since this
+        # rule is not implementated yet and breaks the configure process.
+        if(is_ssl() !~ /stronghold/i) {
+           $cmd .= " --disable-rule=EXPAT";
+        }
 
 	if($USE_DSO) {
 	    $cmd .= " --enable-shared=perl";
@@ -964,10 +980,10 @@ sub init_tests_and_config {
 	} 
 	if($ADD_MODULE) {
 	    for (split ",", $ADD_MODULE) {
-		if(/([a-zA-Z0-9][a-zA-Z0-9_]*)/) {
+		if(/^([a-zA-Z0-9][a-zA-Z0-9_]+)$/) {
 		    $cmd .= " --enable-module=$1";
 		}
-		elsif(m:(src/modules/[^/]+/[a-zA-Z0-9][a-zA-Z0-9_]*):) {
+		elsif(m:(src/modules/[^/]+/[^/]+)$:) {
 		    $cmd .= " --activate-module=$1";
 		}
 	    }
@@ -1165,6 +1181,11 @@ WriteMakefile(
     #DIR => \@DIR,
     NAME    => "mod_perl",
     VERSION => $VERSION,
+    ($] < 5.005 ? () :
+      (
+        ABSTRACT => 'Embed a Perl interpreter in the Apache HTTP server',
+        AUTHOR   => 'Doug MacEachern <dougm@pobox.com>',
+      )),
     #should override `CCFLAGS', can't with older perls
     #CCDLFLAGS => "$Config{ccdlflags} $EXTRA_CFLAGS", 
     DEFINE => $EXTRA_CFLAGS, 
@@ -1287,7 +1308,7 @@ apaci_install:
 	(cd $(APACHE_ROOT) && $(MAKE) install)
 
 tar_Apache:
-	(cd $(INSTALLSITELIB); \
+	(cd $(INSTALLSITELIB)/$(ARCHNAME); \
 	     $(TAR) -cf $(PWD)/Apache.tar mod_perl.pm Apache.pm Apache $(ARCHNAME)/auto/Apache; )
 
 offsite-tar:
@@ -1427,7 +1448,7 @@ sub MY::post_initialize {
 	$ap_inc = $ap_src = 'src'; #just install mod_perl headers
     }
 
-    return unless -d $ap_src;
+    return unless $ap_src and -d $ap_src;
 
     $My::self = $self;
     {
@@ -1496,8 +1517,11 @@ sub httpd_version {
     my($string, $extra, @vers);
     while(<$fh>) {
 	next unless /^#define/;
-	s/SERVER_PRODUCT \"/\"Apache/; #1.3.13+
-	next unless s/^#define\s+SERVER_(BASE|)VERSION\s+"(.*)\s*".*/$2/;
+	s/SERVER_PRODUCT \"/\"Apache/; #1.3.13
+	next unless s/^#define\s+SERVER_(BASE|)(VERSION|REVISION)\s+"(.*)\s*".*/$3/;
+        unless (m:/:) {
+            $_ = "Apache/$_"; #1.3.14, argh
+        }
 	chomp($string = $_);
 
 	#print STDERR "Examining SERVER_VERSION '$string'...";
@@ -1943,6 +1967,7 @@ sub add_static_ar {
 }
 
 sub APACI::init {
+    return undef if $Is_Win32;
     my $lib_cfg;
     if($USE_APXS) {
 	$lib_cfg = "apaci/mod_perl.config";

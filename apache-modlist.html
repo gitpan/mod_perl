@@ -6,7 +6,7 @@
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@pobox.com">Doug MacEachern</a>,
-<br><i> $Revision: 1.70 $ $Date: 2000/04/06 20:11:36 $</i>
+<br><i> $Revision: 1.75 $ $Date: 2000/09/01 20:40:15 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -74,11 +74,12 @@ Archive		bdpf	Make linked contents pages of .tar(.gz) JPETERSON
 BBS		cdpO 	BBS like System for Apache		MKOSS
 CallHandler	cdpf	Map filenames to subroutine calls	GKNOPS
 Cachet		i	OutputChain with caching		MERLYN
+Compress	bdpO	Compress content on the fly		KWILLIAM
 Dir		i	OO (subclassable) mod_dir replacement 	DOUGM
 <a href="http://perl.apache.org/embperl/">Embperl</a>		Rmcf	Embed Perl in HTML			GRICHTER
 EmbperlChain	bdpO	Feed handler output to Embperl		CHOLET
 ePerl		Rdpr  	Fast emulated Embedded Perl (ePerl)	RSE            
-Filter		bdpO	OutputChain like functionality		KWILLIAM
+Filter		RdpO	OutputChain like functionality		KWILLIAM
 Forward		bdpO	OutputChain like functionality		MPB
 FTP		i	Full-fledged FTP proxy			PMKANE
 Gateway		bdpf	A multiplexing gateway			CCWF
@@ -86,29 +87,31 @@ GzipChain	bmpf	Compress files on the fly		ANDK
 iNcom		bdpf	An e-commerce framework			FRAJULAC
 Layer		bdpf	Layer content tree over one or more	SAM
 Magick		bdpf	Image conversion on-the-fly		MPB
-Mason		bdpO	Build sites w/ modular Perl/HTML blocks	JSWARTZ
+<a href="http://www.masonhq.com">Mason</a>		bdpO	Build sites w/ modular Perl/HTML blocks	JSWARTZ
 ModuleDoc	bdpf	Self documentation for Apache C modules	DOUGM
 NavBar		bdpO	Navigation bar generator		MPB
 OutputChain     bmpO	Chain output of stacked handlers	JANPAZ
 OWA		bdpf	Runs Oracle PL/SQL Web Toolkit apps	SVINTO
+PageKit         ampO    Application framework w/ HTML::Template TJMATHER
 PassFile	bdpf	Send file via OutputChain		ANDK
 PerlRun		Smpf	Run unaltered CGI scripts		APML
+PrettyPerl      Rdpf    Syntax highlighting for Perl files	RA
 PrettyText	bdpf	Re-format .txt files for client display	CHTHORMAN
 RandomLocation	bdpf	Random image display 			RKOBES
 Registry	Smpf	Run unaltered CGI scripts 		APML
 RobotRules	cdpf	Enforce robot rules (robots.txt)	PARKER
 Sandwich	bmpf	Layered document (sandwich) maker	VKHERA
 ShowRequest	bdpf	Show phases and module participation	DOUGM
-VhostSandwich	cdpf	Virtual host layered document maker	MARKC
+SimpleReplace   ampf    Simple replacement template tool        GEOFF
 SSI		RmpO	Implement server-side includes in Perl	KWILLIAM
 SSIChain	bmpO	SSI on other modules output		JANPAZ
 Stage		Rdpf	Manage a document staging directory	ANDK
 TarGzip		c						ZENIN
 TimedRedirect	bdpf	Redirect urls for a given time period	PETERM 
 UploadSvr	bdpO	A lightweight publishing system		ANDK
+VhostSandwich  cdpf    Virtual host layered document maker     MARKC
 WDB		bdpf	Database query/edit tool using DBI	JROWE
 WebSQL		cdpO	Adaptation of Sybase's WebSQL		GUNTHER
-SimpleReplace   ampf    Simple replacement template tool        GEOFF
 
 * PerlInitHandler's
 RequestNotes    ampf    Pass cookie & form data around pnotes   GEOFF
@@ -119,9 +122,8 @@ AgentDeny	cdpf	Deny abusive User-Agents		ROBH
 * PerlAuthenHandler's
 AuthAny		bdpf	Authenticate with any username/password	MPB
 AuthenCache	bmpf	Cache authentication credentials	JBODNAR
-AuthCookie	bdpO	Authen + Authz via cookies		KWILLIAM
+AuthCookie	RdpO	Authen + Authz via cookies		KWILLIAM
 AuthenDBI	bmpO	Authenticate via Perl's DBI		MERGL
-AuthExpire	i	Expire Basic auth credentials		DOUGM
 AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
 AuthenIMAP	bdpf	Authentication via an IMAP server	MICB
 AuthenPasswdSrv bdpf	External authentication server		JEFFH
@@ -178,6 +180,7 @@ Throttle        bdpf    Speed-based content negotiation         DONS
 TransLDAP	bdpf	Translate URIs to LDAP queries		CDONLEY
 
 * PerlFixupHandler's
+Dispatch        amcf    call PerlHandlers as CGI scripts        GEOFF
 HttpEquiv	bdpf	HTML HTTP-EQUIV tags to HTTP headers	ROBH
 RefererBlock	bdpf	Block based on MIME type + Referer	CHOLET
 Timeit		bmpf	Benchmark PerlHandlers			APML
@@ -340,6 +343,7 @@ MKOSS	  Max Kossatzmax &lt;kossatz@thing.at&gt;
 MICB  	  Malcolm Beattie &lt;mbeattie@sable.ox.ac.uk&gt;
 MPB	  mod_perl book (Doug and Lincoln) &lt;book@modperl.com&gt;
 MSERGEANT Matt Sergeant &lt;matt@sergeant.org&gt;
+RA        Roman Kosenko &lt;ra@amk.lg.ua&gt;
 NJENSEN	  Neil Jensen &lt;njensen@habaneros.com&gt;
 PARKER	  Michael Parker &lt;parker@austx.tandem.com&gt;
 PETERM	  Peter Marshall &lt;peterm@pageactive.com&gt;
@@ -356,6 +360,7 @@ SKANE     Stephen E Kane &lt;sek112@elvis.arl.psu.edu&gt;
 SORTIZ	  Salvador Ortiz &lt;sortiz@msg.com.mx&gt;
 STAS      Stas Bekman &lt;stas@stason.org&gt;
 SVINTO	  Svante Sörmark &lt;svinto@ita.chalmers.se&gt;
+TJMATHER  T.J. Mather &lt;tjmather@thoughtstore.com&gt;
 TOMHUGHES Tom Hughes &lt;tom@compton.demon.co.uk&gt;
 VALERIE	  Valerie Delane &lt;valerie@savina.com&gt;
 VKHERA    Vivek Khera &lt;vivek@khera.org&gt;

@@ -2,7 +2,7 @@ package Apache::RegistryBB;
 
 use strict;
 use vars qw(@ISA);
-use Apache::Constants qw(NOT_FOUND FORBIDDEN OK);
+use Apache::Constants qw(NOT_FOUND FORBIDDEN OK DECLINED);
 use Apache::RegistryNG (); 
 @ISA = qw(Apache::RegistryNG);
 
@@ -16,7 +16,7 @@ use Apache::RegistryNG ();
 
 #skip -x, OPT_EXEC, etc. checks
 sub can_compile {
-    my $r = shift;
+    my $r = shift->{r};
     unless (-r $r->finfo) {
 	$r->log_reason("file does not exist");
 	return NOT_FOUND;

@@ -125,7 +125,8 @@ sub upload_test {
     my $lines = 0;
     local *FH;
     open FH, $file or die "open $file $!";
-    ++$lines while (my $dummy = <FH>);
+    binmode FH; #for win32
+    ++$lines while defined <FH>;
     close FH;
     my(@headers);
     if ($Is_dougm) {

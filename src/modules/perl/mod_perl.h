@@ -45,15 +45,6 @@
  * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  * ====================================================================
- *
- * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Software Foundation.  For more
- * information on the Apache Software Foundation, please see
- * <http://www.apache.org/>.
- *
- * Portions of this software are based upon public domain software
- * originally written at the National Center for Supercomputing Applications,
- * University of Illinois, Urbana-Champaign.
  */
 
 #ifdef WIN32
@@ -111,7 +102,15 @@
 #include "perl_PL.h"
 #endif
 #else
+#define PERL_PATCHLEVEL_H_IMPLICIT /* ignore local_patches */
 #include "patchlevel.h"
+#undef PERL_PATCHLEVEL_H_IMPLICIT
+#ifndef PATCHLEVEL
+#define PATCHLEVEL PERL_VERSION
+#undef  SUBVERSION
+#define SUBVERSION PERL_SUBVERSION
+#endif
+
 #if ((PATCHLEVEL >= 4) && (SUBVERSION >= 76)) || (PATCHLEVEL >= 5)
 #include "perl_PL.h"
 #endif
@@ -352,6 +351,11 @@ mp_magic_setenv(key, val, 0)
 extern U32	mp_debug;
 
 #ifdef PERL_TRACE
+
+/* -Wall */
+#undef dNOOP
+#define dNOOP extern int __attribute__ ((unused)) Perl___notused
+
 #define MP_TRACE(a)   if (mp_debug)	 a
 #define MP_TRACE_d(a) if (mp_debug & 1)	 a /* directives */
 #define MP_TRACE_s(a) if (mp_debug & 2)	 a /* perl sections */
@@ -442,7 +446,7 @@ if((add->flags & f) || (base->flags & f)) \
 #define MP_ENV_off(d)    (d->flags  &= ~MPf_ENV)
 #endif
 
-#define MP_ENV(d)       (d->SetupEnv == MPf_On)
+#define MP_ENV(d)       (d->SetupEnv != MPf_Off)
 #define MP_ENV_on(d)    (d->SetupEnv = MPf_On)
 #define MP_ENV_off(d)   (d->SetupEnv = MPf_Off)
 
@@ -1141,7 +1145,7 @@ request_rec *perl_request_rec(request_rec *);
 void perl_setup_env(request_rec *r);
 SV  *perl_bless_request_rec(request_rec *); 
 void perl_set_request_rec(request_rec *); 
-void mod_perl_cleanup_av(void *data);
+void mod_perl_cleanup_sv(void *data);
 void mod_perl_cleanup_handler(void *data);
 void mod_perl_end_cleanup(void *data);
 void mod_perl_register_cleanup(request_rec *r, SV *sv);
@@ -1194,6 +1198,7 @@ void perl_stdout2client(request_rec *r);
     perl_require_module("Apache", s)
 
 char *mod_perl_auth_name(request_rec *r, char *val);
+char *mod_perl_auth_type(request_rec *r, char *val);
 
 module *perl_get_module_ptr(char *name, int len);
 void *perl_merge_server_config(pool *p, void *basev, void *addv);
