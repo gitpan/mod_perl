@@ -37,6 +37,9 @@ send mail to majordomo@listproc.itribe.net
 with the string "subscribe modperl" in the body.
 (Thanks to Mark A. Imbriaco <mark@itribe.net>)
 
+The latest version of this software and other information is availible at:
+http://www.osf.org/~dougm/apache/
+
 KNOWN BUGS
 
 mod_perl leaks memory,
@@ -64,3 +67,7 @@ for getting this started.
 Thanks to John Detloff <detloff@arizona.edu> for
 contributions to mod_perl_fast.
 
+---------------------------------------------------------------------------
+
+Enjoy,
+-Doug MacEachern <dougm@osf.org>

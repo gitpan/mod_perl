@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.13 1996/06/17 20:28:55 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.14 1996/06/25 15:37:36 dougm Exp $ */
 
 #include <EXTERN.h>
 #include <perl.h>
@@ -171,6 +171,7 @@ int perl_fast_handler(request_rec *r)
 					    &perl_fast_module);   
 
   perl_set_request_rec(r);
+
   status = perl_call(perl, cld->PerlResponse, r->server);
 
   if (status == 65535)  /* this is what we get by exit(-1) in perl */
@@ -184,24 +185,21 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
     int count, status;
     SV *sv, *tmpgv;
 
-    /* hmm, playing with the stack here breaks $r->content and $r->args
     dSP;
     ENTER;
     SAVETMPS;
     PUSHMARK(sp);
     PUTBACK;
-    */
 
     /* agb. need to reset $$ */
     if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
       sv_setiv(GvSV(tmpgv), (I32)getpid());
 
     /* use G_EVAL so we can trap errors */
-    count = perl_call_pv(perlsub, G_EVAL | G_SCALAR);
+    count = perl_call_pv(perlsub, G_EVAL | G_SCALAR | G_NOARGS);
     
-    /*
     SPAGAIN;
-    */
+
     sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
     if(SvTRUE(sv)) {
 	log_error(SvPV(sv, na), s);
@@ -213,14 +211,12 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
         return SERVER_ERROR;
     }
 
-    /*
-    status = POPi;
-    PUTBACK;
+   status = POPi;
+
+   PUTBACK;
     FREETMPS;
     LEAVE;
     return status;
-    */
-    return 0;
 }
 
 char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)

@@ -1,3 +1,9 @@
+June 25, 1996
+
+o release 0.60a5
+
+o fixed bug in mod_perl_fast that was causing bizarre problems for some people
+
 June 18, 1996
 
 o release 0.60a4
