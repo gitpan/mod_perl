@@ -15,42 +15,6 @@
 
 #include "mod_perl.h"
 
-#ifdef USE_ITHREADS
-
-/*
- * perl context overriding and restoration is required when
- * PerlOptions +Parent/+Clone is used in vhosts, and perl is used to
- * at the server startup. So that <Perl> sections, PerlLoadModule,
- * PerlModule and PerlRequire are all run using the right perl context
- * and restore to the original context when they are done.
- *
- * As of perl-5.8.3 it's unfortunate that it uses PERL_GET_CONTEXT and
- * doesn't rely on the passed pTHX internally. When and if perl is
- * fixed to always use pTHX if available, this context switching mess
- * can be removed.
- */
-
-#define MP_PERL_DECLARE_CONTEXT \
-    PerlInterpreter *orig_perl; \
-    pTHX;
-
-/* XXX: .htaccess support cannot use this perl with threaded MPMs */
-#define MP_PERL_OVERRIDE_CONTEXT    \
-    orig_perl = PERL_GET_CONTEXT;   \
-    aTHX = scfg->mip->parent->perl; \
-    PERL_SET_CONTEXT(aTHX);
-
-#define MP_PERL_RESTORE_CONTEXT     \
-    PERL_SET_CONTEXT(orig_perl);
-
-#else
-
-#define MP_PERL_DECLARE_CONTEXT
-#define MP_PERL_OVERRIDE_CONTEXT
-#define MP_PERL_RESTORE_CONTEXT
-
-#endif
-
 /* This ensures that a given directive is either in Server context
  * or in a .htaccess file, usefull for things like PerlRequire
  */
@@ -116,7 +80,7 @@ char *modperl_cmd_push_filter_handlers(MpAV **handlers,
                    "the filter attributes available)\n",
                    modperl_pid_tid(p), h->name);
     }
-    
+
     if (!*handlers) {
         *handlers = modperl_handler_array_new(p);
         MP_TRACE_d(MP_FUNC, "created handler stack\n");
@@ -139,7 +103,7 @@ static char *modperl_cmd_push_httpd_filter_handlers(MpAV **handlers,
      * filters */
     MpHandlerFAKE_On(h);
     h->attrs = MP_FILTER_HTTPD_HANDLER;
-        
+
     if (!*handlers) {
         *handlers = modperl_handler_array_new(p);
         MP_TRACE_d(MP_FUNC, "created handler stack\n");
@@ -203,10 +167,10 @@ MP_CMD_SRV_DECLARE(switches)
 MP_CMD_SRV_DECLARE(modules)
 {
     MP_dSCFG(parms->server);
-    MP_PERL_DECLARE_CONTEXT;
+    MP_PERL_CONTEXT_DECLARE;
 
     MP_CHECK_SERVER_OR_HTACCESS_CONTEXT;
-    
+
     if (modperl_is_running() &&
         modperl_init_vhost(parms->server, parms->pool, NULL) != OK)
     {
@@ -217,12 +181,12 @@ MP_CMD_SRV_DECLARE(modules)
         char *error = NULL;
 
         MP_TRACE_d(MP_FUNC, "load PerlModule %s\n", arg);
-        
-        MP_PERL_OVERRIDE_CONTEXT;
+
+        MP_PERL_CONTEXT_STORE_OVERRIDE(scfg->mip->parent->perl);
         if (!modperl_require_module(aTHX_ arg, FALSE)) {
             error = SvPVX(ERRSV);
         }
-        MP_PERL_RESTORE_CONTEXT;
+        MP_PERL_CONTEXT_RESTORE;
 
         return error;
     }
@@ -236,10 +200,10 @@ MP_CMD_SRV_DECLARE(modules)
 MP_CMD_SRV_DECLARE(requires)
 {
     MP_dSCFG(parms->server);
-    MP_PERL_DECLARE_CONTEXT;
+    MP_PERL_CONTEXT_DECLARE;
 
     MP_CHECK_SERVER_OR_HTACCESS_CONTEXT;
-    
+
     if (modperl_is_running() &&
         modperl_init_vhost(parms->server, parms->pool, NULL) != OK)
     {
@@ -251,11 +215,11 @@ MP_CMD_SRV_DECLARE(requires)
 
         MP_TRACE_d(MP_FUNC, "load PerlRequire %s\n", arg);
 
-        MP_PERL_OVERRIDE_CONTEXT;
+        MP_PERL_CONTEXT_STORE_OVERRIDE(scfg->mip->parent->perl);
         if (!modperl_require_file(aTHX_ arg, FALSE)) {
             error = SvPVX(ERRSV);
         }
-        MP_PERL_RESTORE_CONTEXT;
+        MP_PERL_CONTEXT_RESTORE;
 
         return error;
     }
@@ -264,6 +228,38 @@ MP_CMD_SRV_DECLARE(requires)
         *(const char **)apr_array_push(scfg->PerlRequire) = arg;
         return NULL;
     }
+}
+
+MP_CMD_SRV_DECLARE(config_requires)
+{    
+    /* we must init earlier than normal */
+    modperl_run();
+
+    /* PerlConfigFile is only different from PerlRequires by forcing
+     * an immediate init.
+     */
+    return modperl_cmd_requires(parms, mconfig, arg);
+}
+
+MP_CMD_SRV_DECLARE(post_config_requires)
+{
+    apr_pool_t *p = parms->pool;
+    apr_finfo_t finfo;
+    MP_dSCFG(parms->server);
+
+    if (APR_SUCCESS == apr_stat(&finfo, arg, APR_FINFO_TYPE, p)) {
+        if (finfo.filetype != APR_NOFILE) {
+            MP_TRACE_d(MP_FUNC, "push PerlPostConfigRequire for %s\n", arg);
+
+            *(const char **)
+                apr_array_push(scfg->PerlPostConfigRequire) = arg;
+        }
+    }
+    else {
+        return apr_pstrcat(p, "No such file : ", arg, NULL);   
+    }   
+
+    return NULL;
 }
 
 static void modperl_cmd_addvar_func(apr_table_t *configvars,
@@ -321,7 +317,7 @@ MP_CMD_SRV_DECLARE2(set_env)
 {
     MP_dSCFG(parms->server);
     modperl_config_dir_t *dcfg = (modperl_config_dir_t *)mconfig;
- 
+
 #ifdef ENV_IS_CASELESS /* i.e. WIN32 */
     /* we turn off env magic during hv_store later, so do this now,
      * else lookups on keys with lowercase characters will fails
@@ -346,7 +342,7 @@ MP_CMD_SRV_DECLARE(pass_env)
 {
     MP_dSCFG(parms->server);
     char *val = getenv(arg);
-    
+
 #ifdef ENV_IS_CASELESS /* i.e. WIN32 */
     /* we turn off env magic during hv_store later, so do this now,
      * else lookups on keys with lowercase characters will fails
@@ -354,7 +350,7 @@ MP_CMD_SRV_DECLARE(pass_env)
      */
     modperl_str_toupper((char *)arg);
 #endif
-    
+
     if (val) {
         apr_table_setn(scfg->PassEnv, arg, apr_pstrdup(parms->pool, val));
         MP_TRACE_d(MP_FUNC, "arg = %s, val = %s\n", arg, val);
@@ -436,11 +432,11 @@ MP_CMD_SRV_DECLARE(perl)
     if (!endp) {
         return modperl_cmd_unclosed_directive(parms);
     }
-    
+
     MP_CHECK_SERVER_OR_HTACCESS_CONTEXT;
 
     arg = apr_pstrndup(p, arg, endp - arg);
-   
+
     if ((errmsg = modperl_cmd_parse_args(p, arg, &args))) {
         return errmsg;
     }
@@ -451,7 +447,7 @@ MP_CMD_SRV_DECLARE(perl)
         if (strEQ(line, "</Perl>")) {
             break;
         }
-        
+
         /*XXX: Less than optimal */
         code = apr_pstrcat(p, code, line, "\n", NULL);
     }
@@ -460,7 +456,7 @@ MP_CMD_SRV_DECLARE(perl)
     if (!*current) {
         *current = apr_pcalloc(p, sizeof(**current));
     }
-    
+
     (*current)->filename = parms->config_file->name;
     (*current)->line_num = line_num;
     (*current)->directive = apr_pstrdup(p, "Perl");
@@ -485,7 +481,7 @@ MP_CMD_SRV_DECLARE(perldo)
     ap_directive_t *directive = parms->directive;
 #ifdef USE_ITHREADS
     MP_dSCFG(s);
-    MP_PERL_DECLARE_CONTEXT;
+    MP_PERL_CONTEXT_DECLARE;
 #endif
 
     if (!(arg && *arg)) {
@@ -493,15 +489,15 @@ MP_CMD_SRV_DECLARE(perldo)
     }
 
     MP_CHECK_SERVER_OR_HTACCESS_CONTEXT;
-    
+
     /* we must init earlier than normal */
     modperl_run();
 
     if (modperl_init_vhost(s, p, NULL) != OK) {
         return "init mod_perl vhost failed";
     }
-    
-    MP_PERL_OVERRIDE_CONTEXT;
+
+    MP_PERL_CONTEXT_STORE_OVERRIDE(scfg->mip->parent->perl);
 
     /* data will be set by a <Perl> section */
     if ((options = directive->data)) {
@@ -514,13 +510,13 @@ MP_CMD_SRV_DECLARE(perldo)
             handler_name = apr_pstrdup(p, MP_DEFAULT_PERLSECTION_HANDLER);
             apr_table_set(options, "handler", handler_name);
         }
-        
+
         handler = modperl_handler_new(p, handler_name);
-            
+
         if (!(pkg_base = apr_table_get(options, "package"))) {
             pkg_base = apr_pstrdup(p, MP_DEFAULT_PERLSECTION_PACKAGE);
         }
-       
+
         pkg_namespace = modperl_file2package(p, directive->filename);
 
         pkg_name = apr_psprintf(p, "%s::%s::line_%d", 
@@ -538,7 +534,7 @@ MP_CMD_SRV_DECLARE(perldo)
         arg = apr_pstrcat(p, "package ", pkg_name, ";", line_header,
                           arg, NULL);
     }
-    
+
     {
         GV *gv = gv_fetchpv("0", TRUE, SVt_PV);
         ENTER;SAVETMPS;
@@ -547,17 +543,17 @@ MP_CMD_SRV_DECLARE(perldo)
         eval_pv(arg, FALSE);
         FREETMPS;LEAVE;
     }
-    
+
     if (SvTRUE(ERRSV)) {
-        MP_PERL_RESTORE_CONTEXT;
+        MP_PERL_CONTEXT_RESTORE;
         return SvPVX(ERRSV);
     }
-    
+
     if (handler) {
         int status;
         SV *saveconfig = MP_PERLSECTIONS_SAVECONFIG_SV;
         AV *args = Nullav;
-        
+
         modperl_handler_make_args(aTHX_ &args,
                                   "Apache::CmdParms", parms,
                                   "APR::Table", options,
@@ -570,17 +566,17 @@ MP_CMD_SRV_DECLARE(perldo)
         if (!(saveconfig && SvTRUE(saveconfig))) {
             modperl_package_unload(aTHX_ pkg_name);
         }
-        
+
         if (status != OK) {
             char *error = SvTRUE(ERRSV) ? SvPVX(ERRSV) :
                 apr_psprintf(p, "<Perl> handler %s failed with status=%d",
                              handler->name, status);
-            MP_PERL_RESTORE_CONTEXT;
+            MP_PERL_CONTEXT_RESTORE;
             return error;
         }
     }
 
-    MP_PERL_RESTORE_CONTEXT;
+    MP_PERL_CONTEXT_RESTORE;
     return NULL;
 }
 
@@ -650,7 +646,7 @@ MP_CMD_SRV_DECLARE(set_input_filter)
     MP_dSCFG(parms->server);
     modperl_config_dir_t *dcfg = (modperl_config_dir_t *)mconfig;
     char *filter;
-    
+
     if (!MpSrvENABLE(scfg)) {
         return apr_pstrcat(parms->pool,
                            "Perl is disabled for server ",
@@ -677,7 +673,7 @@ MP_CMD_SRV_DECLARE(set_output_filter)
     MP_dSCFG(parms->server);
     modperl_config_dir_t *dcfg = (modperl_config_dir_t *)mconfig;
     char *filter;
-    
+
     if (!MpSrvENABLE(scfg)) {
         return apr_pstrcat(parms->pool,
                            "Perl is disabled for server ",
@@ -742,7 +738,7 @@ MP_CMD_SRV_DECLARE_FLAG(setup_env)
 
 #define MP_INTERP_SCOPE_DIR_USAGE \
     MP_INTERP_SCOPE_USAGE MP_INTERP_SCOPE_DIR_OPTS
- 
+
 #define MP_INTERP_SCOPE_SRV_OPTS \
     "connection, " MP_INTERP_SCOPE_DIR_OPTS
 

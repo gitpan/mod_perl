@@ -176,6 +176,11 @@ sub modperl_2_inc_fixup {
 }
 
 sub modperl_build_config {
+
+    # we don't want to get mp2 preconfigured data in order to be able
+    # to get the interactive tests running.
+    return undef if $ENV{APACHE_TEST_INTERACTIVE_CONFIG_TEST};
+
     eval {
         require Apache::Build;
     } or return undef;
@@ -383,6 +388,9 @@ sub httpd_config {
         # this method restarts the whole program via exec
         # so it never returns
         $self->custom_config_first_time($self->{vars});
+    }
+    else {
+        debug "Using httpd: $vars->{httpd}";
     }
 
     # if we have gotten that far we know at least about the location
@@ -1204,6 +1212,18 @@ sub parse_vhost {
     };
 }
 
+sub find_and_load_module {
+    my ($self, $name) = @_;
+    my $mod_path = $self->find_apache_module($name) or return;
+    my ($sym) = $name =~ m/mod_(\w+)\./;
+
+    if ($mod_path && -e $mod_path) {
+        $self->preamble(IfModule => "!$name",
+                        qq{LoadModule ${sym}_module "$mod_path"\n});
+    }
+    return 1;
+}
+
 sub replace_vhost_modules {
     my $self = shift;
 
@@ -1257,11 +1277,7 @@ sub generate_types_config {
 
     # handle the case when mod_mime is built as a shared object
     # but wasn't included in the system-wide httpd.conf
-    my $mod_mime = $self->find_apache_module('mod_mime.so');
-    if ($mod_mime && -e $mod_mime) {
-        $self->preamble(IfModule => '!mod_mime.c',
-                        qq{LoadModule mime_module "$mod_mime"\n});
-    }
+    $self->find_and_load_module('mod_mime.so');
 
     unless ($self->{inherit_config}->{TypesConfig}) {
         my $types = catfile $self->{vars}->{t_conf}, 'mime.types';
@@ -1355,25 +1371,21 @@ sub generate_extra_conf {
         push @extra_conf, $generated;
     }
 
-    # if at least one .in file was modified or the derivative is
-    # missing, regenerate them all (so information like assigned port
-    # numbers will be correct)
-    if ($self->extra_conf_files_needing_update) {
-        for my $file (@conf_files) {
-            local $Apache::TestConfig::File = $file;
+    # regenerate .conf files
+    for my $file (@conf_files) {
+        local $Apache::TestConfig::File = $file;
 
-            my $in = Symbol::gensym();
-            open($in, $file) or next;
+        my $in = Symbol::gensym();
+        open($in, $file) or next;
 
-            (my $generated = $file) =~ s/\.in$//;
-            my $out = $self->genfile($generated, $file);
-            $self->replace_vars($in, $out);
+        (my $generated = $file) =~ s/\.in$//;
+        my $out = $self->genfile($generated, $file);
+        $self->replace_vars($in, $out);
 
-            close $in;
-            close $out;
+        close $in;
+        close $out;
 
-            $self->check_vars;
-        }
+        $self->check_vars;
     }
 
     #we changed order to give ssl the first port after DEFAULT_PORT
@@ -1513,6 +1525,8 @@ sub generate_httpd_conf {
 
     my $out = $self->genfile($conf_file);
 
+    $self->find_and_load_module('mod_alias.so');
+
     $self->preamble_run($out);
 
     for my $name (qw(user group)) { #win32/cygwin do not support
@@ -1534,14 +1548,6 @@ sub generate_httpd_conf {
 
     # handle the case when mod_alias is built as a shared object
     # but wasn't included in the system-wide httpd.conf
-    my $mod_alias = $self->find_apache_module('mod_alias.so');
-    if ($mod_alias && -e $mod_alias) {
-        print $out <<EOF;
-<IfModule !mod_alias.c>
-    LoadModule alias_module "$mod_alias"
-</IfModule>
-EOF
-    }
 
     print $out "<IfModule mod_alias.c>\n";
     for (keys %aliases) {
@@ -1856,6 +1862,44 @@ sub custom_config_path {
     return '';
 }
 
+# tries to nuke all occurences of custom config
+# used by things outside the A-T test suite
+sub custom_config_nuke {
+    my $cwd = fastcwd();
+
+    # 1) create a fake empty (blib/)?lib/Apache/TestConfigData.pm
+    # (don't delete it since it may mess up with MakeMaker)
+    my $path = catfile $cwd, "lib", Apache::TestConfig::CUSTOM_CONFIG_FILE;
+    # overwrite the empty stub
+    Apache::TestConfig::custom_config_write($path, '') if -e $path;
+
+    $path = catfile $cwd, "blib", "lib",
+        Apache::TestConfig::CUSTOM_CONFIG_FILE;
+    if (-e $path) {
+        my $mode = (stat _)[2];
+        my $mode_new = $mode | 0200;
+        chmod $mode_new, $path;
+        debug  "emptying $path";
+        Apache::TestConfig::custom_config_write($path, '');
+        chmod $mode, $path;
+    }
+
+    # 2) go through @INC = ~/.apache-test and nuke any occurences of
+    #    CUSTOM_CONFIG_FILE
+    my @inc  = ();
+
+    push @inc, catdir $ENV{HOME}, '.apache-test' if $ENV{HOME};
+
+    push @inc, @INC;
+
+    for (@inc) {
+        my $victim = File::Spec->rel2abs(catfile $_, CUSTOM_CONFIG_FILE);
+        next unless -e $victim;
+        debug "unlinking $victim";
+        unlink $victim;
+    }
+}
+
 sub custom_config_exists {
     # try to load custom config if it wasn't loaded yet (there are
     # many entry points to this API)
@@ -2105,6 +2149,12 @@ sub custom_config_load {
         return;
     }
 
+    if ($ENV{APACHE_TEST_INTERACTIVE_CONFIG_TEST}) {
+        debug "APACHE_TEST_INTERACTIVE_CONFIG_TEST=1 => " .
+            "skipping load of custom config data";
+        return;
+    }
+
     return if $custom_config_loaded;
 
     if (my $custom_config_path = custom_config_path()) {
@@ -2121,8 +2171,11 @@ sub custom_config_first_time {
     my $self = shift;
     my $conf_opts = shift;
 
-    unless (-t STDIN) {
-        error "STDIN is closed, can't run interactive config";
+    # we can't prompt when STDIN is not attached to tty, unless we
+    # were told that's it OK via env var (in which case some program
+    # will feed the interactive prompts
+    unless (-t STDIN || $ENV{APACHE_TEST_INTERACTIVE_PROMPT_OK}) {
+        error "STDIN is not attached to tty, skip interactive config";
         Apache::TestRun::skip_test_suite();
     }
 
@@ -2215,7 +2268,7 @@ or via the environment variable APACHE_TEST_APXS. For example:
     # we probably could reconfigure on the fly ($self->configure), but
     # the problem is various cached data which won't be refreshed. so
     # the simplest is just to restart the run from scratch
-    Apache::TestRun::rerun();
+    Apache::TestRun::rerun($vars);
 }
 
 sub _custom_config_prompt_path {
@@ -2422,6 +2475,16 @@ C<APACHE_TEST_LIVE_DEV> is set to a true value during the
 configuration phase (C<t/TEST -config>, C<Apache::Test> will
 automatically unshift the I<project/lib> directory into C<@INC>, via
 the autogenerated I<t/conf/modperl_inc.pl> file.
+
+=head2 APACHE_TEST_INTERACTIVE_PROMPT_OK
+
+Normally interactive prompts aren't run when STDIN is not attached to
+a tty. But sometimes there is a program that can answer the prompts
+(e.g. when testing A-T itself). If this variable is true the
+interactive config won't be skipped (if needed).
+
+
+
 
 =head1 AUTHOR
 

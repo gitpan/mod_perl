@@ -20,7 +20,7 @@ void *modperl_config_dir_create(apr_pool_t *p, char *dir)
     modperl_config_dir_t *dcfg = modperl_config_dir_new(p);
 
     dcfg->location = dir;
-    
+
 #ifdef USE_ITHREADS
     /* defaults to per-server scope */
     dcfg->interp_scope = MP_INTERP_SCOPE_UNDEF;
@@ -85,7 +85,7 @@ static apr_table_t *merge_config_add_vars(apr_pool_t *p,
             apr_table_unset(temp, entries[i].key);
         }
     }
-     
+
     return apr_table_overlay(p, temp, add);
 }
 
@@ -117,7 +117,7 @@ void *modperl_config_dir_merge(apr_pool_t *p, void *basev, void *addv)
     mrg->flags = modperl_options_merge(p, base->flags, add->flags);
 
     merge_item(location);
-    
+
     merge_table_overlap_item(SetEnv);
 
     /* this is where we merge PerlSetVar and PerlAddVar together */
@@ -155,6 +155,7 @@ modperl_config_srv_t *modperl_config_srv_new(apr_pool_t *p)
 
     scfg->PerlModule  = apr_array_make(p, 2, sizeof(char *));
     scfg->PerlRequire = apr_array_make(p, 2, sizeof(char *));
+    scfg->PerlPostConfigRequire = apr_array_make(p, 1, sizeof(char *));
 
     scfg->argv = apr_array_make(p, 2, sizeof(char *));
 
@@ -163,7 +164,7 @@ modperl_config_srv_t *modperl_config_srv_new(apr_pool_t *p)
 
     scfg->PassEnv = apr_table_make(p, 2);
     scfg->SetEnv = apr_table_make(p, 2);
-    
+
 #ifdef MP_USE_GTOP
     scfg->gtop = modperl_gtop_new(p);
 #endif        
@@ -197,7 +198,7 @@ modperl_config_dir_t *modperl_config_dir_new(apr_pool_t *p)
     dcfg->configvars = apr_table_make(p, 2);
 
     dcfg->SetEnv = apr_table_make(p, 2);
-    
+
     MP_TRACE_d(MP_FUNC, "new dcfg: 0x%lx\n", (unsigned long)dcfg);
 
     return dcfg;
@@ -218,7 +219,7 @@ static void dump_argv(modperl_config_srv_t *scfg)
 char **modperl_config_srv_argv_init(modperl_config_srv_t *scfg, int *argc)
 {
     modperl_config_srv_argv_push("-e;0");
-    
+
     *argc = scfg->argv->nelts;
 
     MP_TRACE_g_do(dump_argv(scfg));
@@ -245,7 +246,7 @@ void *modperl_config_srv_create(apr_pool_t *p, server_rec *s)
          */
         modperl_init_globals(s, p);
     }
-    
+
     MP_TRACE_d(MP_FUNC, "p=0x%lx, s=0x%lx, virtual=%d\n",
                p, s, s->is_virtual);
 
@@ -285,10 +286,11 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     merge_item(modules);
     merge_item(PerlModule);
     merge_item(PerlRequire);
+    merge_item(PerlPostConfigRequire);
 
     merge_table_overlap_item(SetEnv);
     merge_table_overlap_item(PassEnv);
- 
+
     /* this is where we merge PerlSetVar and PerlAddVar together */
     mrg->configvars = merge_config_add_vars(p,
                                             base->configvars,
@@ -430,6 +432,38 @@ int modperl_config_apply_PerlRequire(server_rec *s,
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
                          "Can't load Perl file: %s for server %s, exiting...",
                          entries[i], modperl_server_desc(s,p));
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+int modperl_config_apply_PerlPostConfigRequire(server_rec *s,
+                                               modperl_config_srv_t *scfg,
+                                               apr_pool_t *p)
+{
+    char **requires;
+    int i;
+    MP_PERL_CONTEXT_DECLARE;
+
+    requires = (char **)scfg->PerlPostConfigRequire->elts;
+    for (i = 0; i < scfg->PerlPostConfigRequire->nelts; i++){
+        int retval;
+
+        MP_PERL_CONTEXT_STORE_OVERRIDE(scfg->mip->parent->perl);
+        retval = modperl_require_file(aTHX_ requires[i], TRUE);
+        MP_PERL_CONTEXT_RESTORE;
+
+        if (retval) {
+            MP_TRACE_d(MP_FUNC, "loaded Perl file: %s for server %s\n",
+                       requires[i], modperl_server_desc(s, p));
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Can't load Perl file: %s for server %s, exiting...",
+                         requires[i], modperl_server_desc(s, p));
+            
             return FALSE;
         }
     }

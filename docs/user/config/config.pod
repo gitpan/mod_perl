@@ -203,9 +203,83 @@ META: a dedicated chapter with examples?
 
 
 
+
+=head2 C<=pod>, C<=over> and C<=cut>
+
+It's known that anything written between tokens C<=pod> and C<=cut> is
+ignored by the Perl parser. mod_perl allows you to use the same
+technique to make Apache ignore things in F<httpd.conf> (similar to #
+comments). With an exception to C<=over apache> and C<=over httpd>
+sections which are visible to Apache.
+
+For example the following configuration:
+
+  #file: httpd.conf
+  =pod
+  
+  PerlSetVar A 1
+  
+  =over apache
+  
+  PerlSetVar B 2
+  
+  =back
+  
+  PerlSetVar C 3
+  
+  =cut
+  
+  PerlSetVar D 4
+
+
+Apache will see:
+
+  PerlSetVar B 2
+  PerlSetVar D 4
+
+but not:
+
+  PerlSetVar A 1
+  PerlSetVar C 3
+
+C<=over httpd> is just an alias to C<=over apache>. Remember that
+C<=over> requires a corresponding C<=back>.
+
+
+
+
+
+
+
+
 =head2 C<PerlAddVar>
 
   META: to be written
+
+
+
+
+
+
+
+=head2 C<PerlConfigRequire>
+
+  PerlConfigRequire Foo/Bar.pm
+
+is equivalent to Perl's:
+
+  require "Foo/Bar.pm";
+
+C<PerlConfigRequire> is used to load files with Perl code.
+
+It is very similar to C<L<PerlRequire|/C_PerlRequire_>>
+with the only difference being that Perl startup is not
+L<delayed|/Startup_Process> and will be immediately started
+upon encountering this directive.
+
+META: need to expand on this with examples and suggested usages
+
+
 
 
 
@@ -595,6 +669,36 @@ Notice that we have got the value of the environment variable I<TEST>.
 
 
 
+
+
+
+=head2 C<PerlPostConfigRequire>
+
+  PerlPostConfigRequire Foo/Bar.pm
+
+is equivalent to Perl's:
+
+  require "Foo/Bar.pm";
+
+C<PerlPostConfigRequire> is used to load files with Perl code
+as late as possible during server startup.
+
+It is very similar to C<L<PerlRequire|/C_PerlRequire_>> and 
+C<L<PerlConfigRequire|/C_PerlConfigRequire_>>.
+
+C<PerlPostConfigRequire> delays loading of the file until
+the last possible moment before the server is starting, in
+the post_config phase.
+
+META: need to expand on this with examples and suggested usages
+
+
+
+
+
+
+
+
 =head2 C<PerlRequire>
 
   PerlRequire Foo/Bar.pm
@@ -627,6 +731,11 @@ Notice that normally, the Perl startup is L<delayed|/Startup_Process>
 until after the configuration phase.
 
 See also: C<L<PerlModule|/C_PerlModule_>>.
+
+
+
+
+
 
 
 

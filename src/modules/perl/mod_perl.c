@@ -180,7 +180,7 @@ static void set_taint_var(PerlInterpreter *perl)
         SvREADONLY_on(GvSV(gv));
     }
 #endif /* MP_COMPAT_1X */
-    
+
 }
 
 PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
@@ -202,10 +202,10 @@ PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
     if (MP_init_status != 2) {
         server_rec *base_server = modperl_global_get_server_rec();
         PerlInterpreter *base_perl;
-        
+
         MP_init_status = 2; /* calls itself, so set the flag early */
         base_perl = modperl_startup(base_server, p);
-        
+
         if (base_server == s ) {
             return base_perl;
         }
@@ -270,7 +270,7 @@ PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
     /* workaround perl5.8.0/glibc bug */
     PL_reentrant_buffer->_crypt_struct.current_saltbits = 0;
 #endif
-    
+
     perl_run(perl);
 
 #ifdef USE_ITHREADS
@@ -284,7 +284,7 @@ PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
     PL_endav = endav;
 
     set_taint_var(perl);
-    
+
     MP_TRACE_i(MP_FUNC, "constructed interpreter=0x%lx\n",
                (unsigned long)perl);
 
@@ -356,7 +356,7 @@ int modperl_init_vhost(server_rec *s, apr_pool_t *p,
 
     MP_TRACE_i(MP_FUNC, "Init vhost %s: s=0x%lx, base_s=0x%lx\n",
                vhost, s, base_server);
-    
+
     if (base_server == s) {
         MP_TRACE_i(MP_FUNC, "base server is not vhost, skipping %s\n",
                    vhost);
@@ -406,7 +406,7 @@ int modperl_init_vhost(server_rec *s, apr_pool_t *p,
             modperl_interp_init(s, p, perl);
         }   
 #endif
-        
+
         if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
             return HTTP_INTERNAL_SERVER_ERROR;
         }
@@ -466,6 +466,17 @@ void modperl_init(server_rec *base_server, apr_pool_t *p)
 
 }
 
+static int modperl_post_config_require(server_rec *s, apr_pool_t *p)
+{
+    for (; s; s=s->next) {
+        MP_dSCFG(s);
+        if (!modperl_config_apply_PerlPostConfigRequire(s, scfg, p)) {
+            return FALSE;   
+        }
+    }
+    return TRUE;
+}
+
 #ifdef USE_ITHREADS
 static void modperl_init_clones(server_rec *s, apr_pool_t *p)
 {
@@ -518,7 +529,7 @@ void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
     ap_mpm_query(AP_MPMQ_IS_THREADED, &MP_threaded_mpm);
 
     MP_TRACE_g(MP_FUNC, "mod_perl globals are configured\n");
-    
+
     modperl_global_init_pconf(pconf, pconf);
     modperl_global_init_server_rec(pconf, s);
 
@@ -646,6 +657,11 @@ static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
     MP_dSCFG(s);
     dTHXa(scfg->mip->parent->perl);
 #endif
+
+    if (!modperl_post_config_require(s, pconf)) {
+        exit(1);
+    }
+
     if (modperl_threaded_mpm()) {
         MP_threads_started = 1;
     }
@@ -670,7 +686,7 @@ static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
         modperl_trace_logfile_set(dup);
     }
 #endif
-    
+
     ap_add_version_component(pconf, MP_VERSION_STRING);
     ap_add_version_component(pconf,
                              Perl_form(aTHX_ "Perl/v%vd", PL_patchlevel));
@@ -685,7 +701,7 @@ static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
                  "mod_perl: using Perl HASH_SEED: %"UVuf, MP_init_hash_seed);
 #endif
-    
+
     return OK;
 }
 
@@ -701,7 +717,7 @@ static int modperl_hook_create_request(request_rec *r)
      * wasn't turned off and MpDirPARSE_HEADERS is on
      */
     MpReqPARSE_HEADERS_On(rcfg);
-    
+
     return OK;
 }
 
@@ -860,6 +876,8 @@ static const command_rec modperl_cmds[] = {
     MP_CMD_SRV_ITERATE("PerlSwitches", switches, "Perl Switches"),
     MP_CMD_DIR_ITERATE("PerlModule", modules, "PerlModule"),
     MP_CMD_DIR_ITERATE("PerlRequire", requires, "PerlRequire"),
+    MP_CMD_SRV_ITERATE("PerlConfigRequire", config_requires, "PerlConfigRequire"),
+    MP_CMD_SRV_ITERATE("PerlPostConfigRequire", post_config_requires, "PerlPostConfigRequire"),
     MP_CMD_DIR_ITERATE("PerlOptions", options, "Perl Options"),
     MP_CMD_DIR_ITERATE("PerlInitHandler", init_handlers, "Subroutine name"),
     MP_CMD_DIR_TAKE2("PerlSetVar", set_var, "PerlSetVar"),
@@ -873,7 +891,7 @@ static const command_rec modperl_cmds[] = {
                      "filter[;filter]"),
     MP_CMD_DIR_TAKE1("PerlSetOutputFilter", set_output_filter,
                      "filter[;filter]"),
-    
+
     MP_CMD_DIR_RAW_ARGS_ON_READ("=pod", pod, "Start of POD"),
     MP_CMD_DIR_RAW_ARGS_ON_READ("=back", pod, "End of =over"),
     MP_CMD_DIR_RAW_ARGS_ON_READ("=cut", pod_cut, "End of POD"),

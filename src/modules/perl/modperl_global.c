@@ -162,8 +162,8 @@ void modperl_global_set_##gname(void *data)              \
     modperl_global_set(&MP_global_##gname, data);        \
 }                                                        \
 
-MP_GLOBAL_IMPL(pconf, apr_pool_t *);
-MP_GLOBAL_IMPL(server_rec, server_rec *);
+MP_GLOBAL_IMPL(pconf, apr_pool_t *)
+MP_GLOBAL_IMPL(server_rec, server_rec *)
 
 
 
@@ -185,7 +185,7 @@ int modperl_global_anon_cnt_next(void)
     int next;
     /* XXX: inline lock/unlock? */
     modperl_global_lock(&MP_global_anon_cnt); 
-    
+
     next = ++*(int *)(MP_global_anon_cnt.data);
 
     modperl_global_unlock(&MP_global_anon_cnt); 
@@ -301,4 +301,4 @@ void modperl_tls_reset_cleanup_##gname(apr_pool_t *p,    \
                               (void *)data);             \
 }
 
-MP_TLS_IMPL(request_rec, request_rec *);
+MP_TLS_IMPL(request_rec, request_rec *)

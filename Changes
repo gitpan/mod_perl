@@ -10,6 +10,61 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
+=item 1.99_19 - December 23, 2004
+
+$r->hostname is now writable [Gozer]
+
+Static build with a Perl without ithreads and a non-threaded MPM
+would segfault on startup. Caused by a bug in perl's perl_shutdown()
+code. Fixed in Perl 5.8.2, so it's now a build requirement [Gozer]
+
+replace the added in 1.99_17 code on resetting/restoring PL_tainted,
+with explicit reset before and after each each callback. This solves a
+complicated tainting issues caused when perl exception object is
+thrown. rgs suggested that it should be safe, similar to perl's own
+pp_nextstate which says: /* Each statement is presumed innocent */
+[Stas]
+
+New configuration directives: [Gozer]
+ - PerlConfigRequire
+    Just like PerlRequire, but _always_ triggers an immediate
+    interpreter startup
+ - PerlPostConfigRequire
+    A delayed form of PerlRequire, that waits until the post_config
+    phase before require'ing files
+
+fix a warning in Apache::Status [John Williams <williams tni.com>]
+
+Ignore Apache-Test/META.yml in distribution tarballs until PAUSE
+is capable of handling multiple META.yml files in one distro [Gozer]
+
+modperl_exports.c now wraps all exported functions in a #ifndef
+function_name wrapper to help in weeding out functions that only make
+sense for certain Perl configurations (perlio, threads) (which also
+fixes static build against perlio-disabled perls, like 5.6.x) [Gozer]
+
+for make test, skip configuring fastcgi if it's found in the global
+httpd.conf, as it causes crashes in the test suite [Stas]
+
+fix Makefile.PL arguments parser to support more than one MP_foo
+option on the same line (including .makepl_args.mod_perl2 file) [Stas]
+
+fix compilation issues in ModPerl::Util::current_perl_id (on some
+builds newSVpvf can't be resolved but Perl_newSVpvf works just
+fine). [Stas, Markus Wichitill <mawic@gmx.de>]
+
+fix APR::Error::str to return a lexical variable, rather than a
+string. This function is called by SvTRUE in modperl_errsv() via
+overload and on win32 (and randomly on linux) causes crashes via:
+"Attempt to free temp prematurely" warning, where this 'temp' is the
+string returned by this function. Making it a lexical variable before
+returning it, resolves the problem. [Steve Hay]
+
+fix META.yaml s/private/no_index/ (to hide the bundled Apache-Test
+from PAUSE indexer) [Randy Kobes]
+
+
+
 =item 1.99_18 - December 12, 2004
 
 Fix x86_64 warnings in modperl_restart_count_*, due to casting between

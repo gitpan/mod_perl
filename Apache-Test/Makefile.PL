@@ -17,6 +17,7 @@ use File::Find qw(finddepth);
 use Apache::TestMM qw(test clean); #enable 'make test and make clean'
 use Apache::TestRun;
 use Apache::TestTrace;
+use Apache::TestReport;
 use Apache::TestConfig ();
 
 my $VERSION;
@@ -29,6 +30,7 @@ Apache::TestMM::filter_args();
 my @scripts = qw(t/TEST);
 
 finddepth(sub {
+    return if $_ eq 'Apache-TestItSelf';
     return unless /(.*?\.pl)\.PL$/;
     push @scripts, "$File::Find::dir/$1";
 }, '.');
@@ -36,7 +38,7 @@ finddepth(sub {
 for (@scripts) {
     Apache::TestMM::generate_script($_);
 }
-
+Apache::TestReport->generate_script;
 
 # if built with mod_perl 2.0, its top-level Makefile.PL already
 # installs the uninstall code
@@ -63,6 +65,7 @@ WriteMakefile(
     NAME      => 'Apache::Test',
     VERSION   => $VERSION,
     PREREQ_PM => \%prereq,
+    NO_META   => 1,
     dist      => {
         COMPRESS => 'gzip -9f', SUFFIX => 'gz',
     },
@@ -123,7 +126,6 @@ sub set_version {
         last if /^=item/;
     }
     close $fh;
-
 }
 
 sub sanity_check {
@@ -140,12 +142,11 @@ sub sanity_check {
     }
 }
 
-if ($ExtUtils::MakeMaker::VERSION < 6.06) {
+if (TOP_LEVEL && $ExtUtils::MakeMaker::VERSION < 6.06) {
     # now that we're using subversion, make sure that
     # .svn directories are skipped during the build process
     # for old versions of MakeMaker
-
-    sub MY::libscan {
+    *MY::libscan = sub {
         my $self = shift;
 
         my $path = shift;
@@ -153,7 +154,9 @@ if ($ExtUtils::MakeMaker::VERSION < 6.06) {
         return '' if $path =~ /\B\.svn\b/;
 
         return $path;
-    }
+    };
+    # avoid warning: used only once: possible typo at ...
+    *MY::libscan = *MY::libscan;
 }
 
 sub MY::postamble {
@@ -206,7 +209,7 @@ sub add_Apache__test_target {
         $string;
     };
 
-    *MY::top_targets  = sub {
+    *MY::top_targets = sub {
         my $self = shift;
         my $string = $self->MM::top_targets;
 

@@ -23,7 +23,7 @@ use Apache::TestConfig ();
 
 use vars qw(@ISA @EXPORT %EXPORT_TAGS $VERSION %SubTests @SkipReasons);
 
-$VERSION = '1.18';
+$VERSION = '1.19';
 
 my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
@@ -132,7 +132,6 @@ EOE
 #so Perl's Test.pm can be run inside mod_perl
 sub test_pm_refresh {
     if (@testmore) {
-        
         Test::Builder->reset;
 
         Test::Builder->output(\*STDOUT);

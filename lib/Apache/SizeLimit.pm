@@ -46,6 +46,9 @@ our ($HOW_BIG_IS_IT, $START_TIME);
 
 BEGIN {
 
+    die "Apache::SizeLimit at the moment works only with non-threaded MPMs"
+        if Apache::MPM->is_threaded();
+
     # decide at compile time how to check for a process' memory size.
     if (SOLARIS && $Config{'osvers'} >= 2.6) {
 
@@ -65,14 +68,15 @@ BEGIN {
                 "to work on your platform.";
         }
 
-    } elsif (WIN32) {
-
-        if ( eval { require Win32::API } ) {
-            $HOW_BIG_IS_IT = \&win32_size_check;
-        } else {
-            die "you must install Win32::API for Apache::SizeLimit " .
-                "to work on your platform.";
-        }
+#  Currently unsupported for mp2 because of threads...
+#     } elsif (WIN32) {
+# 
+#         if ( eval { require Win32::API } ) {
+#             $HOW_BIG_IS_IT = \&win32_size_check;
+#         } else {
+#             die "you must install Win32::API for Apache::SizeLimit " .
+#                 "to work on your platform.";
+#         }
 
     } else {
 
@@ -136,12 +140,8 @@ sub win32_size_check {
                                     length $pProcessMemoryCounters);
 
     # unpack ProcessMemoryCounters structure
-    my ($cb,                         $PageFaultCount,
-        $PeakWorkingSetSize,         $WorkingSetSize,
-        $QuotaPeakPagedPoolUsage,    $QuotaPagedPoolUsage,
-        $QuotaPeakNonPagedPoolUsage, $QuotaNonPagedPoolUsage,
-        $PagefileUsage,              $PeakPagefileUsage)
-        = unpack $pmem_struct, $pProcessMemoryCounters;
+    my $PeakWorkingSetSize =
+        (unpack $pmem_struct, $pProcessMemoryCounters)[2];
 
     # only care about peak working set size
     my $size = int($PeakWorkingSetSize / 1024);
@@ -216,9 +216,6 @@ sub setmax_unshared {
 
 sub handler {
     my $r = shift;
-
-    die "Apache::SizeLimit at the moment works only with non-threaded MPMs"
-        if Apache::MPM->is_threaded();
 
     if ($r->is_initial_req()) {
         # we want to operate in a cleanup handler

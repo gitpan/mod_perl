@@ -34,20 +34,30 @@ my @add_files = qw{
     Apache-Test/META.yml
 };
 
-my @repos = qw(
-    Apache-Test
-    docs
-);
-
 sub get_svn_files {
     my @files;
-    foreach my $repos ('', @repos) {
-        foreach my $ent (`svn ls -R $repos`) {
-            chomp($ent);
-            $ent = File::Spec->catfile($repos, $ent) if $repos;
-            push @files, $ent if -f $ent;
+
+    my $cwd = Cwd::cwd();
+
+    finddepth({ follow => 1, wanted => sub {
+        return unless $_ eq 'entries';
+        return unless $File::Find::dir =~ /\.svn$/;
+
+        my $dir = dirname $File::Find::dir;
+        $dir =~ s,^$cwd/?,,;
+
+        open my $fh, $_ or die "open $_: $!";
+        while (my $line = <$fh>) {
+             if ($line =~ /name\s*=\s*"([^"]*)"/) {
+                my $file = $1;
+                next if !$file or -d "../$file" or $file =~ /^\./;
+                push @files, $dir ? "$dir/$file" : $file;
+             }
         }
-    }
+        close $fh;
+
+    }}, $cwd);
+
     return @files;
 }
 
@@ -104,4 +114,8 @@ t/perl/ithreads2.t
 t/response/TestPerl/ithreads.pm
 # incomplete
 t/apr-ext/perlio
-
+# PAUSE breaks if a dist has more than one META.yml. the top-level
+# META.yml already excludes Apache-Test from indexing
+Apache-Test/META.yml
+# this is an internal to developer sub-project
+Apache-Test/Apache-TestItSelf

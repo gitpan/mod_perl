@@ -8,7 +8,7 @@ Apache::PerlSections - Default Handler for Perl sections
 
 =head1 Synopsis
 
-  <Perl >
+  <Perl>
   @PerlModule = qw(Mail::Send Devel::Peek);
   
   #run the server as whoever starts it
@@ -26,10 +26,10 @@ Apache::PerlSections - Default Handler for Perl sections
 
 =head1 Description
 
-With C<E<lt>Perl E<gt>>...C<E<lt>/PerlE<gt>> sections, it is possible
+With C<E<lt>PerlE<gt>>...C<E<lt>/PerlE<gt>> sections, it is possible
 to configure your server entirely in Perl.
 
-C<E<lt>Perl E<gt>> sections can contain I<any> and as much Perl code as
+C<E<lt>PerlE<gt>> sections can contain I<any> and as much Perl code as
 you wish. These sections are compiled into a special package whose
 symbol table mod_perl can then walk and grind the names and values of
 Perl variables/structures through the Apache core configuration gears.
@@ -67,7 +67,7 @@ C<%Files>.
 
 To pass all environment variables to the children with a single
 configuration directive, rather than listing each one via C<PassEnv>
-or C<PerlPassEnv>, a C<E<lt>Perl E<gt>> section could read in a file and:
+or C<PerlPassEnv>, a C<E<lt>PerlE<gt>> section could read in a file and:
 
   push @PerlPassEnv, [$key => $val];
 
@@ -86,19 +86,19 @@ maintain a single configuration file, but because the configurations
 aren't I<exactly> the same (e.g. the C<ServerName> directive) it's not
 quite that simple.
 
-C<E<lt>Perl E<gt>> sections come to rescue. Now you have a single
+C<E<lt>PerlE<gt>> sections come to rescue. Now you have a single
 configuration file and the full power of Perl to tweak the local
 configuration. For example to solve the problem of the C<ServerName>
-directive you might have this C<E<lt>Perl E<gt>> section:
+directive you might have this C<E<lt>PerlE<gt>> section:
 
-  <Perl >
+  <Perl>
   $ServerName = `hostname`;
   </Perl>
 
 For example if you want to allow personal directories on all machines
 except the ones whose names start with I<secure>:
 
-  <Perl >
+  <Perl>
   $ServerName = `hostname`;
   if ($ServerName !~ /^secure/) {
       $UserDir = "public.html";
@@ -133,7 +133,7 @@ C<L<$r-E<gt>add_config|docs::2.0::api::Apache::RequestUtil/C_add_config_>>
 =head1 Configuration Variables
 
 There are a few variables that can be set to change the default
-behaviour of C<E<lt>Perl E<gt>> sections.
+behaviour of C<E<lt>PerlE<gt>> sections.
 
 
 
@@ -141,11 +141,36 @@ behaviour of C<E<lt>Perl E<gt>> sections.
 
 =head2 C<$Apache::PerlSections::Save>
 
-By default, the namespace in which C<E<lt>Perl E<gt>> sections are
-evaluated is cleared after each block closes. By setting it to a true
-value, the content of those namespaces will be preserved and will be
-available for inspection by modules like
-C<L<Apache::Status|docs::2.0::api::Apache::Status>>.
+Each C<E<lt>PerlE<gt>> section is evaluated in its unique namespace,
+by default residing in a sub-namespace of C<Apache::ReadConfig::>,
+therefore any local variables will end up in that namespace. For
+example if a C<E<lt>PerlE<gt>> section happened to be in file
+F</tmp/httpd.conf> starting on line 20, the namespace:
+C<Apache::ReadConfig::tmp::httpd_conf::line_20> will be used. Now if
+it had:
+
+  <Perl>
+    $foo     = 5;
+    my $bar  = 6;
+    $My::tar = 7;
+  </Perl>
+
+The local global variable C<$foo> becomes
+C<$Apache::ReadConfig::tmp::httpd_conf::line_20::foo>, the other
+variable remain where they are.
+
+By default, the namespace in which C<E<lt>PerlE<gt>> sections are
+evaluated is cleared after each block closes. In our example nuking
+C<$Apache::ReadConfig::tmp::httpd_conf::line_20::foo>, leaving the
+rest untouched.
+
+By setting C<$Apache::PerlSections::Save> to a true value, the content
+of those namespaces will be preserved and will be available for
+inspection by C<L<Apache::Status|docs::2.0::api::Apache::Status>> and
+C<L<Apache::PerlSections-E<gt>dump|/C_Apache__PerlSections_E_gt_dump_>>
+In our example C<$Apache::ReadConfig::tmp::httpd_conf::line_20::foo>
+will still be accessible from other perl code, after the
+C<E<lt>PerlE<gt>> section was parsed.
 
 
 
@@ -155,7 +180,7 @@ C<L<Apache::Status|docs::2.0::api::Apache::Status>>.
 
 
 
-=head2 Apache::PerlSections-E<gt>dump
+=head2 C<Apache::PerlSections-E<gt>dump>
 
 This method will dump out all the configuration variables mod_perl
 will be feeding to the apache config gears. The output is suitable to
@@ -227,15 +252,15 @@ This will print something like this:
   __END__
 
 
-It is important to put the call to C<dump> in it's own C<E<lt>Perl E<gt>>
-section, otherwise the content of the current C<E<lt>Perl E<gt>> section
+It is important to put the call to C<dump> in it's own C<E<lt>PerlE<gt>>
+section, otherwise the content of the current C<E<lt>PerlE<gt>> section
 will not be dumped.
 
 
 
 
 
-=head2 Apache::PerlSections-E<gt>store
+=head2 C<Apache::PerlSections-E<gt>store>
 
 This method will call the C<dump> method, writing the output
 to a file, suitable to be pulled in via C<require> or C<do>.
@@ -247,7 +272,7 @@ to a file, suitable to be pulled in via C<require> or C<do>.
 =head1 Advanced API
 
 mod_perl 2.0 now introduces the same general concept of handlers to
-C<E<lt>Perl E<gt>> sections.  Apache::PerlSections simply being the
+C<E<lt>PerlE<gt>> sections.  Apache::PerlSections simply being the
 default handler for them.
 
 To specify a different handler for a given perl section, an extra
@@ -265,7 +290,7 @@ And in My/PerlSection/Handler.pm:
       #do your thing!
   }
 
-So, when that given C<E<lt>Perl E<gt>> block in encountered, the code
+So, when that given C<E<lt>PerlE<gt>> block in encountered, the code
 within will first be evaluated, then the handler routine will be
 invoked with 3 arguments:
 
@@ -290,7 +315,7 @@ be:
   $args->{'handler'} = 'My::PerlSection::Handler';
   $args->{'package'} = 'Apache::ReadConfig';
 
-Other C<name="value"> pairs given on the C<E<lt>Perl E<gt>> line will
+Other C<name="value"> pairs given on the C<E<lt>PerlE<gt>> line will
 also be included.
 
 =back
@@ -306,6 +331,27 @@ for example:
 
 Would create a new alias. The source code of C<Apache::PerlSections>
 is a good place to look for a practical example.
+
+
+
+=head1 Verifying C<E<lt>PerlE<gt>> Sections
+
+If the C<E<lt>PerlE<gt>> sections include no code requiring a running
+mod_perl, it is possible to check those from the command line. But the
+following trick should be used:
+
+  # file: httpd.conf
+  <Perl>
+  #!perl
+  
+  # ... code here ...
+  
+  __END__
+  </Perl>
+
+Now you can run:
+
+  % perl -c httpd.conf
 
 
 

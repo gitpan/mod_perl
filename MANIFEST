@@ -3,7 +3,6 @@ Apache-Test/Changes
 Apache-Test/INSTALL
 Apache-Test/LICENSE
 Apache-Test/MANIFEST
-Apache-Test/META.yml
 Apache-Test/Makefile.PL
 Apache-Test/README
 Apache-Test/RELEASE
@@ -130,9 +129,7 @@ build/make_etags
 build/source_scan.pl
 build/win32_fetch_apxs
 build/xs_generate.pl
-docs/.cvsignore
 docs/TODO
-docs/api/.cvsignore
 docs/api/APR.pod
 docs/api/APR/Base64.pod
 docs/api/APR/Brigade.pod
@@ -152,6 +149,7 @@ docs/api/APR/Socket.pod
 docs/api/APR/Table.pod
 docs/api/APR/ThreadMutex.pod
 docs/api/APR/URI.pod
+docs/api/APR/UUID.pod
 docs/api/APR/Util.pod
 docs/api/AUTOGENERATION
 docs/api/Apache.pod
@@ -199,7 +197,6 @@ docs/api/README
 docs/api/config.cfg
 docs/api/index_bot.html
 docs/config.cfg
-docs/devel/.cvsignore
 docs/devel/Changes.pod
 docs/devel/config.cfg
 docs/devel/core/apache_integration.pod
@@ -208,19 +205,13 @@ docs/devel/core/explained.pod
 docs/devel/core/mod_perl_specific.pod
 docs/devel/core/mpms.pod
 docs/devel/debug/c.pod
-docs/devel/debug/code/.debug-inline
-docs/devel/debug/code/.debug-modperl-init
-docs/devel/debug/code/.debug-modperl-register
-docs/devel/debug/code/.debug-modperl-xs
 docs/devel/debug/perl.pod
 docs/devel/help/help.pod
 docs/devel/performance/size_matters.pod
 docs/devel/performance/speed_matters.pod
 docs/devel/porting/porting.pod
 docs/index_top.html
-docs/os/.cvsignore
 docs/os/config.cfg
-docs/os/win32/.cvsignore
 docs/os/win32/Changes.pod
 docs/os/win32/config.cfg
 docs/os/win32/config.pod
@@ -228,7 +219,6 @@ docs/os/win32/distinstall
 docs/os/win32/faq.pod
 docs/os/win32/install.pod
 docs/os/win32/mpinstall
-docs/user/.cvsignore
 docs/user/Changes.pod
 docs/user/coding/coding.pod
 docs/user/coding/cooking.pod
@@ -562,6 +552,7 @@ t/htdocs/merge3/htaccess
 t/htdocs/perlio/MoonRise.jpeg
 t/htdocs/perlio/redrum.txt
 t/htdocs/protocols/basic-auth
+t/htdocs/vhost/post_config.pl
 t/htdocs/vhost/startup.pl
 t/lib/ModPerl/TestFilterDebug.pm
 t/lib/ModPerl/TestMemoryLeak.pm

@@ -130,7 +130,7 @@ typedef struct {
     MpHV *configvars;
     MpHV *SetEnv;
     MpHV *PassEnv;
-    MpAV *PerlRequire, *PerlModule;
+    MpAV *PerlRequire, *PerlModule, *PerlPostConfigRequire;
     MpAV *handlers_per_srv[MP_HANDLER_NUM_PER_SRV];
     MpAV *handlers_files[MP_HANDLER_NUM_FILES];
     MpAV *handlers_process[MP_HANDLER_NUM_PROCESS];
