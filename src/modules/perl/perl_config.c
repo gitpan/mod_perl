@@ -221,7 +221,7 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
 
     /* XXX: what triggers such a condition ?*/
     if(vars && (vars->nelts > 100000)) {
-	fprintf(stderr, "[error] PerlSetVar->nelts = %d\n", vars->nelts);
+	fprintf(stderr, "[warning] PerlSetVar->nelts = %d\n", vars->nelts);
     }
     else {
 	new->vars = overlay_tables(p, add->vars, base->vars);
@@ -609,6 +609,26 @@ static const char perl_pod_end_magic[] = "=cut without =pod";
 
 CHAR_P perl_pod_end_section (cmd_parms *cmd, void *dummy) {
     return perl_pod_end_magic;
+}
+
+CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, void *dummy,
+				  char *one, char *two, char *three)
+{
+    dSP;
+    char *subname = (char *)cmd->info;
+
+    ENTER;SAVETMPS;
+    PUSHMARK(sp);
+    PUSHif(one);PUSHif(two);PUSHif(three);
+    PUTBACK;
+    (void)perl_call_pv(subname, G_EVAL | G_SCALAR);
+    SPAGAIN;
+    LEAVE;FREETMPS;
+
+    if(perl_eval_ok(cmd->server) != OK) 
+	return SvPVX(ERRSV);
+    else
+	return NULL;
 }
 
 #ifdef PERL_SECTIONS

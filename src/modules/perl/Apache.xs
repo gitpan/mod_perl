@@ -53,7 +53,7 @@
 #define CORE_PRIVATE
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.7 1998/03/21 04:00:53 dougm Exp $ */
+/* $Id: Apache.xs,v 1.8 1998/03/24 04:19:53 dougm Exp $ */
 
 extern listen_rec *listeners;
 extern int mod_perl_socketexitoption;
@@ -462,8 +462,8 @@ custom_response(r, status, string)
     int type, idx500;
 
     CODE:
-#ifdef WIN32
-    croak("Apache->custom_response not supported under win32!");
+#if defined(WIN32) && (MODULE_MAGIC_NUMBER < 19980324)
+    croak("Need 1.3b6+ for Apache->custom_response under win32!");
 #else
     idx500 = index_of_response(HTTP_INTERNAL_SERVER_ERROR);
     conf = get_module_config(r->per_dir_config, &core_module);

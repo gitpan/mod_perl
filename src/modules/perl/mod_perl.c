@@ -50,8 +50,6 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.7 1998/03/21 04:00:54 dougm Exp $ */
-
 /* 
  * And so it was decided the camel should be given magical multi-colored
  * feathers so it could fly and journey to once unknown worlds.
@@ -225,7 +223,7 @@ static void seqno_check_max(request_rec *r, int seqno)
 
     /* XXX: what triggers such a condition ?*/
     if(vars && (vars->nelts > 100000)) {
-	fprintf(stderr, "[error] PerlSetVar->nelts = %d\n", vars->nelts);
+	fprintf(stderr, "[warning] PerlSetVar->nelts = %d\n", vars->nelts);
     }
     else {
       if(cld->vars)
@@ -1027,7 +1025,7 @@ void perl_per_request_init(request_rec *r)
 }
 
 /* XXX this still needs work, getting there... */
-API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
+int perl_call_handler(SV *sv, request_rec *r, AV *args)
 {
     int count, status, is_method=0;
     dSP;
@@ -1086,7 +1084,20 @@ API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 	    }
 	}
 
-	if(class) stash = gv_stashpv(SvPV(class,na),FALSE);
+#ifdef PERL_OBJECT_HANDLERS
+	if(*SvPVX(class) == '$') {
+	    SV *obj = perl_eval_pv(SvPVX(class), TRUE);
+	    if(SvROK(obj) && sv_isobject(obj)) {
+		MP_TRACE_h(fprintf(stderr, "handler object %s isa %s\n",
+				   SvPVX(class),  HvNAME(SvSTASH((SV*)SvRV(obj)))));
+		SvREFCNT_dec(class);
+		class = obj;
+		++SvREFCNT(class); /* this will _dec later */
+		stash = SvSTASH((SV*)SvRV(class));
+	    }
+	}
+#endif
+	if(class && !stash) stash = gv_stashpv(SvPV(class,na),FALSE);
 	   
 #if 0
 	MP_TRACE_h(fprintf(stderr, "perl_call: class=`%s'\n", SvPV(class,na)));

@@ -26,7 +26,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.10";
+$VERSION = "1.11";
 
 use subs qw(_prompt iedit asrc);
 
@@ -139,6 +139,7 @@ $CONFIG = "";
 $ADD_MODULE = "";
 
 my %experimental = map { $_,1 } qw{
+PERL_OBJECT_HANDLERS
 PERL_MARK_WHERE
 DO_INTERNAL_REDIRECT
 ERRSV_CAN_BE_HTTP
@@ -388,7 +389,7 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	open FH, "$APACHE_SRC/Makefile" or 
 	    die "can't open $APACHE_SRC/Makefile $!";
 	while(<FH>) {
-	    $SSL_BASE  = $1 if /SSL_BASE\s*=\s*(.*)/;
+	    $SSL_BASE  ||= $1 if /^\s*SSL_BASE\s*=\s*(.*)/;
 	    $EXTRA_CFLAGS = $1 if /CFLAGS1\s*=\s*(.*)/;
 	    $SSLINCS = $1 if /SSLINCS\s*=\s*(.*)/;
 	}
@@ -627,6 +628,7 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
     }
 
     {
+	my $mmn = magic_number($APACHE_SRC) unless $NO_HTTPD;
 	my $hf = FileHandle->new(">>t/net/config.pl") or 
 	    die "can't open t/net/config.pl";
 	my($k,$v);
@@ -634,6 +636,7 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
 	while(($k,$v) = each %callback_hooks) {
 	    print $hf "   $k => $v,\n";
 	}
+        print $hf "   MMN => $mmn,\n";
 	print $hf ");\n1;\n";
 	$hf->close;
     }
@@ -754,7 +757,13 @@ EOF
 
 cp "t/conf/httpd.conf", "t/httpd.conf";
 
+if($ENV{TEST_PERL_DIRECTIVES}) {
+    #push @DIR, 't/TestDirectives';
+    system "(cd t/TestDirectives && $^X Makefile.PL)";
+}
+
 WriteMakefile(
+    #DIR => \@DIR,
     NAME    => "mod_perl",
     VERSION => $VERSION,
     #should override `CCFLAGS', can't with older perls
@@ -893,6 +902,14 @@ test_report:
 }
 
 use File::Find;
+
+sub MY::subdirs {
+    my $self = shift;
+    if($ENV{TEST_PERL_DIRECTIVES}) {
+	push @{$self->{DIR}}, "t/TestDirectives";
+    }
+    $self->MM::subdirs(@_);
+}
 
 sub wanted {
     return unless /\.h$/;
@@ -1035,6 +1052,7 @@ sub cleanup_for_static {
 sub setup_for_static {
     my $d = "$APACHE_SRC/modules/perl";
     my $mf = "$APACHE_SRC/modules/perl/Makefile";
+    my @static_src = ();
 
     iedit $mf, "s/(PERL_STATIC_EXTS) =.*/\$1 = $PERL_STATIC_EXTS/"
 	if $PERL_STATIC_EXTS;
@@ -1045,6 +1063,7 @@ sub setup_for_static {
 
     for (qw(Apache Constants)) {
 	rename "${_}/${_}.xs", "${_}/${_}.xs.disabled" if -e "${_}/${_}.xs";
+	push @static_src, "$_.c";
     }
 
 =pod
@@ -1071,6 +1090,10 @@ sub setup_for_static {
 =cut
 
     iedit $mf, "s/^#STATIC_/STATIC_/";
+
+    #bloody hell, make sucks and so does this.
+    #this has only cause a few people pain, enough.
+    iedit $mf, "s/ \Q\$(STATIC_SRC)\E/ @static_src/";
 }
 
 sub module_name_from_xs {

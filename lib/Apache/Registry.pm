@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.6 1998/03/19 23:08:45 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.6 $)[1];
+#$Id: Registry.pm,v 1.7 1998/04/20 09:43:48 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.7 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -16,6 +16,10 @@ $Apache::Registry::Debug ||= 0;
 Apache->module('Apache::Debug') if $Apache::Registry::Debug;
 
 my $Is_Win32 = $^O eq "MSWin32";
+
+unless ($Apache::Registry::{NameWithVirtualHost}) {
+    $Apache::Registry::NameWithVirtualHost = 1;
+}
 
 sub handler {
     my $r = shift;

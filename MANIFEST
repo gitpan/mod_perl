@@ -11,6 +11,7 @@ README
 apache-modlist.html
 mod_perl.gif
 mod_perl.pod
+mod_perl_cvs.pod
 mod_perl_tuning.pod
 cgi_to_mod_perl.pod
 mod_perl_traps.pod
@@ -26,6 +27,7 @@ lib/Apache/httpd_conf.pm
 lib/Apache/fork.pm
 lib/Apache/test.pm
 lib/Apache/Debug.pm
+lib/Apache/ExtUtils.pm
 lib/Apache/FakeRequest.pm
 lib/Apache/Options.pm
 lib/Apache/PerlSections.pm
@@ -35,8 +37,6 @@ lib/Apache/Resource.pm
 #lib/Apache/Safe.pm
 lib/Apache/SIG.pm
 lib/Apache/StatINC.pm
-src/Makefile.tmpl
-src/Makefile.tmpl-Ben-SSL
 Apache/Apache.pm
 Apache/typemap
 Apache/Makefile.PL
@@ -129,6 +129,8 @@ t/docs/LoadClass.pm
 t/docs/content.html
 t/docs/content.shtml
 t/docs/STAGE/u1/nada.txt
+t/TestDirectives/Makefile.PL
+t/TestDirectives/TestDirectives.pm
 benchmark/lwp-simple.pod
 benchmark/stopwatch.pod
 faq/Makefile

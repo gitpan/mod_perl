@@ -45,6 +45,8 @@
 #undef setreuid
 #undef sync
 #undef my_memcmp
+#undef my_bcopy
+#undef my_memset
 #undef RETURN
 #undef die
 #undef __attribute__
@@ -139,6 +141,10 @@ typedef server_rec  * Apache__Server;
     if(perl_is_running == PERL_DONE_STARTUP) \
         Apache__ServerStarting((val == FALSE ? FALSE : PERL_RUNNING())); \
 }
+
+#define PUSHif(arg) \
+if(arg) \
+   XPUSHs(sv_2mortal(newSVpv(arg,0)))
 
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
@@ -266,7 +272,12 @@ if((add->flags & f) || (base->flags & f)) \
 #endif
 
 /* some 1.2.x/1.3.x compat stuff */
+/* once 1.3.0 is here, we can toss most of this junk */
 
+#if MODULE_MAGIC_NUMBER >= 19980413
+#include "compat.h"
+#endif
+ 
 #if MODULE_MAGIC_NUMBER > 19970909
 
 #define mod_perl_warn(s,msg) \
@@ -324,6 +335,9 @@ extern void *mod_perl_dummy_mutex;
 #ifndef MULTITHREAD_H
 typedef void mutex;
 #define MULTI_OK (0)
+#undef create_mutex
+#undef acquire_mutex
+#undef release_mutex
 #define create_mutex(name)	((mutex *)mod_perl_dummy_mutex)
 #define acquire_mutex(mutex_id)	((int)MULTI_OK)
 #define release_mutex(mutex_id)	((int)MULTI_OK)
@@ -765,7 +779,7 @@ void xs_init (void);
 
 /* generic handler stuff */ 
 int perl_handler_ismethod(HV *class, char *sub);
-API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args);
+int perl_call_handler(SV *sv, request_rec *r, AV *args);
 
 /* stacked handler stuff */
 int mod_perl_push_handlers(SV *self, char *hook, SV *sub, AV *handlers);
@@ -835,7 +849,7 @@ void mod_perl_mark_where(char *where, SV *sub);
 
 void perl_soak_script_output(request_rec *r);
 void perl_stdin2client(request_rec *r);
-API_EXPORT(void) perl_stdout2client(request_rec *r); 
+void perl_stdout2client(request_rec *r); 
 
 /* perl_config.c */
 
@@ -887,6 +901,8 @@ CHAR_P perl_cmd_type_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg
 CHAR_P perl_cmd_fixup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_handler_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_log_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
+CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, void *dummy,
+				  char *one, char *two, char *three);
 
 void mod_perl_dir_env(perl_dir_config *cld);
 void mod_perl_pass_env(pool *p, perl_server_config *cls);
