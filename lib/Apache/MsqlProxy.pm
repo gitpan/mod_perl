@@ -1,22 +1,22 @@
-package Apache::Msql;
+package Apache::MsqlProxy;
 
 use Apache ();
 use Msql ();
 use URI::URL ();
+use Apache::Constants;
 
-sub Apache::Msql::translate {
-    my $r = Apache->request;
-    unless($r->proxyreq) {
-	return -1;
-    }
+sub Apache::MsqlProxy::translate {
+    my($r) = @_;
+
+    return DECLINED unless $r->proxyreq;
     $r->handler("perl-script");
 #    my $cld = get Apache::ModuleConfig $r->server->per_dir_config;
-#    $cld->PerlHandler = "Apache::Msql::handler";
-    1;
+#    $cld->PerlHandler("Apache::MsqlProxy::handler");
+    return OK;
 }
 
-sub Apache::Msql::handler {
-    my $r = Apache->request;
+sub Apache::MsqlProxy::handler {
+    my($r) = @_;
     my $url = new URI::URL $r->uri;
     my $host = $url->host || "";
     my $port = $url->port; 
@@ -32,7 +32,7 @@ sub Apache::Msql::handler {
     my $sth;
     unless($sth = $dbh->query($query)) {
 	$r->log_error($Msql::errstr);
-	return 500;
+	return SERVER_ERROR;
     }
     $r->content_type("text/html");
     $r->send_http_header();
@@ -42,7 +42,7 @@ sub Apache::Msql::handler {
 	$r->print("<tr><td>" , join("</td><td>", @row), "</td></tr>");
     }
     $r->print("</table>");
-    1;
+    return OK;
 }
 
 #ick
@@ -70,14 +70,14 @@ __END__
 
 =head1 NAME
 
-Apache::Msql - Translate URI's into mSQL database queries
+Apache::MsqlProxy - Translate URI's into mSQL database queries
 
 =head1 SYNOPSIS
 
  #httpd.conf or srm.conf
- PerlTransHandler Apache::Msql::translate
- PerlHandler      Apache::Msql::handler
- PerlModule       Apache::Msql
+ PerlTransHandler Apache::MsqlProxy::translate
+ PerlHandler      Apache::MsqlProxy::handler
+ PerlModule       Apache::MsqlProxy
 
 Configure your browser's HTTP proxy to point at the host running Apache configured 
 with this module:

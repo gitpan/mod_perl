@@ -5,14 +5,14 @@ use Apache::Options qw(&OPT_EXECCGI);
 require FileHandle;
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.14 1996/10/02 14:53:36 dougm Exp dougm $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.14 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.15 1996/10/09 05:45:07 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.15 $ =~ /(\d+)\.(\d+)/);
 
 #should really just use for developing.
 $Apache::Registry::Debug ||= 0;
 
 sub handler {
-    my $r = Apache->request;
+    my($r) = @_; #Apache->request;
     my $filename = $r->filename;
 
     if (-r $filename && -s _) {

@@ -2,7 +2,7 @@ package Apache;
 
 use vars qw($VERSION);
 
-$VERSION = "1.03";
+$VERSION = "1.04";
 
 bootstrap Apache $VERSION;
 
@@ -110,149 +110,234 @@ Apache - Perl interface to the Apache server API
 
 =head1 DESCRIPTION
 
-This module provides a Perl interface the Apache API.
-It's here mainly for 
-B<mod_perl>, but may be used for other Apache modules that
-wish to embed a Perl interpreter.
+This module provides a Perl interface the Apache API.  It's here
+mainly for B<mod_perl>, but may be used for other Apache modules that
+wish to embed a Perl interpreter.  We suggest that you also consult
+the description of the Apache C API at http://www.apache.org/docs/XXXX.
 
-=head1 METHODS
+=head2 $r = Apache->request
 
-=item request()
+The Apache->request method will create a request object and return a
+reference to it.  The perl version of the request object will be
+blessed into the B<Apache> package, but it is really just a
+C<request_rec*> in disguise.
 
-Create a request object.
-This is really a request_rec * in disguise.
+The request object holds all the information that the server needs to
+service a request.  Apache handles will be given a reference to the
+request object as parameter and is supposed to update it in various
+ways.  Most of the methods described below obtain information from or
+updates the request object.
 
- $req = Apache->request;
+=head1 CLIENT REQUEST PARAMETERS
 
+First we will take a look at various methods that can be used to
+retrieve the request parameters sent from the client.
 
-=item get_remote_host()
+=over 4
 
-Lookup the client's hostname, return it if found.
+=item $r->method
 
- $remote_host = $req->get_remote_host();
+The $r->method method will return the request method.  It will be a
+string like "GET", "HEAD" or "POST".
 
-=item content_type()
+=item $r->protocol
 
-Get or set the content type being sent to the client.
+The $r->protocol method will return a string identifying the protocol
+that the client speaks.  Typical values will be "HTTP/1.0" or
+"HTTP/1.1".
 
-   $type = $req->content_type;
-   $req->content_type("text/plain");
+=item $r->uri
 
-=item content_encoding()
+The $r->uri method will return the requested URI.
 
-Get or set the content encoding.
+=item $r->filename
 
-   $enc = $req->content_encoding;
-   $req->content_encoding("gzip");
+The $r->filename method will return the result of the I<URI --E<gt>
+filename> translation.
 
-=item content_language()
+=item $r->path_info
 
-Get or set the content language.
+The $r->path_info method will return what's left in the path after the
+I<URI --E<gt> filename> translation.
 
-   $lang = $req->content_language;
-   $req->content_language("en");
+=item $r->args
 
-=item status()
+The $r->args method will return the contents of the URI's I<query
+string>.  When called in a scalar context, the entire string is
+returned.  When called in a list context, a list of parsed I<key> =>
+I<value> pairs are returned, i.e. it can be used like this:
 
-Get or set the reply status for the client request.
+  $query = $req->args;
+  %in    = $req->args;
 
-   $code = $req->status; 
-   $req->status(200);    
+=item $r->headers_in
 
-=item status_line()
+The $r->headers_in method will return a %hash of client request
+headers.  This can be used to initialize a perl hash, or one could use
+the $r->header_in() method (described below) to retrieve a specific
+header value directly.
 
-Get or set the response status line.
+=item $r->header_in( $header_name )
 
-   $resp = $req->status_line;
-   $req->status_line("HTTP/1.0 200 OK");
+Return the value of a client header.  Can be used like this:
 
-=item header_out()
+  $ct = $req->header_in("Content-type");
 
-Change the value of a response header, or create a new one.
+=item $r->content
 
-   $req->header_out("WWW-Authenticate", "Basic");
+The $r->content method will return the entity body read from the
+client.  When called in a scalar context, the entire string is
+returned.  When called in a list context, a list of parsed I<key> =>
+I<value> pairs are returned.  *NOTE*: you can only ask for this once,
+as the entire body is read from the client.
 
-=item err_header_out()
+B<Note:> This method will do nothing if the request content type is
+not C<application/x-www-form-urlencoded>.
+
+=item $r->read_client_block($buf, $bytes_to_read)
+
+Read from the entity body sent by the client.  Example of use:
+
+  %headers_in = $req->headers_in;
+  $req->read_client_block($buf, $headers_in{'Content-length'});
+
+=item $r->read($buf, $bytes_to_read)
+
+Friendly alias for $r->read_client_block()
+
+=item $r->get_remote_host
+
+Lookup the client's DNS hostname.  Might return I<undef> if the
+hostname is not known.
+
+=back
+
+More information about the client can be obtained from the
+B<Apache::Connection> object, see below.
+
+=head1 SETTING UP THE RESPONSE
+
+The following methods are used to set up and return the response back
+to the client.  This typically involves setting up $r->status(), the
+various content attributes and optionally some additional
+$r->out_headers() before calling $r->send_http_header() which will
+actually send the headers to the client.  After this a typical
+application will call the $r->write_client() method to send the response
+content to the client.
+
+=over 4
+
+=item $r->basic_http_header
+
+Send the response line (status) along with I<Server:> and I<Date:>
+headers.
+
+=item $r->send_http_header
+
+Send the response line and all headers to the client.  (This method
+will actually call $r->basic_http_header first).
+
+This method will create headers from the $r->content_xxx() and
+$r->no_cache() attributes (described below) and then append the
+headers defined by $r->header_out (or $r->err_header_out if status
+indicates an error).
+
+=item $r->content_type( [$newval] )
+
+Get or set the content type being sent to the client.  Content types
+are strings like "text/plain", "text/html" or "image/gif".  This
+corresponds to the "Content-Type" header in the HTTP protocol.  Example
+of usage is:
+
+   $previous_type = $r->content_type;
+   $r->content_type("text/plain");
+
+=item $r->content_encoding( [$newval] )
+
+Get or set the content encoding.  Content encodings are string like
+"gzip" or "compress".  This correspond to the "Content-Encoding"
+header in the HTTP protocol.
+
+=item $r->content_language( [$newval] )
+
+Get or set the content language.  The content language corresponds to the
+"Content-Language" HTTP header and is a string like "en" or "no".
+
+=item $r->status( $integer )
+
+Get or set the reply status for the client request.  The
+B<HTTP::Status> module provide mnemonic names for the status codes.
+
+=item $r->status_line( $string )
+
+Get or set the response status line.  The status line is a string like
+"HTTP/1.0 200 OK", but I am not sure how this relates to the
+$r->status() described above.
+
+=item $r->header_out( $header, $value)
+
+Change the value of a response header, or create a new one.  You
+should not define any "Content-XXX" headers by calling this method,
+because these headers use their own specific methods.  Example of use:
+
+   $req->header_out("WWW-Authenticate" => "Basic");
+
+=item $r->err_header_out( $header, $value )
 
 Change the value of an error response header, or create a new one.
+These headers are used if the status indicates an error.
 
-   $req->err_headers_out("WWW-Authenticate", "Basic");
+   $req->err_headers_out("Warning" => "Bad luck");
 
-=item no_cache()
+=item $r->no_cache( $boolean)
 
-Boolean, on or off.
+This is a flag that indicates that the data being returned is volatile
+and the client should be told not to cache it.
 
-   $req->no_cache(1);
+=item $r->write_client( @list_of_data )
 
-=item basic_http_header()
+Send data to the client.  Unless you know what you are doing, you
+should only call this method after you have called
+$r->send_http_header.
 
-Send the response line along with 'Server' and 'Date' headers.
-  
-=item send_http_header()
+=item $r->print()
 
-Send the response line and all headers to the client.
-(Calls basic_http_header)
+Friendly alias for $r->write_client()
 
-   $req->send_http_header;
+=item $r->send_fd( $filehandle )
 
-=item internal_redirect_handler()
+Send the contents of a file to the client.  Can for instance be used
+like this:
+
+  open(FILE, $r->filename) || return 404;
+  $r->send_fd(FILE);
+  close(FILE);
+
+=item $r->internal_redirect_handler( $newplace )
 
 Redirect to a location in the server's namespace without 
-telling the client.
+telling the client. For instance:
 
-   $req->internal_redirect_handler("/home/sweet/home.html");
+  $r->internal_redirect_handler("/home/sweet/home.html");
 
-=item read_client_block()
+=back
 
-Read entity body sent by the client.
+=head1 CGI SUPPORT
 
-   %headers_in = $req->headers_in;
-   $req->read_client_block($buf, $headers_in{'Content-length'});
+We also provide some methods that make it easier to support the CGI
+type of interface.
 
-=item read()
+=over 4
 
-Friendly alias for read_client_block()
+=item $r->cgi_env
 
-   $req->read($buf, $headers_in{'Content-length'});
+Return a %hash that can be used to set up a standard CGI environment.
+Typical usage would be:
 
-=item write_client()
+  %ENV = $req->cgi_env
 
-Send a list of data to the client.
-
-   $req->write_client(@list_of_data);
-
-=item print()
-
-Friendly alias for write_client()
-
-   $req->print(@list_of_data);
-
-=item send_fd()
-
-Send the contents of a file to the client.
-
-   $req->send_fd(FILE_HANDLE);
-
-=item log_reason()
-
-The request failed, why??
-
-   $req->log_reason("Because I felt like it", $req->filename);
-
-=item log_error()
-
-Uh, oh.
-
-   $req->log_error("Some text that goes in the error_log");
-
-=item cgi_env()
-
-Setup a standard CGI environment.
-
-  %ENV = $req->cgi_env();
-
-NOTE: 
-'GATEWAY_INTERFACE' is set to 'CGI-Perl/1.1' so you can say:
+B<NOTE:> The $ENV{GATEWAY_INTERFACE} is set to C<'CGI-Perl/1.1'> so
+you can say:
 
   if($ENV{GATEWAY_INTERFACE} =~ /^CGI-Perl/) {
       #do mod_perl stuff
@@ -260,121 +345,102 @@ NOTE:
   else {
      #do normal CGI stuff
   }
- 	 	
-=item send_cgi_header()
 
-Take action on certain headers including 'Status', 'Location' and
-'Content-type' just as mod_cgi does, then calls send_http_header().
+=item $r->send_cgi_header()
 
-    $req->send_cgi_header(<<EOF);
- Location: /foo/bar
- Content-type: text/html 
+Take action on certain headers including I<Status:>, I<Location:> and
+I<Content-type:> just as mod_cgi does, then calls
+$r->send_http_header().  Example of use:
 
- EOF
+  $req->send_cgi_header("
+  Location: /foo/bar
+  Content-type: text/html 
+  
+  ");
 
+=back
 
-=item headers_in()
+=head1 MISCELLANEOUS
 
-Return a %hash of client request headers.
+These are the methods that did not fit in any of the categories above.
 
-  %headers_in = $req->headers_in();
+=over 4
 
-=item header_in()
+=item $r->log_reason($message, $file)
 
-Return the value of a client header.
+The request failed, why??  Write a message to the server's errorlog.
 
-    $ct = $req->header_in("Content-type");
+   $r->log_reason("Because I felt like it", $r->filename);
 
+=item $r->log_error($message)
 
-=item args()
+Uh, oh.  Write a message to the server's errorlog.
 
-Return the contents of the query string;
-When called in a scalar context, the entire string is returned.
-When called in a list context, a list of parsed key => value pairs
-are returned.
+  $r->log_error("Some text that goes in the error_log");
 
-  $query_string = $req->args;
-
-  #split on '&' and '='
-  %in = $req->args;
-
-=item content()
-
-Return the entity body as read from the client.
-When called in a scalar context, the entire string is returned.
-When called in a list context, a list of parsed key => value pairs
-are returned.
-*NOTE*: you can only ask for this once, 
-as the entire body is read from the client.
-
-
- $content = $req->content;
-
-  #split on '&' and '='
-  %in = $req->content;
-
-=item unescape_url()
+=item Apache::unescape_url($string)
 
 Handy function for unescapes.
 
-  Apache::unescape_url($string);
+=item $r->allow_options
 
-=item allow_options(), is_perlaliased() 
+=item $r->is_perlaliased
 
-Methods for checking if it's ok to run a perl script. 
+The $r->allow_options and $r->is_perlaliased methods can be used for
+checking if it's ok to run a perl script.  The B<Apache::Options>
+module provide the constants to check against.
 
  if(!($r->allow_options & OPT_EXECCGI) && !$r->is_perlaliased) {
      $r->log_reason("Options ExecCGI is off in this directory", 
 		    $filename);
 
-=item more request info
+=item $c = $r->connection
 
-   $method = $req->method;         #GET, POST, etc.
-   $protocol = $req->protocol;     #HTTP/1.x
-   $uri = $req->uri;               #requested uri
-   $script_file = $req->filename;  #the uri->filename translation
-   $path_info = $req->path_info;   #path_info
+The $r->connection method will return a reference to the request
+connection object (blessed into the B<Apache::Connection> package).
+This is really a C<conn_rec*> in disguise.  The following methods can
+be used on the connection object:
 
-=item connection()
+$c->remote_host
 
-Return an object reference to the request connection.
-This is really a conn_rec * in disguise.
+$c->remote_ip
 
- $conn = $req->connection; 
- $remote_host = $conn->remote_host;
- $remote_ip = $conn->remote_ip;
- $remote_logname = $conn->remote_logname;
- 
- #The remote username if authenticated.
- $remote_user = $conn->user;
+$c->remote_logname
 
- #The authentication scheme used, if any.
- $auth_type = $conn->auth_type;
+$c->user; Returns the remote username if authenticated.
 
- #close connection to the client
- $conn->close;
- 
-=item server()
+$c->auth_type; Returns the authentication scheme used, if any.
 
-Return an object reference to the server info.
-This is really a server_rec * in disguise.
+$c->close; Calling this method will close down the connection to the
+client
 
- $srv = $req->server; 
- $server_admin = $srv->server_admin;
- $hostname = $srv->server_hostname;
- $port = $srv->port;
+=item $s = $r->server
 
+Return a reference to the server info object (blessed into the
+B<Apache::Server> package).  This is really a C<server_rec*> in
+disguise.  The following methods can be used on the connection object:
+
+$s->server_admin; Returns the mail address of the person responsible
+for this server.
+
+$s->server_hostname; Returns the hostname used by this server.
+
+$s->port;
+Returns the port that this servers listens too.
+
+=back
 
 =head1 SEE ALSO
 
- perl(1), Apache::Registry(3), Apache::CGI(3), Apache::Debug(3), Apache::Options(3)
+perl(1),
+Apache::Registry(3),
+Apache::CGI(3),
+Apache::Debug(3),
+Apache::Options(3)
 
 =head1 AUTHORS
 
-Gisle Aas <aas@oslonett.no>
-and
-Doug MacEachern <dougm@osf.org> 
+Gisle Aas <aas@sn.no> and Doug MacEachern <dougm@osf.org>
 
-
-
+=cut
 

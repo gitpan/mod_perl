@@ -23,18 +23,22 @@ my %StatusCode = (
     403 => 'Forbidden',
     404 => 'Not Found',
     405 => 'Method Not Allowed',
-    406 => 'None Acceptable',
+    406 => 'Not Acceptable',
     407 => 'Proxy Authentication Required',
     408 => 'Request Timeout',
     409 => 'Conflict',
     410 => 'Gone',
     411 => 'Length Required',
-    412 => 'Unless True',
+    412 => 'Precondition Failed',
+    413 => 'Request Entity Too Large',
+    414 => 'Request-URI Too Large',
+    415 => 'Unsupported Media Type',
     500 => 'Internal Server Error',
     501 => 'Not Implemented',
     502 => 'Bad Gateway',
     503 => 'Service Unavailable',
     504 => 'Gateway Timeout',
+    505 => 'HTTP Version Not Supported',
 );
 
 sub dump {
@@ -44,55 +48,71 @@ sub dump {
     my %headers = $r->headers_in;
     my $host = $r->get_remote_host;
 
+    $r->status($status);
     $r->content_type("text/html");
-    $r->header_out("Status",$status);
+    $r->content_language("en");
+    $r->no_cache(1);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.12 1996/10/09 05:45:07 dougm Exp $);
     $r->send_http_header;
+    
+    return 0 if $r->method eq "HEAD";   # should not generate a body
 
-    my $args = $r->args;
-    my(%args,%in);
     my $title = "$status $StatusCode{$status}";
     $r->write_client(join("\n", "<html>",
 			  "<head><title>$title</title></head>",
                           "<body>", "<h3>$title</h3>", @_, 
 			  "<pre>", ($@ ? "$@\n" : "")));
+
     for (
 	 qw(
-	    method uri protocol path_info filename 
+	    method uri protocol path_info filename
+            allow_options is_perlaliased
 	    )
 	 )
     {
-	$r->write_client("$_ : ", $r->$_(), "\n");
+	$r->write_client(sprintf "<b>\$r->%-17s</b> : %s\n", $_, $r->$_() );
     }
+
     for (
 	 qw(
 	    server_admin 
-	    server_hostname port
+	    server_hostname
+            port
 	    )
 	 ) 
     {
-	$r->write_client("$_ : ", $srv->$_(), "\n");
+	$r->write_client(sprintf "<b>\$s->%-17s</b> : %s\n", $_, $srv->$_() );
     }
+
     for (
 	 qw(
-	    remote_host remote_ip
+	    remote_host
+            remote_ip
+            remote_logname
+            user
+            auth_type
 	    )
 	 )
     {
-	$r->write_client("$_ : ", $conn->$_(), "\n");
+	$r->write_client(sprintf "<b>\$c->%-17s</b> : %s\n", $_, $conn->$_() );
     }
+
+    my $args = $r->args;
+    my %args = $r->args;
+    my %in   = $r->content;
     $r->write_client(
-		     "\nscalar \$r->args:\n $args\n",
+		     "\n<b>scalar \$r->args       :</b> $args\n",
 			 
-		     "\n\$r->args:\n",		     
-		     (map { "$_ = $args{$_}\n" } keys %args),
+		     "\n<b>\$r->args:</b>\n",
+		     (map { "   $_ = $args{$_}\n" } sort keys %args),
+
+		     "\n<b>\$r->content:</b>\n",
+		     (map { "   $_ = $in{$_}\n" } sort keys %in),
 			 
-		     "\n\$r->content:\n",		     
-		     (map { "$_ = $in{$_}\n" } keys %in),
-			 
-		     "\n\$r->headers_in:\n",		     
-		     (map { "$_ = $headers{$_}\n" } keys %headers),
+		     "\n<b>\$r->headers_in:</b>\n",		     
+		     (map { sprintf "   %-12s = %s\n", $_, $headers{$_} } sort keys %headers),
 		     );
-    $r->write_client("</pre>\n</body></html>");
+    $r->write_client("</pre>\n</body></html>\n");
     return 0; #need to give a return status
 }
 

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.23 1996/10/02 14:53:36 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.24 1996/10/09 05:45:07 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -100,10 +100,10 @@ void perl_init (server_rec *s, pool *p)
     argv[1] = fname;
   }
 
-  CTRACE(stderr, "perl_init: loading perl script: %s\n", argv[1]);
+  CTRACE(stderr, "perl_init: loading perl script: %s'%s'\n", argv[1],argv[2]);
   status = perl_parse(perl, xs_init, 2, argv, NULL);
   if (status != 0) {
-     CTRACE(stderr,"httpd: perl_parse failed: %s. Status: %d\n",argv[1],status);
+     CTRACE(stderr,"httpd: perl_parse failed: Status: %d\n",status);
      perror("parse");
      exit(1);
   }
@@ -128,7 +128,7 @@ void perl_init (server_rec *s, pool *p)
 
   status = perl_run(perl);
   if (status != 0) {
-     CTRACE(stderr,"httpd: perl_run failed: %s. Status: %d\n",fname,status);
+     CTRACE(stderr,"httpd: perl_run failed:  Status: %d\n",status);
      perror("run");
      exit(1);
   }
@@ -169,7 +169,7 @@ int perl_fast_handler(request_rec *r)
   perl_dir_config *cld = get_module_config (r->per_dir_config,
 					    &perl_fast_module);   
 
-  perl_set_request_rec(r);
+  perl_set_request_rec(r); 
 
   /* hookup STDIN & STDOUT to the client */
   perl_stdout2client(r);
@@ -182,7 +182,7 @@ int perl_fast_handler(request_rec *r)
 
   if(cld->PerlHandler != NULL) {
     CTRACE(stderr, "calling PerlHandler '%s'\n", cld->PerlHandler);
-    status = perl_call(cld->PerlHandler, r->server);
+    status = perl_call(cld->PerlHandler, r);
   }
   else {
     log_error("perl_call failed, must set a PerlHandler", r->server);
@@ -200,10 +200,9 @@ int perl_authenticate(request_rec *r)
 					    &perl_fast_module);   
 
   if (cld->PerlAuthenHandler != NULL) {
-    perl_set_request_rec(r);
-    CTRACE(stderr, "perl_authenticate handler: '&%s' \n", 
-	 cld->PerlAuthenHandler);
-    status = perl_call(cld->PerlAuthenHandler, r->server);
+    CTRACE(stderr, "perl_authenticate handler: '%s' \n", 
+	   cld->PerlAuthenHandler);
+    status = perl_call(cld->PerlAuthenHandler, r);
   }
   PERL_RETURN_STATUS;
 }
@@ -212,40 +211,40 @@ int perl_translate(request_rec *r)
 {
   int status = DECLINED;
   perl_server_config *cld = get_module_config (r->server->module_config,
-					    &perl_fast_module);   
+					       &perl_fast_module);   
   if (cld->PerlTransHandler != NULL) {
-    perl_set_request_rec(r);
-    CTRACE(stderr, "perl_translate handler: '&%s' \n", 
+    CTRACE(stderr, "perl_translate handler: '%s' \n", 
 	   cld->PerlTransHandler);
-    status = perl_call(cld->PerlTransHandler, r->server);
+    status = perl_call(cld->PerlTransHandler, r);
   }
   PERL_RETURN_STATUS;
 }
 
-int perl_call(char *perlsub, server_rec *s)
+int perl_call(char *perlsub, request_rec *r)
 {
     int count, status;
     SV *sv;
-
+    
     dSP;
     ENTER;
     SAVETMPS;
     PUSHMARK(sp);
+    XPUSHs((SV*)perl_bless_request_rec(r)); 
     PUTBACK;
     
     /* agb. need to reset $$ */
     perl_set_pid();
 
     /* use G_EVAL so we can trap errors */
-    count = perl_call_pv(perlsub, G_EVAL | G_SCALAR | G_NOARGS);
+    count = perl_call_pv(perlsub, G_EVAL | G_SCALAR);
     
     SPAGAIN;
 
-    if(perl_eval_ok(s) != 0) 
+    if(perl_eval_ok(r->server) != 0) 
         return SERVER_ERROR;
 
     if(count != 1) {
-	log_error("perl_call failed, must return a status arg", s);
+	log_error("perl_call failed, must return a status arg", r->server);
         return SERVER_ERROR;
     }
 
@@ -276,6 +275,15 @@ char *set_perl_trans (cmd_parms *parms, void *dummy, char *arg)
   return NULL;
 }
 
+char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)
+{
+  perl_server_config *cls = get_module_config (parms->server->module_config,
+                                       &perl_fast_module);   
+  CTRACE(stderr, "set_perl_script: %s\n", arg);
+  cls->PerlScript = arg;
+  return NULL;
+}
+
 char *perl_sendheader_on (cmd_parms *cmd, void *rec, int arg) {
   ((perl_dir_config *)rec)->sendheader = arg;
   return NULL;
@@ -294,8 +302,11 @@ char *set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val)
 }
   
 command_rec perl_cmds [] = {
-  { "PerlScript", set_string_slot,
+  { "OrigPerlScript", set_string_slot,
     (void*)XtOffsetOf(perl_server_config, PerlScript), 
+    RSRC_CONF, TAKE1, "A Perl script name" },
+  { "PerlScript", set_perl_script,
+    NULL,
     RSRC_CONF, TAKE1, "A Perl script name" },
   { "PerlModule", push_perl_modules,
     NULL,

@@ -6,10 +6,34 @@ Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
 for *lots* of bug spotting, fixing and patching, 
 Apache::Registry and CGI.pm overhaul efforts (aka CGI::XA & CGI::Switch)
 
-Gisle Aas <aas@oslonett.no>
+Gisle Aas <aas@sn.no>
 For getting this effort started
 
 Other contributors are mentioned below:
+
+=item 0.83_03
+
+Perl*Handler's are now called with Apache->request as an argument
+PerlHandler's may still ask for Apache->request so existing code and
+mechanisms such as Apache::Registry will continue to work
+However, other handlers such as PerlAuthenHandler and PerlTransHandler,
+cannot use Apache->request.
+
+added Apache::Constants module, based on patch to Apache.xs 
+from Gisle
+
+updated Apache::Debug with patch from Gisle to 
+- update the status codes from the latest
+  HTTP::Status and produce a prettier and more output.
+
+- We also ensure that we do not generate output for HEAD requests and we
+  set up status correctly.
+
+updated Apache.pm and Apache::Options docs, thanks to Gisle
+
+fixed PerlScript bug spotted by Gisle
+
+renamed Apache::Msql to Apache::MsqlProxy
 
 =item 0.83_02
 

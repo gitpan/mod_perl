@@ -9,8 +9,7 @@ use HTTPD::UserAdmin ();
 #};
 
 sub handler {
-    my($self, $attr) = @_;
-    my $r = Apache->request();
+    my($self, $r, $attr) = @_;
     my($sent_pwd, $passwd);
     if($res = $r->get_basic_auth_pw($sent_pwd)) {
 	return $res; #decline if not Basic
@@ -45,7 +44,8 @@ package Apache::DBIAuthen;
 );
 
 sub handler {
-    my $r = Apache->request;
+    my($r) = @_;
+    my($key,$val);
     my $attr = {
 	DBType => 'SQL',
     };
@@ -57,7 +57,7 @@ sub handler {
     $attr->{DB} = delete $attr->{User} if #bleh, inconsistent
 	$attr->{Driver} eq "mSQL";
      
-    Apache::Authen->handler($attr);
+    Apache::Authen->handler($r, $attr);
 }
 
 1;

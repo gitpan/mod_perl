@@ -10,6 +10,11 @@ CGI-XA/lib/CGI/Switch.pm
 CGI-XA/lib/CGI/XA.pm
 CGI-XA/test.pl
 Changes
+Constants/Constants.pm
+Constants/Constants.xs
+Constants/MANIFEST
+Constants/Makefile.PL
+Constants/test.pl
 FileHandle.patch
 INSTALL
 MANIFEST
@@ -30,7 +35,7 @@ eg/tiehandle.fpl
 lib/Apache.pm
 lib/Apache/Authen.pm
 lib/Apache/Debug.pm
-lib/Apache/Msql.pm
+lib/Apache/MsqlProxy.pm
 lib/Apache/Options.pm
 lib/Apache/Registry.pm
 lib/Apache/SSI.pm

@@ -18,16 +18,16 @@ use vars qw(@ISA @EXPORT);
 #define OPT_MULTI 128
 #define OPT_ALL (OPT_INDEXES|OPT_INCLUDES|OPT_SYM_LINKS|OPT_EXECCGI)
 
-sub OPT_NONE {0}
-sub OPT_INDEXES {1}
-sub OPT_INCLUDES {2}
-sub OPT_SYM_LINKS {4}
-sub OPT_EXECCGI {8}
-sub OPT_UNSET {16}
-sub OPT_INCNOEXEC {32}
-sub OPT_SYM_OWNER {64}
-sub OPT_MULTI {128}
-sub OPT_ALL { OPT_INDEXES|OPT_INCLUDES|OPT_SYM_LINKS|OPT_EXECCGI }
+sub OPT_NONE      () {   0 }
+sub OPT_INDEXES   () {   1 }
+sub OPT_INCLUDES  () {   2 }
+sub OPT_SYM_LINKS () {   4 }
+sub OPT_EXECCGI   () {   8 }
+sub OPT_UNSET     () {  16 }
+sub OPT_INCNOEXEC () {  32 }
+sub OPT_SYM_OWNER () {  64 }
+sub OPT_MULTI     () { 128 }
+sub OPT_ALL       () { OPT_INDEXES|OPT_INCLUDES|OPT_SYM_LINKS|OPT_EXECCGI }
 
 1;
 
@@ -39,5 +39,25 @@ Apache::Options - OPT_* defines from httpd_core.h
 
 =head1 DESCRIPTION
 
-Constants for PerlModule's to behave like apache modules
+The B<Apache::Options> module will export the following bitmask
+constants:
 
+   OPT_NONE
+   OPT_INDEXES
+   OPT_INCLUDES 
+   OPT_SYMLINKS
+   OPT_EXECCGI
+   OPT_UNSET
+   OPT_INCNOEXEC
+   OPT_SYM_OWNER
+   OPT_MULTI
+   OPT_ALL
+
+These constants can be used to check the return value from
+Apache->request->allow_options() method.
+
+=head1 SEE ALSO
+
+L<Apache>
+
+=cut

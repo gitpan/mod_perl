@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.26 1996/09/12 17:47:47 dougm Exp $ */
+/* $Id: Apache.xs,v 1.27 1996/10/09 05:45:07 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -96,8 +96,18 @@ static IV perl_apache_request_rec;
 
 void perl_set_request_rec(request_rec *r)
 {
-  /* Make a pointer to the request structure available as $Apache::Request */
+  /* This will depreciate */
   perl_apache_request_rec = (IV)r;
+  CTRACE(stderr, "perl_set_request_rec\n");
+}
+
+SV *perl_bless_request_rec(request_rec *r)
+{
+    SV *sv = sv_newmortal();
+    char *package = "Apache";
+    sv_setref_pv(sv, package, (void*)r);
+    CTRACE(stderr, "perl_bless_request_rec\n");
+    return sv;
 }
 
 void perl_apache_bootstrap()
@@ -552,15 +562,7 @@ request(packname = "Apache")
     char * packname
 	
     CODE:
-    {
-    HV *stash;
-    SV *sv;
-
-    sv = newSViv(perl_apache_request_rec);
-    stash = gv_stashpv(packname, TRUE);
-    ST(0) = sv_2mortal(sv_bless(newRV(sv), stash));
-    }
-
+    ST(0) = perl_bless_request_rec((request_rec *)perl_apache_request_rec);	   
 #  pool *pool;
 #  conn_rec *connection;
 #  server_rec *server;
