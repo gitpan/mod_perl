@@ -2,11 +2,13 @@ package Apache::Constants;
 
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = "1.02";
+$VERSION = "1.03";
 
 use Carp ();
 use Exporter ();
 use DynaLoader ();
+use strict;
+use vars qw(@ISA %EXPORT_TAGS @EXPORT_OK @EXPORT);
 
 @ISA = qw(Exporter DynaLoader);
 
@@ -88,21 +90,19 @@ use DynaLoader ();
 sub MOVED () {301}
 sub AUTH_REQUIRED () {401}
 
-sub AUTOLOAD {
-    # This AUTOLOAD is used to 'autoload' constants from the constant()
-    # XS function.
-
-    my $constname;
-    ($constname = $AUTOLOAD) =~ s/.*:://;
-    my $val = constant($constname);
-    if ($! != 0) {
-	Carp::croak("Your vendor has not defined Apache macro $constname");
+{
+    my(%SEEN,@export,$key,$val);
+    while(($key,$val) = each %EXPORT_TAGS) {
+	push @export, grep {!$SEEN{$_}++} @$val;
     }
-    eval "sub $AUTOLOAD () { $val }";
-    goto &$AUTOLOAD;
- }
- 
-bootstrap Apache::Constants $VERSION;
+    push @export, grep {!$SEEN{$_}++} @EXPORT;
+    bootstrap Apache::Constants $VERSION;
+    foreach $key (@export) {
+	next if defined &$key;
+	$val = constant($key);
+	eval "sub $key () { $val }";
+    }
+}
 
 1;
 

@@ -52,9 +52,9 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.45 1997/03/20 23:15:20 dougm Exp $ */
+/* $Id: Apache.xs,v 1.46 1997/03/23 16:48:45 dougm Exp $ */
 
-MODULE = Apache  PACKAGE = Apache   
+MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
 PROTOTYPES: DISABLE
 
@@ -73,7 +73,23 @@ seqno(...)
 
 int
 perl_hook(name)
-char *name
+    char *name
+
+int
+mod_perl_push_handlers(self, hook, sub)
+    SV *self
+    SV *hook
+    SV *sub
+
+    CODE:
+    RETVAL = mod_perl_push_handlers(self, hook, sub, Nullav);
+
+    OUTPUT:
+    RETVAL
+
+int
+mod_perl_can_stack_handlers(self)
+    SV *self
 
 void
 untaint(...)
@@ -147,6 +163,41 @@ char *string
     CODE:
     unescape_url(string);
     RETVAL = string;
+
+    OUTPUT:
+    RETVAL
+
+#
+# Doing our own unscape_url for the query info part of an url
+#
+
+char *
+unescape_url_info(url)
+    char *     url
+
+    CODE:
+    register char * trans = url ;
+    char digit ;
+
+    RETVAL = url;
+
+    while (*url != '\0') {
+        if (*url == '+')
+            *trans = ' ';
+	else if (*url != '%')
+	    *trans = *url;
+        else if (!isxdigit(url[1]) || !isxdigit(url[2]))
+            *trans = '%';
+        else {
+            url++ ;
+            digit = ((*url >= 'A') ? ((*url & 0xdf) - 'A')+10 : (*url - '0'));
+            url++ ;
+            *trans = (digit << 4) +
+		(*url >= 'A' ? ((*url & 0xdf) - 'A')+10 : *url);
+        }
+        url++, trans++ ;
+    }
+    *trans = '\0';
 
     OUTPUT:
     RETVAL

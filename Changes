@@ -16,7 +16,30 @@ Other contributors are mentioned below.
 
 =over 3
 
-=item 0.95 
+=item 0.95_02
+
+introduced experimental "stacked handlers" mechanism, allowing more
+than one Perl*Handler to be defined and run during each stage of the
+request.  
+
+Perl*Handler directives can now define any number of subroutines, e.g.
+ 
+ PerlTransHandler OneTrans TwoTrans RedTrans BlueTrans
+
+with a new method, Apache->push_handlers can add to the stack by
+scripts at runtime
+
+PerlLogHandler enabled by default during "stacked handlers" experiment
+
+applied patches from Andreas to quiet prototype warnings seen with
+perl5.003_94  
+
+applied patches from Gerald Richter <richter@ecos.de> to:
+-add Apache::uri_unescape_info function (and make $r->args/content use it)
+-built Apache::MyConfig module
+-Term::Readline Makefile.PL support for history, etc.
+
+=item 0.95 - 03/20/97
 
 ******************************************
 *** CGI-XA/* removed from distribution ***

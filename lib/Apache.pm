@@ -21,7 +21,7 @@ sub parse_args {
     my($wantarray,$string) = @_;
     return unless defined $string and $string;
     if(defined $wantarray and $wantarray) {
-	return map { Apache::unescape_url($_) } split /[=&]/, $string;
+	return map { Apache::unescape_url_info($_) } split /[=&]/, $string;
     }
     $string;
 }
@@ -159,14 +159,14 @@ sub as_string {
     join "\n", @retval, "";
 }
 
-#some backwards-compatible stuff
-sub Apache::TieHandle::TIEHANDLE {
+sub TIEHANDLE {
     my($class, $r) = @_;
-    warn("use of Apache::TieHandle depreciated, *STDOUT is already tie'd");
     $r ||= Apache->request;
 }
 
-*Apache::CGI::exit = \&Apache::exit;
+#some backwards-compatible stuff
+*Apache::TieHandle::TIEHANDLE = \&TIEHANDLE;
+*CGI::Apache::exit = \&Apache::exit;
 
 1;
 
@@ -721,7 +721,13 @@ An alias for Apache->log_error.
 
 =item Apache::unescape_url($string)
 
-Handy function for unescapes.
+Handy function for unescapes.  Use this one for filenames/paths.
+Use unescape_url_info for the result of submitted form data.
+
+=item Apache::unescape_url_info($string)
+
+Handy function for unescapes submitted form data.
+In opposite to unescape_url it translates the plus sign to space.
 
 =item Apache::perl_hook($hook)
 

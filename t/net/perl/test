@@ -11,6 +11,26 @@ $Scalar = 1;
 my $r = Apache->request;
 $ENV{PATH} = "/bin";
 
+sub first_one {
+    print STDERR "first_one called\n";
+    return 0;
+}
+sub Foo::string {
+    print STDERR "Foo::string called\n";
+    return 0;
+}
+
+if(Apache->can_stack_handlers) {
+    $r->push_handlers("PerlLogHandler", "Foo::string");
+
+    Apache->push_handlers("PerlLogHandler", \&first_one);
+
+    $r->push_handlers("PerlLogHandler", sub {
+	print STDERR "__ANON__ called\n";
+	return 0;
+    });
+}
+
 #$r->warn("sequence number: " . $r->seqno);
 
 $r->content_type("text/html");

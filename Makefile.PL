@@ -6,7 +6,61 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.95";
+$VERSION = "0.95_02";
+#
+# Check if Readline is installed
+#
+
+use subs qw(_prompt);
+
+eval 'use Term::ReadLine' ;
+
+if ($@ eq '') {
+    my $term = new Term::ReadLine 'mod_perl install';
+
+    eval <<'EOT' ;
+    
+    sub _prompt {
+       my ($prompt, $default) = @_ ;
+
+       $_ = $term -> readline ("$prompt [$default] ") ;
+       if (!/^\s*$/)
+           {return $_ ;}
+       else {
+	   if ($_ eq "") {
+	       return $default ;
+	   }
+           else {
+	       return "" ; 
+	   }
+       }
+   }
+EOT
+    die $@ if $@;
+    print "ReadLine support enabled\n" ;
+   }
+else { 
+    eval <<'EOT' ;
+    
+    sub main::_prompt {
+	prompt @_ ;
+    }
+EOT
+}
+    
+        
+#
+# Check if knwon config
+#
+
+eval 'use Apache::MyConfig' ;
+
+if ($@ eq '') { 
+    $APACHE_SRC_DEFAULT = $Apache::Config::Setup{Apache_Src} ; 
+}
+else {
+    $APACHE_SRC_DEFAULT = '../apache_x.x/src' ;
+}
 
 my $PWD = cwd;
 
@@ -48,6 +102,7 @@ $NO_HTTPD = $ENV{NO_HTTPD} || 0;
 $PERL_TRACE = 0;
 $ALL_HOOKS  = 0;
 $APACHE_SRC = "";
+$STACKED_HANDLERS = 0;
 
 #callback hooks
 @callback_hooks = qw{
@@ -91,9 +146,9 @@ foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 unless (@adirs) {
     print "Enter `q' to stop search\n";
     while(1) {
-	$src_dir = prompt "Please tell me where I can find your apache src", 
-	                  "../apache_x.x/src";
-	last if $src_dir eq "q";
+       print "Please tell me where I can find your apache src\n" ; 
+       $src_dir = _prompt "", $APACHE_SRC_DEFAULT;
+       last if $src_dir eq "q";
 	if(-d $src_dir) {
 	    push(@adirs, $src_dir);
 	    $mft_map{$src_dir} = $vers_map{httpd_version($src_dir)};
@@ -111,14 +166,14 @@ foreach $adir (@adirs) {
 
     if (-e $httpd_h) {
 	unless($APACHE_SRC) {
-	    $ans = prompt "Configure mod_perl with $adir ?", "y";
+	    $ans = _prompt "Configure mod_perl with $adir ?", "y";
 	    next unless $ans =~ /^y$/i;
 	    $APACHE_SRC = $adir;
 	}
 	$IsBenSSL = -e "$adir/apache_ssl.c";
 	last unless(-e $conf || -e "$conf.tmpl"); #building from 'make offsite-tar' 
 	unless ($NO_HTTPD) {
-	    $ans = prompt "Shall I build httpd in $adir for you?", "y";
+	    $ans = _prompt "Shall I build httpd in $adir for you?", "y";
 	    ++$NO_HTTPD unless $ans =~ /^y$/i;
 	}
 	last if $NO_HTTPD;
@@ -223,6 +278,10 @@ unless ($NO_HTTPD) {
     system $^X, "-pi~", "-e", 
     "s/^#TRACE/TRACE/", "$APACHE_SRC/modules/perl/Makefile" if $PERL_TRACE;
 
+    system $^X, "-pi~", "-e", 
+    's/^#(PERL_STACKED_HANDLERS)/$1/', 
+    "$APACHE_SRC/modules/perl/Makefile" if $STACKED_HANDLERS;
+
     if($callback_hooks{PERL_TRANS}) {
 	push @test_pre_init, 
 	"\t", '$(CP) t/conf/mod_perl_srm.conf /tmp', "\n";
@@ -262,6 +321,27 @@ unless(-e "t/conf/httpd.conf") {
 	close CONF;
     }
 }
+
+
+# writing Configuration to Apache::MyConfig
+
+open FH, '>lib/Apache/MyConfig.pm'  ||
+    die "Can't open lib/Apache/MyConfig.pm: $!";
+print FH <<EOT;
+#
+# Configuartion for mod_perl and Apache::...
+#
+package Apache::MyConfig ;
+
+%Setup = (
+   'Apache_Src' => \'$APACHE_SRC\'
+);
+
+1;
+
+__END__
+EOT
+close FH;
 
 #checking for LWP code, borrowed from LWP's own Makefile.PL :-)
 print "Checking for LWP::UserAgent...";

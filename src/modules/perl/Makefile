@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.19 1997/03/18 05:40:35 dougm Exp $
+# $Id: Makefile,v 1.20 1997/03/23 16:48:45 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -70,12 +70,14 @@ PERL_FIXUP  = -DNO_PERL_FIXUP
 PERL_LOG    = -DNO_PERL_LOG 
 PERL_HEADER_PARSER = -DNO_PERL_HEADER_PARSER
 
+#PERL_STACKED_HANDLERS = -DPERL_STACKED_HANDLERS
+
 PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOG) \
-$(PERL_HEADER_PARSER)
+$(PERL_HEADER_PARSER) $(PERL_STACKED_HANDLERS)
 
 #TRACE = -DPERL_TRACE
-PERL=/afs/ri/project/perl/bin/perl
+PERL=/opt/perl5.003/bin/perl
 PERL_STATIC_EXTS = Apache `$(PERL) -MConfig -e 'print $$Config{static_ext}'`
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed

@@ -10,8 +10,18 @@ symbol table (stems from CGI.pm now XA.pm)
 Apache::Registry should honor __END__ and __DATA__,
 but how to get it right?
 
-extend Perl*Handler model so they can be stacked
-(e.g. PerlTransHandler OneSub TwoSub RedSub BlueSub)
+improve the "stacked handlers" implementation, including:
+-allowing all array-like operations besides push_handlers,
+pop_handlers, shift_handlers, unshift_handlers, splice_handlers, etc.
+
+-allow push_handlers to have an additional argument, an array ref,
+which will be passed to the handler as arguments, e.g.
+ $r->push_handlers("PerlHandler", \&some_sub, ['one', 'two', 'etc']);
+
+-allow Perl*Handler's to have arguments in config files, e.g.:
+
+ PerlHandler FooPackage [One Two Three]
+ (calls &FooPackage::handler($r, "One", "Two", "Three");
 
 provide an optional and configurable Safe wrapper around embedded scripts
 

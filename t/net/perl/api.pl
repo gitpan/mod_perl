@@ -1,14 +1,17 @@
 use Apache ();
 use strict;
-use vars qw($r);
-sub test { $r->print(sprintf "%s", $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n") }
 
 my $tests = 21;
 my $i;
-$r = Apache->request;
-$r->content_type("text/html");
+my $r = Apache->request;
+$r->content_type("text/plain");
 $r->send_http_header;
 $r->print("1..$tests\n");
+
+sub test { 
+    Apache->request->
+	print(sprintf "%s", $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n");
+}
 
 %ENV = $r->cgi_env;
 

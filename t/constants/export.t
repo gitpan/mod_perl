@@ -15,22 +15,26 @@ if($version =~ /1\.1\.\d/) {
     exit(0);
 }
 
+my(%SEEN);
 while(($key,$val) = each %Apache::Constants::EXPORT_TAGS) {
     print "importing tag $key\n";
     Apache::Constants->import(":$key");
-    push @export, @$val;
+    push @export, grep {!$SEEN{$_}++} @$val;
 }
 
-push @export, @Apache::Constants::EXPORT;
+push @export, grep {!$SEEN{$_}++} @Apache::Constants::EXPORT;
+
 $tests = (1 + @export); 
 print "1..$tests\n"; 
 #$loaded = 1;
 print "ok 1\n";
 $ix = 2;
 
-for (@export) {
-    $val = &$_;
-    print defined $val ? "ok $ix\n" : "not ok $ix\n";
+my($sym);
+
+for $sym (sort @export) {
+    my $val = &$sym;
+    print defined $val ? "" : "not ", "ok $ix ($sym: $val)\n";
     $ix++;
 }
 
