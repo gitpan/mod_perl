@@ -8,6 +8,26 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.26 - July 11, 2001
+
+fix 'make test' problem seen with Perl 5.005_03
+
+remove $r->finfo usage from Apache::PerlRun, clearly finfo isn't as
+stable as it should be
+[Surat Singh Bhati <surat@indiamart.com>]
+
+Apache->server will now point the current VirtualHost when inside a
+<Perl> section, thanks to Robin Berjon for the spot
+
+allow per-server and per-location PerlSetEnv to be properly merged
+when a per-server handler is configured, thanks to Michael Barry for
+the spot
+
+enabled Apache::ModuleConfig on win32
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+win32 support for Apache::src [Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
 =item 1.25_01 - July 6, 2001
 
 add symbols to mod_perl.exp for aix/axkit
