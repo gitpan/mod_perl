@@ -18,7 +18,7 @@ PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
 	(cd modules/perl; \
-	make CC=$(CC) AUX_CFLAGS='$(CFLAGS) $(SSL_CFLAGS)' RANLIB=$(RANLIB) PERL=$(PERL);)
+	make CC='$(CC)' AUX_CFLAGS='$(CFLAGS) $(SSL_CFLAGS)' RANLIB=$(RANLIB) PERL=$(PERL);)
 
 Configuration: Configuration.tmpl
 	@echo "Configuration older than Configuration.tmpl, or doesn't exist."

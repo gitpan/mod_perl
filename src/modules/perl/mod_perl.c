@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.47 1997/04/02 01:30:38 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.48 1997/04/02 03:16:20 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -454,7 +454,8 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
     perl_dir_config *add = (perl_dir_config *)addv;
 
     new->vars = overlay_tables(p, add->vars, base->vars);
-
+    new->setup_env = add->setup_env ? add->setup_env : base->setup_env;
+    new->sendheader = add->sendheader ? add->sendheader : base->sendheader;
     new->PerlHandler = add->PerlHandler ? add->PerlHandler : base->PerlHandler;
 
 #ifdef PERL_ACCESS

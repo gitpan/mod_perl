@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.95_04";
+$VERSION = "0.95_05";
 #
 # Check if Readline is installed
 #
@@ -435,7 +435,7 @@ sub MY::top_targets {
     $string .= <<'EOF';
 
 apache_httpd: $(APACHE_SRC)/Configuration	
-	(cd $(APACHE_SRC); $(MAKE) CC="$(CC)";)
+	(cd $(APACHE_SRC); $(MAKE);)
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \

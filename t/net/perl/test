@@ -21,7 +21,7 @@ sub Foo::string {
 }
 
 if(Apache->can_stack_handlers) {
-#    $r->push_handlers("PerlLogHandler", "Foo::string");
+    $r->push_handlers("PerlLogHandler", "Foo::string");
 
     Apache->push_handlers("PerlLogHandler", \&first_one);
 
@@ -57,7 +57,7 @@ if ($ENV{CONTENT_LENGTH}) {
     my $content = $r->content;
 
     eval { system $content };
-    die "TaintCheck failed, I can `system $content'" unless $@;
+    die "TaintCheck failed, I can `system \$content'" unless $@;
     warn "TRAPPED: `system \$r->content' '$@'\n";
 
     $r->print("\nContent\n-------\n$content");

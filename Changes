@@ -16,6 +16,13 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.95_05
+
+make sure merge of configs accounts for sendheader and setup_env too!
+
+applied patches from Glen McCallum <glenm@tusc.com.au> so build works
+with hpux 10.20's native compiler
+
 =item 0.95_04
 
 dir configs are now merged so <Location> blocks can have Perl*Handlers

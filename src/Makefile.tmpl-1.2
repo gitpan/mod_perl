@@ -30,17 +30,17 @@ PERL=/opt/perl5.003/bin/perl
 PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
-	(cd modules/perl && $(MAKE) CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)' PERL=$(PERL);)
+	(cd modules/perl && $(MAKE) CC='$(CC)' AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)' PERL=$(PERL);)
 
 httpd: $(REGLIB) $(OBJS)
 	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS)
 
 regex/libregex.a:
-	(cd regex; $(MAKE) lib CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
+	(cd regex; $(MAKE) lib CC='$(CC)' AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
 
 modules/proxy/libproxy.a:
 	(cd modules; \
-	$(MAKE) CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
+	$(MAKE) CC='$(CC)' AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')
 
 clean:
 	rm -f httpd $(OBJS) 
