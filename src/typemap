@@ -1,0 +1,4 @@
+TYPEMAP
+Apache			T_PTROBJ
+Apache::Connection	T_PTROBJ
+Apache::Server		T_PTROBJ
