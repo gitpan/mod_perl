@@ -9,8 +9,6 @@ package TestDirective::perlrequire;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache2 ();
-
 use Apache::Test ();
 
 use Apache::RequestRec ();
@@ -56,6 +54,8 @@ EOF
 
 1;
 __END__
+# APACHE_TEST_CONFIG_ORDER 940
+
 <Base>
     PerlSwitches -I@documentroot@/testdirective/main
     PerlRequire "ApacheTest/PerlRequireTest.pm"

@@ -170,7 +170,8 @@ SSL, are now possible without needing to modify the the server code
 which was the case with Apache 1.3.
 
 In order to make the filtering mechanism efficient and avoid
-unnecessary copying, the I<Bucket Brigades> technology was introduced.
+unnecessary copying, while keeping the data abstracted, the I<Bucket
+Brigades> technology was introduced.
 
 A bucket represents a chunk of data.  Buckets linked together comprise
 a brigade. Each bucket in a brigade can be modified, removed and
@@ -196,8 +197,8 @@ modified and some added. Of course the handler that gets the brigade
 cannot tell the history of the brigade, it can only see the existing
 buckets in the brigade.
 
-Bucket brigades are discussed in detail in the L<connection
-protocols|docs::2.0::user::handlers::protocols> and L<I/O
+Bucket brigades are discussed in detail in the L<protocol
+handlers|docs::2.0::user::handlers::protocols> and L<I/O
 filtering|docs::2.0::user::handlers::filters> chapters.
 
 
@@ -306,6 +307,8 @@ Location|docs::2.0::user::config::config/mod_perl_Directives_Argument_Types_and_
 The following constants specify how the new hooks (handlers) are
 inserted into the list of hooks when there is at least one hook
 already registered for the same phase.
+
+META: Not working yet.
 
 META: need to verify the following:
 

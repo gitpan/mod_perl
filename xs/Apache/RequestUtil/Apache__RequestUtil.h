@@ -214,3 +214,44 @@ char *mpxs_Apache__RequestRec_location(request_rec *r)
 
     return dcfg->location;
 }
+
+typedef struct {
+    PerlInterpreter *perl;
+    SV *sv;
+} sv_str_header_t;
+
+static int sv_str_header(void *arg, const char *k, const char *v)
+{
+    sv_str_header_t *svh = (sv_str_header_t *)arg;
+    dTHXa(svh->perl);
+    Perl_sv_catpvf(aTHX_ svh->sv, "%s: %s\n", k, v);
+    return 1;
+}
+
+static MP_INLINE
+SV *mpxs_Apache__RequestRec_as_string(pTHX_ request_rec *r)
+{
+    sv_str_header_t svh;
+#ifdef USE_ITHREADS
+    svh.perl = aTHX;
+#endif
+
+    svh.sv = newSVpv(r->the_request, 0);
+
+    sv_catpvn(svh.sv, "\n", 1);
+
+    apr_table_do((int (*) (void *, const char *, const char *))
+                 sv_str_header, (void *) &svh, r->headers_in, NULL);
+
+    Perl_sv_catpvf(aTHX_ svh.sv, "\n%s %s\n", r->protocol, r->status_line);
+
+    apr_table_do((int (*) (void *, const char *, const char *))
+                 sv_str_header, (void *) &svh, r->headers_out, NULL);
+    apr_table_do((int (*) (void *, const char *, const char *))
+                 sv_str_header, (void *) &svh, r->err_headers_out, NULL);
+
+    sv_catpvn(svh.sv, "\n", 1);
+
+    return svh.sv;
+}
+

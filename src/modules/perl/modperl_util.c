@@ -614,3 +614,4 @@ SV *modperl_perl_gensym(pTHX_ char *pack)
                     GvNAME(gv), GvNAMELEN(gv), G_DISCARD);
     return rv;
 }
+

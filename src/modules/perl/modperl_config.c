@@ -164,6 +164,22 @@ void *modperl_config_srv_create(apr_pool_t *p, server_rec *s)
 
     ap_mpm_query(AP_MPMQ_IS_THREADED, &scfg->threaded_mpm);
 
+    if (!s->is_virtual) {
+
+        /* Must store the global server record as early as possible,
+         * because if mod_perl happens to be started from within a
+         * vhost (e.g., PerlLoadModule) the base server record won't
+         * be availalbe to vhost and things will blow up
+         */
+        modperl_init_globals(s, p);
+
+        /* give a chance to MOD_PERL_TRACE env var to set
+         * PerlTrace. This place is the earliest point in mod_perl
+         * configuration parsing, when we have the server object
+         */
+        modperl_trace_level_set(s, NULL);
+    }
+    
 #ifdef USE_ITHREADS
 
     scfg->interp_pool_cfg = 
@@ -237,6 +253,9 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     }
     for (i=0; i < MP_HANDLER_NUM_PROCESS; i++) {
         merge_handlers(MpSrvMERGE_HANDLERS, handlers_process[i]);
+    }
+    for (i=0; i < MP_HANDLER_NUM_PRE_CONNECTION; i++) {
+        merge_handlers(MpSrvMERGE_HANDLERS, handlers_pre_connection[i]);
     }
     for (i=0; i < MP_HANDLER_NUM_CONNECTION; i++) {
         merge_handlers(MpSrvMERGE_HANDLERS, handlers_connection[i]);

@@ -182,7 +182,7 @@ MP_INLINE GV *modperl_mgv_lookup_autoload(pTHX_ modperl_mgv_t *symbol,
 #endif
 
 int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
-                        apr_pool_t *p, const char *name)
+                        apr_pool_t *p, const char *name, int logfailure)
 {
     CV *cv;
     GV *gv;
@@ -272,7 +272,9 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
 
             /* last guess: Perl*Handler is a fully qualified subroutine name
              * but its module was not loaded
-             */
+             * XXX: This guess may incorrectly pick the wrong module,
+             * e.g. if Apache::Foo is not found, Apache will be picked
+             */ 
             if (ix != -1) {
                 /* split Foo::Bar::baz into Foo::Bar, baz */
                 char *try_package = apr_pstrndup(p, name, ix-1);
@@ -286,14 +288,26 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
                     MP_TRACE_h(MP_FUNC, "loaded %s package\n", try_package);
                     stash = gv_stashpv(try_package, FALSE);
                 }
+                else {
+                    /* however, if require has failed and the error
+                     * wasn't "Can't locate ...", we did find the
+                     * package, and there is a problem with it
+                     */
+                    if (strnNE(SvPVX(ERRSV), "Can't locate", 12)) {
+                        errlen = SvCUR(ERRSV);
+                        errpv  = apr_pstrndup(p, SvPVX(ERRSV), errlen);
+                    }
+                }
             }
 
             if (!stash) {
                 if (errlen) {
                     sv_setpvn(ERRSV, errpv, errlen);
                 }
-                (void)modperl_errsv(aTHX_ HTTP_INTERNAL_SERVER_ERROR,
-                                    NULL, NULL);
+                if (logfailure) {
+                    (void)modperl_errsv(aTHX_ HTTP_INTERNAL_SERVER_ERROR,
+                                        NULL, NULL);
+                }
                 MP_TRACE_h(MP_FUNC, "failed to load %s package\n", name);
                 return 0;
             }
@@ -320,9 +334,14 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
                    MpHandlerMETHOD(handler) ? "method" : "function");
         return 1;
     }
-    
-    MP_TRACE_h(MP_FUNC, "`%s' not found in class `%s'\n",
-               handler_name, name);
+
+#ifdef MP_TRACE
+    /* complain only if the class was actually loaded/created */
+    if (stash) {
+        MP_TRACE_h(MP_FUNC, "`%s' not found in class `%s'\n",
+                   handler_name, name);
+    }
+#endif
 
     return 0;
 }
@@ -424,7 +443,7 @@ static void modperl_hash_handlers(pTHX_ apr_pool_t *p, server_rec *s,
                 MpHandlerAUTOLOAD_On(handler);
             }
 
-            modperl_mgv_resolve(aTHX_ handler, p, handler->name);
+            modperl_mgv_resolve(aTHX_ handler, p, handler->name, TRUE);
         }
     }
 }

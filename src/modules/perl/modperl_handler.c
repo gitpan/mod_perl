@@ -58,7 +58,7 @@ int modperl_handler_resolve(pTHX_ modperl_handler_t **handp,
                    duped ? "current" : "server conf",
                    (unsigned long)rp);
 
-        if (!modperl_mgv_resolve(aTHX_ handler, rp, handler->name)) {
+        if (!modperl_mgv_resolve(aTHX_ handler, rp, handler->name, FALSE)) {
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, 
                          "failed to resolve handler `%s'",
                          handler->name);
@@ -143,6 +143,11 @@ void modperl_handler_make_args(pTHX_ AV **avp, ...)
         ptr = va_arg(args, void *);
 
         switch (*classname) {
+          case 'A':
+            if (strEQ(classname, "APR::Table")) {
+                sv = modperl_hash_tie(aTHX_ classname, Nullsv, ptr);
+                break;
+            }  
           case 'I':
             if (strEQ(classname, "IV")) {
                 sv = ptr ? newSViv((IV)ptr) : &PL_sv_undef;
@@ -214,6 +219,11 @@ MpAV **modperl_handler_lookup_handlers(modperl_config_dir_t *dcfg,
             ravp = &rcfg->handlers_per_srv[idx];
         }
         set_desc(per_srv);
+        break;
+      case MP_HANDLER_TYPE_PRE_CONNECTION:
+        avp = &scfg->handlers_pre_connection[idx];
+        check_modify(connection);
+        set_desc(connection);
         break;
       case MP_HANDLER_TYPE_CONNECTION:
         avp = &scfg->handlers_connection[idx];
@@ -359,7 +369,7 @@ SV *modperl_handler_perl_get_handlers(pTHX_ MpAV **handp, apr_pool_t *p)
                 handler = handlers[i];
             }
 
-            if (!modperl_mgv_resolve(aTHX_ handler, p, handler->name)) {
+            if (!modperl_mgv_resolve(aTHX_ handler, p, handler->name, TRUE)) {
                 MP_TRACE_h(MP_FUNC, "failed to resolve handler %s\n",
                            handler->name);
             }

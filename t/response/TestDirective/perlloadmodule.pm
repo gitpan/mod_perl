@@ -1,4 +1,4 @@
-package TestDirective::loadmodule;
+package TestDirective::perlloadmodule;
 
 use strict;
 use warnings FATAL => 'all';
@@ -126,3 +126,15 @@ sub handler : method {
 
 1;
 __END__
+
+# APACHE_TEST_CONFIG_ORDER 950
+
+<Base>
+    PerlLoadModule TestDirective::perlloadmodule
+
+    MyTest one two
+    ServerTest per-server
+</Base>
+
+MyOtherTest value
+

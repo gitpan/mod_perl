@@ -41,10 +41,8 @@ C<ServerRoot> is specified.
 
 If mod_perl has been statically linked it's automatically enabled.
 
-Win32 users need to make sure that the path to the Perl binary (e.g.,
-I<C:\Perl\bin>) is in the C<PATH> environment variable.
-
-
+For Win32 specific details, see the documentation on
+L<Win32 configuration|docs::2.0::os::win32::config>.
 
 
 
@@ -130,7 +128,43 @@ Finally as usual the I<startup.pl> file must be terminated with C<1;>.
 
 
 
-=head1 Perl's Command Line Switches
+=head1 Server Configuration Directives
+
+=head2 C<PerlRequire>
+
+  META: to be written
+
+=head2 C<PerlModule>
+
+  META: to be written
+
+=head2 C<PerlLoadModule>
+
+  META: to be written
+  discused somewhere in docs::2.0::user::config::custom
+
+=head2 C<PerlSetVar>
+
+  META: to be written
+
+=head2 C<PerlAddVar>
+
+  META: to be written
+
+=head2 C<PerlSetEnv>
+
+  META: to be written
+
+=head2 C<PerlPassEnv>
+
+  META: to be written
+
+=head2 C<E<lt>PerlE<gt>> Sections
+
+  META: to be written. probably needs a dedicated chapter.
+
+
+=head2 C<PerlSwitches>
 
 Now you can pass any Perl's command line switches in I<httpd.conf>
 using the C<PerlSwitches> directive. For example to enable warnings
@@ -149,16 +183,12 @@ equivalent as C<use lib>, but it's broken on certain platforms/version
 whereas C<-I> does not.
 
 
+=head2 C<SetHandler>
 
+mod_perl 2.0 provides two types of C<SetHandler> handlers: C<modperl>
+and C<perl-script>.
 
-
-
-=head1 mod_perl 2.0 Handlers
-
-mod_perl 2.0 provides two types of handlers: C<modperl> and
-C<perl-script>.
-
-=head2 modperl
+=head3 C<modperl>
 
 Configured as:
 
@@ -216,7 +246,7 @@ Alternatively use the Apache core directives C<SetEnv> and C<PassEnv>,
 which always populate C<r-E<gt>subprocess_env>, but this doesn't happen
 until the Apache I<fixups> phase, which could be too late for your needs.
 
-=head2 perl-script
+=head3 C<perl-script>
 
 Configured as:
 
@@ -245,7 +275,7 @@ is specified.
 
 =item *
 
-C<STDOUT> and C<STDOUT> get tied to the request object C<$r>, which
+C<STDIN> and C<STDOUT> get tied to the request object C<$r>, which
 makes possible to read from C<STDIN> and print directly to C<STDOUT>
 via C<CORE::print()>, instead of implicit calls like
 C<$r-E<gt>puts()>.
@@ -259,15 +289,7 @@ array (C<PL_endav>).
 
 =back
 
-
-
-
-
-
-
-
-
-=head1 C<PerlOptions> Directive
+=head2 C<PerlOptions>
 
 The directive C<PerlOptions> provides fine-grained configuration for
 what were compile-time only options in the first mod_perl generation.
@@ -278,7 +300,7 @@ C<E<lt>LocationE<gt>>, C<E<lt>DirectoryE<gt>>, etc.
 Options are enabled by prepending C<+> and disabled with C<->. The
 options include:
 
-=head2 C<Enable>
+=head3 C<Enable>
 
 On by default, can be used to disable mod_perl for a given
 C<VirtualHost>. For example:
@@ -287,7 +309,7 @@ C<VirtualHost>. For example:
       PerlOptions -Enable
   </VirtualHost>
 
-=head2 C<Clone>
+=head3 C<Clone>
 
 Share the parent Perl interpreter, but give the C<VirtualHost> its own
 interpreter pool. For example should you wish to fine tune interpreter
@@ -313,7 +335,7 @@ C<PerlSwitches> use:
   </VirtualHost>
 
 
-=head2 C<Parent>
+=head3 C<Parent>
 
 Create a new parent Perl interpreter for the given C<VirtualHost> and
 give it its own interpreter pool (implies the C<Clone> option).
@@ -352,7 +374,7 @@ Or even for a given location, for something like "dirty" cgi scripts:
 will use a fresh interpreter with its own namespace to handle each
 request.
 
-=head2 C<Perl*Handler>
+=head3 C<Perl*Handler>
 
 Disable C<Perl*Handler>s, all compiled-in handlers are enabled by
 default. The option name is derived from the C<Perl*Handler> name, by
@@ -376,7 +398,7 @@ Or maybe everything but the response handler:
       PerlOptions None +Response
   </VirtualHost>
 
-=head2 C<AutoLoad>
+=head3 C<AutoLoad>
 
 Resolve C<Perl*Handlers> at startup time, which includes loading the
 modules from disk if not already loaded.
@@ -405,7 +427,7 @@ add:
 
 in our example.
 
-=head2 C<GlobalRequest>
+=head3 C<GlobalRequest>
 
 Setup the global C<request_rec> for use with C<Apache-E<gt>request>.
 This setting is needed for example if you use C<CGI.pm> to process the
@@ -428,7 +450,7 @@ And can be disabled with:
 
 
 
-=head2 C<ParseHeaders>
+=head3 C<ParseHeaders>
 
 Scan output for HTTP headers, same functionality as mod_perl 1.0's
 C<PerlSendHeader>, but more robust. This option is usually needs to
@@ -436,7 +458,7 @@ be enabled for registry scripts which send the HTTP header with:
 
   print "Content-type: text/html\n\n";
 
-=head2 C<MergeHandlers>
+=head3 C<MergeHandlers>
 
 Turn on merging of C<Perl*Handler> arrays. For example with a setting:
 
@@ -460,7 +482,7 @@ a request for I</inside> will run both C<Apache::FixupA> and
 C<Apache::FixupB> handlers.
 
 
-=head2 C<SetupEnv>
+=head3 C<SetupEnv>
 
 Set up environment variables for each request ala mod_cgi. 
 
@@ -511,7 +533,7 @@ set by you.  For example when you use the following configuration:
   <Location /perl>
     PerlSetEnv TEST hi
     SetHandler perl-script
-    PerlHandler ModPerl::Registry
+    PerlResponseHandler ModPerl::Registry
     Options +ExecCGI
   </Location>
 
@@ -543,11 +565,124 @@ Notice that we have got the value of the environment variable I<TEST>.
 
 
 
+=head1 Server Life Cycle Handlers Directives
 
-=head1 Handlers Directives
+See L<Server life cycle|docs::2.0::user::handlers::server/>.
 
-See L<The handlers chapters|docs::2.0::user::handlers::index>.
 
+
+=head2 C<PerlOpenLogsHandler>
+
+See C<L<PerlOpenLogsHandler|docs::2.0::user::handlers::server/PerlOpenLogsHandler>>.
+
+=head2 C<PerlPostConfigHandler>
+
+See C<L<PerlPostConfigHandler|docs::2.0::user::handlers::server/PerlPostConfigHandler>>.
+
+=head2 C<PerlChildInitHandler>
+
+See C<L<PerlChildInitHandler|docs::2.0::user::handlers::server/PerlChildInitHandler>>.
+
+=head2 C<PerlChildExitHandler>
+
+See C<L<PerlChildExitHandler|docs::2.0::user::handlers::server/PerlChildExitHandler>>.
+
+
+
+
+
+
+
+=head1 Protocol Handlers Directives
+
+See L<Protocol handlers|docs::2.0::user::handlers::protocols/>.
+
+
+
+=head2 C<PerlPreConnectionHandler>
+
+See C<L<PerlPreConnectionHandler|docs::2.0::user::handlers::protocols/PerlPreConnectionHandler>>.
+
+=head2 C<PerlProcessConnectionHandler>
+
+See C<L<PerlProcessConnectionHandler|docs::2.0::user::handlers::protocols/PerlProcessConnectionHandler>>.
+
+
+
+
+
+
+=head1 Filter Handlers Directives
+
+See L<Filter handlers|docs::2.0::user::handlers::filters/>.
+
+
+
+=head2 C<PerlInputFilterHandler>
+
+See C<L<PerlInputFilterHandler|docs::2.0::user::handlers::filters/PerlInputFilterHandler>>.
+
+=head2 C<PerlOutputFilterHandler>
+
+See C<L<PerlOutputFilterHandler|docs::2.0::user::handlers::filters/PerlOutputFilterHandler>>.
+
+
+
+
+
+
+=head1 HTTP Protocol Handlers Directives
+
+See L<HTTP protocol handlers|docs::2.0::user::handlers::http/>.
+
+
+=head2 C<PerlPostReadRequestHandler>
+
+See C<L<PerlPostReadRequestHandler|docs::2.0::user::handlers::http/PerlPostReadRequestHandler>>.
+
+=head2 C<PerlTransHandler>
+
+See C<L<PerlTransHandler|docs::2.0::user::handlers::http/PerlTransHandler>>.
+
+=head2 C<PerlInitHandler>
+
+See C<L<PerlInitHandler|docs::2.0::user::handlers::http/PerlInitHandler>>.
+
+=head2 C<PerlHeaderParserHandler>
+
+See C<L<PerlHeaderParserHandler|docs::2.0::user::handlers::http/PerlHeaderParserHandler>>.
+
+=head2 C<PerlAccessHandler>
+
+See C<L<PerlAccessHandler|docs::2.0::user::handlers::http/PerlAccessHandler>>.
+
+=head2 C<PerlAuthenHandler>
+
+See C<L<PerlAuthenHandler|docs::2.0::user::handlers::http/PerlAuthenHandler>>.
+
+=head2 C<PerlAuthzHandler>
+
+See C<L<PerlAuthzHandler|docs::2.0::user::handlers::http/PerlAuthzHandler>>.
+
+=head2 C<PerlTypeHandler>
+
+See C<L<PerlTypeHandler|docs::2.0::user::handlers::http/PerlTypeHandler>>.
+
+=head2 C<PerlFixupHandler>
+
+See C<L<PerlFixupHandler|docs::2.0::user::handlers::http/PerlFixupHandler>>.
+
+=head2 C<PerlResponseHandler>
+
+See C<L<PerlResponseHandler|docs::2.0::user::handlers::http/PerlResponseHandler>>.
+
+=head2 C<PerlLogHandler>
+
+See C<L<PerlLogHandler|docs::2.0::user::handlers::http/PerlLogHandler>>.
+
+=head2 C<PerlCleanupHandler>
+
+See C<L<PerlCleanupHandler|docs::2.0::user::handlers::http/PerlCleanupHandler>>.
 
 
 
@@ -565,6 +700,8 @@ These directives are enabled only in a threaded mod_perl+Apache combo:
 
 The number of interpreters to clone at startup time.
 
+Default value: 3
+
 =head2 C<PerlInterpMax>
 
 If all running interpreters are in use, mod_perl will clone new
@@ -573,21 +710,32 @@ interpreters is reached. when C<PerlInterpMax> is reached, mod_perl
 will block (via COND_WAIT()) until one becomes available (signaled via
 COND_SIGNAL()).
 
+Default value: 5
+
 =head2 C<PerlInterpMinSpare>
 
 The minimum number of available interpreters this parameter will clone
 interpreters up to C<PerlInterpMax>, before a request comes in.
+
+Default value: 3
+
 
 =head2 C<PerlInterpMaxSpare>
 
 mod_perl will throttle down the number of interpreters to this number
 as those in use become available.
 
+Default value: 3
+
+
 =head2 C<PerlInterpMaxRequests>
 
 The maximum number of requests an interpreter should serve, the
 interpreter is destroyed when the number is reached and replaced with
 a fresh clone.
+
+Default value: 2000
+
 
 =head2 C<PerlInterpScope>
 
@@ -634,8 +782,42 @@ possible to do so on a per-virtualhost basis:
 
   PerlInterpScope connection
 
+Default value: C<request>
 
 
+
+=head1 Debug Directives
+
+=head2 C<PerlTrace>
+
+The C<PerlTrace> is used for tracing the mod_perl execution. This
+directive is enabled when mod_perl is compiled with the C<MP_TRACE=1>
+option.
+
+To enable tracing, add to I<httpd.conf>:
+
+  PerlTrace [level]
+
+where C<level> is either:
+
+  all
+
+which sets maximum logging and debugging levels;
+
+a combination of one or more option letters (or option numerical
+equivalents) from the following list:
+
+  d (  1) directive processing
+  f (  2) filters
+  g (  4) Perl runtime interaction
+  h (  8) handlers
+  i ( 16) interpreter pool management
+  m ( 32) memory allocations
+  s ( 64) perl sections
+  t (128) benchmark-ish timings
+
+When C<PerlTrace> is not specified, the tracing level will be set to
+the value of the C<$ENV{MOD_PERL_TRACE}> environment variable.
 
 
 
@@ -655,6 +837,7 @@ General directives:
   PerlSwitches                 ITERATE    SRV
   PerlRequire                  ITERATE    SRV
   PerlModule                   ITERATE    SRV
+  PerlLoadModule               RAW_ARGS   SRV
   PerlOptions                  ITERATE    DIR
   PerlSetVar                   TAKE2      DIR
   PerlAddVar                   ITERATE2   DIR
@@ -821,20 +1004,20 @@ mode use:
       print "Running in a single mode";
   }
 
-=head2 MODPERL2 Define Option
+=head2 C<MODPERL2> Define Option
 
-When running under mod_perl 2.0 a special configuration define
-C<MODPERL2> is enabled internally, as if the server had been started
-with C<-DMODPERL2>. For example this can be used to write a
+When running under mod_perl 2.0 a special configuration "define"
+symbol C<MODPERL2> is enabled internally, as if the server had been
+started with C<-DMODPERL2>. For example this can be used to write a
 configuration file which needs to do something different whether it's
 running under mod_perl 1.0 or 2.0:
 
- <IfDefine MODPERL2>
-     # 2.0 configuration
- </IfDefine>
- <IfDefine !MODPERL2>
-     # else
- </IfDefine>
+  <IfDefine MODPERL2>
+      # 2.0 configuration
+  </IfDefine>
+  <IfDefine !MODPERL2>
+      # else
+  </IfDefine>
 
 From within Perl code this can be tested with
 C<Apache::exists_config_define()>, for example:
@@ -849,44 +1032,12 @@ C<Apache::exists_config_define()>, for example:
 
 =head1 Perl Interface to the Apache Configuration Tree
 
-META:
+META: any volunteers to write this section? see
+t/response/TestApache/conftree.pm for examples of using the api.
 
-Apache::Directive
-
-t/response/TestApache/conftree.pm
-
+L<Apache::Directive|docs::2.0::api::modperl_2.0::Apache::Directive>.
 
 
-
-
-
-
-
-=head1 Debug Directives
-
-=head2 C<PerlTrace [level]>
-
-set the trace level. This directive is enabled when mod_perl is
-compiled with the MP_TRACE option. C<level> is either:
-
-  all
-
-which sets maximum logging and debugging levels;
-
-a combination of one or more option letters (or option numerical
-equivalents) from the following list:
-
-  d (  1) directive processing
-  f (  2) filters
-  g (  4) Perl runtime interaction
-  h (  8) handlers
-  i ( 16) interpreter pool management
-  m ( 32) memory allocations
-  s ( 64) perl sections
-  t (128) benchmark-ish timings
-
-When C<level> is not specified, the tracing level will be set to the
-value of the MOD_PERL_TRACE environment variable.
 
 
 

@@ -14,17 +14,12 @@ config features:
 - allow <Perl></Perl> configuration sections to have read access to internal
   configuration structures (would be nice if we could tie a %namespace::) 
 
-- allow things like <Perl main> -- the code will be placed into 'main'
-  package. Of course any package can be specified and the default is
-  Apache::ReadConfig. That would place a little meme-fleck into
-  people's brains to remind them that the default package is
-  Apache::ReadConfig.
-
 - setuid/gid before running any Perl code
 
 - implement PerlINC (or similar) as a nicer interface for the working
   PerlSwitches -Mlib=/home/dev1/lib/perl, to set different @INC for
   different virtual hosts.
+  See the thread: http://marc.theaimsgroup.com/?t=100554858800001&r=1&w=2
 
 - a possible implementation of PerlOptions +Inherit, similar to
   +Parent but which allows virtual hosts to inherit everything that
@@ -94,8 +89,7 @@ modules:
   + currently works only with $] >= 5.007003 (see the
     apache/subprocess test)
 
-- Apache::compat has to be loaded before CGI.pm, other than
-  documenting this issue, it's possible that we will add:
+- It's possible that we will add:
 
   #ifdef MP_APACHE_COMPAT
        modperl_require_module("Apache::compat");
@@ -103,6 +97,10 @@ modules:
 
   if MP_APACHE_COMPAT Makefile.PL option is true. But this adds bloat,
   so this is just an option to consider.
+
+- Apache::File->tmpfile now lives only in compat. Consider adding
+  APR::File->mktemp (apr_file_mktemp) and a perlio layer
+  defined in terms of apr_file_t to use it.
 
 
 new modules:

@@ -138,7 +138,7 @@ sub die_on_invalid_args {
     # at this stage $self->{argv} should be empty
     my @invalid_argv = @{ $self->{argv} };
     if (@invalid_argv) {
-        error "unknown opts or test names: @invalid_argv";
+        error "unknown opts or test names: @invalid_argv\n-help will list options\n";
         exit_perl 0;
     }
 
@@ -610,6 +610,7 @@ sub scan_core {
     my $times = 0;
 
     finddepth(sub {
+        return unless -f $_;
         return unless /$core_pat/o;
         my $core = "$File::Find::dir/$_";
         if (exists $core_files{$core} && $core_files{$core} == -M $core) {
@@ -634,6 +635,7 @@ sub warn_core {
     %core_files = (); # reset global
 
     finddepth(sub {
+        return unless -f $_;
         return unless /$core_pat/o;
         my $core = "$File::Find::dir/$_";
         info "consider removing an old $core file before running tests";

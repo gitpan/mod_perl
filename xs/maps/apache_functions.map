@@ -130,14 +130,14 @@ MODULE=Apache::Access   PACKAGE=Apache::RequestRec
  ap_allow_methods | mpxs_ | ...
  ap_allow_options
  ap_allow_overrides
- ap_allow_standard_methods
+!ap_allow_standard_methods
  ap_get_remote_logname
  SV *:ap_requires | mpxs_
  ap_satisfies
 
 #MODULE=Apache::Auth
- ap_auth_name
- ap_auth_type
+ mpxs_Apache__RequestRec_auth_name | | r, name=NULL
+ mpxs_Apache__RequestRec_auth_type | | r, type=NULL
  ap_get_basic_auth_pw | MPXS_ | r
  ap_note_auth_failure
  ap_note_basic_auth_failure
@@ -230,8 +230,8 @@ PACKAGE=guess
                block=APR_BLOCK_READ, \
                readbytes=0
  ap_pass_brigade
- ap_register_input_filter
- ap_register_output_filter
+!ap_register_input_filter
+!ap_register_output_filter
  ap_remove_output_filter
  ap_remove_input_filter
 !ap_save_brigade

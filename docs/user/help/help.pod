@@ -28,6 +28,14 @@ First of all:
 So if you aren't using Apache 2.x with mod_perl 2.0 please do not send
 any bug reports.
 
+=head2 Before Posting a Report
+
+Before you post the report, make sure that you've checked the
+I<error_log> file (t/logs/error_log in case of the failing test
+suite). Usually the errors are self-descriptive and if you remember to
+always check this file whenever you have a problem, chances are that
+you won't need to ask for help.
+
 =head2 Use a Proper Subject
 
 Make sure to include a good subject like explaining the problem in a
@@ -69,12 +77,15 @@ Also remember to include the relevant part of I<httpd.conf> and of
 I<startup.pl> if applicable. Don't include whole files, only the parts
 that should aid to understand and reproduce the problem.
 
+Finally don't forget to copy-n-paste (not type!) the B<relevant> part
+of the I<error_log> file (not the whole file!).
+
 =head2 Resolving Segmentation Faults
 
 If during C<make test> or the use of mod_perl you get a segmentation
 fault you should send to the list a stack backtrace. This
-L<section|devel::debug_c::debug_c/Analyzing_Dumped_Core_Files>
-explains how to extract this backtrace.
+L<section|devel::debug::c/Analyzing_Dumped_Core_Files> explains how to
+extract this backtrace.
 
 Of course to generate a useful backtrace you need to have mod_perl
 with debugging symbols in it (and probably perl and/or httpd too).

@@ -1,10 +1,12 @@
 mod_perl 2.0 STATUS:                                       -*-text-*-
-   Last modified at [$Date: 2002/09/17 02:46:20 $]
+   Last modified at [$Date: 2003/01/11 04:14:55 $]
 
 Release:
 --------
 
-   1.99_06-dev: In development
+   1.99_08    : Released Jan 10, 2003
+   1.99_07    : Released Sep 27, 2002
+   1.99_06    : Not released
    1.99_05    : Released Aug 20, 2002
    1.99_04    : Released Jun 21, 2002
    1.99_03    : Released Jun 16, 2002
@@ -21,12 +23,6 @@ Release:
 
 Release Showstoppers:
 ---------------------
-
- * 
-   Report: 
-   Status: 
-
-
 
 Available Patches:
 ------------------
@@ -54,11 +50,45 @@ Available Patches:
 Needs Patch or Further Investigation:
 -------------------------------------
 
-* pluggable <Perl> sections have been implemented but need a default
-  handler to actually convert the Perl code into apache config
-  [Philippe M. Chiasson <gozer@cpan.org> is working on one]
+* we still have a problem with mod_perl starting from a
+  vhost. consider the following config:
 
-* Apache->httpd_conf compat method mapping to Apache::Server->add_config
+  PerlSwitches -I/foo/bar
+  <VirtualHost TestDirective::perlloadmodule6>
+     PerlLoadModule TestDirective::perlloadmodule6
+     ...
+  </VirtualHost>
+
+  The value set by PerlSwitches in the main server is ignored, because
+  it's not seen by mod_perl starting from vhost.
+  
+  overall, currently the early startup in vhost is a bunch of ugly
+  workaround, which I've added everytime I came up with a config that
+  wasn't working. Need to come up with a better design decisions.
+
+  once this is fixed. I want the perlloadmodule6 to be loaded before
+  all other perlloadmodule configs, because it tests an important
+  segfault when perlloadmodule happens to start mod_perl from within a
+  vhost. but because PerlSwitches from other tests are ignored, it
+  can't trigger the mod_perl startup in the test suite.
+
+* slurp_filename's C implementation.
+
+  Status: 1.x's like patch posted: doug -1
+  Dependency: Doug promised to detail how it should be different in 2.0.  
+  Thread: http://marc.theaimsgroup.com/?t=100364777500004&r=1&w=2
+
+* ModPerl::Registry END {} block woes , described in details at the
+  forwarded message from Jim Schueler
+  http://marc.theaimsgroup.com/?l=apache-modperl&m=103720834717981&w=2
+  the whole thread is here:
+  http://marc.theaimsgroup.com/?t=103713532800003&r=1&w=2
+
+* $r->rflush doesn't work. see:
+  http://marc.theaimsgroup.com/?l=apache-modperl&m=103847990813285&w=2
+  I also see a weird behavior where it does sends FLUSH buckets but
+  they all seem to fall through the data, thus not really flushing
+  anything. this can be easily reproduced with MyApache::FilterSnoop.
 
 * directive handlers are supported but need some work for 1.x compat
   - Apache::ModuleConfig->get needs a compat method mapping to
@@ -68,17 +98,14 @@ Needs Patch or Further Investigation:
 
   - Apache::CmdParms::{GETC,getline} needs compat mapping, similar to
     what Apache::Directive->as_string does, but one char or line at a time
-  
+
+* Quite a few people reported problems with TestHooks during 'make test'
+  - http://marc.theaimsgroup.com/?t=102985405500008&r=1&w=2
+
+
+
 Open Issues or Core Enhancements:
 ---------------------------------
-
-* PerlPreConnectionHandler's modperl_callback_pre_connection is not
-  implemented
-
-  Report: 
-  Status: ???
-
-----
 
 * Apache::Log compat issues:
 
@@ -113,6 +140,24 @@ Open Issues or Core Enhancements:
 
 ----
 
+* Apache::PerlSections missing features for backwards compatibility:
+ - $Apache::Server::SaveConfig
+ - $Apache::ReadConfig::DocumentRoot
+ - $Apache::Server::StrictPerlSections
+ - Apache::PerlSections->store(filename)
+
+  Report: Philippe M. Chiasson <gozer@cpan.org>
+  Status: Philippe M. Chiasson <gozer@cpan.org> is working on it
+
+----
+
+* PerlPreConnectionHandler is implemented, but the 'void *csd' arg in
+  the callback is ignored
+
+  Status: no hurry
+
+----
+
 * 
   Report: 
   Status: 
@@ -122,6 +167,7 @@ Open Issues or Core Enhancements:
 Documentation:
 --------------
 
+  -- see: modperl-docs/src/docs/2.0/TODO
 
 Patches unlikely to be applied:
 -------------------------------

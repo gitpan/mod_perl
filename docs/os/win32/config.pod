@@ -13,11 +13,17 @@ Add this line to F<C:/Apache2/conf/httpd.conf>:
  LoadModule perl_module modules/mod_perl.so
 
 Be sure that the path to your Perl binary (eg, F<C:/Perl/bin>) is in
-your C<PATH> environment variable. You could also add the directive
+your C<PATH> environment variable. This can be done either by
+editing F<C:\AutoExec.bat>, if present, or through the
+I<Environment Variables> option of the I<Advanced> tab of the
+I<System> area of the Control Panel. Especially when running
+Apache as a service, you may also want to add the directive
 
  LoadFile "/Path/to/your/Perl/bin/perl5x.dll"
 
-to F<httpd.conf> to load your Perl dll. You may also want to use a
+to F<httpd.conf>, before loading F<mod_perl.so>, to load your Perl dll. 
+
+You may also want to use a
 start-up script to load commonly used modules; this can be done with a
 directive as, eg,
 
@@ -180,11 +186,13 @@ will use C<Apache::Hello> to deliver the content.
 
 The directions for L<installing mod_perl 2.0 on
 Win32|docs::2.0::os::win32::install>, the L<mod_perl
-documentation|docs::index>, http://perl.apache.org/,
-http://take23.org/, http://httpd.apache.org/, and
-http://www.activestate.com/.  Help on setting up and configuring
-mod_perl 2.0 can be found by subscribing to the mod_perl mailing list,
-details of which are at http://perl.apache.org/.
+documentation|docs::index>, L<http://perl.apache.org/>,
+L<http://take23.org/>, L<http://httpd.apache.org/>,
+L<http://www.activestate.com/>,
+and the
+L<FAQs for mod_perl on Win32|docs::general::os::win32::faq>.
+Help is also available through the archives of and subscribing to
+the L<mod_perl mailing list|maillist::modperl>.
 
 =head1 Maintainers
 

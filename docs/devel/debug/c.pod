@@ -84,7 +84,7 @@ commands file:
   b ap_run_pre_config
   run -d `pwd`/t -f `pwd`/t/conf/httpd.conf \
   -DONE_PROCESS -DAPACHE2 -DPERL_USEITHREADS
-  sharedlibrary modperl
+  sharedlibrary mod_perl
   b modperl_hook_init
   # start: modperl_hook_init
   continue
@@ -145,8 +145,8 @@ which also shows which libraries are loaded already.
 
 Also notice that you don't have to type the full path of the library
 when trying to load them, even a partial name will suffice. In our
-commands file example we have used C<sharedlibrary modperl> instead of
-saying C<sharedlibrary libmodperl.so>.
+commands file example we have used C<sharedlibrary mod_perl> instead of
+saying C<sharedlibrary mod_perl.so>.
 
 If you want to set breakpoints and step through the code in the Perl
 and APR core libraries you should load their appropriate libraries:
@@ -216,13 +216,24 @@ to run the scripts under C<ddd> substitute C<gdb> with C<ddd>:
 =item * Debugging mod_perl Initialization
 
 The F<code/.debug-modperl-init> startup script breaks at the
-modperl_hook_init() function, which is useful for debugging code at
+C<modperl_hook_init()> function, which is useful for debugging code at
 the modperl's initialization phase.
+
+=item * Debugging mod_perl's Hooks Registeration With httpd
+
+Similar to the previous startup script, the
+F<code/.debug-modperl-register> startup script breaks at the
+C<modperl_register_hooks()>, which is the very first hook called in
+the mod_perl land. Therefore use this one if you need to start
+debugging at an even earlier entry point into mod_perl.
+
+Refer to the notes inside the script to adjust it for a specific
+I<httpd.conf> file.
 
 =item * Debugging mod_perl XS Extensions
 
 The F<code/.debug-modperl-xs> startup script breaks at the
-mpxs_Apache__Filter_print() function implemented in
+C<mpxs_Apache__Filter_print()> function implemented in
 I<xs/Apache/Filter/Apache__Filter.h>. This is an example of debugging
 code in XS Extensions. For this particular example the complete test
 case is:
@@ -236,14 +247,9 @@ mpxs_Apache__Filter_print() which is when the breakpoint is reached.
 =back
 
 
-=head1 Obtaining Core Files
+=head1 Analyzing Dumped Core Files
 
 META: need to review (unfinished)
-
-=head2 ...
-
-
-=head1 Analyzing Dumped Core Files
 
 When your application dies with the I<Segmentation fault> error (which
 generates a C<SIGSEGV> signal) and optionally generates a I<core> file
@@ -305,6 +311,9 @@ contains debugging symbols:
 Now the software is ready for a proper debug.
 
 =head2 Creating a Faulty Package
+
+META: no longer need to create the package, use C<Debug::DumpCore>
+from CPAN. Need to adjust the rest of the document to use it.
 
 Next stage is to create a package that aborts abnormally with the
 I<Segmentation fault> error. We will write faulty code on purpose,

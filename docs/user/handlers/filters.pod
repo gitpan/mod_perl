@@ -176,6 +176,7 @@ the request's I<args> and I<content> as strings:
   
   use Apache::RequestRec ();
   use Apache::RequestIO ();
+  use APR::Table ();
   
   use Apache::Const -compile => qw(OK M_POST);
   
@@ -242,6 +243,7 @@ Now let's write the snooping filter:
   use base qw(Apache::Filter);
   use Apache::FilterRec ();
   use APR::Brigade ();
+  use APR::Bucket ();
   
   use Apache::Const -compile => qw(OK DECLINED);
   use APR::Const -compile => ':common';
@@ -257,45 +259,44 @@ Now let's write the snooping filter:
       my $stream = defined $mode ? "input" : "output";
   
       # read the data and pass-through the bucket brigades unchanged
-      my $ra_data = '';
       if (defined $mode) {
           # input filter
           my $rv = $filter->next->get_brigade($bb, $mode, $block, $readbytes);
           return $rv unless $rv == APR::SUCCESS;
-          $ra_data = bb_sniff($bb);
+          bb_dump($type, $stream, $bb);
       }
       else {
           # output filter
-          $ra_data = bb_sniff($bb);
+          bb_dump($type, $stream, $bb);
           my $rv = $filter->next->pass_brigade($bb);
           return $rv unless $rv == APR::SUCCESS;
-      }
-  
-      # send the sniffed info to STDERR so not to interfere with normal
-      # output
-      my $direction = $stream eq 'output' ? ">>>" : "<<<";
-      print STDERR "\n$direction $type $stream filter\n";
-      my $c = 1;
-      while (my($btype, $data) = splice @$ra_data, 0, 2) {
-          print STDERR "    o bucket $c: $btype\n";
-          print STDERR "[$data]\n";
-          $c++;
       }
   
       return Apache::OK;
   }
   
-  sub bb_sniff {
-      my $bb = shift;
+  sub bb_dump {
+      my($type, $stream, $bb) = @_;
+  
       my @data;
       for (my $b = $bb->first; $b; $b = $bb->next($b)) {
           $b->read(my $bdata);
           $bdata = '' unless defined $bdata;
           push @data, $b->type->name, $bdata;
       }
-      return \@data;
-  }
   
+      # send the sniffed info to STDERR so not to interfere with normal
+      # output
+      my $direction = $stream eq 'output' ? ">>>" : "<<<";
+      print STDERR "\n$direction $type $stream filter\n";
+  
+      my $c = 1;
+      while (my($btype, $data) = splice @data, 0, 2) {
+          print STDERR "    o bucket $c: $btype\n";
+          print STDERR "[$data]\n";
+          $c++;
+      }
+  }
   1;
 
 This package provides two filter handlers, one for connection and
@@ -316,20 +317,18 @@ the output mode. The arguments C<$filter> and C<$bb> are always
 passed, whereas the arguments C<$mode>, C<$block>, and C<$readbytes>
 are passed only to input filter handlers.
 
-If we are in the input mode, we retrieve the bucket brigade and
-immediately link it to C<$bb> which makes the brigade available to the
-next filter. When this filter handler returns, the next filter on the
-stack will get the brigade. If we forget to perform this linking our
-filter will become a black hole in which data simply disappears. Next
-we call C<bb_sniff()> which returns the type and the content of the
-buckets in the brigade.
+If we are in the input mode, in the same call we retrieve the bucket
+brigade from the previous filter on the input filters stack and
+immediately link it to the C<$bb> variable which makes the bucket
+brigade available to the next input filter when the filter handler
+returns. If we forget to perform this linking our filter will become a
+black hole in which data simply disappears. Next we call C<bb_dump()>
+which dumps the type of the filter and the contents of the bucket
+brigade to C<STDERR>, without influencing the normal data flow.
 
-If we are in the output mode, C<$bb> already points to the current
-bucket brigade. Therefore we can read the contents of the brigade
-right away. After that we pass the brigade to the next filter.
-
-Finally we dump to STDERR the information about the type of the
-current mode, and the content of the bucket bridge.
+If we are in the output mode, the C<$bb> variable already points to
+the current bucket brigade. Therefore we can read the contents of the
+brigade right away. After that we pass the brigade to the next filter.
 
 Let's snoop on connection and request filter levels in both
 directions by applying the following configuration:
@@ -360,10 +359,10 @@ If we issue the following request:
 
   % echo "mod_perl rules" | POST 'http://localhost:8008/dump?foo=1&bar=2'
 
-We get the same response, because our snooping filter didn't change
-anything. Though there was a lot of output printed to I<error_log>. We
-present it all here, since it helps a lot to understand how filters
-work.
+We get the same response, when using C<MyApache::FilterSnoop>, because
+our snooping filter didn't change anything. Though there was a lot of
+output printed to I<error_log>. We present it all here, since it helps
+a lot to understand how filters work.
 
 First we can see the connection input filter at work, as it processes
 the HTTP headers. We can see that for this request each header is put
@@ -412,9 +411,9 @@ enclosed by C<[]> so you can see the new line characters as well.
 
 Here the HTTP header has been terminated by a double new line. So far
 all the buckets were of the I<HEAP> type, meaning that they were
-allocated from the heap memory. Notice that the request input filters
-will never see the bucket brigade with HTTP header, it has been
-consumed by the last connection Apache core handler.
+allocated from the heap memory. Notice that the HTTP request input
+filters will never see the bucket brigades with HTTP headers, as it has
+been consumed by the last core connection filter.
 
 The following two entries are generated when
 C<MyApache::Dump::handler> reads the POSTed content:
@@ -431,15 +430,15 @@ C<MyApache::Dump::handler> reads the POSTed content:
 
 as we saw earlier on the diagram, the connection input filter is run
 before the request input filter. Since our connection input filter was
-passing the data through unmodified and no other connection input
-filter was configured, the request input filter sees the same
+passing the data through unmodified and no other custom connection
+input filter was configured, the request input filter sees the same
 data. The last bucket in the brigade received by the request input
 filter is of type I<EOS>, meaning that all the input data from the
 current request has been received.
 
 Next we can see that C<MyApache::Dump::handler> has generated its
-response. However only the request output filter is filtering it at
-this point:
+response. However we can see that only the request output filter gets
+run at this point:
 
   >>> request output filter
       o bucket 1: TRANSIENT
@@ -450,45 +449,66 @@ this point:
   ]
 
 This happens because Apache hasn't sent yet the response HTTP headers
-to the client. Apache postpones the header sending so it can calculate
-and set the C<Content-Length> header. This time the brigade consists
-of a single bucket of type I<TRANSIENT> which is allocated from the
-stack memory, which will eventually be converted to the I<HEAP> type,
-before the body of the response is sent to the client.
+to the client. The request filter sees a bucket brigade with a single
+bucket of type I<TRANSIENT> which is allocated from the stack memory.
 
-When the content handler returns Apache sends the HTTP headers through
-connection output filters (notice that the request output filters
-don't see it):
+The moment the first bucket brigade of the response body has entered
+the connection output filters, Apache injects a bucket brigade with
+the HTTP headers. Therefore we can see that the connection output
+filter is filtering the bridage with HTTP headers (notice that the
+request output filters don't see it):
 
   >>> connection output filter
       o bucket 1: HEAP
   [HTTP/1.1 200 OK
-  Date: Wed, 14 Aug 2002 07:31:53 GMT
-  Server: Apache/2.0.41-dev (Unix) mod_perl/1.99_05-dev 
-  Perl/v5.8.0 mod_ssl/2.0.41-dev OpenSSL/0.9.6d DAV/2
-  Content-Length: 42
+  Date: Tue, 19 Nov 2002 15:59:32 GMT
+  Server: Apache/2.0.44-dev (Unix) mod_perl/1.99_08-dev 
+  Perl/v5.8.0 mod_ssl/2.0.44-dev OpenSSL/0.9.6d DAV/2
   Connection: close
+  Transfer-Encoding: chunked
   Content-Type: text/plain; charset=ISO-8859-1
   
   ]
 
-Now the response body in the bucket of type I<HEAP> is passed through
-the connection output filter, followed by the I<EOS> bucket to mark
-the end of the request:
+and followed by the first response body's brigade:
 
   >>> connection output filter
-      o bucket 1: HEAP
+      o bucket 1: TRANSIENT
+  [2b
+  ]
+      o bucket 2: TRANSIENT
   [args:
   foo=1&bar=2
   content:
   mod_perl rules
+  
+  ]
+      o bucket 3: IMMORTAL
+  [
+  ]
+
+If the response is large, the request and connection filters will
+filter chunks of the response one by one.
+
+META: what's the size of the chunks? 8k?
+
+Finally, Apache sends a series of the bucket brigades to finish off
+the response, including the end of stream meta-bucket to tell filters
+that they shouldn't expect any more data, and flush buckets to flush
+the data, to make sure that any buffered output is sent to the client:
+
+  >>> connection output filter
+      o bucket 1: IMMORTAL
+  [0
+  
   ]
       o bucket 2: EOS
   []
-
-Finally the output is flushed, to make sure that any buffered output
-is sent to the client:
-
+  
+  >>> connection output filter
+      o bucket 1: FLUSH
+  []
+  
   >>> connection output filter
       o bucket 1: FLUSH
   []
@@ -497,10 +517,8 @@ This module helps to understand that each filter handler can be called
 many time during each request and connection. It's called for each
 bucket brigade.
 
-Also it's important to notice that the request input filter is called
-only if there is some POSTed data to read, if you run the same request
-without POSTing any data or simply running a GET request, the request
-input filter won't be called.
+Also it's important to notice that request input filters are called
+only if there is some POSTed data to read.
 
 
 =head1 Input Filters
@@ -525,8 +543,8 @@ directly manipulating the bucket brigades:
   
   use base qw(Apache::Filter);
   
-  use Apache::RequestRec ();
-  use Apache::RequestIO ();
+  use Apache::Connection ();
+  use Apache::ServerUtil ();
   use APR::Brigade ();
   use APR::Bucket ();
   
@@ -606,14 +624,23 @@ For example, consider the following response handler:
   use strict;
   use warnings;
   
+  use Apache::RequestIO ();
+  use Apache::RequestRec ();
+  use Apache::Response ();
+  
   use Apache::Const -compile => 'OK';
   
   sub handler {
       my $r = shift;
+  
       $r->content_type('text/plain');
-      $r->print("the request type was " . $r->method);
+      my $response = "the request type was " . $r->method;
+      $r->set_content_length(length $response);
+      $r->print($response);
+  
       Apache::OK;
   }
+  
   1;
 
 which returns to the client the request type it has issued. In the
@@ -738,7 +765,7 @@ content body as a response, and configure the server as follows:
 
 When issuing a POST request:
 
- % echo "mOd_pErl RuLeS" | POST 'http://localhost:8002/dump_input?FoO=1&BAR=2'
+ % echo "mOd_pErl RuLeS" | POST 'http://localhost:8002/lc_input?FoO=1&BAR=2'
 
 we get a response:
 
@@ -776,7 +803,7 @@ As mentioned earlier output filters can be written using the bucket
 brigades manipulation or the simplified stream-oriented interface.
 
 First let's develop a response handler that send two lines of output:
-numerals 0-9 and the English alphabet in a single string:
+numerals 1234567890 and the English alphabet in a single string:
 
   file:MyApache/SendAlphaNum.pm
   -------------------------------
@@ -795,7 +822,7 @@ numerals 0-9 and the English alphabet in a single string:
   
       $r->content_type('text/plain');
   
-      $r->print(0..9, "0\n");
+      $r->print(1..9, "0\n");
       $r->print('a'..'z', "\n");
   
       Apache::OK;
@@ -805,7 +832,7 @@ numerals 0-9 and the English alphabet in a single string:
 The purpose of our request output filter is to reverse every line of
 the response, preserving the new line characters in their
 places. Since we want to reverse characters only in the response body
-we will use the request output filters.
+we will use the HTTP request output filter.
 
 
 
@@ -1015,7 +1042,42 @@ modify it.
 
 
 
+=head1 Writing Well-Behaving Filters
 
+META: to be written. 
+
+[
+
+talk about issues like not losing metabuckets. e.g. if the filter runs
+a switch statement and propogates buckets types that were known at the
+time of writing, it may drop buckets of new types which may be added
+later, so it's important to ensure that there is a default cause where
+the bucket is passed as is.
+
+of course mention the fact where things like EOS buckets must be
+passed, or the whole chain will be broken. Or if some filter decides
+to inject an EOS bucket by itself, it should probably consume and
+destroy the rest of the incoming bb. need to check on this issue.
+
+]
+
+=head1 Writing Efficient Filters
+
+META: to be written
+
+[
+
+Bucket Brigades are used to make the data flow between filters and
+handlers more efficient. e.g. a file handle can be put in a bucket and
+the read from the file can be postponed to the very moment when the
+data is sent to the client, thus saving a lot of memory and CPU
+cycles.  though filters writers should be aware that if they call
+$bucket-E<gt>read(), or any other operation that internally forces the
+bucket to read the information into the memory (like the length() op)
+and thus making the data handling inefficient. therefore a care should
+be taken so not to read the data in, unless it's really necessary.
+
+]
 
 
 

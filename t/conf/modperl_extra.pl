@@ -47,6 +47,8 @@ Apache::Server->log->info("$apr_mods APR:: modules loaded");
     $server->log->info("base server + $vhosts vhosts ready to run tests");
 }
 
+use constant IOBUFSIZE => 8192;
+
 sub ModPerl::Test::read_post {
     my $r = shift;
 
@@ -54,12 +56,16 @@ sub ModPerl::Test::read_post {
 
     return undef unless $r->should_client_block;
 
-    my $len = $r->headers_in->get('content-length');
-
+    my $data = '';
     my $buf;
-    $r->get_client_block($buf, $len);
+    while (my $read_len = $r->get_client_block($buf, IOBUFSIZE)) {
+        if ($read_len == -1) {
+            die "some error while reading with get_client_block";
+        }
+        $data .= $buf;
+    }
 
-    return $buf;
+    return $data;
 }
 
 sub ModPerl::Test::add_config {
@@ -67,43 +73,6 @@ sub ModPerl::Test::add_config {
 
     #test adding config at request time
     my $errmsg = $r->add_config(['require valid-user']);
-    die $errmsg if $errmsg;
-
-    Apache::OK;
-}
-
-#<Perl handler=ModPerl::Test::perl_section>
-# ...
-#</Perl>
-sub ModPerl::Test::perl_section {
-    my($parms, $args) = @_;
-
-    require Apache::CmdParms;
-    require Apache::Directive;
-
-    my $code = $parms->directive->as_string;
-    my $package = $args->{package} || 'Apache::ReadConfig';
-
-##   a real handler would do something like:
-#    eval "package $package; $code";
-#    die $@ if $@;
-##   feed %Apache::ReadConfig:: to Apache::Server->add_config
-
-    my $htdocs = Apache::server_root_relative($parms->pool, 'htdocs');
-
-    my @cfg = (
-       "Alias /perl_sections $htdocs",
-       "<Location /perl_sections>",
-#       "   require valid-user",
-       "   PerlInitHandler ModPerl::Test::add_config",
-       "   AuthType Basic",
-       "   AuthName PerlSection",
-       "   PerlAuthenHandler TestHooks::authen",
-       "</Location>",
-    );
-
-    my $errmsg = $parms->server->add_config(\@cfg);
-
     die $errmsg if $errmsg;
 
     Apache::OK;

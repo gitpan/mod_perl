@@ -76,13 +76,19 @@ use constant IS_WIN32 => $^O eq "MSWin32";
 # constant subs
 #
 #########################################################################
-use constant NOP   => sub {   };
-use constant TRUE  => sub { 1 };
-use constant FALSE => sub { 0 };
+use constant NOP   => '';
+use constant TRUE  => 1;
+use constant FALSE => 0;
 
 
 use constant NAMESPACE_ROOT => 'ModPerl::ROOT';
 
+
+#########################################################################
+
+unless (defined $ModPerl::RegistryCooker::NameWithVirtualHost) {
+    $ModPerl::RegistryCooker::NameWithVirtualHost = 1;
+}
 
 #########################################################################
 # func: new
@@ -157,9 +163,9 @@ sub default_handler {
     # handlers shouldn't set $r->status but return it
     my $old_status = $self->[REQ]->status;
     my $rc = $self->run;
-    my $new_status = $self->[REQ]->status($old_status);
+    $self->[REQ]->status($old_status);
 
-    return ($rc != Apache::OK) ? $rc : $new_status;
+    return ($rc != Apache::OK) ? $rc : $self->[STATUS];
 }
 
 #########################################################################
@@ -182,11 +188,20 @@ sub run {
     my $rc = Apache::OK;
     my $cv = \&{"$package\::handler"};
 
+    my %orig_inc = %INC;
+
     { # run the code and preserve warnings setup when it's done
         no warnings;
         eval { $rc = $cv->($r, @_) };
         $self->[STATUS] = $rc;
         ModPerl::Global::special_list_call(END => $package);
+    }
+
+    # %INC cleanup in case .pl files do not declare package ...;
+    for (keys %INC) {
+	next if $orig_inc{$_};
+	next if /\.pm$/;
+	delete $INC{$_};
     }
 
     $self->flush_namespace;
@@ -311,6 +326,12 @@ sub namespace_from_uri {
 	substr($self->[URI], 0, length($self->[URI]) - length($path_info)) :
 	$self->[URI];
 
+    if ($ModPerl::RegistryCooker::NameWithVirtualHost && 
+        $self->[REQ]->server->is_virtual) {
+        my $name = $self->[REQ]->get_server_name;
+        $script_name = join "", $name, $script_name if $name;
+    }
+
     $script_name =~ s:/+$:/__INDEX__:;
 
     return $script_name;
@@ -354,20 +375,11 @@ sub convert_script_to_compiled_handler {
                     ${ $self->[CODE] },
                     "\n}"; # last line comment without newline?
 
-    my %orig_inc = %INC;
-
     my $rc = $self->compile(\$eval);
     return $rc unless $rc == Apache::OK;
     $self->debug(qq{compiled package \"$self->[PACKAGE]\"}) if DEBUG & D_NOISE;
 
     #$self->chdir_file("$Apache::Server::CWD/");
-
-    # %INC cleanup in case .pl files do not declare package ...;
-    for (keys %INC) {
-	next if $orig_inc{$_};
-	next if /\.pm$/;
-	delete $INC{$_};
-    }
 
 #    if(my $opt = $r->dir_config("PerlRunOnce")) {
 #	$r->child_terminate if lc($opt) eq "on";

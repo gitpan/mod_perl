@@ -11,18 +11,17 @@ use Carp;
 
 our @ISA = ();
 
-# using create() instead of new() since the latter is inherited from
-# the SUPER class, and it's used inside handler() from the SUPER class
-sub create {
+sub new {
     my $class = shift;
     my $self = bless {@_} => ref($class)||$class;
+    $self->{package} ||= 'ModPerl::Registry';
     $self->{pool} = APR::Pool->new();
     $self->load_package($self->{package});
     return $self;
 }
 
 sub handler {
-    my($self, $uri, $filename) = @_;
+    my($self, $uri, $filename, $virthost) = @_;
 
     # set the inheritance rules at run time
     @ISA = $self->{package};
@@ -47,7 +46,8 @@ sub handler {
                 $self->warn("Cannot find a translated from uri: $filename");
                 return;
             }
-        } else {
+        }
+        else {
             # try to guess
             (my $guess = $uri) =~ s|^/||;
 
@@ -73,7 +73,14 @@ sub handler {
         package  => $self->{package},
     } => ref($self) || $self;
 
-    __PACKAGE__->SUPER::handler($rl);
+    $rl->{virthost} = $virthost if defined $virthost;
+
+    # can't call SUPER::handler here, because it usually calls new()
+    # and then the ModPerlRegistryLoader::new() will get called,
+    # instead of the super class' new, so we implement the super
+    # class' handler here. Hopefully all other subclasses use the same
+    # handler.
+    __PACKAGE__->SUPER::new($rl)->default_handler();
 
 }
 
@@ -81,6 +88,7 @@ sub handler {
 # when when finfo() and slurp_filename() are ported to 2.0 and
 # RegistryCooker is starting to use them
 
+sub get_server_name { return $_[0]->{virthost} if exists $_[0]->{virthost} }
 sub filename { shift->{filename} }
 sub status { Apache::HTTP_OK }
 sub my_finfo    { shift->{filename} }
@@ -90,6 +98,7 @@ sub allow_options { Apache::OPT_EXECCGI } #will be checked again at run-time
 sub log_error { shift; die @_ if $@; warn @_; }
 sub run { return Apache::OK } # don't run the script
 sub server { shift }
+sub is_virtual { exists shift->{virthost} }
 
 # the preloaded file needs to be precompiled into the package
 # specified by the 'package' attribute, not RegistryLoader

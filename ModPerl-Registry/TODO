@@ -25,8 +25,6 @@ RegistryCooker:
 
 - $Apache::Server::CWD doesn't exist
 
-- NameWithVirtualHost is not handled
-
 - need to figure out what's happening with
   ModPerl::Registry::MarkLine, why it's not on by default?
 
@@ -59,6 +57,11 @@ RegistryCooker:
   consider to make it optional.
 
 ### nice to have ###
+
+- Geoffrey Young has developed Apache::HEADRegistry is just a subclass
+  of Apache::Registry that is HEAD request aware:
+  http://mathforum.org/epigone/modperl/starfaxbi/3C583A7B.5C187266@modperlcookbook.org
+  consider integrating in the core as the default behavior or a subclass.
 
 - Bjarni R. Einarsson <bre@klaki.net> has suggested this Registry hack
   http://marc.theaimsgroup.com/?l=apache-modperl-dev&m=98961929702745&w=2

@@ -157,6 +157,17 @@ int modperl_run_filter(modperl_filter_t *filter,
 
     MP_TRACE_f(MP_FUNC, "%s returned %d\n", handler->name, status);
 
+    /* when the streaming filter is invoked it should be able to send
+     * extra data, after the read in a while() loop is finished.
+     * Therefore we need to postpone propogating the EOS bucket, up
+     * until the filter handler is returned and only then send the EOS
+     * bucket if the stream had one.
+     */
+    if (filter->seen_eos) {
+        filter->eos = 1;
+        filter->seen_eos = 0;
+    }
+
     if (filter->mode == MP_OUTPUT_FILTER_MODE) {
         modperl_output_filter_flush(filter);
     }
@@ -213,7 +224,8 @@ MP_INLINE static int get_bucket(modperl_filter_t *filter)
         return 1;
     }
     else if (MP_FILTER_IS_EOS(filter)) {
-        filter->eos = 1;
+        MP_TRACE_f(MP_FUNC, "received EOS bucket\n");
+        filter->seen_eos = 1;
         return 1;
     }
     else if (filter->bucket != MP_FILTER_SENTINEL(filter)) {
@@ -281,7 +293,7 @@ MP_INLINE apr_size_t modperl_output_filter_read(pTHX_
 
         if (MP_FILTER_IS_EOS(filter)) {
             MP_TRACE_f(MP_FUNC, "received EOS bucket\n");
-            filter->eos = 1;
+            filter->seen_eos = 1;
             break;
         }
         else if (MP_FILTER_IS_FLUSH(filter)) {
@@ -458,6 +470,9 @@ static int modperl_filter_register_connection(conn_rec *c,
             ctx = (modperl_filter_ctx_t *)apr_pcalloc(c->pool, sizeof(*ctx));
             ctx->handler = handlers[i];
             addfunc(name, (void*)ctx, NULL, c);
+
+            MP_TRACE_h(MP_FUNC, "%s handler %s configured (connection)\n",
+                       type, handlers[i]->name);
         }
 
         return OK;
@@ -517,6 +532,9 @@ static int modperl_filter_register_request(request_rec *r,
             ctx = (modperl_filter_ctx_t *)apr_pcalloc(r->pool, sizeof(*ctx));
             ctx->handler = handlers[i];
             addfunc(name, (void*)ctx, r, r->connection);
+
+            MP_TRACE_h(MP_FUNC, "%s handler %s configured (%s)\n",
+                       type, handlers[i]->name, r->uri);
         }
 
         return OK;

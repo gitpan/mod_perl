@@ -63,6 +63,12 @@ sub request {
     $r;
 }
 
+package Apache::Server;
+# XXX: is that good enough? see modperl/src/modules/perl/mod_perl.c:367
+our $CWD = Apache->server_root_relative();
+
+our $AddPerlVersion = 1;
+
 package Apache;
 
 sub exit {
@@ -108,6 +114,13 @@ sub define {
 
 sub log_error {
     Apache->server->log_error(@_);
+}
+
+sub httpd_conf {
+    shift;
+    my $err = (Apache->request || Apache->server)->
+      add_config([split /\n/, join '', @_]);
+    die $err if $err;
 }
 
 package Apache::Constants;
@@ -198,9 +211,7 @@ sub register_cleanup {
     shift->pool->cleanup_register(@_);
 }
 
-sub post_connection {
-    shift->connection->pool->cleanup_register(@_);
-}
+*post_connection = \&register_cleanup;
 
 sub get_remote_host {
     my($r, $type) = @_;
@@ -208,12 +219,14 @@ sub get_remote_host {
     $r->connection->get_remote_host($type, $r->per_dir_config);
 }
 
+#XXX: should port 1.x's Apache::unescape_url_info
 sub parse_args {
     my($r, $string) = @_;
     return () unless defined $string and $string;
 
     return map {
-        s/%([0-9a-fA-F]{2})/pack("c",hex($1))/ge;
+        tr/+/ /;
+        s/%([0-9a-fA-F]{2})/pack("C",hex($1))/ge;
         $_;
     } split /[=&;]/, $string, -1;
 }
@@ -228,6 +241,8 @@ sub Apache::args {
     return $r->parse_args($args);
 }
 
+use constant IOBUFSIZE => 8192;
+
 sub content {
     my $r = shift;
 
@@ -235,13 +250,17 @@ sub content {
 
     return undef unless $r->should_client_block;
 
-    my $len = $r->headers_in->get('content-length');
-
+    my $data = '';
     my $buf;
-    $r->get_client_block($buf, $len);
+    while (my $read_len = $r->get_client_block($buf, IOBUFSIZE)) {
+        if ($read_len == -1) {
+            die "some error while reading with get_client_block";
+        }
+        $data .= $buf;
+    }
 
-    return $buf unless wantarray;
-    return $r->parse_args($buf)
+    return $data unless wantarray;
+    return $r->parse_args($data);
 }
 
 sub clear_rgy_endav {
@@ -303,8 +322,6 @@ sub READLINE {
     $r->read($line, $r->headers_in->get('Content-length'));
     $line ? $line : undef;
 }
-
-use constant IOBUFSIZE => 8192;
 
 #XXX: howto convert PerlIO to apr_file_t
 #so we can use the real ap_send_fd function
@@ -500,6 +517,15 @@ sub new {
     my($class, $r, $nelts) = @_;
     $nelts ||= 10;
     APR::Table::make($r->pool, $nelts);
+}
+
+package Apache::SIG;
+
+use Apache::Const -compile => 'DECLINED';
+
+sub handler {
+    # don't set the SIGPIPE
+    return Apache::DECLINED;
 }
 
 1;

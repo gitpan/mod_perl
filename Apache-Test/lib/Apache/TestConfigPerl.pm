@@ -148,15 +148,21 @@ sub set_handler {
         $self->server->version_of(\%sethandler_modperl);
 }
 
+sub set_connection_handler {
+    my($self, $module, $args) = @_;
+    my $port = $self->new_vhost($module);
+    $self->postamble(Listen => $port);
+}
+
 my %add_hook_config = (
-    Response => \&set_handler,
-    ProcessConnection => sub { my($self, $module, $args) = @_;
-                               my $port = $self->new_vhost($module);
-                               $self->postamble(Listen => $port); },
+    Response          => \&set_handler,
+    ProcessConnection => \&set_connection_handler,
+    PreConnection     => \&set_connection_handler,
 );
 
 my %container_config = (
     ProcessConnection => \&vhost_container,
+    PreConnection     => \&vhost_container,
 );
 
 sub location_container {
@@ -279,72 +285,126 @@ my %hooks = map { $_, ucfirst $_ }
 $hooks{Protocol} = 'ProcessConnection';
 $hooks{Filter}   = 'OutputFilter';
 
-sub configure_pm_tests {
-    my $self = shift;
+my @extra_subdirs = qw(Response Protocol PreConnection Hooks Filter);
 
-    for my $subdir (qw(Response Protocol Hooks Filter)) {
+# add the subdirs to @INC early, in case mod_perl is started earlier
+sub configure_pm_tests_inc {
+    my $self = shift;
+    for my $subdir (@extra_subdirs) {
         my $dir = catfile $self->{vars}->{t_dir}, lc $subdir;
         next unless -d $dir;
 
         push @{ $self->{inc} }, $dir;
+    }
+}
+
+# @status fields
+use constant APACHE_TEST_CONFIGURE    => 0;
+use constant APACHE_TEST_CONFIG_ORDER => 1;
+
+sub configure_pm_tests_pick {
+    my($self, $entries) = @_;
+
+    for my $subdir (@extra_subdirs) {
+        my $dir = catfile $self->{vars}->{t_dir}, lc $subdir;
+        next unless -d $dir;
 
         finddepth(sub {
             return unless /\.pm$/;
-            my @args = ();
 
-            my $pm = $_;
-            my $file = catfile $File::Find::dir, $pm;
-            my $directives = $self->add_module_config($file, \@args);
+            my $file = catfile $File::Find::dir, $_;
             my $module = abs2rel $file, $dir;
-            $module =~ s,\.pm$,,;
-            $module =~ s/^[a-z]://i; #strip drive if any
-            $module = join '::', splitdir $module;
-
-            $self->run_apache_test_config($file, $module);
-
-            my($base, $sub) =
-              map { s/^test//i; $_ } split '::', $module;
-
-            my $hook = ($subdir eq 'Hooks' ? $hooks{$sub} : '')
-              || $hooks{$subdir} || $subdir;
-
-            if ($hook eq 'OutputFilter' and $pm =~ /^i/) {
-                #XXX: tmp hack
-                $hook = 'InputFilter';
-            }
-
-            my $handler = join $hook, qw(Perl Handler);
-
-            if ($self->server->{rev} < 2 and lc($hook) eq 'response') {
-                $handler =~ s/response//i; #s/PerlResponseHandler/PerlHandler/
-            }
-
-            debug "configuring $module";
-
-            if (my $cv = $add_hook_config{$hook}) {
-                $self->$cv($module, \@args);
-            }
-
-            my $container = $container_config{$hook} || \&location_container;
-
-            #unless the .pm test already configured the Perl*Handler
-            unless ($directives->{$handler}) {
-                my @handler_cfg = ($handler => $module);
-
-                if ($outside_container{$handler}) {
-                    $self->postamble(@handler_cfg);
-                }
-                else {
-                    push @args, @handler_cfg;
-                }
-            }
-
-            my $args_hash = list_to_hash_of_lists(\@args);
-            $self->postamble($self->$container($module),
-                             $args_hash) if @args;
-
-            $self->write_pm_test($module, lc $base, lc $sub);
+            my $status = $self->run_apache_test_config_scan($file);
+            push @$entries, [$file, $module, $subdir, $status];
         }, $dir);
+    }
+}
+
+
+# a simple numerical order is performed and configuration sections are
+# inserted using that order. If the test package specifies no special
+# token that matches /APACHE_TEST_CONFIG_ORDER\s+([+-]?\d+)/ anywhere
+# in the file, 0 is assigned as its order. If the token is specified,
+# config section with negative values will be inserted first, with
+# positive last. By using different values you can arrange for the
+# test configuration sections to be inserted in any desired order
+sub configure_pm_tests_sort {
+    my($self, $entries) = @_;
+
+    @$entries = sort {
+        $a->[3]->[APACHE_TEST_CONFIG_ORDER] <=>
+        $b->[3]->[APACHE_TEST_CONFIG_ORDER]
+    } @$entries;
+
+}
+
+sub configure_pm_tests {
+    my $self = shift;
+
+    # since server wasn't started yet, the modules in blib under
+    # Apache2 can't be seen. So we must load Apache2.pm, without which
+    # run_apache_test_config might fail to require modules
+    require mod_perl;
+    if ($mod_perl::VERSION > 1.99) {
+        require Apache2;
+    }
+
+    my @entries = ();
+    $self->configure_pm_tests_pick(\@entries);
+    $self->configure_pm_tests_sort(\@entries);
+
+    for my $entry (@entries) {
+        my ($file, $module, $subdir, $status) = @$entry;
+        my @args = ();
+
+        my $directives = $self->add_module_config($file, \@args);
+        $module =~ s,\.pm$,,;
+        $module =~ s/^[a-z]://i; #strip drive if any
+        $module = join '::', splitdir $module;
+
+        $self->run_apache_test_configure($file, $module, $status);
+
+        my($base, $sub) =
+            map { s/^test//i; $_ } split '::', $module;
+
+        my $hook = ($subdir eq 'Hooks' ? $hooks{$sub} : '')
+            || $hooks{$subdir} || $subdir;
+
+        if ($hook eq 'OutputFilter' and $module =~ /::i\w+$/) {
+            #XXX: tmp hack
+            $hook = 'InputFilter';
+        }
+
+        my $handler = join $hook, qw(Perl Handler);
+
+        if ($self->server->{rev} < 2 and lc($hook) eq 'response') {
+            $handler =~ s/response//i; #s/PerlResponseHandler/PerlHandler/
+        }
+
+        debug "configuring $module";
+
+        if (my $cv = $add_hook_config{$hook}) {
+            $self->$cv($module, \@args);
+        }
+
+        my $container = $container_config{$hook} || \&location_container;
+
+        #unless the .pm test already configured the Perl*Handler
+        unless ($directives->{$handler}) {
+            my @handler_cfg = ($handler => $module);
+
+            if ($outside_container{$handler}) {
+                $self->postamble(@handler_cfg);
+            } else {
+                push @args, @handler_cfg;
+            }
+        }
+
+        my $args_hash = list_to_hash_of_lists(\@args);
+        $self->postamble($self->$container($module),
+                         $args_hash) if @args;
+
+        $self->write_pm_test($module, lc $base, lc $sub);
     }
 }
 
@@ -363,6 +423,35 @@ sub list_to_hash_of_lists {
     return \%hash;
 }
 
+
+# scan tests for interesting information
+sub run_apache_test_config_scan {
+    my ($self, $file) = @_;
+
+    my @status = ();
+    $status[APACHE_TEST_CONFIGURE]    = 0;
+    $status[APACHE_TEST_CONFIG_ORDER] = 0;
+
+    my $fh = Symbol::gensym();
+    if (open $fh, $file) {
+        local $/;
+        my $content = <$fh>;
+        close $fh;
+        # XXX: optimize to match once?
+        if ($content =~ /APACHE_TEST_CONFIGURE/m) {
+            $status[APACHE_TEST_CONFIGURE] = 1;
+        }
+        if ($content =~ /APACHE_TEST_CONFIG_ORDER\s+([+-]?\d+)/m) {
+            $status[APACHE_TEST_CONFIG_ORDER] = int $1;
+        }
+    }
+    else {
+        error "cannot open $file: $!";
+    }
+
+    return \@status;
+}
+
 # We have to test whether tests have APACHE_TEST_CONFIGURE() in them
 # and run it if found at this stage, so when the server starts
 # everything is ready.
@@ -370,26 +459,17 @@ sub list_to_hash_of_lists {
 # won't require() outside of mod_perl environment. Therefore we scan
 # the slurped file in.  and if APACHE_TEST_CONFIGURE has been found we
 # require the file and run this function.
-sub run_apache_test_config {
-    my ($self, $file, $module) = @_;
+sub run_apache_test_configure {
+    my ($self, $file, $module, $status) = @_;
 
-    local $/;
-    my $fh = Symbol::gensym();
-    if (open $fh, $file) {
-        my $content = <$fh>;
-        close $fh;
-        if ($content =~ /APACHE_TEST_CONFIGURE/m) {
-            eval { require $file };
-            warn $@ if $@;
-            # double check that it's a real sub
-            if ($module->can('APACHE_TEST_CONFIGURE')) {
-                eval { $module->APACHE_TEST_CONFIGURE($self); };
-                warn $@ if $@;
-            }
-        }
-    }
-    else {
-        error "cannot open $file: $!";
+    return unless $status->[APACHE_TEST_CONFIGURE];
+
+    eval { require $file };
+    warn $@ if $@;
+    # double check that it's a real sub
+    if ($module->can('APACHE_TEST_CONFIGURE')) {
+        eval { $module->APACHE_TEST_CONFIGURE($self); };
+        warn $@ if $@;
     }
 }
 

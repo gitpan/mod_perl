@@ -2281,6 +2281,20 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'void',
+    'name' => 'modperl_init_globals',
+    'args' => [
+      {
+        'type' => 'server_rec *',
+        'name' => 's'
+      },
+      {
+        'type' => 'apr_pool_t *',
+        'name' => 'pconf'
+      }
+    ]
+  },
+  {
     'return_type' => 'apr_status_t',
     'name' => 'modperl_input_filter_handler',
     'args' => [
@@ -4953,6 +4967,42 @@ $ModPerl::FunctionTable = [
   },
   {
     'return_type' => 'const char *',
+    'name' => 'mpxs_Apache__RequestRec_auth_name',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      },
+      {
+        'type' => 'char *',
+        'name' => 'name'
+      }
+    ]
+  },
+  {
+    'return_type' => 'const char *',
+    'name' => 'mpxs_Apache__RequestRec_auth_type',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      },
+      {
+        'type' => 'char *',
+        'name' => 'type'
+      }
+    ]
+  },  
+  {
+    'return_type' => 'const char *',
     'name' => 'mpxs_Apache__RequestRec_add_config',
     'args' => [
       {
@@ -6206,7 +6256,21 @@ $ModPerl::FunctionTable = [
         'name' => 'func'
       }
     ]
-  }
+  },
+  {
+    'return_type' => 'SV *',
+    'name' => 'mpxs_Apache__RequestRec_as_string',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      }
+    ]
+  },
 ];
 
 

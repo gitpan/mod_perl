@@ -23,10 +23,12 @@ sub request {
     $url     ||= '/';
     $headers ||= {};
 
+    my $hostport = Apache::TestRequest::hostport($config);
+    $headers->{Host} = (split ':', $hostport)[0];
+
     my $s = Apache::TestRequest::vhost_socket();
 
     unless ($s) {
-        my $hostport = Apache::TestRequest::hostport($config);
         warn "cannot connect to $hostport: $!";
         return undef;
     }
@@ -55,6 +57,7 @@ sub request {
             content => $content || '',
         }, 'Apache::TestClientRequest'),
         headers_as_string => '',
+        method => $method,
     };
 
     my($response_line, $header_term);
@@ -134,7 +137,7 @@ sub as_string {
 }
 
 my @methods = qw(
-request protocol code message
+request protocol code message method
 headers_as_string headers content
 );
 

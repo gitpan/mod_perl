@@ -149,22 +149,38 @@ static void *modperl_module_config_merge(apr_pool_t *p,
     GV *gv;
     modperl_mgv_t *method;
     modperl_module_cfg_t *mrg = NULL,
+        *tmp,
         *base = (modperl_module_cfg_t *)basev,
-        *add  = (modperl_module_cfg_t *)addv,
-        *tmp = base->server ? base : add;
-
-    server_rec *s = tmp->server;
-    int is_startup = (p == s->process->pconf);
+        *add  = (modperl_module_cfg_t *)addv;
+    server_rec *s;
+    int is_startup;
+    PTR_TBL_t *table;
+    SV *mrg_obj = Nullsv, *base_obj, *add_obj;
 
 #ifdef USE_ITHREADS
-    modperl_interp_t *interp = modperl_interp_pool_select(p, s);
-    dTHXa(interp->perl);
+    modperl_interp_t *interp;
+    dTHX;
+#endif
+    
+    /* if the module is loaded in vhost, base==NULL */
+    tmp = (base && base->server) ? base : add;
+
+    if (tmp && !tmp->server) {
+        /* no directives for this module were encountered so far */
+        return basev;
+    }
+    
+    s = tmp->server;
+    is_startup = (p == s->process->pconf);
+
+#ifdef USE_ITHREADS
+    interp = modperl_interp_pool_select(p, s);
+    aTHX = interp->perl;
 #endif
 
-    PTR_TBL_t *table = modperl_module_config_table_get(aTHX_ TRUE);
-    SV *mrg_obj = Nullsv,
-        *base_obj = modperl_svptr_table_fetch(aTHX_ table, base),
-        *add_obj  = modperl_svptr_table_fetch(aTHX_ table, add);
+    table = modperl_module_config_table_get(aTHX_ TRUE);
+    base_obj = modperl_svptr_table_fetch(aTHX_ table, base);
+    add_obj  = modperl_svptr_table_fetch(aTHX_ table, add);
 
     if (!base_obj || (base_obj == add_obj)) {
         return addv;
@@ -336,7 +352,43 @@ static const char *modperl_module_cmd_take123(cmd_parms *parms,
     PTR_TBL_t *table = modperl_module_config_table_get(aTHX_ TRUE);
     SV *obj = Nullsv;
     dSP;
+    
+    if (s->is_virtual) {
+        MP_dSCFG(s);
 
+        /* if the Perl module is loaded in the base server and a vhost
+         * has configuration directives from that module, but no
+         * mod_perl.c directives, scfg == NULL when
+         * modperl_module_cmd_take123 is run. If the directive
+         * callback wants to do something with the mod_perl config
+         * object, it'll segfault, since it doesn't exist yet, because
+         * this happens before server configs are merged. So we create
+         * a temp struct and fill it in with things that might be
+         * needed by the Perl callback.
+         */
+        if (!scfg) {
+            scfg = modperl_config_srv_new(p);
+            modperl_set_module_config(s->module_config, scfg);
+            scfg->server = s;
+        }
+
+        /* if PerlLoadModule Foo is called from the base server, but
+         * Foo's directives are used inside a vhost, we need to
+         * temporary link to the base server config's 'modules'
+         * member. e.g. so Apache::Module->get_config() can be called
+         * from a custom directive's callback, before the server/vhost
+         * config merge is performed
+         */
+        if (!scfg->modules) {
+            modperl_config_srv_t *base_scfg =
+                modperl_config_srv_get(modperl_global_get_server_rec());
+            if (base_scfg->modules) {
+                scfg->modules = base_scfg->modules;
+            }
+        }
+        
+    }
+    
     errmsg = modperl_module_config_get_obj(aTHX_ p, table, cfg, info,
                                            minfo->dir_create,
                                            parms, &obj);

@@ -12,7 +12,7 @@ my $base_dir = Apache::server_root_relative($pool, "cgi-bin");
 
 
 # test the scripts pre-loading by explicitly specifying uri => filename
-my $rl = ModPerl::RegistryLoader->create(package => "ModPerl::Registry");
+my $rl = ModPerl::RegistryLoader->new(package => "ModPerl::Registry");
 my $base_uri = "/cgi-bin";
 for my $file (qw(basic.pl env.pl)) {
     my $file_path = "$base_dir/$file";
@@ -29,14 +29,16 @@ for my $file (qw(basic.pl env.pl)) {
         return Apache::server_root_relative($pool, $uri);
     }
 
-    my $rl = ModPerl::RegistryLoader->create(
+    my $rl = ModPerl::RegistryLoader->new(
         package => "ModPerl::RegistryBB",
         trans   => \&trans,
     );
 
+    my %skip = map {$_=>1} qw(lib.pl perlrun_require.pl);
     my $dh = DirHandle->new($base_dir) or die $!;
     for my $file ($dh->read) {
         next unless $file =~ /\.pl$/;
+        next if exists $skip{$file};
 
         # skip these as they are knowlingly generate warnings
         next if $file =~ /^(closure.pl|not_executable.pl)$/;

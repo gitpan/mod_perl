@@ -279,8 +279,24 @@ int modperl_init_vhost(server_rec *s, apr_pool_t *p,
 void modperl_init(server_rec *base_server, apr_pool_t *p)
 {
     server_rec *s;
-    modperl_config_srv_t *base_scfg = modperl_config_srv_get(base_server);
+    modperl_config_srv_t *base_scfg;
     PerlInterpreter *base_perl;
+
+    /* get the real base server when invoked from vhost.
+     *
+     * without doing it segfaults when the first PerlLoadModule
+     * appears inside vhost, e.g.:
+     *     <VirtualHost _default_:8535>
+     *         PerlLoadModule Foo
+     *     </VirtualHost> 
+     * an arrangement which is unfortunately hard to automate with our
+     * test suite, but see test TestDirective::perlloadmodule6
+     */
+    if (base_server->is_virtual) {
+        base_server = modperl_global_get_server_rec();
+    }
+
+    base_scfg = modperl_config_srv_get(base_server);
 
     MP_TRACE_d_do(MpSrv_dump_flags(base_scfg,
                                    base_server->server_hostname));
@@ -359,7 +375,7 @@ static void modperl_init_clones(server_rec *s, apr_pool_t *p)
 }
 #endif /* USE_ITHREADS */
 
-static void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
+void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
 {
     int threaded_mpm;
     ap_mpm_query(AP_MPMQ_IS_THREADED, &threaded_mpm);
@@ -428,7 +444,7 @@ int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog,
     modperl_sys_init();
     apr_pool_cleanup_register(pconf, NULL,
                               modperl_sys_term, apr_pool_cleanup_null);
-    modperl_init_globals(s, pconf);
+
     modperl_init(s, pconf);
 
     return OK;
@@ -456,10 +472,6 @@ int modperl_is_running(void)
 int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,
                             apr_pool_t *ptemp)
 {
-    /* for <IfDefine MODPERL2> and Apache->define("MODPERL2") */
-    *(char **)apr_array_push(ap_server_config_defines) =
-        apr_pstrdup(p, "MODPERL2");
-
     /* XXX: htf can we have PerlPreConfigHandler
      * without first configuring mod_perl ?
      */
@@ -564,6 +576,10 @@ static void modperl_hook_child_init(apr_pool_t *p, server_rec *s)
 
 void modperl_register_hooks(apr_pool_t *p)
 {
+    /* for <IfDefine MODPERL2> and Apache->define("MODPERL2") */
+    *(char **)apr_array_push(ap_server_config_defines) =
+        apr_pstrdup(p, "MODPERL2");
+
     ap_hook_pre_config(modperl_hook_pre_config,
                        NULL, NULL, APR_HOOK_MIDDLE);
 
@@ -629,14 +645,15 @@ static const command_rec modperl_cmds[] = {
     MP_CMD_DIR_ITERATE2("PerlAddVar", add_var, "PerlAddVar"),
     MP_CMD_DIR_TAKE2("PerlSetEnv", set_env, "PerlSetEnv"),
     MP_CMD_SRV_TAKE1("PerlPassEnv", pass_env, "PerlPassEnv"),
-    MP_CMD_SRV_RAW_ARGS("<Perl", perl, "NOT YET IMPLEMENTED"),
+    MP_CMD_SRV_RAW_ARGS_ON_READ("<Perl", perl, "Perl Code"),
+    MP_CMD_SRV_RAW_ARGS("Perl", perldo, "Perl Code"),
 	
     MP_CMD_DIR_RAW_ARGS_ON_READ("=pod", pod, "Start of POD"),
     MP_CMD_DIR_RAW_ARGS_ON_READ("=back", pod, "End of =over"),
     MP_CMD_DIR_RAW_ARGS_ON_READ("=cut", pod_cut, "End of POD"),
     MP_CMD_DIR_RAW_ARGS_ON_READ("__END__", END, "Stop reading config"),
 
-    MP_CMD_SRV_RAW_ARGS("LoadModule", load_module, "A Perl module"),
+    MP_CMD_SRV_RAW_ARGS("PerlLoadModule", load_module, "A Perl module"),
 #ifdef MP_TRACE
     MP_CMD_SRV_TAKE1("PerlTrace", trace, "Trace level"),
 #endif

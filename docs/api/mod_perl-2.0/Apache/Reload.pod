@@ -100,6 +100,28 @@ the same namespace. For example the setting:
 will monitor all modules under the namespaces C<ModPerl::> and
 C<Apache::>.
 
+=head2 Monitor Only Certain Sub Directories
+
+To reload modules only in certain directories (and their
+subdirectories) add the following to the I<httpd.conf>:
+
+  PerlModule Apache::Reload
+  PerlInitHandler Apache::Reload
+  PerlSetVar ReloadDirectories "/tmp/project1 /tmp/project2"
+
+You can further narrow the list of modules to be reloaded from the
+chosen directories with C<ReloadModules> as in:
+
+  PerlModule Apache::Reload
+  PerlInitHandler Apache::Reload
+  PerlSetVar ReloadDirectories "/tmp/project1 /tmp/project2"
+  PerlSetVar ReloadAll Off
+  PerlSetVar ReloadModules "MyApache::*"
+
+In this configuration example only modules from the namespace
+C<MyApache::> found in the directories I</tmp/project1/> and
+I</tmp/project2/> (and their subdirectories) will be reloaded.
+
 =head2 Special "Touch" File
 
 You can also declare a file, which when gets C<touch(1)>ed, causes the
@@ -152,11 +174,22 @@ reloaded, are actually getting reloaded, turn the debug mode on:
 
   PerlSetVar ReloadDebug On
 
+=head1 Problems With Reloading Modules Which Do Not Declare Their Package Name
+
+If you modify modules which don't declare their C<package> and rely on
+C<Apache::Reload> to reload them you may encounter problems: i.e.,
+it'll appear as if the module wasn't reloaded when in fact it
+was. This happens because when C<Apache::Reload> C<require()>s such a
+module all the global symbols end up in the C<Apache::Reload>
+namespace!  So the module does get reloaded and you see the compile
+time errors if there are any, but the symbols don't get imported to
+the right namespace. Therefore the old version of the code is running.
+
 =head1 Threaded MPM and Multiple Perl Interpreters
 
 If you use C<Apache::Reload> with a threaded MPM and multiple Perl
 interpreters, the modules will be reloaded by each interpreter as they
-are used, not every interpreters at once.  Similar to mod_perl 1.x
+are used, not every interpreters at once.  Similar to mod_perl 1.0
 where each child has its own Perl interpreter, the modules are
 reloaded as each child is hit with a request.
 
@@ -171,7 +204,7 @@ reloaded subroutines.
 =head1 Pseudo-hashes
 
 The short summary of this is: Don't use pseudo-hashes. They are
-deprecated since Perl 5.8 and will be removed in 5.10
+deprecated since Perl 5.8 and are removed in 5.9.
 
 Use an array with constant indexes. Its faster in the general case,
 its more guaranteed, and generally, it works.
