@@ -1,0 +1,9 @@
+#see Apache::Registry
+
+my $r = Apache->request;
+$r->content_type("text/html");
+$r->send_http_header();
+
+$r->write_client(
+   "Hi There!",
+);

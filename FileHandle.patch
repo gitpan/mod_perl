@@ -1,0 +1,45 @@
+>From owner-perl5-porters@nicoh.com  Wed Jul 24 11:46:40 1996
+Return-Path: owner-perl5-porters@nicoh.com
+From: Chip Salzenberg <salzench@nielsenmedia.com>
+Subject: Important fix for FileHandle::DESTROY
+To: perl5-porters@africa.nicoh.com (Perl 5 Porters)
+Date: Wed, 24 Jul 1996 11:45:55 -0400 (EDT)
+Reply-To: salzench@tvratings.com
+Sender: owner-perl5-porters@nicoh.com
+List-Name: perl5-porters
+Precedence: bulk
+X-UIDL: 36530a1d6f436d1d0607f0849efcc8d6
+
+Several people have send in bug reports concerning spurious DIEs during
+destruction of global FileHandle objects.  Here's a fix.
+
+Index: ext/FileHandle/FileHandle.pm
+***************
+*** 263,267 ****
+  sub DESTROY {
+      my ($fh) = @_;
+!     close($fh);
+  }
+  
+--- 263,281 ----
+  sub DESTROY {
+      my ($fh) = @_;
+! 
+!     #
+!     # During global object destruction, this function may be called
+!     # on FILEHANDLEs as well as on the GLOBs that contains them.
+!     # Thus the following trickery.  If only the CORE file operators
+!     # could deal with FILEHANDLEs, it wouldn't be necessary...
+!     #
+! 
+!     if ($fh =~ /=FILEHANDLE\(/) {
+! 	local *TMP = $fh;
+! 	close(TMP) if fileno(TMP);
+!     }
+!     else {
+! 	close($fh) if fileno($fh);
+!     }
+  }
+  
+
+

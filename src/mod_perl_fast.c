@@ -50,13 +50,14 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.15 1996/07/14 23:34:39 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.18 1996/07/26 19:11:08 dougm Exp $ */
 
 #include "httpd.h"
 #include "http_config.h"
 #include "http_protocol.h"
 #include "http_log.h"
 #include "http_main.h"
+#include "http_core.h"
 
 #include <EXTERN.h>
 #include <perl.h>
@@ -67,15 +68,18 @@
 #define CTRACE
 #endif
 
+#define PERL_APACHE_SSI_TYPE "text/x-perl-server-parsed-html"
+
 static int avoid_first_alloc_hack = 0;
 
 typedef struct {
    char *PerlScript;
-   AV *PerlModules;
+   char **PerlModules;
+   int  NumPerlModules;
 } perl_server_config;
 
 typedef struct {
-   char *PerlResponse;
+   char *PerlHandler;
 } perl_dir_config;
 
 static PerlInterpreter *perl = NULL;
@@ -91,20 +95,16 @@ void perl_init (server_rec *s, pool *p)
   int status;
   I32 i;
   SV *module;
-  perl_server_config *cls = get_module_config (s->module_config,
-					       &perl_fast_module);   
-  char *fname = cls->PerlScript;
+  perl_server_config *cls;
+  char *fname; 
 
   if(avoid_first_alloc_hack++ == 0)
     return;
 
-  /* char *fname = server_root_relative (p, cls->PerlScript); */
+  cls = get_module_config (s->module_config,
+			    &perl_fast_module);   
+  fname = cls->PerlScript;
 
-  if (fname == NULL) {
-    fprintf(stderr, "mod_perl_fast: Missing 'PerlScript' in srm.conf!\n");
-    return;
-    /* exit(1); */
-  }
 
   if (perl != NULL) {
     CTRACE(stderr, "perl_init: freeing perl interpreter\n");
@@ -123,24 +123,34 @@ void perl_init (server_rec *s, pool *p)
   CTRACE(stderr, "perl_init: perl_construct OK\n");
 
   argv[0] = argv[2] = NULL;
-  argv[1] = fname;
+  if (fname == NULL) {
+    argv[1] = "-e";
+    argv[2] = "0";
+  } else {
+    argv[1] = fname;
+  }
 
-  CTRACE(stderr, "perl_init: loading perl script: %s\n", fname);
+
+  CTRACE(stderr, "perl_init: loading perl script: %s\n", argv[1]);
   status = perl_parse(perl, xs_init, 2, argv, NULL);
   if (status != 0) {
-     CTRACE(stderr,"httpd: perl_parse failed: %s. Status: %d\n",fname,status);
+     CTRACE(stderr,"httpd: perl_parse failed: %s. Status: %d\n",argv[1],status);
      perror("parse");
      exit(1);
   }
   CTRACE(stderr, "perl_init: perl_parse OK\n");
 
-  for(i = 0; i <= av_len(cls->PerlModules); i++) {
-    module = (SV*)av_shift(cls->PerlModules);
-    mod = SvPV(module, na);
-    CTRACE(stderr, "Loading Perl module '%s'\n", mod); 
-    perl_require_module(module);
-    if(perl_eval_ok(s) != 0) 
-      fprintf(stderr, "Couldn't load Perl module '%s'\n", mod);
+  for(i = 0; i < cls->NumPerlModules; i++) {
+    mod = cls->PerlModules[i];
+    module = newSVpv(mod,0);
+
+    if(SvTRUE(module)) {
+      CTRACE(stderr, "Loading Perl module '%s'...", mod); 
+      perl_require_module(module);
+      CTRACE(stderr, "ok\n");
+      if(perl_eval_ok(s) != 0) 
+	fprintf(stderr, "Couldn't load Perl module '%s'\n", mod);
+    }
   }
 
   perl_clear_env();
@@ -161,7 +171,7 @@ void *create_perl_dir_config (pool *p, char *dirname)
   perl_dir_config *cls =
     (perl_dir_config *)palloc(p, sizeof (perl_dir_config));
 
-  cls->PerlResponse = NULL;
+  cls->PerlHandler = NULL;
   return (void *)cls;
 }
 
@@ -170,7 +180,9 @@ void *create_perl_server_config (pool *p, server_rec *s)
   perl_server_config *cls =
     (perl_server_config *)palloc(p, sizeof (perl_server_config));
 
-  cls->PerlModules = (AV*)sv_2mortal((SV*)newAV()); 
+  cls->PerlModules = (char **)NULL; 
+  cls->PerlModules = (char **)palloc(p, 10*sizeof(char *));
+  cls->NumPerlModules = 0;
   cls->PerlScript = NULL;
   perl = NULL;
 
@@ -182,13 +194,22 @@ int perl_fast_handler(request_rec *r)
   int status = OK;
   perl_dir_config *cld = get_module_config (r->per_dir_config,
 					    &perl_fast_module);   
-
+  CTRACE(stderr, "content-type: %s\n", r->content_type);
   perl_set_request_rec(r);
 
-  status = perl_call(perl, cld->PerlResponse, r->server);
+  if(cld->PerlHandler != NULL)
+    status = perl_call(perl, cld->PerlHandler, r->server);
+  else {
+    log_error("perl_call failed, must set a PerlHandler", r->server);
+    return SERVER_ERROR;
+  }
 
   if (status == 65535)  /* this is what we get by exit(-1) in perl */
     status = SERVER_ERROR;
+
+  CTRACE(stderr, "status: '%d'\n", status);
+  if((status == 1) || (status == 200)) /* OK */
+    status = OK;
 
   return status;
 }
@@ -203,7 +224,7 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
     SAVETMPS;
     PUSHMARK(sp);
     PUTBACK;
-
+    
     /* agb. need to reset $$ */
     if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
       sv_setiv(GvSV(tmpgv), (I32)getpid());
@@ -221,9 +242,9 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
         return SERVER_ERROR;
     }
 
-   status = POPi;
+    status = POPi;
 
-   PUTBACK;
+    PUTBACK;
     FREETMPS;
     LEAVE;
     return status;
@@ -245,7 +266,7 @@ char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
                                        &perl_fast_module);   
 
   CTRACE(stderr, "push_perl_modules: arg='%s'\n", arg);
-  av_push(cls->PerlModules, newSVpv(arg,0));
+  cls->PerlModules[cls->NumPerlModules++] = arg;
   return NULL;
 }
 
@@ -255,16 +276,21 @@ command_rec perl_cmds [] = {
     RSRC_CONF, TAKE1, "the Perl script name" },
   { "PerlModule", push_perl_modules,
     NULL,
-    RSRC_CONF, TAKE1, "A Perl module" },
+    RSRC_CONF, ITERATE, "A Perl module" },
   { "PerlResponse", set_string_slot, 
-    (void*)XtOffsetOf(perl_dir_config, PerlResponse), 
-    OR_ALL, TAKE1, "the Perl response routine name" },
+    (void*)XtOffsetOf(perl_dir_config, PerlHandler), 
+    OR_ALL, TAKE1, "the Perl handler routine name" },
+  { "PerlHandler", set_string_slot, 
+    (void*)XtOffsetOf(perl_dir_config, PerlHandler), 
+    OR_ALL, TAKE1, "the Perl handler routine name" },
   { NULL }
 };
 
 handler_rec perl_fast_handlers [] = {
    { "httpd/fast-perl", perl_fast_handler },
-   { "text/x-perl-server-parsed-html", perl_fast_handler },
+   { PERL_APACHE_SSI_TYPE, perl_fast_handler },
+   { "fast-perl", perl_fast_handler },
+   { "perl-script", perl_fast_handler },
    { NULL }
 };
 

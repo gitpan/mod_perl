@@ -1,4 +1,6 @@
-use lib qw(/users/dougm/lib/perl5);
+#**** NOTE: Lincoln has made adjustments for us in CGI.pm-2.22a5
+# Once he makes a final release things will be much nicer here....
+
 require Apache;
 require Apache::CGI;
 

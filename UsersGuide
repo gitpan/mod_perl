@@ -1,0 +1,76 @@
+Apache/Perl API
+---------------
+Type 'perldoc Apache' for info on how to use the Perl-Apache API.
+See also: Apache::Registry, Apache::SSI, Apache::CGI, Apache::Debug
+See the eg/ directory for example scripts.
+
+
+mod_perl
+--------
+To tell Apache you want mod_perl to handle your scripts add to your
+srm.conf:
+
+    AddType httpd/perl .pl
+
+
+mod_perl_fast
+-------------
+To tell Apache you want mod_perl_fast to handle your scripts add to
+your srm.conf:
+
+    AddHandler perl-script .fpl
+
+Now, any file with the extension '.fpl' will be executed by mod_perl_fast.
+However, if your PerlHandler is Apache::Registry::handler, this module
+will check to see if 'ExecCGI' is allowed in that directory before
+executing it.
+See the Apache::Registry module for details.
+ 
+Optionally you may alias a directory to be handled by mod_perl_fast:
+
+    PerlAlias /perl/ /some/directory/ 
+
+NOTE: Currently, you must apply the src/mod_alias.patch to mod_alias.c 
+for this to work.
+
+Now, any file in the PerlAlias'ed directory will be executed by
+mod_perl_fast, just as any file in a ScriptAlias'ed directory will
+be run as a CGI script.
+
+You may perl load modules via
+
+    PerlModule Apache::Registry Apache::SSI SomeOther::Module
+
+Optionally:
+
+    PerlScript  /full/path/to/script_to_load_at_startup.pl
+
+This script will be loaded when the server starts. See eg/mpf_eg.pl
+for an example to start with.
+
+In an access.conf <Directory /foo> or .htaccess you need:
+
+    PerlHandler sub_routine_name
+
+This is the name of the subroutine to call to handle each request. 
+e.g. 
+in the PerlScript mpf_eg.pl this is "main::handler".
+in the PerlModule Apache::Registry this is "Apache::Registry::handler".
+
+WARNINGS
+--------
+
+For *both* mod_perl and mod_perl_fast:
+
+Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin) directory.
+
+Your scripts *will not* run from the command line (yet).
+
+Support
+-------
+
+For comments, questions, bug-reports, announcements, etc., send mail
+to majordomo@listproc.itribe.net with the string "subscribe modperl"
+in the body.  
+
+

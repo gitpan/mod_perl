@@ -1,0 +1,54 @@
+>From owner-perl5-porters@nicoh.com  Thu Jul 25 17:08:37 1996
+Return-Path: owner-perl5-porters@nicoh.com
+Date: Thu, 25 Jul 1996 23:07:41 +0200
+From: skimo@breughel.ufsia.ac.be (Sven Verdoolaege)
+To: perl5-porters@africa.nicoh.com
+Subject: minimal TIEHANDLE support
+Sender: owner-perl5-porters@nicoh.com
+List-Name: perl5-porters
+Precedence: bulk
+X-UIDL: bf00ef54d723585db0cc64d9931cab2f
+
+Currently it is possible too tie a filehandle,
+but it doesn't do very much.
+The following patch makes it do something for print
+(this should be handy for the Apache module)
+The next patch make printf to exactly what the pod say;
+you may not like that second patch.
+Oops no next patch, I forgot to take it with me.
+
+skimo
+
+
+--- pp_hot.c.orig	Tue Mar 26 20:57:11 1996
++++ pp_hot.c		Thu Jul 25 13:59:47 1996
+@@ -316,11 +316,26 @@
+     GV *gv;
+     IO *io;
+     register FILE *fp;
++    MAGIC *mg;
+ 
+     if (op->op_flags & OPf_STACKED)
+ 	gv = (GV*)*++MARK;
+     else
+ 	gv = defoutgv;
++    if (mg = mg_find(gv, 'q')) {
++	SV *sv;
++
++	PUSHMARK(MARK-1);
++	*MARK = mg->mg_obj;
++	ENTER;
++	perl_call_method("PRINT", G_SCALAR);
++	LEAVE;
++	SPAGAIN;
++	sv = POPs;
++	SP = ORIGMARK;
++	PUSHs(sv);
++	RETURN;
++    }
+     if (!(io = GvIO(gv))) {
+ 	if (dowarn) {
+ 	    SV* sv = sv_newmortal();
+
+
+

@@ -2,7 +2,7 @@ package Apache;
 
 #use vars qw($VERSION);
 
-$VERSION = "1.01";
+$VERSION = "1.02";
 
 bootstrap Apache $VERSION;
 
@@ -258,6 +258,13 @@ Handy function for unescapes.
 
   Apache::unescape_url($string);
 
+=head2 allow_options(), is_perlaliased() 
+
+Methods for checking if it's ok to run a perl script. 
+
+ if(!($r->allow_options & OPT_EXECCGI) && !$r->is_perlaliased) {
+     $r->log_reason("Options ExecCGI is off in this directory", 
+		    $filename);
 
 =head2 more request info
 
@@ -296,7 +303,7 @@ This is really a server_rec * in disguise.
 
 =head1 SEE ALSO
 
- perl(1), Apache::CGI(3)
+ perl(1), Apache::CGI(3), Apache::Debug(3), Apache::Options(3)<
 
 =head1 AUTHORS
 

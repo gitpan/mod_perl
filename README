@@ -1,5 +1,5 @@
  
-README for mod_perl.c, mod_perl_fast.c, and Apache.xs
+README for the Apache/Perl modules
 
 These are Apache modules that embed a perl interpreter in the HTTP
 server.  The benefit of this is that we are able to run scripts
@@ -25,7 +25,8 @@ Apache's i/o is not stream oriented.  So, you cannot print() to STDOUT
 from your script, use $r->print() instead.  Nor can you read() from
 STDIN, use $r->read() or the $r->content methods to read POST data.
 (A clean mechanism is in the works for redirecting your script's
-streams.)  See the eg/ directory and read the documentation in
+streams, see experimental Apache::TieHandle module.)  
+See the eg/ directory and read the documentation in
 Apache.pm for examples.
 
 Your scripts will not run from the command line (yet).
@@ -61,20 +62,17 @@ problem with perl itself, which is being fixed.
 Installation needs work.
 
 TODO
-
+o Provide full support for CGI.pm and CGI::* module with Apache::* subclasses
+o Make sure we are inline with Apache's security policy
+o Apache::Database module or some such to manage 
+  persistent database connections 
 o Resolve multiple perl interpreter issues.
 o Complete Apache.xs interface
-o Find a way to hookup perl's STDIN and STDOUT to the client
-  with this new i/o scheme. tie(*STDIN, Tie::ApacheHandle, $r) anyone?
+o Look closer at the TIEHANDLE interface
 o Provide an optional and configurable Safe wrapper around embedded scripts
   (almost there)
 
-ACKNOWLEGEMENTS
-
-Many thanks to Gisle Aas <aas@oslonett.no> for getting this started.
-
-Thanks to John Detloff <detloff@arizona.edu> for contributions to
-mod_perl_fast.
+ACKNOWLEGEMENTS - See 'Changes' file
 
 ---------------------------------------------------------------------------
 

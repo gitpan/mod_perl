@@ -9,4 +9,7 @@
 ^tmon.out$
 mod_safeperl.c
 pm_to_blib
-Apache.c
+Apache\.c
+CGIalpha.pm
+Config\.xs
+Config\.c

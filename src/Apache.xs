@@ -16,7 +16,7 @@ extern "C" {
 #include "http_main.h"
 #include "http_core.h"
 
-/* $Id: Apache.xs,v 1.18 1996/07/14 23:34:39 dougm Exp $ */
+/* $Id: Apache.xs,v 1.20 1996/07/22 00:55:11 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -44,12 +44,12 @@ typedef server_rec  * Apache__Server;
 static int perl_trace = 0;
 #define CTRACE if(perl_trace > 0) fprintf
 
-
+static IV perl_apache_request_rec;
 
 void perl_set_request_rec(request_rec *r)
 {
   /* Make a pointer to the request structure available as $Apache::Request */
-  sv_setref_pv(sv_2mortal(perl_get_sv("Apache::Request", TRUE)), NULL, (void*)r);
+  perl_apache_request_rec = (IV)r;
 }
 
 void perl_apache_bootstrap()
@@ -85,7 +85,7 @@ perl_require_module(m)
 SV *m;
 {
     SV* sv = sv_newmortal();
-    sv_setpv(sv, "use ");
+    sv_setpv(sv, "require ");
     sv_catsv(sv, m);
     perl_eval_sv(sv, G_DISCARD);
 }
@@ -205,7 +205,25 @@ unescape_url(string)
    RETVAL
    
 #functions from http_core.c
+int 
+allow_options(r)
+    Apache	r
 
+int
+is_perlaliased(r)
+    Apache	r
+
+    CODE:
+    {
+    char *t;
+
+    t = table_get (r->notes, "alias-forced-type");
+    RETVAL = (t && (!strcmp (t, "perl-script")));
+    }
+
+    OUTPUT:
+    RETVAL
+ 
 char *
 get_remote_host(r)
     Apache	r
@@ -358,10 +376,11 @@ request(packname = "Apache")
     CODE:
     {
     HV *stash;
-   
+    SV *sv;
+
+    sv = newSViv(perl_apache_request_rec);
     stash = gv_stashpv(packname, TRUE);
-    ST(0) = sv_newmortal();
-    ST(0) = sv_bless(perl_get_sv("Apache::Request", FALSE), stash);
+    ST(0) = sv_2mortal(sv_bless(newRV(sv), stash));
     }
 
 #  pool *pool;

@@ -1,4 +1,5 @@
 package Apache::CGI;
+require Apache;
 use CGI ();
 
 @ISA = qw(CGI);
@@ -12,8 +13,8 @@ BEGIN {
 }
 
 sub new {
-    my($class, $r) = @_;
-        
+    my($class) = shift;
+    my $r = Apache->request;
     my $cgi = bless {
         '.req' => $r,
     }, $class;
@@ -134,6 +135,7 @@ Apache::CGI - Make things work with CGI.pm against Perl-Apache API
 
 **NOTE**
 If you are using a version of CGI.pm such as 2.19, comment out the SelfLoader stuff.
+Once CGI.pm-2.22 is released we'll be in much better shape...
 ********
 
 When using the Perl-Apache API, your applications are faster, but the

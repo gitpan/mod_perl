@@ -1,9 +1,78 @@
+July 26, 1996
+
+o release 0.76b1
+
+o included Sven Verdoolaege's (experimental) patch for minimal TIEHANDLE
+  support, so we can tie *STDOUT, 'print' instead of '$r->print' that is.
+
+o added (experimental) Apache::TieHandle module
+
+o included Chip Salzenberg's FileHandle.pm patch
+
+o added UsersGuide document
+
+o if no PerlHandler is defined we fail with a SERVER_ERROR
+
+o Apache::Registry now checks to make sure uri is not a directory
+
+o applied Apache::Registry patch from Andreas for minor clean-up 
+  and an extra error check
+  
+July 21, 1996
+
+o release 0.75a1
+
+o added Apache::Registry module contributed by 
+  Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+
+o Apache::SSI now checks ExecCGI option before doing an 'exec'
+
+o included patch for mod_alias.c to allow for PerlAlias directive
+
+o added allow_options and is_perlaliased methods to Apache.pm
+
+o added Apache::Options module
+
+o added Apache::Debug module
+
+o applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> to
+  -fake up a PerlScript if one is not specified
+  -ITERATE over PerlModule directive so it will accept multiple modules
+  -no longer store request_rec in $Apache::Request
+  
+o we now require ExtUtils::Embed as it has been re-named for
+  the standard perl distribution as of 5.003_01
+
+July 19, 1996
+
+o release 0.71b1
+
+o added PERL_CCFLAGS to Makefile.tmpl as suggested by 
+  Lincoln Stein <lstein@genome.wi.mit.edu>
+
+o subroutines no longer need to return '0' for OK status, 200 and 1 
+  are 'OK' too.
+
+o added 'PerlHandler' as replacement for 'PerlResponse',
+  seems like a more appropriate name after Salvador's 
+  'AddHandler' suggestion
+
+o added item to the handler_rec so we can say 'AddHandler'
+  Thanks to Salvador Garcia <sortiz@cfe.gob.mx>
+
+o fixed bug with storing 'PerlModule's read from srm.conf
+  Thanks to Salvador Garcia <sortiz@cfe.gob.mx> for the spot and helping with the fix
+  
+o more Makefile.tmpl fixes from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+
+
 July 14, 1996
 
 o release 0.70b1
 
-o applied patches from Andreas Koenig <k@anna.in-berlin.de> to fix 
-  Makefile.tmpl bug, NeXT define troubles, typos and documentation clean-up
+o applied patches from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+  to fix Makefile.tmpl bug, NeXT define troubles, 
+  typos and documentation clean-up
 
 o Added Apache::SSI module for server side includes
 
@@ -49,7 +118,8 @@ May 21, 1996
 
 o release 0.60a2
 
-o fixed bug in mod_perl_fast.c the caused problems with $r->content and $r->args
+o fixed bug in mod_perl_fast.c the caused problems with 
+  $r->content and $r->args
 
 o Added Apache::CGI module for those who use CGI.pm
 
@@ -69,6 +139,8 @@ May 9, 1996
 o release 0.50a2
 
 o new (faster) approach with mod_perl_fast
+  Thanks to John Detloff <detloff@arizona.edu> 
+  for friendly error checking code.
 
 o we now use an Apache.pm file
 
@@ -154,7 +226,10 @@ o Changes for Apache 1.1x
 
 
 March ?? 1996
-Initial version by Gisle Aas <aas@oslonett.no>
+Initial version of mod_perl.c and perl_glue.xs
+by Gisle Aas <aas@oslonett.no>
+Thanks for getting this started Gisle!
+
 
 
 

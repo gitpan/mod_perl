@@ -7,7 +7,7 @@
 #PerlScript /path/where/you/put/it/mpf_eg.pl
 
 #in access.conf or .htaccess say:
-#PerlResponse response
+#PerlHandler main::handler
 #and the subroutine named 'response' will be called for 
 #each request when you ask for a 'file.fpl' in that directory
 #the 'file.fpl' does not need to exist, just the directory
@@ -23,12 +23,14 @@ require Apache;
 
 #here's where you can open a database connection when
 #httpd starts up
-
+#this needs work, since the children are sharing a socket, 
+#data collisions are possible.
+# ***experimental try at own risk ***
 #use DBI;
 #my($host,$db,$table,$driver) = ("", "test", "Users", "mSQL");
 #my $dbh = DBI->connect($host, $db, "", $driver);
 
-sub response {
+sub handler {
     my $r    = Apache->request;
     my $srv  = $r->server;
     my $conn = $r->connection;
@@ -99,7 +101,7 @@ FORM
     );
     
 
-    return 0; #need to give a return status
+    return 200; #need to give a return status
 }
 
 #any other subroutines you want can be here too.

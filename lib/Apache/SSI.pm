@@ -1,5 +1,6 @@
 package Apache::SSI;
 require Apache;
+use Apache::Options qw(&OPT_EXECCGI); #for exec
 require HTML::TreeBuilder;
 use HTTP::Date;
 use File::Basename;
@@ -8,8 +9,8 @@ use vars qw($VERSION @ISA);
 
 @ISA = qw(HTML::TreeBuilder);
 
-#$Id: SSI.pm,v 1.1 1996/07/14 23:34:39 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1 $ =~ /(\d+)\.(\d+)/);
+#$Id: SSI.pm,v 1.11 1996/07/22 00:50:12 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.11 $ =~ /(\d+)\.(\d+)/);
 
 #wherever you choose:
 #AddType httpd/fast-perl .phtml
@@ -101,7 +102,13 @@ sub flastmod {
 
 sub exec {
     my($self, $args) = @_;
-    #XXX need to check noexec options
+    #XXX did we check enough?
+    my $r = $self->{_r};
+    my $filename = $r->filename;
+    unless($r->allow_options & OPT_EXECCGI) {
+	$r->log_error("httpd: exec used but not allowed in $filename");
+	return "";
+    }
     `$args->{cmd}`;
 }
 

@@ -6,8 +6,6 @@ INSTALLATION for mod_perl.c, mod_perl_fast.c and Apache.*
 Currently, you can only use mod_perl *or* mod_perl_fast.
 You may however, build Apache with both modules.
 To "turn off" mod_perl, simply #comment out the AddType httpd/perl .pl in srm.conf.
-To "turn off" mod_perl_fast, simply #comment out the PerlScript scriptname.pl in srm.conf.
-
 
 Prerequisites
 -------------
@@ -17,9 +15,8 @@ You need apache1.1b2 or better.
 Make sure you have perl version 5.002_01 or better, compiled with -DEMBED
 (this is the default with 5.002_01+ anyway)
 
-Fetch and install ExtUtils::embed from CPAN 
-<URL:http://www.perl.com/cgi-bin/cpan_mod?module=ExtUtils::embed>.
-
+Fetch and install ExtUtils::Embed from CPAN 
+<URL:http://www.perl.com/cgi-bin/cpan_mod?module=ExtUtils::Embed>.
 
 Build and install the perl part of this module
 ----------------------------------------------
@@ -30,11 +27,13 @@ The perl modules under lib/ can be installed by saying (in this current director
   make
   make install
 
-See Apache.pm on how to use the Perl-Apache API.
-
-See the eg/ directory for example scripts.
-
-
+*** NOTE ***
+This install includes the module Apache::Registry, which uses the standard
+module 'FileHandle'.  There is a bug in the current version of this module,
+we suggest you apply the patch 'FileHandle.patch' to fix the problem
+until it is fixed in the standard distribution of Perl.
+Although, it is a strange bug, you might not even see it without the patch...
+ 
 Build apache
 ------------
 
@@ -59,46 +58,9 @@ Copy the files in this src/ to apache's src/
 
 Follow the Apache install docs from there.
 
-To tell Apache you want mod_perl to handle your scripts add to your
-srm.conf:
-
-    AddType httpd/perl .pl
-
-To tell Apache you want mod_perl_fast to handle your scripts add to
-your srm.conf:
-
-    AddType httpd/fast-perl .fpl
-
-and:
-
-    PerlScript  script_to_load_at_startup.pl
-
-Optionally you may also load a module via
-
-    PerlModule Module::Name
-
-	
-This script will be loaded when the server starts. See eg/mpf_eg.pl
-for an example to start with.
-
-In an access.conf <Directory /foo> or .htaccess you need:
-
-    PerlResponse sub_routine_name
-
-This is the name of the subroutine to call (defined in PerlScript)
-to handle each request. (In the mpf_eg.pl this is "response").
-
-
-Let it run, but read this WARNING
-*********************************
-
-For *both* mod_perl and mod_perl_fast:
-
-Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin) directory.
-
-Your scripts *will not* run from the command line (yet).
-
-
+See the 'UsersGuide' file for info on configuring, running
+and writing Apache/Perl scripts and modules.
+ 
 Support
 -------
 

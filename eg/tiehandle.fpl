@@ -1,0 +1,17 @@
+#**** This is experimental ****
+#You must apply the 'pp_hot.patch' to
+#your perl source and re-build/re-install 
+#before this will work...
+
+require Apache::TieHandle;
+
+tie *STDOUT => 'Apache::TieHandle';
+
+print <<RESPONSE;
+Content-type: text/html
+
+Hey, cool, 
+we don't need to say
+\$r->write_client()
+
+RESPONSE
