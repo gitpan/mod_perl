@@ -1,4 +1,4 @@
-/* Copyright 2001-2004 The Apache Software Foundation
+/* Copyright 2001-2005 The Apache Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,14 @@
 void modperl_env_hash_keys(pTHX);
 
 void modperl_env_clear(pTHX);
+
+void modperl_env_hv_store(pTHX_ const char *key, const char *val);
+
+void modperl_env_sync_srv_env_hash2table(pTHX_ apr_pool_t *p,
+                                         modperl_config_srv_t *scfg);
+
+void modperl_env_sync_dir_env_hash2table(pTHX_ apr_pool_t *p,
+                                         modperl_config_dir_t *dcfg);
 
 void modperl_env_configure_server(pTHX_ apr_pool_t *p, server_rec *s);
 

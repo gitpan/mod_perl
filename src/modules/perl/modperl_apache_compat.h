@@ -1,4 +1,4 @@
-/* Copyright 2003-2004 The Apache Software Foundation
+/* Copyright 2003-2005 The Apache Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,5 +34,10 @@ typedef void * apr_thread_mutex_t;
  * and don't forget to insert comments explaining exactly
  * which httpd release allows us to remove the compat code
  */
+
+/* ap_http_scheme is called ap_http_method in httpd 2.0 */
+#ifndef ap_http_scheme
+#define ap_http_scheme(r) ap_http_method(r)
+#endif
 
 #endif /* MODPERL_APACHE_COMPAT_H */

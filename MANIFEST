@@ -550,6 +550,10 @@ t/htdocs/includes/footer.shtml
 t/htdocs/includes/header.shtml
 t/htdocs/includes/test.shtml
 t/htdocs/merge3/htaccess
+t/htdocs/modperl/setupenv2/config_require.pl
+t/htdocs/modperl/setupenv2/module.pm
+t/htdocs/modperl/setupenv2/post_config_require.pl
+t/htdocs/modperl/setupenv2/require.pl
 t/htdocs/perlio/MoonRise.jpeg
 t/htdocs/perlio/redrum.txt
 t/htdocs/protocols/basic-auth
@@ -588,6 +592,7 @@ t/modperl/readline.t
 t/modperl/request_rec_perlio_api.t
 t/modperl/sameinterp.t
 t/modperl/setupenv.t
+t/modperl/setupenv2.t
 t/modperl/status.t
 t/modules/apache_resource.t
 t/modules/apache_status.t
@@ -738,6 +743,7 @@ t/response/TestModperl/request_rec_tie_api.pm
 t/response/TestModperl/sameinterp.pm
 t/response/TestModperl/setauth.pm
 t/response/TestModperl/setupenv.pm
+t/response/TestModperl/setupenv2.pm
 t/response/TestModperl/status.pm
 t/response/TestModperl/subenv.pm
 t/response/TestModperl/taint.pm

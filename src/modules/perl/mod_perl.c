@@ -1,4 +1,4 @@
-/* Copyright 2000-2004 The Apache Software Foundation
+/* Copyright 2000-2005 The Apache Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -572,6 +572,8 @@ static apr_status_t modperl_sys_term(void *data)
     MP_init_status = 0;
     MP_threads_started = 0;
     MP_post_post_config_phase = 0;
+
+    MP_PERL_FREE_THREAD_KEY_WORKAROUND;
 
     MP_TRACE_i(MP_FUNC, "mod_perl sys term\n");
 

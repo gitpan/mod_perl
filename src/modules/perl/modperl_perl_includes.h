@@ -1,4 +1,4 @@
-/* Copyright 2001-2004 The Apache Software Foundation
+/* Copyright 2001-2005 The Apache Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -131,6 +131,25 @@
             SvUTF8_off(dsv);      \
         }                         \
     } STMT_END
+#endif
+
+
+/* perl bug workaround: with USE_ITHREADS perl leaks pthread_key_t on
+ * every reload of libperl.{a,so} (it's allocated on the very first
+ * perl_alloc() and never freed). This becomes a problem on apache
+ * restart: if the OS limit is 1024, 1024 restarts later things will
+ * start crashing */
+/* XXX: once and if it's fixed in perl, we need to disable it for the
+ * versions that have it fixed, otherwise it'll crash because it'll be
+ * freed twice */
+#ifdef USE_ITHREADS
+#define MP_PERL_FREE_THREAD_KEY_WORKAROUND      \
+    if (PL_curinterp) {                         \
+        FREE_THREAD_KEY;                        \
+        PL_curinterp = NULL;                    \
+    }
+#else
+#define MP_PERL_FREE_THREAD_KEY_WORKAROUND
 #endif
 
 #endif /* MODPERL_PERL_INCLUDES_H */

@@ -1,4 +1,4 @@
-# Copyright 2000-2004 The Apache Software Foundation
+# Copyright 2000-2005 The Apache Software Foundation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ use 5.006;
 use strict;
 
 BEGIN {
-    our $VERSION = "1.999020";
+    our $VERSION = "1.999021";
     our $VERSION_TRIPLET;
 
     if ($VERSION =~ /(\d+)\.(\d\d\d)(\d+)/) {

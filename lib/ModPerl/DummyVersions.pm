@@ -5,143 +5,143 @@
 #  * Any changes made here will be lost
 #  * ***********************************
 #  * 01: lib/ModPerl/Code.pm:702
-#  * 02: lib/ModPerl/WrapXS.pm:1092
-#  * 03: lib/ModPerl/WrapXS.pm:1143
+#  * 02: /Users/gozer/opt/src/apache.org/mod_perl/2.0/repos/blib/lib/ModPerl/WrapXS.pm:1092
+#  * 03: /Users/gozer/opt/src/apache.org/mod_perl/2.0/repos/blib/lib/ModPerl/WrapXS.pm:1143
 #  * 04: Makefile.PL:413
 #  * 05: Makefile.PL:317
 #  * 06: Makefile.PL:53
 #  */
 # 
 
-package APR::Util;
-$APR::Util::VERSION             = 0.009000;
-
-package APR::Base64;
-$APR::Base64::VERSION           = 0.009000;
-
-package Apache::URI;
-$Apache::URI::VERSION           = 1.999020;
-
-package APR::Bucket;
-$APR::Bucket::VERSION           = 0.009000;
-
-package Apache::FilterRec;
-$Apache::FilterRec::VERSION     = 1.999020;
-
-package APR::Finfo;
-$APR::Finfo::VERSION            = 0.009000;
-
-package APR::SockAddr;
-$APR::SockAddr::VERSION         = 0.009000;
-
-package ModPerl::Global;
-$ModPerl::Global::VERSION       = 1.999020;
-
-package Apache::CmdParms;
-$Apache::CmdParms::VERSION      = 1.999020;
-
-package APR::BucketType;
-$APR::BucketType::VERSION       = 0.009000;
-
-package Apache::ServerUtil;
-$Apache::ServerUtil::VERSION    = 1.999020;
-
-package Apache::ServerRec;
-$Apache::ServerRec::VERSION     = 1.999020;
-
-package APR::Error;
-$APR::Error::VERSION            = 0.009000;
-
-package Apache::Connection;
-$Apache::Connection::VERSION    = 1.999020;
+package APR::Pool;
+$APR::Pool::VERSION             = 0.009000;
 
 package Apache::HookRun;
-$Apache::HookRun::VERSION       = 1.999020;
-
-package Apache::SubProcess;
-$Apache::SubProcess::VERSION    = 1.999020;
-
-package APR::Date;
-$APR::Date::VERSION             = 0.009000;
-
-package Apache::Module;
-$Apache::Module::VERSION        = 1.999020;
-
-package APR::UUID;
-$APR::UUID::VERSION             = 0.009000;
-
-package APR::Table;
-$APR::Table::VERSION            = 0.009000;
-
-package Apache::RequestUtil;
-$Apache::RequestUtil::VERSION   = 1.999020;
-
-package ModPerl::Util;
-$ModPerl::Util::VERSION         = 1.999020;
-
-package Apache::Access;
-$Apache::Access::VERSION        = 1.999020;
-
-package Apache::Log;
-$Apache::Log::VERSION           = 1.999020;
-
-package Apache::Process;
-$Apache::Process::VERSION       = 1.999020;
-
-package APR::URI;
-$APR::URI::VERSION              = 0.009000;
-
-package APR::Brigade;
-$APR::Brigade::VERSION          = 0.009000;
-
-package APR::ThreadMutex;
-$APR::ThreadMutex::VERSION      = 0.009000;
-
-package APR::BucketAlloc;
-$APR::BucketAlloc::VERSION      = 0.009000;
-
-package Apache::Util;
-$Apache::Util::VERSION          = 1.999020;
-
-package Apache::MPM;
-$Apache::MPM::VERSION           = 1.999020;
-
-package APR::IpSubnet;
-$APR::IpSubnet::VERSION         = 0.009000;
-
-package Apache::Command;
-$Apache::Command::VERSION       = 1.999020;
-
-package Apache::SubRequest;
-$Apache::SubRequest::VERSION    = 1.999020;
-
-package APR::OS;
-$APR::OS::VERSION               = 0.009000;
-
-package Apache::RequestRec;
-$Apache::RequestRec::VERSION    = 1.999020;
+$Apache::HookRun::VERSION       = 1.999021;
 
 package Apache::RequestIO;
-$Apache::RequestIO::VERSION     = 1.999020;
+$Apache::RequestIO::VERSION     = 1.999021;
 
 package APR::Socket;
 $APR::Socket::VERSION           = 0.009000;
 
-package Apache::Directive;
-$Apache::Directive::VERSION     = 1.999020;
+package Apache::Filter;
+$Apache::Filter::VERSION        = 1.999021;
+
+package Apache::Response;
+$Apache::Response::VERSION      = 1.999021;
+
+package APR::URI;
+$APR::URI::VERSION              = 0.009000;
+
+package APR::Base64;
+$APR::Base64::VERSION           = 0.009000;
+
+package Apache::Connection;
+$Apache::Connection::VERSION    = 1.999021;
+
+package APR::Bucket;
+$APR::Bucket::VERSION           = 0.009000;
+
+package Apache::CmdParms;
+$Apache::CmdParms::VERSION      = 1.999021;
+
+package APR::BucketAlloc;
+$APR::BucketAlloc::VERSION      = 0.009000;
+
+package APR::Util;
+$APR::Util::VERSION             = 0.009000;
+
+package Apache::ServerRec;
+$Apache::ServerRec::VERSION     = 1.999021;
+
+package Apache::SubProcess;
+$Apache::SubProcess::VERSION    = 1.999021;
+
+package APR::UUID;
+$APR::UUID::VERSION             = 0.009000;
+
+package Apache::FilterRec;
+$Apache::FilterRec::VERSION     = 1.999021;
+
+package APR::ThreadMutex;
+$APR::ThreadMutex::VERSION      = 0.009000;
+
+package ModPerl::Util;
+$ModPerl::Util::VERSION         = 1.999021;
+
+package APR::OS;
+$APR::OS::VERSION               = 0.009000;
+
+package Apache::Util;
+$Apache::Util::VERSION          = 1.999021;
+
+package APR::Error;
+$APR::Error::VERSION            = 0.009000;
+
+package APR::BucketType;
+$APR::BucketType::VERSION       = 0.009000;
+
+package APR::Table;
+$APR::Table::VERSION            = 0.009000;
 
 package APR::String;
 $APR::String::VERSION           = 0.009000;
 
-package Apache::Response;
-$Apache::Response::VERSION      = 1.999020;
+package Apache::Process;
+$Apache::Process::VERSION       = 1.999021;
 
-package APR::Pool;
-$APR::Pool::VERSION             = 0.009000;
+package Apache::Log;
+$Apache::Log::VERSION           = 1.999021;
 
-package Apache::Filter;
-$Apache::Filter::VERSION        = 1.999020;
+package APR::IpSubnet;
+$APR::IpSubnet::VERSION         = 0.009000;
+
+package Apache::RequestUtil;
+$Apache::RequestUtil::VERSION   = 1.999021;
+
+package Apache::Command;
+$Apache::Command::VERSION       = 1.999021;
+
+package Apache::Directive;
+$Apache::Directive::VERSION     = 1.999021;
+
+package Apache::Module;
+$Apache::Module::VERSION        = 1.999021;
+
+package APR::Finfo;
+$APR::Finfo::VERSION            = 0.009000;
+
+package ModPerl::Global;
+$ModPerl::Global::VERSION       = 1.999021;
+
+package APR::Brigade;
+$APR::Brigade::VERSION          = 0.009000;
+
+package Apache::URI;
+$Apache::URI::VERSION           = 1.999021;
+
+package APR::SockAddr;
+$APR::SockAddr::VERSION         = 0.009000;
+
+package Apache::RequestRec;
+$Apache::RequestRec::VERSION    = 1.999021;
+
+package APR::Date;
+$APR::Date::VERSION             = 0.009000;
+
+package Apache::Access;
+$Apache::Access::VERSION        = 1.999021;
+
+package Apache::ServerUtil;
+$Apache::ServerUtil::VERSION    = 1.999021;
+
+package Apache::SubRequest;
+$Apache::SubRequest::VERSION    = 1.999021;
+
+package Apache::MPM;
+$Apache::MPM::VERSION           = 1.999021;
 
 package ModPerl::MethodLookup;
-$ModPerl::MethodLookup::VERSION = 1.999020;
+$ModPerl::MethodLookup::VERSION = 1.999021;
 

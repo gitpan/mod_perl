@@ -1,4 +1,4 @@
-/* Copyright 2000-2004 The Apache Software Foundation
+/* Copyright 2000-2005 The Apache Software Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -239,14 +239,14 @@ int modperl_callback_run_handlers(int idx, int type,
         break;
       case MP_HANDLER_TYPE_FILES:
         modperl_handler_make_args(aTHX_ &av_args,
-                                  "Apache::Pool", pconf,
-                                  "Apache::Pool", plog,
-                                  "Apache::Pool", ptemp,
+                                  "APR::Pool", pconf,
+                                  "APR::Pool", plog,
+                                  "APR::Pool", ptemp,
                                   "Apache::ServerRec", s, NULL);
         break;
       case MP_HANDLER_TYPE_PROCESS:
         modperl_handler_make_args(aTHX_ &av_args,
-                                  "Apache::Pool", pconf,
+                                  "APR::Pool", pconf,
                                   "Apache::ServerRec", s, NULL);
         break;
     };
