@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.11 1996/05/09 19:38:29 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.12 1996/05/21 20:36:01 dougm Exp $ */
 
 #include <EXTERN.h>
 #include <perl.h>
@@ -174,14 +174,19 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
 {
     int count, status;
     SV *sv;
+    /* hmm, playing with the stack here breaks $r->content and $r->args
     dSP;
     ENTER;
     SAVETMPS;
     PUSHMARK(sp);
     PUTBACK;
-                 /* use G_EVAL so we can trap errors */
+    */
+    /* use G_EVAL so we can trap errors */
     count = perl_call_pv(perlsub, G_EVAL | G_SCALAR);
+    
+    /*
     SPAGAIN;
+    */
     sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
     if(SvTRUE(sv)) {
 	log_error(SvPV(sv, na), s);
@@ -193,11 +198,14 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
         return SERVER_ERROR;
     }
 
+    /*
     status = POPi;
     PUTBACK;
     FREETMPS;
     LEAVE;
     return status;
+    */
+    return 0;
 }
 
 char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)

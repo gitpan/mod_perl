@@ -1,3 +1,13 @@
+May 21, 1996
+
+o release 0.60a2
+
+o fixed bug in mod_perl_fast.c the caused problems with $r->content and $r->args
+
+o Added Apache::CGI module for those who use CGI.pm
+
+o There's now a Makefile.PL (currently for installing perl-only modules).
+
 May 18, 1996
 
 o release 0.60a1 - first public release

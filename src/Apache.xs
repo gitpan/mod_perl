@@ -15,7 +15,7 @@ extern "C" {
 #include "http_log.h"
 #include "http_main.h"
 
-/* $Id: Apache.xs,v 1.15 1996/05/18 16:59:48 dougm Exp $ */
+/* $Id: Apache.xs,v 1.15 1996/05/18 16:59:48 dougm Exp dougm $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;

@@ -52,8 +52,6 @@ Module perl_fast_module mod_perl_fast.o
 
 Copy the files in this src/ to apache's src/
 
-Copy Apache.pm to a place where perl can find it (sorry no Makefile.PL yet).
-
 Follow the Apache install docs from there.
 
 To tell Apache you want mod_perl to handle your scripts:
@@ -73,8 +71,14 @@ PerlResponse sub_routine_name
 This is the name of the subroutine to call (defined in PerlScript)
 to handle each request.
 
+The perl modules under lib/ can be installed by saying:
+
+  perl Makefile.PL
+  make
+  make install
+
 See Apache.pm on how to use the Perl-Apache API
-See mpf_eg.pl for an example script to use with mod_perl_fast.
+See the eg/ directory for an example scripts.
 
 Let me (dougm@osf.org) know how it goes...
 

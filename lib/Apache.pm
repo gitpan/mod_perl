@@ -205,7 +205,7 @@ Return the entity body as read from the client.
 When called in a scalar context, the entire string is returned.
 When called in a list context, a list of parsed key => value pairs
 are returned.
-Note that you can only ask for this once, 
+*NOTE*: you can only ask for this once, 
 as the entire body is read from the client.
 
 
@@ -249,12 +249,9 @@ This is really a server_rec * in disguise.
  $port = $srv->port;
 
 
-=head1 NOTES on mod_perl
+=head1 SEE ALSO
 
-The script can trigger errors by exit'ing with a HTTP status code (the perl
-exit value is used as return value from the apache handler).
-
-   exit 403;  # Forbidden
+ perl(1), Apache::CGI(3)
 
 =head1 AUTHORS
 
