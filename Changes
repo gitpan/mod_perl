@@ -6,6 +6,28 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.16_02 - November 30, 1998
+
+removed PERLV define, just use patchlevel.h's defines
+
+fix bug w/ push_handlers(PerlCleanupHandler => ...) spotted by 
+Jan-Pieter Cornet and Philp Gwyn
+
+remove references to the deprecated CGI::Switch
+
+initialize %LocationMatch, %DirectoryMatch, %FilesMatch and tie to IxHash
+for <Perl> sections [Eric Cholet <cholet@logilune.com>]
+
+when <Perl> sections empty a symbol table, don't clear imported/aliased
+variables (e.g. %Config::Config)
+
+remove warning if Apache::Table was not already loaded
+
+sv2request_rec (Apache typemap) will look for '~' so xs modules can
+subclass without using a HASH ref (e.g. Apache::Request NG)
+
+<Perl> sections will always make sure Apache.pm is loaded
+
 =item 1.16_01 - November 24, 1998
 
 $r->connection->remote_addr can now be changed

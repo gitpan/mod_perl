@@ -387,7 +387,7 @@ CHAR_P perl_cmd_push_handlers(char *hook, PERL_CMD_TYPE **cmd, char *arg, pool *
 #define PERL_CMD_PUSH_HANDLERS(hook, cmd) \
 if(!PERL_RUNNING()) { \
     perl_startup(parms->server, parms->pool); \
-    perl_require_module("Apache", parms->server); \
+    require_Apache(parms->server); \
     MP_TRACE_g(fprintf(stderr, "mod_perl: %s calling perl_startup()\n", __FUNCTION__)); \
 } \
 return perl_cmd_push_handlers(hook,&cmd,arg,parms->pool)
@@ -509,7 +509,7 @@ CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg)
 {
     dPSRV(parms->server);
     if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
-    perl_require_module("Apache", parms->server); 
+    require_Apache(parms->server);
     if(PERL_RUNNING()) 
 	perl_require_module(arg, parms->server);
     else {
@@ -1497,7 +1497,7 @@ static void clear_symtab(HV *symtab)
 	HV *hv;
 	AV *av;
 
-	if(SvTYPE(val) != SVt_PVGV) 
+	if((SvTYPE(val) != SVt_PVGV) || GvIMPORTED((GV*)val))
 	    continue;
 	if((sv = GvSV((GV*)val)))
 	    sv_setsv(GvSV((GV*)val), &sv_undef);
@@ -1518,6 +1518,7 @@ CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
     char line[MAX_STRING_LEN];
 
     if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
+    require_Apache(parms->server);
 
     if(PERL_RUNNING()) {
 	code = newSV(0);
@@ -1535,9 +1536,12 @@ CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
 	dotie = TRUE;
 
     perl_section_hash_init("Location", dotie);
+    perl_section_hash_init("LocationMatch", dotie);
     perl_section_hash_init("VirtualHost", dotie);
     perl_section_hash_init("Directory", dotie);
+    perl_section_hash_init("DirectoryMatch", dotie);
     perl_section_hash_init("Files", dotie);
+    perl_section_hash_init("FilesMatch", dotie);
     perl_section_hash_init("Limit", dotie);
 
     sv_setpv(perl_get_sv("0", TRUE), cmd_filename);
