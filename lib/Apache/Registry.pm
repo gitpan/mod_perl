@@ -5,8 +5,8 @@ use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.16 1996/10/25 13:25:10 dougm Exp dougm $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.17 1996/11/13 15:57:07 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.17 $ =~ /(\d+)\.(\d+)/);
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog

@@ -10,7 +10,7 @@ if ($@) {
     @ISA = qw(CGI::XA);
 }
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.17 $ =~ /(\d+)\.(\d+)/);
 
 sub new {
     my($class) = shift;

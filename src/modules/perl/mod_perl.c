@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.27 1996/10/25 13:25:10 dougm Exp dougm $ */
+/* $Id: mod_perl.c,v 1.28 1996/11/14 06:39:00 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -344,7 +344,7 @@ int perl_call(char *perlsub, request_rec *r)
     return status;
 }
 
-char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
+CHAR_P push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
 {
   perl_server_config *cls = 
     get_module_config (parms->server->module_config, &perl_module);   
@@ -355,7 +355,7 @@ char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
 }
 
 #ifdef PERL_TRANS
-char *set_perl_trans (cmd_parms *parms, void *dummy, char *arg)
+CHAR_P set_perl_trans (cmd_parms *parms, void *dummy, char *arg)
 {
   perl_server_config *cls = 
     get_module_config (parms->server->module_config, &perl_module);   
@@ -366,7 +366,7 @@ char *set_perl_trans (cmd_parms *parms, void *dummy, char *arg)
 }
 #endif
 
-char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)
+CHAR_P set_perl_script (cmd_parms *parms, void *dummy, char *arg)
 {
   perl_server_config *cls = 
     get_module_config (parms->server->module_config, &perl_module);   
@@ -376,17 +376,17 @@ char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)
   return NULL;
 }
 
-char *perl_sendheader_on (cmd_parms *cmd, void *rec, int arg) {
+CHAR_P perl_sendheader_on (cmd_parms *cmd, void *rec, int arg) {
   ((perl_dir_config *)rec)->sendheader = arg;
   return NULL;
 }
 
-char *perl_set_env_on (cmd_parms *cmd, void *rec, int arg) {
+CHAR_P perl_set_env_on (cmd_parms *cmd, void *rec, int arg) {
   ((perl_dir_config *)rec)->setup_env = arg;
   return NULL;
 }
 
-char *set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val)
+CHAR_P set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val)
 {
   table_set(((perl_dir_config *)rec)->vars, key, val);
   CTRACE(stderr, "set_perl_var: '%s' = '%s'\n", key, val);

@@ -40,6 +40,12 @@ extern "C" {
     CTRACE(stderr, "mod_perl: declining to handle %s, no callback defined\n", h); \
   return status
 
+#if MODULE_MAGIC_NUMBER >= 19961007
+#define CHAR_P const char *
+#else
+#define CHAR_P char * 
+#endif
+
     /* bleh */
 #if MODULE_MAGIC_NUMBER > 19960526 
 #define PERL_READ_SETUP \
@@ -222,11 +228,11 @@ int perl_access(request_rec *r);
 int perl_type_checker(request_rec *r);
 int perl_fixup(request_rec *r);
 int perl_logger(request_rec *r);
-char *set_perl_script (cmd_parms *parms, void *dummy, char *arg);
-char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg);
-char *set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val);
-char *perl_sendheader_on (cmd_parms *cmd, void *rec, int arg);
-char *perl_set_env_on (cmd_parms *cmd, void *rec, int arg);
-char *set_perl_trans (cmd_parms *parms, void *dummy, char *arg);
+CHAR_P set_perl_script (cmd_parms *parms, void *dummy, char *arg);
+CHAR_P push_perl_modules (cmd_parms *parms, void *dummy, char *arg);
+CHAR_P set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val);
+CHAR_P perl_sendheader_on (cmd_parms *cmd, void *rec, int arg);
+CHAR_P perl_set_env_on (cmd_parms *cmd, void *rec, int arg);
+CHAR_P set_perl_trans (cmd_parms *parms, void *dummy, char *arg);
 void xs_init _((void));
 void perl_set_request_rec(request_rec *);

@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.33 1996/10/25 13:25:10 dougm Exp dougm $ */
+/* $Id: Apache.xs,v 1.34 1996/11/13 15:57:07 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;

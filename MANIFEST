@@ -39,11 +39,13 @@ lib/Apache/SSI.pm
 lib/Apache/TieHandle.pm
 pp_hot.patch
 src/Makefile.tmpl
+src/Makefile.tmpl-1.2
 src/modules/perl/Apache.xs
 src/modules/perl/ldopts
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/typemap
+src/modules/perl/Makefile
 t/README
 t/TEST
 t/conf/access.conf-dist
