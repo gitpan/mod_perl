@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath rmtree);
 use Cwd;
 
-$VERSION = "0.98_03";
+$VERSION = "0.98_05";
 #
 # Check if Readline is installed
 #
@@ -64,6 +64,8 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
    '1.1.3' => "Makefile.tmpl",
    '1.2'  => "Makefile.tmpl-1.2",
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
+   '1.1.3Ben-SSL' => "Makefile.tmpl-Ben-SSL",
+   '1.2Ben-SSL' => "",
    NONE => "", 
 );	     
 
@@ -261,7 +263,7 @@ EOT
 }
 
 unless ($NO_HTTPD) {
-    ++$STATIC if $Config{osname} =~ /^(aix|bsdos)$/i;
+    ++$STATIC if $Config{osname} =~ /^(aix)$/i;
 
     if($no_header_parser{$APACHE_SRC}) {
 	$callback_hooks{PERL_HEADER_PARSER} = 0;
@@ -462,6 +464,7 @@ EOF
 }
 
 print "Ignore warnings about Constants.xs and Apache.xs\n" if $STATIC;
+
 WriteMakefile(
     NAME    => "mod_perl",
     VERSION => $VERSION,
@@ -484,6 +487,9 @@ WriteMakefile(
 	FILES	=> "@do_clean",
     }
 );
+
+print "*** BSDI users: be sure to read the INSTALL `Notes' section ***\n"
+    if $Config{osname} =~ /bsdos/i;
 
 cleanup_for_static() if $STATIC;
 

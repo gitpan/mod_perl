@@ -97,6 +97,12 @@ sub READLINE {
 
 *PRINT = \&print;
 
+sub PRINTF {
+    my $r = shift;
+    my $fmt = shift;
+    $r->print(sprintf($fmt, @_));
+}
+
 sub send_cgi_header {
     my($r, $headers) = @_;
     my $dlm = "\015?\012"; #a bit borrowed from LWP::UserAgent

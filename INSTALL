@@ -175,6 +175,25 @@ to compile and install the Perl side of mod_perl.
 
 =over 3
 
+=item BSDI users
+
+Gary Shea <shea@xmission.com> discovered a nasty BSDI bug (seen in
+versions 2.1 and 3.0) related to dynamic loading and two workarounds: 
+
+Turns out they use argv[0] to determine where to find the link
+tables at run-time, so if a program either changes argv[0],
+or does a chdir() (like apache!), it can easily confuse the
+dynamic loader.  The short-term solutions to the problem are
+pitifully simple.  Either of the following will work:
+
+1) Call httpd with a full path, e.g. /opt/www/bin/httpd
+
+2) Put the httpd you wish to run in a directory in your PATH
+before any other directory containing a version of httpd, then
+call it as 'httpd' -- don't use a relative path!
+
+=item Perl 5.003 users
+
 This install includes the module Apache::Registry, which uses the
 standard module 'FileHandle'.  There was a bug in the version of this
 module, that came with perl5.003, so if your perl is not younger than
@@ -182,6 +201,8 @@ module, that came with perl5.003, so if your perl is not younger than
 problem until it is fixed in the standard distribution of Perl.
 Although, it is a strange bug, you might not even see it without the
 patch...
+
+=item more info
 
 Type 'perldoc mod_perl' for info on configuring, running
 and writing Apache/Perl scripts and modules.

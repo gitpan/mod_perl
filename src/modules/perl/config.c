@@ -257,13 +257,17 @@ CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg)
     perl_server_config *cls = 
 	get_module_config (parms->server->module_config, &perl_module);   
 
-    MP_TRACE(fprintf(stderr, "push_perl_modules: arg='%s'\n", arg));
-    if (cls->NumPerlModules >= MAX_PERL_MODS) {
-	MP_TRACE(fprintf(stderr, "mod_perl: There's a limit of %d PerlModules, use a PerlScript to pull in as many as you want\n", MAX_PERL_MODS));
-	exit(-1);
-    }
+    if(PERL_RUNNING()) 
+	perl_require_module(arg, parms->server);
+    else {
+	MP_TRACE(fprintf(stderr, "push_perl_modules: arg='%s'\n", arg));
+	if (cls->NumPerlModules >= MAX_PERL_MODS) {
+	    MP_TRACE(fprintf(stderr, "mod_perl: There's a limit of %d PerlModules, use a PerlScript to pull in as many as you want\n", MAX_PERL_MODS));
+	    exit(-1);
+	}
 	
-    cls->PerlModules[cls->NumPerlModules++] = arg;
+	cls->PerlModules[cls->NumPerlModules++] = arg;
+    }
     return NULL;
 }
 
@@ -329,6 +333,12 @@ CHAR_P perl_cmd_setenv(cmd_parms *cmd, void *rec, char *key, char *val)
 }
 
 #ifdef PERL_SECTIONS
+/* some prototypes for -Wall sake */
+const char *handle_command (cmd_parms *parms, void *config, const char *l);
+const char *limit (cmd_parms *cmd, void *dummy, const char *arg);
+void add_per_dir_conf (server_rec *s, void *dir_config);
+void add_per_url_conf (server_rec *s, void *url_config);
+void add_file_conf (core_dir_config *conf, void *url_config);
 
 char *perl_av2string(AV *av) 
 {
@@ -363,66 +373,245 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
     return NULL;
 }
 
+#define dSEC \
+    const char *key; \
+    I32 klen; \
+    SV *val
+
+#define dSECiter_start \
+    (void)hv_iterinit(hv); \
+    while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { \
+	HV *tab; \
+	if((tab = (HV *)SvRV(val))) { 
+
+#define dSECiter_stop \
+        } \
+    }
+
+void perl_section_hash_walk(cmd_parms *cmd, void *cfg, HV *hv)
+{
+    CHAR_P errmsg;
+    char *tmpkey; 
+    I32 tmpklen; 
+    SV *tmpval;
+    (void)hv_iterinit(hv); 
+    while ((tmpval = hv_iternextsv(hv, &tmpkey, &tmpklen))) { 
+	char line[MAX_STRING_LEN]; 
+	char *value = NULL;
+	if(SvROK(tmpval)) {
+	    if(SvTYPE(SvRV(tmpval)) == SVt_PVAV) {
+		value = perl_av2string((AV*)SvRV(tmpval)); 
+	    }
+	    else if(SvTYPE(SvRV(tmpval)) == SVt_PVHV) {
+		HV *lim = (HV*)SvRV(tmpval);
+		SV *methods = hv_delete(lim, "METHODS", 7, G_SCALAR);
+
+		if(methods) {
+		    MP_TRACE(fprintf(stderr, 
+				     "Found Limit section for `%s'\n", 
+				     SvPV(methods,na)));
+		    limit(cmd, cfg, SvPV(methods,na));
+		    perl_section_hash_walk(cmd, cfg, lim);
+		    cmd->limited = -1;
+		    continue;
+		}
+	    }
+	}
+	else
+	    value = SvPV(tmpval,na); 
+
+	sprintf(line, "%s %s", tmpkey, value);
+	errmsg = handle_command(cmd, cfg, line); 
+	MP_TRACE(fprintf(stderr, "%s (%s) Limit=%s\n", 
+			 line, 
+			 (errmsg ? errmsg : "OK"),
+			 (cmd->limited > 0 ? "yes" : "no") ));
+    }
+} 
+
+#define TRACE_SECTION(n,v) \
+    MP_TRACE(fprintf(stderr, "perl_section: <%s %s>\n", n, v))
+
+/* XXX, had to copy-n-paste much code from http_core.c for
+ * perl_*sections, would be nice if the core config routines 
+ * had a handful of callback hooks instead
+ */
+
+CHAR_P perl_virtualhost_section (cmd_parms *cmd, void *dummy, HV *hv)
+{
+    dSEC;
+    server_rec *main_server = cmd->server, *s;
+    pool *p = cmd->pool;
+    char *arg;
+    dSECiter_start
+
+    arg = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
+    s = init_virtual_host (p, arg, main_server);
+    s->next = main_server->next;
+    main_server->next = s;
+    cmd->server = s;
+
+    TRACE_SECTION("VirtualHost", arg);
+
+    perl_section_hash_walk(cmd, s->lookup_defaults, tab);
+
+    cmd->server = main_server;
+
+    dSECiter_stop
+
+    return NULL;
+}
+
 CHAR_P perl_urlsection (cmd_parms *cmd, void *dummy, HV *hv)
 {
-    char *key;
-    I32 klen;
-    SV *val;
-    CHAR_P errmsg;
+    dSEC;
     int old_overrides = cmd->override;
     char *old_path = cmd->path;
 
-    (void)hv_iterinit(hv);
-    while ((val = hv_iternextsv(hv, &key, &klen))) {
-	HV *tab;
-	if(tab = SvRV(val)) {
-	    char *tmpkey;
-	    I32 tmpklen;
-	    SV *tmpval;
+    dSECiter_start
 
-	    core_dir_config *conf;
-	    regex_t *r = NULL;
+    core_dir_config *conf;
+    regex_t *r = NULL;
 
-	    void *new_url_conf = create_per_dir_config (cmd->pool);
+    void *new_url_conf = create_per_dir_config (cmd->pool);
+    
+    cmd->path = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
+    cmd->override = OR_ALL|ACCESS_CONF;
 
-	    cmd->path = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
-	    cmd->override = OR_ALL|ACCESS_CONF;
+    if (!strcmp(cmd->path, "~")) {
+	cmd->path = getword_conf (cmd->pool, &key);
+	r = pregcomp(cmd->pool, cmd->path, REG_EXTENDED);
+    }
 
-	    if (!strcmp(cmd->path, "~")) {
-		cmd->path = getword_conf (cmd->pool, &key);
-		r = pregcomp(cmd->pool, cmd->path, REG_EXTENDED);
-	    }
+    TRACE_SECTION("Location", cmd->path);
 
-	    MP_TRACE(fprintf(stderr, "perl_urlsection: <Location %s>\n", 
-			     cmd->path));
-	    /* XXX, why must we??? */
-	    if(!hv_exists(tab, "Options", 7)) 
-		hv_store(tab, "Options", 7, 
-			 newSVpv("Indexes FollowSymLinks",22), 0);
+    /* XXX, why must we??? */
+    if(!hv_exists(tab, "Options", 7)) 
+	hv_store(tab, "Options", 7, 
+		 newSVpv("Indexes FollowSymLinks",22), 0);
 
-	    (void)hv_iterinit(tab);
-	    while ((tmpval = hv_iternextsv(tab, &tmpkey, &tmpklen))) {
-		char line[MAX_STRING_LEN]; 
-		sprintf(line, "%s %s", tmpkey, 
-			( SvROK(tmpval) ?
-			  perl_av2string((AV*)SvRV(tmpval)) :
-			  SvPV(tmpval,na) ));
-		errmsg = handle_command(cmd, new_url_conf, line);
-		MP_TRACE(fprintf(stderr, "%s (%s)\n", line, errmsg));
-	    }
+    perl_section_hash_walk(cmd, new_url_conf, tab);
+
+    conf = (core_dir_config *)get_module_config(
+	new_url_conf, &core_module);
+    if(!conf->opts)
+	conf->opts = OPT_NONE;
+    conf->d = pstrdup(cmd->pool, cmd->path);
+    conf->d_is_matchexp = is_matchexp( conf->d );
+    conf->r = r;
+
+    add_per_url_conf (cmd->server, new_url_conf);
 	    
-	    conf = (core_dir_config *)get_module_config(
-		new_url_conf, &core_module);
-	    if(!conf->opts)
-		conf->opts = OPT_NONE;
-	    conf->d = pstrdup(cmd->pool, cmd->path);
-	    conf->d_is_matchexp = is_matchexp( conf->d );
-	    conf->r = r;
+    dSECiter_stop
 
-	    add_per_url_conf (cmd->server, new_url_conf);
-	    
-	}
-    }   
+    cmd->path = old_path;
+    cmd->override = old_overrides;
+
+    return NULL;
+}
+
+CHAR_P perl_dirsection (cmd_parms *cmd, void *dummy, HV *hv)
+{
+    dSEC;
+    int old_overrides = cmd->override;
+    char *old_path = cmd->path;
+
+    dSECiter_start
+
+    core_dir_config *conf;
+    void *new_dir_conf = create_per_dir_config (cmd->pool);
+    regex_t *r = NULL;
+
+    cmd->path = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
+
+#ifdef __EMX__
+    /* Fix OS/2 HPFS filename case problem. */
+    cmd->path = strlwr(cmd->path);
+#endif    
+    cmd->override = OR_ALL|ACCESS_CONF;
+
+    if (!strcmp(cmd->path, "~")) {
+	cmd->path = getword_conf (cmd->pool, &key);
+	r = pregcomp(cmd->pool, cmd->path, REG_EXTENDED);
+    }
+
+    TRACE_SECTION("Directory", cmd->path);
+
+    /* XXX, why must we??? */
+    if(!hv_exists(tab, "Options", 7)) 
+	hv_store(tab, "Options", 7, 
+		 newSVpv("Indexes FollowSymLinks",22), 0);
+
+    perl_section_hash_walk(cmd, new_dir_conf, tab);
+
+    conf = (core_dir_config *)get_module_config(new_dir_conf, &core_module);
+    conf->r = r;
+
+    add_per_dir_conf (cmd->server, new_dir_conf);
+
+    dSECiter_stop
+
+    cmd->path = old_path;
+    cmd->override = old_overrides;
+
+    return NULL;
+}
+
+void perl_add_file_conf (server_rec *s, void *url_config)
+{
+    core_server_config *sconf = get_module_config (s->module_config,
+						   &core_module);
+    void **new_space = (void **) push_array (sconf->sec);
+    
+    *new_space = url_config;
+}
+
+CHAR_P perl_filesection (cmd_parms *cmd, void *dummy, HV *hv)
+{
+    dSEC;
+    int old_overrides = cmd->override;
+    char *old_path = cmd->path;
+
+    dSECiter_start
+
+    core_dir_config *conf;
+    void *new_file_conf = create_per_dir_config (cmd->pool);
+    regex_t *r = NULL;
+
+    cmd->path = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
+    /* Only if not an .htaccess file */
+    if (cmd->path)
+	cmd->override = OR_ALL|ACCESS_CONF;
+
+    if (!strcmp(cmd->path, "~")) {
+	cmd->path = getword_conf (cmd->pool, &key);
+	if (old_path && cmd->path[0] != '/' && cmd->path[0] != '^')
+	    cmd->path = pstrcat(cmd->pool, "^", old_path, cmd->path, NULL);
+	r = pregcomp(cmd->pool, cmd->path, REG_EXTENDED);
+    }
+    else if (old_path && cmd->path[0] != '/')
+	cmd->path = pstrcat(cmd->pool, old_path, cmd->path, NULL);
+
+    TRACE_SECTION("Files", cmd->path);
+
+    /* XXX, why must we??? */
+    if(!hv_exists(tab, "Options", 7)) 
+	hv_store(tab, "Options", 7, 
+		 newSVpv("Indexes FollowSymLinks",22), 0);
+
+    perl_section_hash_walk(cmd, new_file_conf, tab);
+
+    conf = (core_dir_config *)get_module_config(new_file_conf, &core_module);
+    if(!conf->opts)
+	conf->opts = OPT_NONE;
+    conf->d = pstrdup(cmd->pool, cmd->path);
+    conf->d_is_matchexp = is_matchexp( conf->d );
+    conf->r = r;
+
+    perl_add_file_conf (cmd->server, new_file_conf);
+
+    dSECiter_stop
+
     cmd->path = old_path;
     cmd->override = old_overrides;
 
@@ -437,7 +626,7 @@ CHAR_P perl_end_section (cmd_parms *cmd, void *dummy) {
 
 CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 {
-    const char *errmsg;
+    CHAR_P errmsg;
     SV *code = newSV(0), *val;
     HV *symtab;
     char *key;
@@ -448,9 +637,13 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 
     if(!PERL_RUNNING()) {
 	MP_TRACE(fprintf(stderr, "perl_section:, Perl not running, returning...\n"));
+	SvREFCNT_dec(code);
 	return NULL;
     }
     (void)gv_fetchpv("ApacheReadConfig::Location", GV_ADDMULTI, SVt_PVHV);
+    (void)gv_fetchpv("ApacheReadConfig::VirtualHost", GV_ADDMULTI, SVt_PVHV);
+    (void)gv_fetchpv("ApacheReadConfig::Directory", GV_ADDMULTI, SVt_PVHV);
+    (void)gv_fetchpv("ApacheReadConfig::Files", GV_ADDMULTI, SVt_PVHV);
 
     perl_eval_sv(code, G_DISCARD);
     if(SvTRUE(GvSV(errgv))) {
@@ -464,6 +657,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	SV *sv;
 	HV *hv;
 	AV *av;
+	int have_line = 0;
 
 	if(SvTYPE(val) != SVt_PVGV) 
 	    continue;
@@ -472,18 +666,29 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	    if(SvTRUE(sv)) {
 		MP_TRACE(fprintf(stderr, "SVt_PV: %s\n", SvPV(sv,na)));
 		sprintf(line, "%s %s", key, SvPV(sv,na));
+		have_line++;
 	    }
 	}
 	if((hv = GvHV((GV*)val))) {
 	    if(strEQ(key, "Location")) 	
 		perl_urlsection(cmd, dummy, hv);
+	    else if(strEQ(key, "Directory")) 
+		perl_dirsection(cmd, dummy, hv);
+	    else if(strEQ(key, "VirtualHost")) 
+		perl_virtualhost_section(cmd, dummy, hv);
+	    else if(strEQ(key, "Files")) 
+		perl_filesection(cmd, (core_dir_config *)dummy, hv);
 	}
-	else if((av = GvAV((GV*)val))) 
+	else if((av = GvAV((GV*)val))) {	
 	    sprintf(line, "%s %s", key, perl_av2string(av));
-    }
-    if(line) {
-	errmsg = handle_command(cmd, dummy, line);
-	MP_TRACE(fprintf(stderr, "handle_command (%s): %s\n", line, errmsg));
+	    have_line++;
+	}
+	if(have_line) {
+	    errmsg = handle_command(cmd, dummy, line);
+	    MP_TRACE(fprintf(stderr, "handle_command (%s): %s\n", line, 
+			     (errmsg ? errmsg : "OK")));
+	    have_line = 0;
+	}
     }
     SvREFCNT_dec(code);
     hv_undef(symtab);

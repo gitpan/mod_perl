@@ -40,6 +40,18 @@ for (qw(status info)) {
     };
 }
 
+@PerlModule = qw(Config Net::Ping);
+
+$Location{"/~dougm/"} = {
+    AuthUserFile => '/tmp/htpasswd',
+    AuthType => 'Basic',
+    AuthName => 'test',
+    Limit => {
+	METHODS => 'GET POST',
+	require => 'user dougm',
+    },
+};
+
 </Perl>
 
 ErrorLog /tmp/mod_perl_error_log

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.55 1997/05/19 22:25:31 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.56 1997/05/23 00:02:45 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -76,8 +76,8 @@ static HV *stacked_handlers = Nullhv;
 
 static command_rec perl_cmds[] = {
 #ifdef PERL_SECTIONS
-    { "<Perl>", perl_section, NULL, RSRC_CONF, RAW_ARGS, "Perl code" },
-    { "</Perl>", perl_end_section, NULL, ACCESS_CONF, NO_ARGS, NULL },
+    { "<Perl>", perl_section, NULL, OR_ALL, RAW_ARGS, "Perl code" },
+    { "</Perl>", perl_end_section, NULL, OR_ALL, NO_ARGS, NULL },
 #endif
     { "PerlTaintCheck", perl_cmd_tainting,
       NULL,
@@ -90,7 +90,7 @@ static command_rec perl_cmds[] = {
       RSRC_CONF, TAKE1, "A Perl script name" },
     { "PerlModule", perl_cmd_module,
       NULL,
-      RSRC_CONF, ITERATE, "List of Perl modules" },
+      OR_ALL, ITERATE, "List of Perl modules" },
     { "PerlSetVar", perl_cmd_var,
       NULL,
       OR_ALL, TAKE2, "Perl config var and value" },
@@ -183,7 +183,6 @@ module perl_module = {
 
 int PERL_RUNNING (void) 
 {
-    MP_TRACE(fprintf(stderr, "PERL_RUNNING=%d\n", perl_is_running));
     return (perl_is_running);
 }
 
@@ -310,6 +309,10 @@ void perl_startup (server_rec *s, pool *p)
 	if(cls->PerlTaintCheck) 
 	    sv_setiv(GvSV(gv), 1);
 	SvREADONLY_on(GvSV(gv));
+    }
+    {
+	GV *sig = gv_fetchpv("SIG", FALSE, SVt_PVHV);
+	hv_store(GvHV(sig), "PIPE", 4, newSVpv("IGNORE",6), FALSE);
     }
 #ifdef PERL_STACKED_HANDLERS
     if(!stacked_handlers)
