@@ -8,6 +8,22 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.99_04 - June 21, 2002
+
+various APR PerlIO updates [Stas Bekman]
+
+stop using an apr_pool_t to allocate items for the interpreter pool,
+safer for threaded MPMs and prevents "leaks" when interpreters are
+removed from due to PerlInterpMax{Requests,Spare}
+
+implement modperl_sys_dlclose() to avoid apr/pool overhead/thread issues
+
+get the -DPERL_CORE optimization working again
+
+PERL_SET_CONTEXT to the parent interpreter when cloning interpreters at
+request time, else dTHX might be NULL during clone in the given thread,
+which would crash the server.
+
 =item 1.99_03 - June 15, 2002
 
 win32 fix for the global Apache->request object to make sure it uses

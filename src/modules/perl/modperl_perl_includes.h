@@ -9,6 +9,8 @@
 
 #define PERLIO_NOT_STDIO 0
 
+#include "config.h"
+
 /*
  * sizeof(struct PerlInterpreter) changes #ifdef USE_LARGE_FILES
  * apache-2.0 cannot be compiled with lfs because of sendfile.h
@@ -65,6 +67,10 @@
 
 #ifndef PERL_MAGIC_tied
 #   define PERL_MAGIC_tied 'P'
+#endif
+
+#ifndef PERL_MAGIC_ext
+#   define PERL_MAGIC_ext '~'
 #endif
 
 #if defined(__APPLE__) && !defined(PERL_CORE) && !defined(environ)

@@ -17,6 +17,8 @@ extern module AP_MODULE_DECLARE_DATA perl_module;
 #include "modperl_flags.h"
 #include "modperl_hooks.h"
 #include "modperl_perl_global.h"
+#include "modperl_perl_pp.h"
+#include "modperl_sys.h"
 
 /* both perl and apr have largefile support enabled */
 #define MP_LARGE_FILES_ENABLED \
@@ -74,7 +76,7 @@ void modperl_register_hooks(apr_pool_t *p);
 apr_pool_t *modperl_server_pool(void);
 PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p);
 int modperl_perl_destruct_level(void);
-void xs_init(pTHXo);
+void xs_init(pTHX);
 
 void modperl_response_init(request_rec *r);
 void modperl_response_finish(request_rec *r);

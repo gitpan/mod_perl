@@ -173,7 +173,11 @@ src/modules/perl/modperl_perl.h
 src/modules/perl/modperl_perl_global.c
 src/modules/perl/modperl_perl_global.h
 src/modules/perl/modperl_perl_includes.h
+src/modules/perl/modperl_perl_pp.c
+src/modules/perl/modperl_perl_pp.h
 src/modules/perl/modperl_perl_unembed.h
+src/modules/perl/modperl_sys.c
+src/modules/perl/modperl_sys.h
 src/modules/perl/modperl_time.h
 src/modules/perl/modperl_tipool.c
 src/modules/perl/modperl_tipool.h

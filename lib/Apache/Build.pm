@@ -175,7 +175,10 @@ sub ldopts {
     }
     elsif (DARWIN) {
         #not sure how this can happen, but it shouldn't
-        $config->{ldflags} =~ s/-undefined suppress//;
+        my @bogus_flags = ('flat_namespace', 'bundle', 'undefined suppress');
+        for my $flag (@bogus_flags) {
+            $config->{ldflags} =~ s/-$flag\s*//;
+        }
     }
 
     my $ldopts = ExtUtils::Embed::ldopts();
@@ -249,7 +252,8 @@ sub perl_ccopts {
         $fixup->(\$cflags);
     }
 
-    if ($self->{MP_DEBUG}) {
+    if (WIN32 and $self->{MP_DEBUG}) {
+        #only win32 has -DDEBUGGING in both optimize and ccflags
         my $optim = $Config{optimize};
 
         unless ($optim =~ /-DDEBUGGING/) {
@@ -282,7 +286,7 @@ sub perl_config_optimize {
     $val ||= $Config{optimize};
 
     if ($self->{MP_DEBUG}) {
-        return ' ' unless $val =~ /-DDEBUGGING/;
+        return ' ' unless $Config{ccflags} =~ /-DDEBUGGING/;
     }
 
     $val;

@@ -5,20 +5,20 @@ static apr_status_t modperl_shutdown(void *data)
 {
     modperl_cleanup_data_t *cdata = (modperl_cleanup_data_t *)data;
     PerlInterpreter *perl = (PerlInterpreter *)cdata->data;
-    apr_array_header_t *handles;
+    void **handles;
 
-    handles = modperl_xs_dl_handles_get(aTHX_ cdata->pool);
+    handles = modperl_xs_dl_handles_get(aTHX);
 
     MP_TRACE_i(MP_FUNC, "destroying interpreter=0x%lx\n",
                (unsigned long)perl);
 
     modperl_perl_destruct(perl);
 
-    if (handles) {
-        modperl_xs_dl_handles_close(cdata->pool, handles);
-    }
+    modperl_xs_dl_handles_close(handles);
 
     modperl_env_unload();
+
+    modperl_perl_pp_unset_all();
 
     return APR_SUCCESS;
 }
@@ -44,66 +44,11 @@ static struct {
     apr_pool_t *p = MP_boot_data.p; \
     server_rec *s = MP_boot_data.s
 
-#if defined(USE_ITHREADS) && defined(MP_PERL_5_6_x)
-#   define MP_REFGEN_FIXUP
-#endif
-
-#ifdef MP_REFGEN_FIXUP
-
-/*
- * nasty workaround for bug fixed in bleedperl (11536 + 11553)
- * XXX: when 5.8.0 is released + stable, we will require 5.8.0
- * if ithreads are enabled.
- */
-static OP * (*MP_pp_srefgen_ptr)(pTHX) = NULL;
-
-static OP *modperl_pp_srefgen(pTHX)
-{
-    dSP;
-    OP *o;
-    SV *sv = *SP;
-
-    if (SvPADTMP(sv) && IS_PADGV(sv)) {
-        /* prevent S_refto from making a copy of the GV,
-         * tricking it to SvREFCNT_inc and point to this one instead.
-         */
-        SvPADTMP_off(sv);
-    }
-    else {
-        sv = Nullsv;
-    }
-
-    /* o = Perl_pp_srefgen(aTHX) */
-    o = MP_pp_srefgen_ptr(aTHX);
-
-    if (sv) {
-        /* restore original flags */
-        SvPADTMP_on(sv);
-    }
-
-    return o;
-}
-
-static void modperl_refgen_ops_fixup(void)
-{
-    /* XXX: OP_REFGEN suffers a similar problem */
-    if (!MP_pp_srefgen_ptr) {
-        MP_pp_srefgen_ptr = PL_ppaddr[OP_SREFGEN];
-        PL_ppaddr[OP_SREFGEN] = MEMBER_TO_FPTR(modperl_pp_srefgen);
-    }
-}
-
-#endif /* MP_REFGEN_FIXUP */
-
 static void modperl_boot(pTHX_ void *data)
 {
     MP_dBOOT_DATA;
     MP_dSCFG(s);
     int i;
-    
-#ifdef MP_REFGEN_FIXUP
-    modperl_refgen_ops_fixup();
-#endif
 
     modperl_env_clear(aTHX);
 
@@ -257,8 +202,6 @@ void modperl_init(server_rec *base_server, apr_pool_t *p)
         return;
     }
 
-    modperl_env_init();
-
     base_perl = modperl_startup(base_server, p);
 
 #ifdef USE_ITHREADS
@@ -383,6 +326,10 @@ static void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
     modperl_tls_create_request_rec(pconf);
 }
 
+/*
+ * modperl_sys_{init,term} are things that happen
+ * once per-parent process, not per-interpreter
+ */
 static apr_status_t modperl_sys_init(void)
 {
 #if 0 /*XXX*/
@@ -398,11 +345,22 @@ static apr_status_t modperl_sys_init(void)
     }
 #endif
 #endif
+
+    /* modifies PL_ppaddr */
+    modperl_perl_pp_set_all();
+
+    /* modifies PL_vtbl_env{elem} */
+    modperl_env_init();
+
     return APR_SUCCESS;
 }
 
 static apr_status_t modperl_sys_term(void *data)
 {
+    modperl_env_unload();
+
+    modperl_perl_pp_unset_all();
+
 #if 0 /*XXX*/
     PERL_SYS_TERM();
 #endif
@@ -415,7 +373,7 @@ int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog,
     apr_pool_create(&server_pool, pconf);
 
     modperl_sys_init();
-    apr_pool_cleanup_register(server_pool, NULL,
+    apr_pool_cleanup_register(pconf, NULL,
                               modperl_sys_term, apr_pool_cleanup_null);
     modperl_init_globals(s, pconf);
     modperl_init(s, pconf);

@@ -35,14 +35,15 @@ void modperl_interp_clone_init(modperl_interp_t *interp)
     modperl_xs_dl_handles_clear(aTHX);
 }
 
-modperl_interp_t *modperl_interp_new(apr_pool_t *p,
-                                     modperl_interp_pool_t *mip,
+modperl_interp_t *modperl_interp_new(modperl_interp_pool_t *mip,
                                      PerlInterpreter *perl)
 {
     UV clone_flags = 0;
     modperl_interp_t *interp = 
-        (modperl_interp_t *)apr_pcalloc(p, sizeof(*interp));
-    
+        (modperl_interp_t *)malloc(sizeof(*interp));
+
+    memset(interp, '\0', sizeof(*interp));
+
     interp->mip = mip;
     interp->refcnt = 0; /* for use by APR::Pool->cleanup_register */
 
@@ -58,11 +59,13 @@ modperl_interp_t *modperl_interp_new(apr_pool_t *p,
         clone_flags |= CLONEf_CLONE_HOST;
 #endif
 
+        PERL_SET_CONTEXT(perl);
+
         interp->perl = perl_clone(perl, clone_flags);
 
         modperl_interp_clone_init(interp);
 
-        PERL_SET_CONTEXT(mip->parent->perl);
+        PERL_SET_CONTEXT(perl);
 
 #ifdef MP_USE_GTOP
         MP_TRACE_m_do(
@@ -78,8 +81,7 @@ modperl_interp_t *modperl_interp_new(apr_pool_t *p,
 
 void modperl_interp_destroy(modperl_interp_t *interp)
 {
-    apr_pool_t *p = NULL;
-    apr_array_header_t *handles;
+    void **handles;
     dTHXa(interp->perl);
 
     PERL_SET_CONTEXT(interp->perl);
@@ -91,21 +93,13 @@ void modperl_interp_destroy(modperl_interp_t *interp)
         MP_TRACE_i(MP_FUNC, "*error - still in use!*\n");
     }
 
-    /* we cant use interp->mip->ap_pool without locking
-     * apr_pool_create() will mutex lock for us
-     * XXX: could roll something without using apr_pool_t
-     * to avoid locking
-     */
-    (void)apr_pool_create(&p, NULL);
-    handles = modperl_xs_dl_handles_get(aTHX_ p);
+    handles = modperl_xs_dl_handles_get(aTHX);
 
     modperl_perl_destruct(interp->perl);
 
-    if (handles) {
-        modperl_xs_dl_handles_close(p, handles);
-    }
+    modperl_xs_dl_handles_close(handles);
 
-    apr_pool_destroy(p);
+    free(interp);
 }
 
 apr_status_t modperl_interp_cleanup(void *data)
@@ -158,10 +152,6 @@ apr_status_t modperl_interp_pool_destroy(void *data)
         modperl_interp_destroy(mip->parent);
     }
 
-    mip->parent->perl = NULL;
-
-    modperl_env_unload();
-
     return APR_SUCCESS;
 }
 
@@ -169,7 +159,7 @@ static void *interp_pool_grow(modperl_tipool_t *tipool, void *data)
 {
     modperl_interp_pool_t *mip = (modperl_interp_pool_t *)data;
     MP_TRACE_i(MP_FUNC, "adding new interpreter to the pool\n");
-    return (void *)modperl_interp_new(mip->ap_pool, mip, mip->parent->perl);
+    return (void *)modperl_interp_new(mip, mip->parent->perl);
 }
 
 static void interp_pool_shrink(modperl_tipool_t *tipool, void *data,
@@ -213,9 +203,8 @@ void modperl_interp_init(server_rec *s, apr_pool_t *p,
                            &interp_pool_func, mip);
 
     mip->tipool = tipool;
-    mip->ap_pool = p;
     mip->server  = s;
-    mip->parent = modperl_interp_new(p, mip, NULL);
+    mip->parent = modperl_interp_new(mip, NULL);
     aTHX = mip->parent->perl = perl;
     
     /* this happens post-config in mod_perl.c:modperl_init_clones() */
