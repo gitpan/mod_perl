@@ -1,0 +1,211 @@
+=head1 NAME
+
+Troubleshooting mod_perl problems
+
+=head1 Description
+
+Frequently encountered problems (warnings and fatal errors) and their
+troubleshooting.
+
+
+
+
+
+=head1 Building and Installation
+
+
+
+
+
+
+=head1 Configuration and Startup
+
+
+=head2 (28)No space left on device
+
+httpd-2.0 is not very helpful at telling which device has run out of
+precious space. Most of the time when you get an error like:
+
+  (28)No space left on device:
+  mod_rewrite: could not create rewrite_log_lock
+
+it means that your system have run out of semaphore arrays. Sometimes
+it's full with legitimate semaphores at other times it's because some
+application has leaked semaphores and haven't cleaned them up during
+the shutdown (which is usually the case when an application
+segfaults).
+
+Use the relevant application to list the ipc facilities usage. On most
+Unix platforms this is usually an C<ipcs(1)> utility. For example
+linux to list the semaphore arrays you should execute:
+
+  % ipcs -s
+  ------ Semaphore Arrays --------
+  key        semid      owner      perms      nsems
+  0x00000000 2686976    stas      600        1
+  0x00000000 2719745    stas      600        1
+  0x00000000 2752514    stas      600        1
+
+Next you have to figure out what are the dead ones and remove
+them. For example to remove the semid 2719745 execute:
+
+  % ipcrm -s 2719745
+
+Instead of manually removing each (and sometimes there can be many of
+them), and if you know that none of listed the semaphores is really
+used (all leaked), you can try to remove them all:
+
+  % ipcs -s | perl -ane '`ipcrm -s $F[1]`'
+
+httpd-2.0 seems to use the key C<0x00000000> for its semaphores on
+Linux, so to remove only those that match that key you can use:
+
+  % ipcs -s | perl -ane '/^0x00000000/ && `ipcrm -s $F[1]`'
+
+Notice that on other platforms the output of C<ipcs -s> might be
+different, so you may need to apply a different Perl one-liner.
+
+
+=head2 Segmentation Fault when Using DBI
+
+Update DBI to at least version 1.31.
+
+
+=head2  E<lt>PerlE<gt> directive missing closing 'E<gt>'
+
+See the L<Apache::PerlSections|docs::2.0::api::Apache::PerlSections/E_lt_PerlE_gt__directive_missing_closing__E_gt__> manpage.
+
+
+=head1 Shutdown and Restart
+
+
+
+
+
+
+
+=head1 Code Parsing and Compilation
+
+
+
+
+
+
+=head1 Runtime
+
+
+=head2 C Libraries Don't See C<%ENV> Entries Set by Perl Code
+
+For example some people have reported problems with C<DBD::Oracle>
+(whose guts are implemented in C), which doesn't see environment
+variables (like C<ORACLE_HOME>, C<ORACLE_SID>, etc.) set in the perl
+script and therefore fails to connect.
+
+The issue is that the C array C<environ[]> is not thread-safe.
+Therefore mod_perl 2.0 unties C<%ENV> from the underlying C<environ[]>
+array under the
+I<L<perl-script|docs::2.0::user::config::config/C_perl_script_>>
+handler.
+
+The C<DBD::Oracle> driver or client library uses C<getenv()> (which
+fetches from the C<environ[]> array).  When C<%ENV> is untied from
+C<environ[]>, Perl code will see C<%ENV> changes, but C code will not.
+
+The I<L<modperl|docs::2.0::user::config::config/C_modperl_>> handler
+does not untie C<%ENV> from C<environ[]>. Still one should avoid
+setting C<%ENV> values whenever possible.  And if it is required,
+should be done at startup time.
+
+In the particular case of the C<DBD::> drivers, you can set the
+variables that don't change (C<$ENV{ORACLE_HOME}> and
+C<$ENV{NLS_LANG}> in the startup file, and those that change pass via
+the C<connect()> method, e.g.:
+
+  my $sid      = 'ynt0';
+  my $dsn      = 'dbi:Oracle:';
+  my $user     = 'username/password';
+  my $password = '';
+  $dbh = DBI->connect("$dsn$sid", $user, $password)
+      or die "Cannot connect: " . $DBI::errstr;
+
+Also remember that C<DBD::Oracle> requires that I<ORACLE_HOME> (and
+any other stuff like I<NSL_LANG> stuff) be in C<%ENV> when
+C<DBD::Oracle> is loaded (which might happen indirectly via the C<DBI>
+module. Therefore you need to make sure that wherever that load
+happens C<%ENV> is properly set by that time.
+
+=head2 Error about not finding I<Apache.pm> with I<CGI.pm>
+
+You need to install at least version 2.87 of CGI.pm to work
+under mod_perl 2.0, as earlier CGI.pm versions aren't
+mod_perl 2.0 aware.
+
+=head2 20014:Error string not specified yet
+
+This error is reported when some undefined Apache error happens. The
+known cases are:
+
+=over
+
+=item when using mod_deflate
+
+A bug in mod_deflate was triggering this error, when a response
+handler would flush the data that was flushed earlier:
+http://nagoya.apache.org/bugzilla/show_bug.cgi?id=22259
+It has been fixed in httpd-2.0.48.
+
+=back
+
+
+=head2 (22)Invalid argument: core_output_filter: writing data to the network
+
+Apache uses the sendfile syscall on platforms where it is available in
+order to speed sending of responses. Unfortunately, on some systems,
+Apache will detect the presence of sendfile at compile-time, even when
+it does not work properly. This happens most frequently when using
+network or other non-standard file-system.
+
+The whole story and the solutions are documented at:
+http://httpd.apache.org/docs-2.0/faq/error.html#error.sendfile
+
+
+=head1 Issues with APR Used Outside of mod_perl
+
+It doesn't strictly belong to this document, since it's talking about
+APR usages outside of mod_perl, so this may move to its own dedicated
+page, some time later.
+
+Whenever using an C<APR::> package outside of mod_perl, you need to:
+
+    use APR;
+
+in order to load the XS subroutines. For example:
+
+  % perl -MApache2 -MAPR -MAPR::UUID -le 'print APR::UUID->new->format'
+
+
+=head1 Maintainers
+
+Maintainer is the person(s) you should contact with updates,
+corrections and patches.
+
+=over
+
+=item * Stas Bekman
+
+=back
+
+
+=head1 Authors
+
+=over
+
+=item * Stas Bekman
+
+=back
+
+Only the major authors are listed above. For contributors see the
+Changes file.
+
+
+=cut

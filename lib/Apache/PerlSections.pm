@@ -1,173 +1,176 @@
 package Apache::PerlSections;
 
 use strict;
-$Apache::PerlSections::VERSION = '1.61';
+use warnings FATAL => 'all';
 
-use Devel::Symdump ();
-use Data::Dumper ();
+our $VERSION = '0.01';
 
-sub store {
-    require IO::File;
+use Apache::CmdParms ();
+use Apache::Directive ();
+use APR::Table ();
+use Apache::Server ();
+use Apache::ServerUtil ();
+use Apache::Const -compile => qw(OK);
 
-    my($self, $file) = @_;
-    my $fh = IO::File->new(">$file") or die "can't open $file $!\n";
-    
-    $fh->print($self->dump);
-    
-    $fh->close;
+use constant SPECIAL_NAME => 'PerlConfig';
+
+sub new {
+    my($package, @args) = @_;
+    return bless { @args }, ref($package) || $package;
+}
+
+sub server     { return shift->{'parms'}->server() }
+sub directives { return shift->{'directives'} ||= [] }
+sub package    { return shift->{'args'}->{'package'} }
+
+sub handler : method {
+    my($self, $parms, $args) = @_;
+
+    unless (ref $self) {
+        $self = $self->new('parms' => $parms, 'args' => $args);
+    }
+
+    my $special = $self->SPECIAL_NAME;
+
+    for my $entry ($self->symdump()) {
+        if ($entry->[0] !~ /$special/) {
+            $self->dump(@$entry);
+        }
+    }
+
+    {
+        no strict 'refs';
+        my $package = $self->package;
+
+        $self->dump_special(${"${package}::$special"},
+          @{"${package}::$special"} );
+    }
+
+    $self->post_config();
+
+    Apache::OK;
+}
+
+sub symdump {
+    my($self) = @_;
+
+    my $pack = $self->package;
+
+    unless ($self->{symbols}) {
+        $self->{symbols} = [];
+
+        no strict;
+
+        #XXX: Shamelessly borrowed from Devel::Symdump;
+        while (my ($key, $val) = each(%{ *{"$pack\::"} })) {
+            local (*ENTRY) = $val;
+            if (defined $val && defined *ENTRY{SCALAR}) {
+                push @{$self->{symbols}}, [$key, $ENTRY];
+            }
+            if (defined $val && defined *ENTRY{ARRAY}) {
+                push @{$self->{symbols}}, [$key, \@ENTRY];
+            }
+            if (defined $val && defined *ENTRY{HASH} && $key !~ /::/) {
+                push @{$self->{symbols}}, [$key, \%ENTRY];
+            }
+        }
+    }
+
+    return @{$self->{symbols}};
+}
+
+sub dump_special {
+    my($self, @data) = @_;
+    $self->add_config(@data);
 }
 
 sub dump {
-    my @retval = "package Apache::ReadConfig;";
+    my($self, $name, $entry) = @_;
+    my $type = ref $entry;
 
-    local $Data::Dumper::Indent = 1;
+    if ($type eq 'ARRAY') {
+        $self->dump_array($name, $entry);
+    }
+    elsif ($type eq 'HASH') {
+        $self->dump_hash($name, $entry);
+    }
+    else {
+        $self->dump_entry($name, $entry);
+    }
+}
 
-    my $stab = Devel::Symdump->rnew('Apache::ReadConfig');
+sub dump_hash {
+    my($self, $name, $hash) = @_;
 
-    my %dump = (
-	hashes  => 'HASH',
-	scalars => 'SCALAR',
-	arrays  => 'ARRAY',
-    );
+    for my $entry (sort keys %{ $hash || {} }) {
+        my $item = $hash->{$entry};
+        my $type = ref($item);
 
-    while(my($meth,$type) = each %dump) {
-	no strict 'refs';
-	push @retval, "#$meth:\n";
-	for my $name ($stab->$meth()) {
-            my $s = Data::Dumper->Dump([*$name{$type}], ['*'.$name]);
-	    $s =~ s/Apache:{0,2}ReadConfig:://;
-            if($s =~ /^\$/) {
-               $s =~ s/= \\/= /; #whack backwack
+        if ($type eq 'HASH') {
+            $self->dump_section($name, $entry, $item);
+        }
+        elsif ($type eq 'ARRAY') {
+            for my $e (@$item) {
+                $self->dump_section($name, $entry, $e);
             }
-	    push @retval, $s unless $s =~ /= (undef|\(\));$/;
-	}
+        }
+    }
+}
+
+sub dump_section {
+    my($self, $name, $loc, $hash) = @_;
+
+    $self->add_config("<$name $loc>\n");
+
+    for my $entry (sort keys %{ $hash || {} }) {
+        $self->dump_entry($entry, $hash->{$entry});
     }
 
-    return join "\n", @retval, "1;", "__END__", "";
+    $self->add_config("</$name>\n");
+}
+
+sub dump_array {
+    my($self, $name, $entries) = @_;
+
+    for my $entry (@$entries) {
+        $self->dump_entry($name, $entry);
+    }
+}
+
+sub dump_entry {
+    my($self, $name, $entry) = @_;
+    my $type = ref $entry;
+
+    if ($type eq 'SCALAR') {
+        $self->add_config("$name $$entry\n");
+    }
+    elsif ($type eq 'ARRAY') {
+        $self->add_config("$name @$entry\n");
+    }
+    elsif ($type eq 'HASH') {
+        $self->dump_hash($name, $entry);
+    }
+    elsif ($type) {
+        #XXX: Could do $type->can('httpd_config') here on objects ???
+        die "Unknown type '$type' for directive $name";
+    }
+    elsif (defined $entry) {
+        $self->add_config("$name $entry\n");
+    }
+}
+
+sub add_config {
+    my($self, $config) = @_;
+    return unless defined $config;
+    chomp($config);
+    push @{ $self->directives }, $config;
+}
+
+sub post_config {
+    my($self) = @_;
+    my $errmsg = $self->server->add_config($self->directives);
+    die $errmsg if $errmsg;
 }
 
 1;
-
 __END__
-
-=head1 NAME
-
-Apache::PerlSections - Utilities for work with <Perl> sections
-
-=head1 SYNOPSIS
-
-    use Apache::PerlSections ();
-
-=head1 DESCRIPTION
-
-It is possible to configure you server entirely in Perl using
-<Perl> sections in I<httpd.conf>.  This module is here to help
-you with such a task.
-
-=head1 METHODS
-
-=over 4
-
-=item dump
-
-This method will dump out all the configuration variables mod_perl
-will be feeding the the apache config gears.  The output is suitable
-to read back in via C<eval>.
-
-Example:
-
- <Perl>
-
- use Apache::PerlSections ();
-
- $Port = 8529;
-
- $Location{"/perl"} = {
-     SetHandler => "perl-script",
-     PerlHandler => "Apache::Registry",
-     Options => "ExecCGI",
- };
-
- @DocumentIndex = qw(index.htm index.html);
-
- $VirtualHost{"www.foo.com"} = {
-     DocumentRoot => "/tmp/docs",
-     ErrorLog => "/dev/null",
-     Location => {
-	 "/" => {
-	     Allowoverride => 'All',
-	     Order => 'deny,allow',
-	     Deny  => 'from all',
-	     Allow => 'from foo.com',
-	 }, 
-     },
- };   
-
- print Apache::PerlSections->dump;
-
- </Perl>
-
-This will print something like so:
-
- package Apache::ReadConfig;
- #scalars:
-
- $Port = 8529;
-
- #arrays:
-
- @DocumentIndex = (
-   'index.htm',
-   'index.html'
- );
-
- #hashes:
-
- %Location = (
-   '/perl' => {
-     PerlHandler => 'Apache::Registry',
-     SetHandler => 'perl-script',
-     Options => 'ExecCGI'
-   }
- );
-
- %VirtualHost = (
-   'www.foo.com' => {
-     Location => {
-       '/' => {
-         Deny => 'from all',
-         Order => 'deny,allow',
-         Allow => 'from foo.com',
-         Allowoverride => 'All'
-       }
-     },
-     DocumentRoot => '/tmp/docs',
-     ErrorLog => '/dev/null'
-   }
- );
-
- 1;
- __END__
-
-=item store
-
-This method will call the C<dump> method, writing the output
-to a file, suitable to be pulled in via C<require>.
-
-Example:
-
-   Apache::PerlSections->store("httpd_config.pl");
-
-   require 'httpd_config.pl';
-
-=back
-
-=head1 SEE ALSO
-
-mod_perl(1), Data::Dumper(3), Devel::Symdump(3)
-
-=head1 AUTHOR
-
-Doug MacEachern
-
-

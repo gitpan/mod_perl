@@ -1,0 +1,36 @@
+# make sure that we test under Taint and warnings mode enabled
+PerlSwitches -wT
+
+PerlChildExitHandler ModPerl::Test::exit_handler
+
+#for t/modules/include.t
+<Directory @ServerRoot@/htdocs/includes>
+    AddOutputFilter INCLUDES .shtml
+    Options Indexes FollowSymLinks IncludesNoExec
+</Directory>
+
+<Directory @ServerRoot@/htdocs/includes-registry>
+    SetHandler perl-script
+    Options +ExecCGI +IncludesNoExec
+    PerlResponseHandler ModPerl::Registry
+    PerlOptions +ParseHeaders +GlobalRequest
+    AddOutputFilter INCLUDES .spl
+</Directory>
+
+<IfModule mod_perl.c>
+    <IfDefine !MODPERL2>
+        # This should not be touched, since we're running with mod_perl 2
+        PerlModule Doesnt::Exist
+    </IfDefine>
+</IfModule>
+
+# <sandbox-friendly>
+# keep everything self-contained, to avoid problems with sandboxes
+# which break when things try to run off /tmp
+<IfModule mod_cgid.c>
+    ScriptSock logs/cgisock
+</IfModule>
+#
+SetEnv TMPDIR @t_logs@
+# </sandbox-friendly>
+

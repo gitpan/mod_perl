@@ -1,0 +1,40 @@
+=head1 NAME
+
+Apache::FilterRec -- A Perl API for Apache 2.0 Filter Records
+
+=head1 Synopsis
+
+  use Apache::FilterRec;
+  # ...
+  sub filter {
+      my $f      = shift;
+      my $frec   = $f->frec;
+      my $next_f = $frec->next;
+      my $name   = $frec->name;
+      # ...
+  }
+
+=head1 Description
+
+C<Apache::FilterRec> provides the Perl API for Apache 2.0 filter
+records.
+
+=head1 API
+
+Function arguments (if any) and return values are shown in the
+function's synopsis.
+
+=head2 C<name>
+
+META: to be written
+
+=head2 C<next>
+
+META: to be written
+
+=head1 See Also
+
+The L<filter handlers tutorial|docs::2.0::user::handlers::filters> and
+the C<L<Apache::Filter|docs::2.0::api::Apache::Filter>> manpage.
+
+=cut
