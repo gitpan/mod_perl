@@ -1,76 +1,60 @@
 To: modperl@listproc.itribe.net, CGI-Perl@webstorm.com, apache-modules@zyzzyva.com, new-httpd@hyperreal.com
 
-release 0.81 - September 08, 1996
+release 0.84 - October 27, 1996
 
-I have uploaded the latest version of the Apache/Perl modules to PAUSE.
-While the package is making it's way around CPAN, it is also available at:
+I have uploaded the latest version of the Apache-Perl modules to PAUSE.
+While the package is making it's way around CPAN, it is also available from:
 http://www.osf.org/~dougm/apache/
 
-With the new features of this version and Perl's new i/o abstraction, it is
-possible to write scripts running under mod_perl_fast which will look just
-like "normal" CGI scripts.
+There have been many changes since the last announcement (0.81) including:
 
-We are now Apache 1.2 compliant.
+The original approach of mod_perl has been abandoned in favor of 
+the mod_perl_fast mechanism.  To complete this transition
+mod_perl_fast has been renamed to mod_perl.
 
-From the Changes file (since 0.76b1):
-------
-added Apache::CGI->exit method as suggested by Andreas
+Callback hooks have been added for the remaining stages of a request, 
+in addition to the handler stage, Apache-Perl modules may now step in 
+during the uri translate, authentication, authorization, access, type check,
+fixup and logger stages of a request.   
 
-items needed for 1.2 are now conditional using MODULE_MAGIC_NUMBER
+A configuration directive has been added for each stage to define a
+subroutine callback handler:
 
-included Makefile.tmpl.1.2  
+    PerlTransHandler    
+    PerlAuthenHandler
+    PerlAuthzHandler
+    PerlAccessHandler
+    PerlTypeHandler
+    PerlFixupHandler
+    PerlLogHandler
 
-fix so we can send $strings of binary data to the client
+New configuration directive 'SetPerlVar' allows users to set variables in
+configuration files, made available to perl with the $r->dir_config method.
 
-fix so we can log bytes sent
+New modules include:
+    Apache::AuthenDBI      - Authenticate via Perl's DBI
+    Apache::Authen         - Perl Apache authentication handlers
+    Apache::AuthzAge       - Authorize based on age
+    Apache::AccessLimitNum - Limit user access by number of requests
+    Apache::Constants      - Constants defined in httpd.h
+    Apache::MsqlProxy      - Translate URI's into mSQL database queries
 
-added Andreas' CGI::XA kit for users of CGI.pm + mod_perl_fast
+More API functionality made available to perl:
+    $r->dir_config
+    $r->get_basic_auth_pw
+    $r->note_basic_auth_failure
+    $r->requires
+    $r->main
+    $r->is_main
+    $r->handler
+    $r->proxyreq
 
-added PerlSetupEnv directive
+Adjustments have been made to come in-line with Apache-1.2-dev.
 
-added PerlSendHeader directive 
+Installation procedure has been reworked such that is follows recommendations
+for apache 1.2 modules.
 
-we now take advantage of Perl's new IO abstraction so STDIN and 
-STDOUT are hooked up to the client.
-Thanks to Sven Verdoolaege <skimo@breughel.ufsia.ac.be> for the
-initial patch
-
-added $r->connection->close method
-
-added $r->exit method
-
-applied patch from Rob Hartill <robh@imdb.com> so read_client_block
-works with apache-1.2 changes
-
-updated UsersGuide to suggest using configuration that does not
-require patching mod_alias.c, thanks to Rob Hartill <robh@imdb.com> 
-
-added $r->method_number method
-
-$r->method() now accepts an argument to change the request method 
-(for things like internal re-directs)
-
-added send_cgi_header method
-
-added internal_redirect_handler method
-
-applied NeXT fix from Andreas
-
-applied patch from Andreas to fix eval error line number 
-in Apache::Registry
-
-changed Changes file so it can be read with 'perldoc Changes'
-
-updated Apache::CGI, now requires CGI.pm 2.22+
-
-#undef pregcomp to fix namespace clash with Apache 1.2
-
-added (placeholder for) PerlSetVar directive (need to think about it some more)
-
-applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
-to fix bug introduced with perl5.003_01 + IRIX combo
-
-------
+Other assorted bug fixes and updates, see the 'Changes' file for details.
 
 Regards,
 -Doug

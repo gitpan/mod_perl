@@ -1,3 +1,8 @@
+FAQ
+---
+Patrick Kane <modus@enews.com> maintains the mod_perl FAQ available at:
+http://chaos.dc.enews.com/mod_perl/
+
 Apache/Perl API
 ---------------
 Type 'perldoc Apache' for info on how to use the Perl-Apache API.

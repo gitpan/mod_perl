@@ -2,12 +2,12 @@ use ExtUtils::MakeMaker;
 use Config;
 
 # Patch up the Makefiles we are going to use with Apache
-system $^X, "-pi", "-e", "s!^PERL=.*!PERL=$Config{'perlpath'}!",
+system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
             "src/Makefile.tmpl", "src/modules/perl/Makefile";
 
 WriteMakefile(
     NAME	=> "mod_perl",
-    VERSION => "0.83_10",
+    VERSION => "0.84",
 #    SKIP      => [qw(static dynamic)], #for now
 #    'linkext' => {LINKTYPE => '' }, 	      
 #    MAP_TARGET	=> "httpd",

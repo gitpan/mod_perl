@@ -3,9 +3,9 @@ INSTALLATION for mod_perl
 Prerequisites
 -------------
 
-You need apache version 1.1 or higher.
+Apache version 1.1 or higher.
 
-Make sure you have perl version 5.003 or higher.
+Perl version 5.003 or higher.
 
 If you do not have Perl version 5.003_01 or higher,
 fetch and install ExtUtils::Embed from CPAN 
@@ -35,7 +35,7 @@ Build apache
 Copy the source files into the apache build directory:
 (For apache versions < 1.2 you'll need to mkdir src/modules/ first)
 
-	cp -r src/modules/perl/  apache_xxx/src/modules/
+	cp -r src/modules/perl  apache_xxx/src/modules/
 
 Edit apache_xxx/src/Configuration (if you don't have Configuration
 yet, this should be a copy of Configuration.tmpl in the same
@@ -52,7 +52,7 @@ If you are using the most current public release of apache '1.1.1',
 you can simply copy the src/Makefile.tmpl to apache_xxx/src/Makefile.tmpl
 
 Otherwise, edit apache_xxx/src/Makefile.tmpl adding:
-
+(!Be sure to read the comments first!) 
 ---%<----
 
 #next line only for apache versions < 1.2

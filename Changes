@@ -7,13 +7,19 @@ for *lots* of bug spotting, fixing and patching,
 Apache::Registry and CGI.pm overhaul efforts (aka CGI::XA & CGI::Switch)
 
 Gisle Aas <aas@sn.no>
-For getting this effort started
+For getting this effort started and many contributions since
 
 Other contributors are mentioned below.
 
 =head1 CHANGES
 
 =over 3
+
+=item 0.84 - October 27, 1996
+
+added pointer to Patrick Kane's <modus@enews.com> FAQ
+
+applied Makefile.PL patches from Gisle
 
 =item 0.83_10
 

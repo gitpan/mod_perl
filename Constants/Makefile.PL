@@ -4,9 +4,11 @@ use Config;
 $VERSION = "1.01";
 
 for (<../../apache*/src>) {
-    print "Checking $_ for httpd.h\n";
-    last if -e "$_/httpd.h", $httpd_src=$_;
-    undef $httpd_src;
+    if (-e "$_/httpd.h") {
+        print "Apache constants obtained from <$_/*.h>\n";
+        $httpd_src=$_;
+       last;
+    }
 }
 
 $httpd_src ||= prompt "httpd source directory?", "/opt/src/apache/src"; 
