@@ -1,8 +1,8 @@
 package net;
 
 # Configure these for your local system
-$httpserver  = "localhost:8005";
-$perldir      = "/perl/t";
+$httpserver  = "localhost:8529";
+$perldir      = "/perl";
 #######################################
 
 {

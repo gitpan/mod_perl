@@ -52,7 +52,7 @@ sub dump {
     $r->content_type("text/html");
     $r->content_language("en");
     $r->no_cache(1);
-    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.12 1996/10/09 05:45:07 dougm Exp $);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.13 1996/12/19 04:14:51 dougm Exp $);
     $r->send_http_header;
     
     return 0 if $r->method eq "HEAD";   # should not generate a body
@@ -126,9 +126,9 @@ Apache::Debug - Utilities for debugging embedded perl code
 
 =head1 SYNOPSIS
 
-    require Apache::Debug;
+    use Apache::Debug ();
 
-    Apache::Debug::dump(Apache->request, 500, "Uh Oh!");
+    Apache::Debug::dump($r, SERVER_ERROR, "Uh Oh!");
 
 =head1 DESCRIPTION
 

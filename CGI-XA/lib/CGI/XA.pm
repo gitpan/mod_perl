@@ -3,7 +3,7 @@ package CGI::XA;
 use strict;
 use vars qw($SL $CRLF $VERSION $Revision);
 
-$VERSION = '0.22305-alpha';
+$VERSION = (qw$Revision: 1.13 $)[1];
 
 # Preloaded methods go here.
 
@@ -25,7 +25,7 @@ use FileHandle ();
 # this package will be. If Lincoln integrates the changes, I'll drop
 # it.
 
-$Revision = q$Id: XA.pm,v 1.12 1996/12/17 04:24:38 dougm Exp $;
+$Revision = q$Id: XA.pm,v 1.13 1996/12/18 22:28:22 dougm Exp $;
 
 # The path separator is a slash, backslash or semicolon, depending
 # on the paltform.
@@ -134,6 +134,7 @@ sub param {
 sub delete {
     my($self,$name) = @_;
     delete $self->{$name};
+    delete $self->{'.fieldnames'}->{$name};
     @{$self->{'.parameters'}}=grep($_ ne $name,$self->param());
     return wantarray ? () : undef;
 }
@@ -255,11 +256,15 @@ sub initialize_it {
 	undef %{$self};
     }
 
-    # flag that we've been inited
-    $self->{'.init'}++ if $self->param;
+    # Associative array containing our defined fieldnames
+    $self->{'.fieldnames'} = {};
+    foreach ($self->param('.cgifields')) {
+	$self->{'.fieldnames'}->{$_}++;
+    }
 
     # Clear out our default submission button flag if present
     $self->delete('.submit');
+    $self->delete('.cgifields');
 }
 
 # FUNCTIONS TO OVERRIDE:
@@ -730,6 +735,7 @@ sub startform {
     $method = $method || 'POST';
     $enctype = $enctype || &URL_ENCODED;
     $action = $action ? qq/ACTION="$action"/ : '';
+    $self->{'.parametersToAdd'}={};
     return qq/<FORM METHOD="$method" $action ENCTYPE=$enctype @other>\n/;
 }
 ##startform              method action enctype other
@@ -784,7 +790,8 @@ sub start_multipart_form {
 #### Method: endform
 # End a form
 sub endform {
-    return "</FORM>\n";
+    my($self,@p) = @_;
+    return ($self->get_fields,"</FORM>");
 }
 
 *end_form = \&endform;
@@ -1274,7 +1281,7 @@ sub checkbox {
      } else {
 	@p{qw/ name checked value label override other/} = @p;
     }
-    if (!$p{override} && $self->inited) {
+    if (!$p{override} && defined($self->param($p{name}))) {
 	$p{checked} = $self->param($p{name}) ? ' CHECKED' : '';
 	$p{value} = defined $self->param($p{name}) ? $self->param($p{name}) :
 	    (defined $p{value} ? $p{value} : 'on');
@@ -1286,6 +1293,7 @@ sub checkbox {
     $p{label} = $p{name} unless defined $p{label};
     $self->escapeHTML($p{value});
     $p{other} ||= '';
+    $self->register_parameter($p{name});
     return qq[<INPUT TYPE="checkbox" NAME="$p{name}" VALUE="$p{value}"$p{checked}$p{other}>$p{label}\n];
 }
 
@@ -1391,6 +1399,7 @@ sub checkbox_group {
 	$self->escapeHTML($_);
 	push(@elements,qq/<INPUT TYPE="checkbox" NAME="$p{name}" VALUE="$_"$checked$p{other}>${label} ${break}/);
     }
+    $self->register_parameter($p{name});
     return wantarray ? @elements : join('',@elements) unless $p{columns};
     return _tableize($p{rows},$p{columns},$p{rowheaders},$p{colheaders},@elements);
 }
@@ -1530,6 +1539,7 @@ sub radio_group {
 	 $self->escapeHTML($_);
 	 push(@elements,qq/<INPUT TYPE="radio" NAME="$p{name}" VALUE="$_"$checkit$p{other}>$label $break/);
     }
+    $self->register_parameter($p{name});
     return wantarray ? @elements : join('',@elements) unless $p{columns};
     return _tableize($p{rows},$p{columns},$p{rowheaders},$p{colheaders},@elements);
 }
@@ -1706,6 +1716,7 @@ sub scrolling_list {
 	 $result .= "<OPTION $selectit VALUE=\"$value\">$label\n";
     }
     $result .= "</SELECT>\n";
+    $self->register_parameter($p{name});
     return $result;
 }
 
@@ -2163,13 +2174,6 @@ sub user_name {
     return $self->http('from') || $ENV{'REMOTE_IDENT'} || $ENV{'REMOTE_USER'};
 }
 
-# Return true if we've been initialized with a query
-# string.
-sub inited {
-    my($self) = shift;
-    return $self->{'.init'};
-}
-
 # -------------- really private subroutines -----------------
 # Smart rearrangement of parameters to allow named parameter
 # calling.  We do the rearrangement if:
@@ -2215,7 +2219,8 @@ sub previous_or_default {
     my($self,$name,$defaults,$override) = @_;
     my(%selected);
 
-    if (!$override && ($self->inited || $self->param($name))) {
+    if (!$override && ($self->{'.fieldnames'}->{$name} || 
+		       defined($self->param($name)) ) ) {
 	grep($selected{$_}++,$self->param($name));
     } elsif (defined($defaults) && ref($defaults) &&
 	     (ref($defaults) eq 'ARRAY')) {
@@ -2225,6 +2230,18 @@ sub previous_or_default {
     }
 
     return %selected;
+}
+
+sub register_parameter {
+    my($self,$param) = @_;
+    $self->{'.parametersToAdd'}->{$param}++;
+}
+
+sub get_fields {
+    my($self) = @_;
+    return $self->hidden('-name'=>'.cgifields',
+			 '-values'=>[keys %{$self->{'.parametersToAdd'}}],
+			 '-override'=>1);
 }
 
 sub read_from_cmdline {

@@ -1,12 +1,10 @@
 use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
+use Cwd;
 
-$VERSION = "0.85_06";
+$VERSION = "0.86";
 
-print "WARNING: \$r->read is no longer an alias for \$r->read_client_block\n",
-      "          see perldoc Apache for more information\n";
- 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
             <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
@@ -52,23 +50,30 @@ unless (@adirs) {
 foreach $adir (@adirs) {
     $conf = "$adir/Configuration";
     $httpd_h = "$adir/httpd.h";
+
     if (-e $httpd_h) {
 	$ans = prompt "Configure mod_perl with $adir ?", "y";
 	next unless $ans eq "y";
+	$IsBenSSL = -e "$adir/apache_ssl.c";
 	$APACHE_SRC = $adir;
 	last unless -e $conf; #building from 'make offsite-tar' 
 
-	system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
-	system "cp", "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
-	print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
-	
+	unless ($HAS_DASH_MAKE) {
+	    unless (-e "$adir/Makefile.tmpl.bak") {
+		print STDERR "Backing up $adir/Makefile.tmpl to $adir/Makefile.tmpl.bak\n";
+		system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
+	    }
+	    system "cp", "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
+	    print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
+	}
+
 	mkdir "$adir/modules", 0755;
 	mkdir "$adir/modules/perl", 0755;
 	#ignore make's output here
 	`(cd $adir/modules/perl; make clean 2> /dev/null)`;
 
 	local(*MANI);
-	open *MANI => "MANIFEST" or die "open MANIFEST $!";
+	open *MANI, "MANIFEST" or die "open MANIFEST $!";
 	$adir =~ s,/src$,,;
 	#only rm and cp files mod_perl ships with
 	while(<MANI>) {
@@ -100,11 +105,59 @@ EOT
        } else {
 	   print "mod_perl already present in $conf\n";
        }
-	system "(cd $adir; ./Configure)" unless $ENV{NO_HTTPD};
-    }    		
-
+    }
+    unless ($ENV{NO_HTTPD}) {
+	my $dash_make;
+	$dash_make = " -make ".cwd()."src/$mft_map{$adir}"
+	    if $HAS_DASH_MAKE;
+	print STDERR "(cd $adir; ./Configure${dash_make})\n";
+	system "(cd $adir; ./Configure${dash_make})"
+    }
     last if $APACHE_SRC;
 }
+
+unless(-e "t/conf/httpd.conf") {
+    system "cp", "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
+    $User  = getpwuid($>) || $>;
+    $Group = getgrgid($)) || $); 
+    print STDERR "Will run tests as User: '$User' Group: '$Group'\n";
+
+    for (qw(User Group)) {
+	system $^X, "-pi~", "-e", "s/^$_ .*/$_ $$_/", "t/conf/httpd.conf";
+    }
+    if($IsBenSSL) {
+	local *CONF;
+	open CONF, ">>t/conf/httpd.conf" or die $!;
+	print CONF "SSLDisable\n";
+	close CONF;
+    }
+}
+
+#checking for LWP code, borrowed from LWP's own Makefile.PL :-)
+print "Checking for LWP::UserAgent...";
+eval {
+    require LWP::UserAgent;
+};
+if ($@) {
+    $no_lwp++;
+    $missing_modules++;
+    print " failed\n";
+    print <<EOT;
+$@
+The libwww-perl library is needed to run the test suite.
+Installation of this library is recommended, but not required.   
+
+EOT
+    sleep(2);  # Don't hurry too much
+} else {
+    print " ok\n";
+}
+
+print <<EOT if $missing_modules;
+The missing modules can be obtained from CPAN.  Visit
+<URL:http://www.perl.com/CPAN/> to find a CPAN site near you.
+
+EOT
 
 WriteMakefile(
     NAME    => "mod_perl",
@@ -113,6 +166,7 @@ WriteMakefile(
         APACHE_SRC => $APACHE_SRC,
 	ARCHNAME => $Config{archname},
 	PERL_VERSION => $]+0,
+	HTTPD => $IsBenSSL ? "httpsd" : "httpd",
     },
     dist    => {
 	COMPRESS=> 'gzip -9f', SUFFIX=>'gz', 
@@ -179,7 +233,7 @@ TEST_VERBOSE=0
 test:
 	@(cd t/conf; test -f httpd.conf || cp httpd.conf-dist httpd.conf)
 	@(cd t/net; test -f config.pl || cp config.pl.dist config.pl)
-	$(APACHE_SRC)/httpd -X -d `pwd`/t &
+	$(APACHE_SRC)/$(HTTPD) -X -d `pwd`/t &
 	@echo will write error_log to: /tmp/mod_perl_error_log
 	$(FULLPERL) t/TEST $(TEST_VERBOSE)
 	kill `cat /tmp/mod_perl_httpd.pid`
@@ -215,6 +269,12 @@ sub httpd_version {
 
 	    if($fserver eq "Apache") {
 		($server, $version) = ($fserver, $fversion);
+		if($version == 1.2 and $frest =~ s/^b(\d)$/$1/) {
+		    ++$HAS_DASH_MAKE if $frest >= 3;
+		}
+		elsif($version >= 1.2) {
+		    $HAS_DASH_MAKE++;
+		}
 	    }
 	    else {
 		#print STDERR "'$fserver/$fversion' unrecognized.\n";

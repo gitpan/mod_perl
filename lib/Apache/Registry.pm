@@ -4,17 +4,17 @@ use Apache::Debug ();
 use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
-use vars qw($VERSION);
-#$Id: Registry.pm,v 1.20 1996/12/17 04:24:38 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.20 $ =~ /(\d+)\.(\d+)/);
+use vars qw($VERSION $Debug);
+#$Id: Registry.pm,v 1.21 1996/12/19 04:14:51 dougm Exp $
+$VERSION = (qw$Revision: 1.21 $)[1];
 
-$Apache::Registry::Debug ||= 0;
+$Debug ||= 0;
 # 1 => log recompile in errorlog
 # 2 => Apache::Debug::dump in case of $@
 # 4 => trace pedantically
 
 sub handler {
-    my($r) = @_; #Apache->request;
+    my($r) = @_;
     my $filename = $r->filename;
 
     if (-r $filename && -s _) {
@@ -36,7 +36,7 @@ sub handler {
 	my $mtime = -M _;
 
 	# turn into a package name
-	$r->log_error("Apache::Registry::handler checking out script_name")
+	$r->log_error("Apache::Registry::handler checking out $script_name")
 	    if $Debug & 4;
 	my $script_name = 
 	    substr($r->uri, 0, length($r->uri)-length($r->path_info));
@@ -49,7 +49,7 @@ sub handler {
 	# Dress it up as a real package name
 	$script_name =~ s|/|::|g;
 	my $package = "Apache::ROOT$script_name";
-       $r->log_error("Apache::Registry::handler determined package as $package") 
+	$r->log_error("Apache::Registry::handler determined package as $package") 
 	   if $Debug & 4;
 
 	if (
@@ -85,7 +85,6 @@ sub handler {
 	    $Apache::Registry->{$package}{mtime} = $mtime;
 	}
 
-	#eval "&$package\:\:handler();";
 	eval {$package->handler;};
 	if ($@) {
 	    $r->log_error($@);
@@ -126,7 +125,7 @@ Apache::Registry - Run (mostly) unaltered CGI scripts through mod_perl
 =head1 DESCRIPTION
 
 URIs in the form of:
- http://www.host.com/perl/file.fpl
+ http://www.host.com/perl/file.pl
 
 Will be compiled as the body of a perl subroutine and executed.
 Each server process or 'child' will compile the subroutine once 
@@ -145,9 +144,17 @@ Here's an example:
 Apache::Registry::handler will preform the same checks as mod_cgi
 before running the script.
 
+=head1 DEBUGGING
+
+You may set the debug level with the $Apache::Registry::Debug bitmask
+
+ 1 => log recompile in errorlog
+ 2 => Apache::Debug::dump in case of $@
+ 4 => trace pedantically
+ 
 =head1 SEE ALSO
 
-perl(1), Apache(3)
+perl(1), Apache(3), Apache::Debug(3)
 
 =head1 AUTHORS
 

@@ -24,7 +24,7 @@ Configuration: Configuration.tmpl
 	@echo "If not, you will at least have to touch Configuration."
 	@false
 
-PERL=/opt/perl5/bin/perl
+PERL=/usr/local/bin/perl
 PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
@@ -130,5 +130,4 @@ util_script.o: httpd.h http_config.h http_conf_globals.h http_main.h \
                util_script.h
 
 httpd.h: conf.h alloc.h buff.h
-mod_rewrite.h: regexp/regexp.h
 util_md5.h: md5.h

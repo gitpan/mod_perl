@@ -2,13 +2,13 @@
 ServerRoot ./t
 User nobody
 Group nogroup
-Port 8005
+Port 8529
 
 #mod_perl stuff
 
 PerlModule Apache Apache::Registry
 
-Alias /perl/ /users/dougm/www/apache_perl/
+Alias /perl/ ./t/net/perl/
 
 <Location /perl>
 SetHandler perl-script
@@ -16,7 +16,7 @@ PerlHandler Apache::Registry::handler
 Options ExecCGI
 </Location>
 
-<Location /perl/t/io>
+<Location /perl/io>
 SetHandler perl-script
 PerlHandler Apache::Registry::handler
 Options ExecCGI
@@ -24,7 +24,7 @@ PerlSendHeader On
 PerlSetupEnv   On
 </Location>
 
-<Location /perl/t/perl-status>
+<Location /perl/perl-status>
 SetHandler perl-script
 PerlHandler Apache::Status
 </Location>

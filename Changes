@@ -15,6 +15,38 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.86
+
+Port is a little more random for tests '8529'
+
+applied patch from Edmund Mergl <E.Mergl@BAWUE.DE> bringing CGI::XA 
+up-to-date with CGI.pm 2.29
+
+perl_destruct_level is set to 0 in mod_perl.c, while progress is being
+made on fixing perl_{con,des}truct in 5.003_12
+
+if there is no httpd.conf, Makefile.PL creates one for you, filling in
+User and Group with uid and gid of the current process
+
+updated Makefile.tmpl-1.2 with Makefile.tmpl from apache 1.2b2
+
+if Makefile.PL finds apache version >= 1.2b3, instead of copying
+Makefile.tmpl to ../src/apache_x.x, it uses the new '-make Makefile.tmpl'
+option, made possible by Rob Hartill
+otherwise, same as before and it now tells you it's made a backup 
+'Makefile.tmpl.bak'
+
+fixed 'make test', so you _really_ don't have to modify anything,
+hopefully
+
+if libwww-perl is not installed, the tests that require it will not be run,
+and it will be suggested that you install the library, but who doesn't
+have libwww-perl installed???
+
+=item 0.85_06
+
+same as 0.85_05, just fixed broken tarball
+ 
 =item 0.85_05
 
 fixed Makefile.PL bug spotted by Gary Shea <shea@XMISSION.COM>
@@ -30,11 +62,10 @@ should be able to run with no modification, nothing by hand other than
 now make sure that CC we use to build httpd is the same as CC used to
 build Perl, thanks to Andreas
 
-added 'make offsite-tar' target to build the perl-side on machines 
+added 'make offsite-tar' target for build the perl-side on machines 
 without apache source
 
-fixed Makefile.tmpl* so people can define EXTRA_FLAGS as suggested by 
-Rob Hartill
+fixed Makefile.tmpl* so people define EXTRA_FLAGS as suggested by Rob Hartill
 
 a few minor fixes for Apache-SSL users
 

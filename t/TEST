@@ -33,7 +33,25 @@ if (@ARGV) {
     }
 } else {
     @tests = (<constants/*.t>);
-    push(@tests, <net/*.t>) if -f "net/config.pl";
+    eval { require LWP::UserAgent; };
+    if ($@) {
+	print <<"EOM";
+$@
+I still can't find LWP::UserAgent, try:
+$^X -MCPAN -e install LWP
+
+		or
+
+http://www.perl.com/cgi-bin/cpan_mod?module=LWP
+
+Must skip important tests without LWP...
+
+EOM
+	sleep(2);
+    }
+    else {
+       push(@tests, <net/*.t>) if -f "net/config.pl";
+    }
 }
 
 runtests @tests;

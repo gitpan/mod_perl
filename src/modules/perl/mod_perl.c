@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.32 1996/12/17 04:24:38 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.33 1996/12/19 04:14:51 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -149,6 +149,7 @@ void perl_init (server_rec *s, pool *p)
   
   CTRACE(stderr, "constructing perl interpreter...ok\n");
   perl_construct(perl);
+  perl_destruct_level = 0;
 
   /* fake-up what the shell usually gives perl */
   argv[1] = cls->PerlScript;
