@@ -1,3 +1,5 @@
+#PerlOpmask default
+
 <IfModule mod_dll.c>
 LoadModule perl_module modules/ApacheModulePerl.dll
 </IfModule>
@@ -27,6 +29,12 @@ PerlSetEnv KeyForPerlSetEnv OK
 
 <Perl>
 #!perl
+use Apache ();
+use Apache::Registry ();
+
+Apache::Server->register_cleanup(sub { 
+    warn "Apache::Server registered cleanup called for $$\n";
+});
 
 if($ENV{TEST_PERL_DIRECTIVES}) {
     #t/TestDirectives/TestDirectives.pm
@@ -67,12 +75,9 @@ EOF
 
 $My::config_is_perl = 1;
 
-#use Apache::Constants qw(MODULE_MAGIC_NUMBER);
-use IO::Handle ();
-use Cwd qw(fastcwd);
-my $dir = join "/", fastcwd, "t";
+my $dir = $Apache::Server::CWD;
+$dir .= "/t"; # if -d "t";
 my $Is_Win32 = ($^O eq "MSWin32");
-#my $mmn = MODULE_MAGIC_NUMBER;
 
 sub prompt ($;$) {
     my($mess,$def) = @_;
@@ -98,11 +103,12 @@ if($User eq "root") {
 }
 print "Will run tests as User: '$User' Group: '$Group'\n";
 
-require 't/net/config.pl';
+require 'net/config.pl';
 my $srv = $net::httpserver;
 ($srv = $net::httpserver) =~ s/\D+$//;
 $Port = (split ":", $srv, 2)[1];
 $Port ||= 8529;
+print "Will bind to Port $Port\n";
 
 $DocumentRoot = "$dir/docs";
 $ServerName = "localhost";
@@ -118,6 +124,10 @@ my @mod_perl = (
     PerlHandler => "Apache::Registry",
     Options     => "ExecCGI",
 );
+
+$Location{"/dirmagic"} = {
+    PerlHandler => "My::DirIndex",
+};
 
 $Location{"/dirty-perl"} = { 
     SetHandler => "perl-script",

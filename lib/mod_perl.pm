@@ -3,7 +3,7 @@ use 5.003_97;
 use strict;
 
 BEGIN {
-    $mod_perl::VERSION = "1.15";
+    $mod_perl::VERSION = "1.1501";
 }
 
 sub subversion {
@@ -17,6 +17,11 @@ sub hook {
     (my $try = $hook) =~ s/^Perl//;
     $try =~ s/Handler$//;
     return Apache::perl_hook($try);
+}
+
+sub unimport {
+  my $class = shift;
+  %mod_perl::UNIMPORT = map { lc($_),1 } @_;
 }
 
 sub import {

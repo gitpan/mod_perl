@@ -32,7 +32,7 @@ sub name {
     
     for (@Apache::Constants::EXPORT, 
 	 @Apache::Constants::EXPORT_OK) {
-	if ((\&{$_})->() == $const) {
+	if ((\&{$_})->() eq $const) {
 	    return ($ConstNameCache{$const} = $_);
 	}
     }
@@ -167,6 +167,7 @@ These are constants related to server version:
 
  MODULE_MAGIC_NUMBER
  SERVER_VERSION
+ SERVER_BUILT
 
 =back
 

@@ -100,12 +100,25 @@ SOURCE=..\perl\Constants.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\perl\Connection.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\perl\Server.c
+# End Source File
+# Begin Source File
+
 SOURCE=..\perl\dirent.h
 # End Source File
 # Begin Source File
 
 SOURCE=..\perl\mod_perl.c
 # End Source File
+# Begin Source File
+
+SOURCE=..\perl\mod_perl_opmask.c
+# End Source File
+
 # Begin Source File
 
 SOURCE=..\perl\mod_perl.h

@@ -13,12 +13,29 @@ use Config;
 #once it is sane, we'll use these methods in Makefile.PL
 
 $VERSION = '0.01';
+sub IS_MOD_PERL_BUILD () {-e "../lib/mod_perl.pm"}
 
 sub new {
     my $class = shift;
     my $dir;
-    for (@INC) {
-	last if -d ($dir = "$_/auto/Apache/include");
+
+    if(IS_MOD_PERL_BUILD) {
+	eval {
+	    require "../lib/Apache/MyConfig.pm";
+	};
+	print $@ if $@;
+	unless ($@) {
+	    $dir = $Apache::MyConfig::Setup{Apache_Src};
+	    for ($dir, "../$dir", "../../$dir") {
+		last if -d ($dir = $_);
+	    }
+	}
+    }
+
+    unless ($dir) {
+	for (@INC) {
+	    last if -d ($dir = "$_/auto/Apache/include");
+	}
     }
 
     bless {
@@ -87,10 +104,16 @@ sub module_magic_number {
     my $d = asrc(shift || $self->dir);
 
     #return $mcache{$d} if $mcache{$d};
-    my $fh = IO::File->new("$d/http_config.h") or return undef;
+    my $fh;
+    for (qw(ap_mmn.h http_config.h)) {
+	last if $fh = FileHandle->new("$d/$_");
+    }
+    return 0 unless $fh;
+
     my $n;
+    my $mmn_pat = join "|", qw(MODULE_MAGIC_NUMBER_MAJOR MODULE_MAGIC_NUMBER);
     while(<$fh>) {
-	if(s/^#define\s+MODULE_MAGIC_NUMBER\s+(\d+).*/$1/) {
+	if(s/^#define\s+($mmn_pat)\s+(\d+).*/$2/) {
 	   chomp($n = $_);
 	   last;
        }
@@ -149,6 +172,10 @@ sub typemaps {
 	    last;
 	}
     }
+    if(IS_MOD_PERL_BUILD) {
+	push @$typemaps, "../Apache/typemap";
+    }
+
     return $typemaps;
 }
 
@@ -157,7 +184,7 @@ sub inc {
     my $src  = $self->dir;
     my $main = $self->main;
     my $os = $Is_Win32 ? "win32" : "unix";
-    my @inc = ("-I$src", "-I$main");
+    my @inc = ("-I$src", "-I$src/modules/perl", "-I$main");
     for ("src/regex", "$src/os/$os") {
 	push @inc, "-I$_" if -d $_;
     }

@@ -131,8 +131,10 @@ static SV *slash2stash(const char *segment) {
 #define ApachePerlRun_chdir_scwd() \
     chdir(SvPV(perl_get_sv("Apache::Server::CWD", TRUE),na))
 
+#ifndef ApachePerlRun_name_with_virtualhost
 #define ApachePerlRun_name_with_virtualhost() \
     perl_get_sv("Apache::Registry::NameWithVirtualHost", FALSE)
+#endif
 
 SV *ApachePerlRun_namespace(request_rec *r, char *root)
 {
@@ -210,23 +212,7 @@ void ApachePerlRun_compile(request_rec *r, SV *code_ref)
  * }
  */
 
-SV *ApachePerlRun_readscript(request_rec *r)
-{
-    dTHR;
-    PerlIO *fp;
-    SV *insv;
-
-    ENTER;
-    save_item(rs);
-    sv_setsv(rs, &sv_undef); 
-
-    fp = PerlIO_open(r->filename, "r");
-    insv = newSV(r->finfo.st_size);
-    sv_gets(insv, fp, 0); /*slurp*/
-    PerlIO_close(fp);
-    LEAVE;
-    return newRV_noinc(insv);
-}
+#define ApachePerlRun_readscript mod_perl_slurp_filename
 
 SV *ApachePerlRun_parse_cmdline(request_rec *r, SV *code)
 {
@@ -252,7 +238,7 @@ SV *ApachePerlRun_parse_cmdline(request_rec *r, SV *code)
 int ApachePerlRun_error_check(request_rec *r)
 {
     dTHR;
-    if(perl_eval_ok(r->server) != 0) {
+    if((perl_eval_ok(r->server) != 0) && !strnEQ(SvPVX(ERRSV), " at ", 4)) {
 	hv_store(ERRHV, r->uri, strlen(r->uri), ERRSV, FALSE);
 	sv_setpv(ERRSV, "");
 	return SERVER_ERROR;

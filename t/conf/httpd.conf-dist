@@ -1,3 +1,4 @@
+#PerlOpmask default
 
 =pod
 
@@ -54,6 +55,10 @@ Alias /perl_xs/ ./t/net/perl/
 Alias /dirty-perl/ ./t/net/perl/
 
 Alias /cgi-bin/ ./t/net/perl/
+
+<Location /dirmagic>
+PerlHandler My::DirIndex
+</Location>
 
 <Location /perl>
 ErrorDocument 500 /perl/server_error.pl
@@ -221,6 +226,12 @@ AddType text/html .ehtml
 </Files>
 
 <IfModule apache_ssl.c>
+SSLDisable
+SSLCacheServerPath /tmp
+SSLCacheServerPort /tmp/gcache_port
+</IfModule>
+
+<IfModule mod_ssl.c>
 SSLDisable
 SSLCacheServerPath /tmp
 SSLCacheServerPort /tmp/gcache_port

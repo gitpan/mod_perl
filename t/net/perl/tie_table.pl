@@ -6,7 +6,7 @@ my $r = shift;
 $r->send_http_header("text/plain");
 
 my $i = 0;
-my $tests = 26;
+my $tests = 30;
 print "1..$tests\n";
 
 my $headers_in = $r->headers_in;
@@ -40,8 +40,69 @@ my %my_hash = (two => 2, three => 3);
 @{ $r->notes }{ keys %my_hash } = (values %my_hash);
 
 for (keys %my_hash) {
-    test ++$i, $r->notes->get($_);
+    test ++$i, scalar $r->notes->get($_);
 }
+$r->notes->add(three => "tre");
+my(@notes) = $r->notes->get("three");
+print "\@notes = @notes\n";
+test ++$i, @notes == 2;
+
+use vars qw(%Seen);
+
+sub print_header {
+    my($k,$v) = @_;
+    print "DO: $k => $v\n";
+    $Seen{$k}++; 
+    1;
+}
+
+%Seen = (); 
+$r->notes->do(\&print_header);
+test ++$i, $Seen{three} == 2;
+test ++$i, $Seen{two};
+
+%Seen = ();
+$r->notes->do(\&print_header, undef, qw(three));
+test ++$i, not exists $Seen{two};
+
+sub str_header {
+    my($av, $k, $v) = @_;
+    push @$av, "$k: $v";
+    1;
+}
+
+sub my_as_string {
+    my $r = shift;
+    my @retval = ();
+    push @retval, $r->the_request;
+
+    $r->headers_in->do(\&str_header, \@retval);
+    push @retval, "";
+
+    push @retval, join(" ", $r->protocol, $r->status_line);
+    for my $meth (qw(headers_out err_headers_out)) {
+	$r->$meth()->do(\&str_header, \@retval);
+    }
+    push @retval, "", "";
+    join "\n", grep { defined $_ } @retval;
+}
+
+use Benchmark;
+if(my_as_string($r) eq $r->as_string) {
+    print "as_string match\n";
+}
+else {
+    print "as_string MIS-match\n";
+    print "-" x 20, $/; 
+    print my_as_string($r);
+    print "-" x 20, $/; 
+    print $r->as_string;
+    print "-" x 20, $/; 
+}
+#timethese(1_000, { 
+#    Perl => sub {my $my_as_string = my_as_string($r)},
+#    C    => sub {my $as_string = $r->as_string;},
+#});
 
 for my $meth (qw{
     headers_in headers_out err_headers_out notes dir_config subprocess_env

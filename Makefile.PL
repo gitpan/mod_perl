@@ -53,7 +53,7 @@ $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
     close FH;
 }
 
-use subs qw(_prompt iedit asrc);
+use subs qw(iedit asrc);
 
 gen_script("t/net/perl/cgi.pl");
 gen_script("t/report");
@@ -67,10 +67,6 @@ It is strongly recommended that you upgrade to 5.004_04 or higher,
 as there are memory leaks present in lower versions or Perl.
 EOF
 sleep(1);
-}
-
-unless ($Is_Win32) {
-    readline_setup();        
 }
 
 %Apache::MyConfig::Setup = ();
@@ -145,7 +141,8 @@ $LIBPERL = "DEFAULT";
 $USE_APACI = $USE_DSO = $USE_APXS = 0;
 $WITH_APXS = "";
 $APACI_ARGS = "";
-$EVERYTHING = 0;
+@APACI_ARGS = ();
+$EVERYTHING = $EXPERIMENTAL = 0;
 $PERL_DEBUG = "";
 $PERL_DESTRUCT_LEVEL = "";
 $PERL_STATIC_EXTS = "";
@@ -174,12 +171,17 @@ $DYNAMIC = 0;
 $CONFIG = "";
 $ADD_MODULE = "";
 $PERL_DIRECTIVE_HANDLERS = 0;
-$PERL_TIE_TABLES = 0;
+$PERL_TABLE_API = 0;
 $PERL_LOG_API = 0;
 $PERL_URI_API = 0;
 $PERL_UTIL_API = 0;
+$PERL_CONNECTION_API = 1; #these two were split out late in the game
+$PERL_SERVER_API = 1;     #so they are on by default 
 $PERL_RUN_XS = 0;
+
 my %experimental = map { $_,1 } qw{
+PERL_DSO_UNLOAD
+PERL_STARTUP_DONE_CHECK
 PERL_RUN_XS
 PERL_GET_SET_HANDLERS
 PERL_MARK_WHERE
@@ -190,10 +192,13 @@ PERL_RESTART_HANDLER
 PERL_TIE_SCRIPTNAME
 PERL_STASH_POST_DATA
 XS_IMPORT
+PERL_SAFE_STARTUP
+PERL_DEFAULT_OPMASK
+PERL_ORALL_OPMASK
 };
 
 my @mp_args = 
-    qw(EVERYTHING DO_HTTPD NO_HTTPD CONFIG ADD_MODULE APACHE_PREFIX
+    qw(EXPERIMENTAL EVERYTHING DO_HTTPD NO_HTTPD CONFIG ADD_MODULE APACHE_PREFIX
        USE_APACI USE_DSO USE_APXS WITH_APXS APACI_ARGS PREP_HTTPD
        ALL_HOOKS ADD_VERSION STATIC DYNAMIC PORT XS_IMPORT);
 
@@ -220,10 +225,12 @@ sub is_mp_arg {
    PERL_STACKED_HANDLERS 
    PERL_METHOD_HANDLERS
    PERL_DIRECTIVE_HANDLERS
-   PERL_TIE_TABLES
+   PERL_TABLE_API
    PERL_LOG_API
    PERL_URI_API
    PERL_UTIL_API
+   PERL_CONNECTION_API
+   PERL_SERVER_API
 };
 
 $callback_alias{PERL_INIT} = "PERL_HEADER_PARSER";
@@ -245,9 +252,18 @@ my @mm_args;
 	    s/^\s+//; s/\s+$//;
 	    next if /^#/ || /^$/;
 	    last if /^__END__/;
-	    unshift @ARGV, split /\s+/, $_;
+	    if(/^APACI_ARGS/) { 
+		s/^APACI_ARGS=//;
+		push @APACI_ARGS, $_;
+	    }
+	    else {
+		unshift @ARGV, split /\s+/, $_;
+	    }
 	}
 	close $fh;
+    }
+    if(@APACI_ARGS) {
+	unshift @ARGV, "APACI_ARGS=" . join(",", @APACI_ARGS); 
     }
 }
 
@@ -263,6 +279,23 @@ while($_ = shift) {
     }
     ${$k} = $v, next if defined ${$k};
     $callback_hooks{$k} = $v if exists $callback_hooks{$k};
+}
+
+my %very_experimental = map {$_,1} 
+qw(PERL_DEFAULT_OPMASK PERL_SAFE_STARTUP PERL_ORALL_OPMASK 
+   PERL_STARTUP_DONE_CHECK PERL_DSO_UNLOAD);
+
+if($EXPERIMENTAL) {
+    for (keys %experimental) {
+        next if $very_experimental{$_}; #have to *really* ask for this one
+        next if $experimental{$_}++ > 1;
+	$PERL_EXTRA_CFLAGS .= " -D$_=1";
+    }
+}
+
+if($experimental{PERL_DEFAULT_OPMASK} > 1) {
+    $experimental{PERL_SAFE_STARTUP} = 2;
+    $PERL_EXTRA_CFLAGS .= " -DPERL_SAFE_STARTUP=1";
 }
 
 $USE_APACI = 1 if $USE_DSO;
@@ -300,11 +333,11 @@ for (keys %callback_alias) {
 
 if($EVERYTHING) {
     @callback_hooks{qw(PERL_STACKED_HANDLERS PERL_METHOD_HANDLERS)} = (1) x 2;
-    for(qw(ALL_HOOKS PERL_SSI PERL_SECTIONS PERL_TIE_TABLES PERL_DIRECTIVE_HANDLERS PERL_LOG_API PERL_URI_API PERL_UTIL_API)) {
+    for(qw(ALL_HOOKS PERL_SSI PERL_SECTIONS PERL_DIRECTIVE_HANDLERS 
+	   PERL_LOG_API PERL_URI_API PERL_UTIL_API PERL_TABLE_API)) {
        $$_ = 1;
     }
 }
-
 
 if($ALL_HOOKS) {
     for (@callback_hooks) {
@@ -314,11 +347,13 @@ if($ALL_HOOKS) {
 }
 
 if($DYNAMIC) {
-    $PERL_DIRECTIVE_HANDLERS = $PERL_TIE_TABLES = 
+    $PERL_DIRECTIVE_HANDLERS = $PERL_TABLE_API = 
 	$PERL_LOG_API = $PERL_URI_API = $PERL_UTIL_API = 1;
 }
 
-my @xs_modules = qw(Apache Apache::Constants);
+my @xs_modules = qw{
+Apache Apache::Constants
+};
 
 if($Is_Win32) {
     $NO_HTTPD = 1;
@@ -348,7 +383,7 @@ unless (@adirs) {
     print "Enter `q' to stop search\n";
     while(1) {
        print "Please tell me where I can find your apache src\n" ; 
-       $src_dir = _prompt("", $APACHE_SRC_DEFAULT);
+       $src_dir = prompt("", $APACHE_SRC_DEFAULT);
        last if $src_dir eq "q";
 	if(-d $src_dir) {
 	    push(@adirs, $src_dir);
@@ -370,7 +405,7 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
     if (-e $httpd_h) {
 	unless($NO_HTTPD and not $DYNAMIC and not $PREP_HTTPD) {
 	    unless($DO_HTTPD) {
-		$ans = _prompt("Configure mod_perl with $adir ?", "y");
+		$ans = prompt("Configure mod_perl with $adir ?", "y");
 		next unless $ans =~ /^y$/i;
 	    }
 	    $APACHE_SRC = $adir;
@@ -395,7 +430,7 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    $cant_hook{PERL_SSI} = "(doesn't work w/ USE_DSO=1)";
 	}
 	unless ($DO_HTTPD or $NO_HTTPD) {
-	    $ans = _prompt("Shall I build httpd in $adir for you?", "y");
+	    $ans = prompt("Shall I build httpd in $adir for you?", "y");
 	    ++$NO_HTTPD, ++$PREP_HTTPD unless $ans =~ /^y$/i;
 	}
 
@@ -417,13 +452,15 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    open MANI, "MANIFEST" or die "open MANIFEST $!";
 	    my $atopdir = dirname($adir);
 
+	    unlink "$atopdir/perlxsi.c";
 	    #only rm and cp files mod_perl ships with
 	    while(<MANI>) {
 		next unless m,^src/modules/perl/,; chomp;
 		#print "rm -f $adir/$_\n";
 		unlink "$atopdir/$_";
 		next if not m,.+\.(xs|c|h)$, and $USE_APACI;
-		print "cp $_ $atopdir/$_\n" if $USE_APACI;
+		next if $DYNAMIC and /\.xs$/;
+		#print "cp $_ $atopdir/$_\n" if $USE_APACI;
 		my $dest = "$atopdir/$_";
 		cp $_, $dest;
 		#$mani_src{$_}++;
@@ -529,21 +566,22 @@ if($PERL_DIRECTIVE_HANDLERS) {
     push @xs_modules, "Apache::ModuleConfig";
     $callback_hooks{PERL_DIRECTIVE_HANDLERS} = 1;
 }
-if($PERL_TIE_TABLES) {
+if($PERL_TABLE_API) {
     push @xs_modules, "Apache::Tie";
-    $callback_hooks{PERL_TIE_TABLES} = 1;
+    $callback_hooks{PERL_TABLE_API} = 1;
 }
-if($PERL_RUN_XS) {
+if($PERL_RUN_XS or $experimental{PERL_RUN_XS} > 1) {
     my $mmn    = $USE_APXS ? MMN_130 : magic_number($APACHE_SRC);
     if($mmn >= MMN_130) {
 	push @xs_modules, "Apache::PerlRunXS";
     }
     else {
 	$PERL_RUN_XS = 0;
+	$experimental{PERL_RUN_XS} = 0; 
 	print "Sorry, need 1.3.0+ for Apache::PerlRunXS\n";
     }
 }
-for (qw(Log URI Util)) {
+for (qw(Log URI Util Connection Server)) {
     my $s = "PERL_".uc($_)."_API";
     if($$s) {
 	push @xs_modules, "Apache::$_";
@@ -556,8 +594,9 @@ my @xs_mod_snames = map { (my $s = $_) =~ s/.*:://; $s } @xs_modules;
 win32_setup() if $Is_Win32;
 
 if($DYNAMIC) {
+    print "Will build Apache::* extensions dynamic\n";
     for (@xs_mod_snames) {
-	cp "src/modules/perl/${_}.xs", "${_}/${_}.xs" if $DYNAMIC;
+	cp "src/modules/perl/${_}.xs", "${_}/${_}.xs";
     }
 }
 
@@ -764,8 +803,8 @@ sub init_tests_and_config {
     } 
     if($User eq "root") {
 	print "Cannot run tests as User `$User'\n";
-        $User = _prompt("Which User?", "nobody");
-	$Group = _prompt("Which Group?", $Group); 
+        $User = prompt("Which User?", "nobody");
+	$Group = prompt("Which Group?", $Group); 
     }
     print STDERR "Will run tests as User: '$User' Group: '$Group'\n";
 
@@ -773,7 +812,11 @@ sub init_tests_and_config {
 	iedit "t/conf/httpd.conf", "s/^(Port) .*/\$1 $PORT/";
 	iedit "t/net/config.pl", "s/$Port/$PORT/;";
     }
-
+    if($experimental{PERL_SAFE_STARTUP} > 1) {
+	if($experimental{PERL_DEFAULT_OPMASK} < 2) {
+	    iedit "t/conf/httpd.conf", "s/^#(PerlOpmask)/\$1/";
+	}
+    }
     {
 	my $mmn = magic_number($APACHE_SRC) || 0;
 
@@ -783,14 +826,18 @@ sub init_tests_and_config {
 	my $apaci_cfg = APACI->init;
 
 	my($k,$v);
+	my(%all) = %callback_hooks;
+	while(($k,$v) = each %experimental) {
+	    $all{$k} = ($experimental{$k} > 1) ? 1 : 0;
+	}
 	print $hf "%callback_hooks = (\n";
-	while(($k,$v) = each %callback_hooks) {
+	while(($k,$v) = each %all) {
 	    print $hf "   $k => $v,\n";
 	    my $yes_no = $v ? "yes" : "no";
 	    print $apaci_cfg "$k = $yes_no\n" if $apaci_cfg;
 	}
-	print $hf "   PERL_RUN_XS => $PERL_RUN_XS,\n";
         print $hf "   MMN => $mmn,\n";
+	print $hf "   USE_DSO => 1,\n" if $USE_DSO;
 	print $hf ");\n1;\n";
 	$hf->close;
 	$apaci_cfg->close if $apaci_cfg;
@@ -845,7 +892,9 @@ SSLCacheServerPort $SSLCacheServerPort
 SSLCacheServerPath /tmp  
 EOF
     conf_append($StrongholdKey) if $StrongholdKey;
-
+    if(is_ssl() =~ /stronghold/i) {
+	iedit "t/conf/httpd.conf", "s:^SSL:#SSL:";
+    }
     #phooey!
     my $v = httpd_version($APACHE_SRC, 1);
     my $mmn = magic_number($APACHE_SRC) || 0;
@@ -1011,6 +1060,7 @@ WriteMakefile(
     #CCDLFLAGS => "$Config{ccdlflags} $EXTRA_CFLAGS", 
     DEFINE => $EXTRA_CFLAGS, 
     macro   => {
+	OPCODE_FILE => "src/opcodes.txt",
         APACHE_ROOT => $APACHE_ROOT,
         APACHE_SRC => $APACHE_SRC,
 	ARCHNAME => $Config{archname},
@@ -1018,6 +1068,7 @@ WriteMakefile(
 	HTTPD => (is_ssl() ? "httpsd" : "httpd"),
 	PORT => $PORT,
 	PWD => $PWD,
+	SHRPENV => $Config{shrpenv},
 	CVSROOT => 'perl.apache.org:/export/home/cvs',
     },
     'dist'    => {
@@ -1097,8 +1148,16 @@ sub MY::top_targets {
     $string .= <<'EOF';
 
 gen_exports:
-	$(PERL) -MExtUtils::testlib -MApache::Constants::Exports \
+	$(PERL) -I./lib -MExtUtils::testlib -MApache::Constants::Exports \
 	-e 'Apache::Constants::Exports->gen_ctags' > Exports.c
+
+gen_op_mask:
+	$(PERL) -MExtUtils::testlib -MApache::Opcode \
+	-e 'Apache::Opcode->gen_op_mask' -- $(OPCODE_FILE) > op_mask.c
+
+update_op_mask: gen_op_mask
+	@$(RM_F) $(APACHE_SRC)/modules/perl/mod_perl_opmask.o
+	$(CP) op_mask.c $(APACHE_SRC)/modules/perl/op_mask.c
 
 apxs_distclean:
 	(cd ./apaci && $(MAKE) distclean)
@@ -1110,7 +1169,7 @@ apxs_install: apxs_libperl
 	(cd ./apaci && $(MAKE) install;)
 
 apache_httpd: $(APACHE_SRC)/Makefile.tmpl
-	(cd $(APACHE_SRC) && $(MAKE) CC="$(CC)";)
+	(cd $(APACHE_SRC) && $(SHRPENV) $(MAKE) CC="$(CC)";)
 
 apaci_httpd: 
 	(cd $(APACHE_ROOT) && $(MAKE))
@@ -1346,19 +1405,14 @@ sub httpd_version {
     return($version.$extra);
 }
 
+use lib "./lib";
+use Apache::src ();
+
 sub magic_number {
     my $d = asrc shift;
-    return $mcache{$d} if $mcache{$d};
-    my $fh = FileHandle->new("$d/http_config.h") or return 0;
-    my $n;
-    while(<$fh>) {
-	if(s/^#define\s+MODULE_MAGIC_NUMBER\s+(\d+).*/$1/) {
-	   chomp($n = $_);
-	   last;
-       }
-    }
-    $fh->close;
-    return($mcache{$d} = $n);
+    my $src = Apache::src->new;
+    $src->dir($d);
+    return($mcache{$d} = $src->module_magic_number);
 }
 
 sub cleanup_for_static {
@@ -1412,10 +1466,13 @@ sub setup_for_static {
     unless ($USE_APACI) {
 	#XXX: ho,hum, need to generate the whole damn thing 
 	#instead of all these frigging iedits.
-	iedit $mf, "s/^#STATIC_SRC.*/STATIC_SRC = @static_src/";
-	iedit $mf, "s/^#STATIC_EXTS.*/STATIC_EXTS = @xs_modules/";
-	iedit $mf, "s/^#STATIC_/STATIC_/";
-
+	if ($DYNAMIC) {
+	}
+	else {
+	    iedit $mf, "s/^#STATIC_SRC.*/STATIC_SRC = @static_src/";
+	    iedit $mf, "s/^#STATIC_EXTS.*/STATIC_EXTS = @xs_modules/";
+	    iedit $mf, "s/^#STATIC_/STATIC_/";
+	}
 	#bloody hell, make sucks and so does this.
 	#this has only cause a few people pain, enough.
 	iedit $mf, "s/ \Q\$(STATIC_SRC)\E/ @static_src/";
@@ -1438,45 +1495,6 @@ sub module_name_from_xs {
 	warn "$module name guess might be incorrect";
     }
     return (keys %seen)[0];
-}
-
-sub readline_setup {
-    local $^W = 0;
-    eval 'use Term::ReadLine' ;
-
-    if ($@ eq '') {
-	$::term = new Term::ReadLine 'mod_perl install';
-	
-	eval {
-	    sub main::_prompt {
-		my ($prompt, $default) = @_ ;
-		
-		$_ = $::term -> readline ("$prompt [$default] ") ;
-		if (!/^\s*$/) {
-		    s/\s+$//;
-		    return $_ ;
-		}
-		else {
-		    if ($_ eq "") {
-			return $default ;
-		    }
-		    else {
-			return "" ; 
-		    }
-		}
-	    }
-        };
-	die $@ if $@;
-	print "ReadLine support enabled\n" ;
-    }
-    else { 
-	eval <<'EOT' ;
-    
-	sub main::_prompt {
-	    prompt($_[0], $_[1]);
-	}
-EOT
-    }
 }
 
 sub asrc {
@@ -1775,9 +1793,14 @@ sub APACI::init {
 	die "can't open $lib_cfg $!";
 
     my @static_src = ();
+
     for (@xs_mod_snames) {
 	push @static_src, "$_.c";
     }
+    my $static_targets = <<EOF unless $DYNAMIC;
+PERL_STATIC_EXTS = @xs_modules $PERL_STATIC_EXTS
+PERL_STATIC_SRCS = @static_src
+EOF
 
     print $apaci_cfg <<EOF;
 ##
@@ -1791,8 +1814,8 @@ PERL_VERSION = $PERL_VERSION
 #   Perl interpreter to use 
 PERL = $^X
 LIBPERL = $LIBPERL
-PERL_STATIC_EXTS = @xs_modules $PERL_STATIC_EXTS
-PERL_STATIC_SRCS = @static_src
+
+$static_targets
 
 EOF
 

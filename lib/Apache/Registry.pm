@@ -54,17 +54,18 @@ sub handler {
 
 	my $mtime = -M _;
 
+	my $uri = $r->uri;
+	$uri = "/__INDEX__" if $uri eq "/";
 	# turn into a package name
 	$r->log_error(sprintf "Apache::Registry::handler examining %s",
-		      $r->uri) if $Debug && $Debug & 4;
+		      $uri) if $Debug && $Debug & 4;
 	my $script_name = $r->path_info ?
-	    substr($r->uri, 0, length($r->uri)-length($r->path_info)) :
-		$r->uri;
+	    substr($uri, 0, length($uri)-length($r->path_info)) :
+		$uri;
 
 	if($Apache::Registry::NameWithVirtualHost) {
-	    my $srv = $r->server;
-	    $script_name = join "", $srv->server_hostname, $script_name
-		if $srv->is_virtual;
+	    my $name = $r->get_server_name;
+	    $script_name = join "", $name, $script_name if $name;
 	}
 
 	# Escape everything into valid perl identifiers
@@ -94,14 +95,8 @@ sub handler {
  	} else {
 	    $r->log_error("Apache::Registry::handler reading $filename")
 		if $Debug && $Debug & 4;
-	    my($sub);
-	    {
-		my $fh = Apache::gensym(__PACKAGE__);
-		open $fh, $filename;
-		local $/;
-		$sub = <$fh>;
-		$sub = parse_cmdline($sub);
-	    }
+	    my $sub = $r->slurp_filename;
+	    $sub = parse_cmdline($$sub);
 
 	    # compile this subroutine into the uniq package name
             $r->log_error("Apache::Registry::handler eval-ing") if $Debug && $Debug & 4;
@@ -128,7 +123,7 @@ sub handler {
 	    $r->stash_rgy_endav($script_name);
 	    if ($@) {
 		$r->log_error($@);
-		$@{$r->uri} = $@;
+		$@{$uri} = $@;
 		return SERVER_ERROR unless $Debug && $Debug & 2;
 		return Apache::Debug::dump($r, SERVER_ERROR);
 	    }
@@ -139,14 +134,14 @@ sub handler {
 
 	my $cv = \&{"$package\::handler"};
 	eval { &{$cv}($r, @_) } if $r->seqno;
-	chdir $Apache::Server::CWD;
+	$r->chdir_file("$Apache::Server::CWD/");
 	$^W = $oldwarn;
 
 	my $errsv = "";
 	if($@) {
 	    $errsv = $@;
 	    $@ = ''; #XXX fix me, if we don't do this Apache::exit() breaks
-	    $@{$r->uri} = $errsv;
+	    $@{$uri} = $errsv;
 	}
 
 	if($errsv) {

@@ -6,7 +6,7 @@
 
 #EVERYTHING=1 will enable:
 #ALL_HOOKS=1 PERL_SSI=1 PERL_SECTIONS=1
-#PERL_STACKED_HANDLERS=1 PERL_METHOD_HANDLERS=1
+#PERL_STACKED_HANDLERS=1 PERL_METHOD_HANDLERS=1 PERL_TIE_TABLES=1
 
 EVERYTHING=1
 
@@ -17,7 +17,7 @@ EVERYTHING=1
 # APACHE_SRC=/tmp/apache_x.xx/src
 
 #this would configure in mod_proxy, mod_unique_id, mod_info and mod_status
-# ADD_MODULE=proxy,unique_id,info,status
+# ADD_MODULE=proxy,usertrack,unique_id,info,status
 
 #if you wish to use a Configuration file other than what's in the
 #apache_x.xx/src directory
@@ -63,18 +63,9 @@ EVERYTHING=1
 #can also enable via $Apache::ERRSV_CAN_BE_HTTP = 1;
 # ERRSV_CAN_BE_HTTP=1
 
-#if a `PerlModule' defines variables in the Apache::ReadConfig namespace
-#this feature will read them into apache's config as <Perl></Perl> does
-#but now there's no need to actually have <Perl></Perl> in httpd.conf
-#can also enable via PerlSetEnv PERL_SECTIONS_SELF_BOOT 1
-# PERL_SECTIONS_SELF_BOOT=1
-
 #enable the PerlRestartHandler which will be called during restart
 #this happens just before PerlFreshRestart does it's thang
 #PERL_RESTART_HANDLER=1
-
-#Link Tie.o with the server. Required for use of Apache::Tie
-#PERL_TIE_TABLES=1
 
 __END__
 

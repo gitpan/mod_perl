@@ -5,7 +5,7 @@ use strict;
 use Apache::Registry ();
 use Apache::Constants qw(OPT_EXECCGI);
 @Apache::RegistryLoader::ISA = qw(Apache::Registry);
-$Apache::RegistryLoader::VERSION = (qw$Revision: 1.8 $)[1];
+$Apache::RegistryLoader::VERSION = '1.90';
 
 sub new { 
     my $class = shift;
@@ -36,7 +36,17 @@ sub handler {
 
 #override Apache class methods called by Apache::Registry
 #normally only available at request-time via blessed request_rec pointer
+sub slurp_filename {
+    my $r = shift;
+    my $filename = $r->filename;
+    my $fh = Apache::gensym(__PACKAGE__);
+    open $fh, $filename;
+    local $/;
+    my $code = <$fh>;
+    return \$code;
+}
 
+sub get_server_name {}
 sub filename { shift->{filename} }
 sub uri { shift->{uri} }
 sub status {200}

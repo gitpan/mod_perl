@@ -170,10 +170,6 @@ hv_store(ERRHV, k, strlen(k), v, FALSE)
 #define PERL_DESTRUCT_LEVEL 0
 #endif
 
-#ifndef PERL_SECTIONS_SELF_BOOT
-#define PERL_SECTIONS_SELF_BOOT getenv("PERL_SECTIONS_SELF_BOOT")
-#endif
-
 #ifndef DO_INTERNAL_REDIRECT
 #define DO_INTERNAL_REDIRECT perl_get_sv("Apache::DoInternalRedirect", FALSE)
 #endif
@@ -182,22 +178,15 @@ hv_store(ERRHV, k, strlen(k), v, FALSE)
 #undef NO_PERL_RESTART
 #endif
 
-#ifdef PERL_MARK_WHERE
-#define MARK_WHERE(w,s) \
-   ENTER; \
-   mod_perl_mark_where(w,s)
-#define UNMARK_WHERE LEAVE
-#else
-#define MARK_WHERE(w,s) mod_perl_noop(NULL)
-#define UNMARK_WHERE mod_perl_noop(NULL)
-#endif
-
 typedef request_rec * Apache;
 typedef request_rec * Apache__SubRequest;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
 typedef cmd_parms   * Apache__CmdParms;
 typedef table       * Apache__Table;
+typedef module      * Apache__Module;
+typedef handler_rec * Apache__Handler;
+typedef command_rec * Apache__Command;
 
 #define SvCLASS(o) HvNAME(SvSTASH(SvRV(o)))
 
@@ -206,16 +195,23 @@ typedef table       * Apache__Table;
 
 #define GvSV_setiv(gv,val) sv_setiv(GvSV(gv), val)
 
+#define sv_is_http_code(sv) \
+ ((SvIOK(sv) && (SvIVX(sv) >= 100) && (SvIVX(sv) <= 600)) ? SvIVX(sv) : FALSE)
+
 #define Apache__ServerStarting(val) \
 { \
-    GV *sgv = GvSV_init("Apache::ServerStarting"); \
+    GV *sgv = GvSV_init("Apache::Server::Starting"); \
+    GV *agv = GvSV_init("Apache::ServerStarting"); \
     GvSV_setiv(sgv, val); \
+    GvSV(agv) = GvSV(sgv); \
 }
 
 #define Apache__ServerReStarting(val) \
 { \
-    GV *sgv = GvSV_init("Apache::ServerReStarting"); \
+    GV *sgv = GvSV_init("Apache::Server::ReStarting"); \
+    GV *agv = GvSV_init("Apache::ServerReStarting"); \
     GvSV_setiv(sgv, val); \
+    GvSV(agv) = GvSV(sgv); \
     if(perl_is_running == PERL_DONE_STARTUP) \
         Apache__ServerStarting((val == FALSE ? FALSE : PERL_RUNNING())); \
 }
@@ -261,6 +257,12 @@ extern U32	mp_debug;
 #define MP_TRACE_h(a) if (mp_debug & 4)	 a /* handlers */
 #define MP_TRACE_g(a) if (mp_debug & 8)	 a /* globals and allocation */
 #define MP_TRACE_c(a) if (mp_debug & 16) a /* directive handlers */
+#ifndef PERL_MARK_WHERE
+#define PERL_MARK_WHERE
+#endif
+#ifndef PERL_TIE_SCRIPTNAME
+#define PERL_TIE_SCRIPTNAME
+#endif
 #else
 #define MP_TRACE(a)
 #define MP_TRACE_d(a) 
@@ -268,6 +270,16 @@ extern U32	mp_debug;
 #define MP_TRACE_h(a) 
 #define MP_TRACE_g(a) 
 #define MP_TRACE_c(a)
+#endif
+
+#ifdef PERL_MARK_WHERE
+#define MARK_WHERE(w,s) \
+   ENTER; \
+   mod_perl_mark_where(w,s)
+#define UNMARK_WHERE LEAVE
+#else
+#define MARK_WHERE(w,s) mod_perl_noop(NULL)
+#define UNMARK_WHERE mod_perl_noop(NULL)
 #endif
 
 /* cut down on some noise in source */
@@ -366,6 +378,20 @@ if((add->flags & f) || (base->flags & f)) \
 #define PERL_SSI
 #endif
 
+#ifdef PERL_SECTIONS
+#ifndef PERL_SECTIONS_SELF_BOOT
+#define PERL_SECTIONS_SELF_BOOT getenv("PERL_SECTIONS_SELF_BOOT")
+#endif
+#endif
+
+#ifndef PERL_STARTUP_DONE_CHECK
+#define PERL_STARTUP_DONE_CHECK getenv("PERL_STARTUP_DONE_CHECK")
+#endif
+
+#ifndef PERL_DSO_UNLOAD
+#define PERL_DSO_UNLOAD getenv("PERL_DSO_UNLOAD")
+#endif
+
 #ifdef APACHE_SSL
 #define PERL_DONE_STARTUP 1
 #else
@@ -376,6 +402,10 @@ if((add->flags & f) || (base->flags & f)) \
 /* once 1.3.0 is here, we can toss most of this junk */
 
 #define MMN_130 19980527
+#define MMN_132 19980806
+#if MODULE_MAGIC_NUMBER >= MMN_130
+#define HAVE_APACHE_V_130
+#endif
 #define APACHE_SSL_12X (defined(APACHE_SSL) && (MODULE_MAGIC_NUMBER < MMN_130))
 
 #if MODULE_MAGIC_NUMBER >= 19980627
@@ -494,6 +524,11 @@ char *ap_cpystrn(char *dst, const char *src, size_t dst_size);
 }
 
 #ifdef PERL_STACKED_HANDLERS
+
+#ifndef PERL_GET_SET_HANDLERS
+#define PERL_GET_SET_HANDLERS
+#endif
+
 #define PERL_TAKE ITERATE
 #define PERL_CMD_INIT  Nullav
 #define PERL_CMD_TYPE  AV
@@ -873,11 +908,13 @@ typedef struct {
     int PerlTaintCheck;
     int PerlWarn;
     int FreshRestart;
+    PERL_CMD_TYPE *PerlInitHandler;
     PERL_CMD_TYPE *PerlPostReadRequestHandler;
     PERL_CMD_TYPE *PerlTransHandler;
     PERL_CMD_TYPE *PerlChildInitHandler;
     PERL_CMD_TYPE *PerlChildExitHandler;
     PERL_CMD_TYPE *PerlRestartHandler;
+    char *PerlOpmask;
 } perl_server_config;
 
 typedef struct {
@@ -934,6 +971,7 @@ void xs_init (void);
 /* generic handler stuff */ 
 int perl_handler_ismethod(HV *class, char *sub);
 int perl_call_handler(SV *sv, request_rec *r, AV *args);
+request_rec *mp_fake_request_rec(server_rec *s, pool *p, char *hook);
 
 /* stacked handler stuff */
 int mod_perl_push_handlers(SV *self, char *hook, SV *sub, AV *handlers);
@@ -982,6 +1020,7 @@ array_header *avrv2array_header(SV *avrv, pool *p);
 table *hvrv2table(SV *rv);
 void mod_perl_untaint(SV *sv);
 SV *mod_perl_gensym (char *pack);
+SV *mod_perl_slurp_filename(request_rec *r);
 SV *mod_perl_tie_table(table *t);
 SV *perl_hvrv_magic_obj(SV *rv);
 void perl_tie_hash(HV *hv, char *class, SV *sv);
@@ -1045,12 +1084,13 @@ CHAR_P perl_cmd_setenv(cmd_parms *cmd, perl_dir_config *rec, char *key, char *va
 CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg);
 CHAR_P perl_cmd_pass_env (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_sendheader (cmd_parms *cmd, perl_dir_config *rec, int arg);
+CHAR_P perl_cmd_opmask (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_fresh_restart (cmd_parms *parms, void *dummy, int arg);
 
 CHAR_P perl_cmd_dispatch_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
-CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
+CHAR_P perl_cmd_init_handlers (cmd_parms *parms, void *rec, char *arg);
 CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_header_parser_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_post_read_request_handlers (cmd_parms *parms, void *dumm, char *arg);
@@ -1069,6 +1109,7 @@ CHAR_P perl_cmd_perl_TAKE1(cmd_parms *cmd, mod_perl_perl_dir_config *d, char *on
 CHAR_P perl_cmd_perl_TAKE2(cmd_parms *cmd, mod_perl_perl_dir_config *d, char *one, char *two);
 CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *d,
 			     char *one, char *two, char *three);
+CHAR_P perl_cmd_perl_FLAG(cmd_parms *cmd, mod_perl_perl_dir_config *d, int flag);
 
 #define perl_cmd_perl_RAW_ARGS perl_cmd_perl_TAKE1
 #define perl_cmd_perl_NO_ARGS perl_cmd_perl_TAKE1
@@ -1082,8 +1123,43 @@ void *perl_perl_merge_dir_config(pool *p, void *basev, void *addv);
 void mod_perl_dir_env(perl_dir_config *cld);
 void mod_perl_pass_env(pool *p, perl_server_config *cls);
 
+#define PERL_DIR_MERGE     "DIR_MERGE"
+#define PERL_DIR_CREATE    "DIR_CREATE"
+#define PERL_SERVER_MERGE  "SERVER_MERGE"
+#define PERL_SERVER_CREATE "SERVER_CREATE"
+#define PERL_DIR_CFG_T     0
+#define PERL_SERVER_CFG_T  1
+
 /* Apache.xs */
 
 pool *perl_get_startup_pool(void);
 server_rec *perl_get_startup_server(void);
 request_rec *sv2request_rec(SV *in, char *class, CV *cv);
+
+/* PerlRunXS.xs */
+#define ApachePerlRun_name_with_virtualhost() \
+    perl_get_sv("Apache::Registry::NameWithVirtualHost", FALSE) 
+
+char *mod_perl_set_opmask(request_rec *r, SV *sv);
+void mod_perl_init_opmask(server_rec *s, pool *p);
+void mod_perl_dump_opmask(void);
+#define dOPMask \
+if(!op_mask) Newz(0, op_mask, maxo, char); \
+else         Zero(op_mask, maxo, char)
+
+#ifdef PERL_SAFE_STARTUP
+
+#define ENTER_SAFE(s,p) \
+    dOPMask; \
+    ENTER; \
+    SAVEPPTR(op_mask); \
+    mod_perl_init_opmask(s,p)
+
+#define LEAVE_SAFE \
+    Zero(op_mask, maxo, char); \
+    LEAVE
+
+#else
+#define ENTER_SAFE(s,p)
+#define LEAVE_SAFE
+#endif

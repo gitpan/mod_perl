@@ -4,7 +4,7 @@ use strict;
 use vars qw($Debug);
 use Apache::Constants qw(:common OPT_EXECCGI);
 
-unless ($Apache::Registry::{NameWithVirtualHost}) {
+unless (defined $Apache::Registry::NameWithVirtualHost) {
     $Apache::Registry::NameWithVirtualHost = 1;
 }
 
@@ -66,12 +66,14 @@ sub compile {
 sub namespace {
     my($r, $root) = @_;
 
+    my $uri = $r->uri; 
+    $uri = "/__INDEX__" if $uri eq "/";
     $r->log_error(sprintf "Apache::PerlRun->namespace escaping %s",
-		  $r->uri) if $Debug && $Debug & 4;
+		  $uri) if $Debug && $Debug & 4;
 
     my $script_name = $r->path_info ?
-	substr($r->uri, 0, length($r->uri)-length($r->path_info)) :
-	    $r->uri;
+	substr($uri, 0, length($uri)-length($r->path_info)) :
+	    $uri;
 
     if($Apache::Registry::NameWithVirtualHost) {
 	my $srv = $r->server;
@@ -115,7 +117,7 @@ sub readscript {
 
 sub error_check {
     my $r = shift;
-    if ($@) {
+    if ($@ and substr($@,0,4) ne " at ") {
 	$r->log_error("PerlRun: `$@'");
 	$@{$r->uri} = $@;
 	$@ = ''; #XXX fix me, if we don't do this Apache::exit() breaks	
@@ -167,6 +169,7 @@ sub handler {
 
     *0 = \$r->filename;
     $r->chdir_file;
+    local %INC = %INC;
 
     my $eval = join '',
 		    'package ',

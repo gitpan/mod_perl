@@ -4,12 +4,22 @@ BEGIN {
 
     use lib './t/docs';
     require "blib.pl" if -e "./t/docs/blib.pl";
-    $Apache::ServerStarting or warn "Server is not starting !?\n";
+    $Apache::Server::Starting or warn "Server is not starting !?\n";
+    \$Apache::Server::Starting == \$Apache::ServerStarting or 
+	warn "GV alias broken\n";
+    \$Apache::Server::ReStarting == \$Apache::ServerReStarting or 
+	warn "GV alias broken\n";
 }
+
+use Apache ();
+use Apache::Registry ();
+
+#no mod_perl qw(Connection Server);
 
 eval {
     require Apache::PerlRunXS;
 }; $@ = '' if $@;
+
 
 {
     last;
@@ -47,30 +57,17 @@ if($ENV{PERL_TEST_NEW_READ}) {
 
 $ENV{KeyForPerlSetEnv} eq "OK" or warn "PerlSetEnv is broken\n";
 
-#test Apache::RegistryLoader
-{
-    use Apache::RegistryLoader ();
-    use DirHandle ();
-    use strict;
-    
-    my $rl = Apache::RegistryLoader->new(trans => sub {
-	my $uri = shift; 
-	$Apache::Server::CWD."/t/net${uri}";
-    });
-
-    my $d = DirHandle->new("t/net/perl");
-
-    for my $file ($d->read) {
-	next if $file eq "hooks.pl"; 
-	next unless $file =~ /\.pl$/;
-	Apache->untaint($file);
-	my $status = $rl->handler("/perl/$file");
-	unless($status == 200) {
-	    die "pre-load of `/perl/$file' failed, status=$status\n";
-	}
+%net::callback_hooks = ();
+require "net/config.pl";
+if($net::callback_hooks{PERL_SAFE_STARTUP}) {
+    eval "open \$0";
+    unless ($@ =~ /open trapped by operation mask/) {
+	die "opmask not set";
     }
 }
-
+else {
+    require "./t/docs/rl.pl";
+}
 #for testing perl mod_include's
 
 $Access::Cnt = 0;
@@ -112,9 +109,12 @@ $MyClass::Object = bless {}, "MyClass";
 
 sub My::child_init {
     my $r = shift;
-    my $s = $r->server;
-    my $sa = $s->server_admin;
-    $s->warn("[notice] child_init for process $$, report any problems to $sa\n");
+    eval {
+      my $s = $r->server;
+      my $sa = $s->server_admin;
+      $s->warn("[notice] child_init for process $$, report any problems to $sa\n");
+    }; $@='' if $@;
+    0;
 }
 
 sub My::child_exit {
@@ -147,6 +147,26 @@ sub Apache::AuthenTest::handler {
     }
 
     return OK;                       
+}
+
+use Apache::Constants qw(DECLINED DIR_MAGIC_TYPE);
+
+sub My::DirIndex::handler {
+    my $r = shift;
+    return DECLINED unless $r->content_type and 
+	$r->content_type eq DIR_MAGIC_TYPE;
+    require DirHandle;
+    my $dh = DirHandle->new($r->filename) or die $!;
+    my @entries = $dh->read;
+    my $x = @entries;
+    $r->send_http_header('text/plain');
+    print "1..$x\n";
+    my $i = 1;
+    for my $e (@entries) {
+	print "ok $i ($e)\n";
+	++$i;
+    }
+    1;
 }
 
 sub My::ProxyTest::handler {

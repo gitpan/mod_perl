@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.9 1998/07/23 02:59:37 dougm Exp $
+# $Id: Makefile,v 1.10 1998/07/30 15:37:21 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -126,7 +126,7 @@ perlxsi.c:
 .xs.c:
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap $*.xs > $@
 
-PERLSRC=mod_perl.c perlxsi.c perl_config.c perl_util.c perlio.c $(STATIC_SRC)
+PERLSRC=mod_perl_opmask.c mod_perl.c perlxsi.c perl_config.c perl_util.c perlio.c $(STATIC_SRC)
 
 OBJS=$(PERLSRC:.c=.o)
 

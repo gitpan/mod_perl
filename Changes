@@ -6,6 +6,174 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.15_01 - September 19, 1998
+
+USE_DSO=1 may be fixed on some platforms w/ current 1.3.2-dev
+for those who are not, e.g. linux, can try a workaround by giving
+PERL_DSO_UNLOAD to Makefile.PL or by setting the PERL_DSO_UNLOAD
+environment variable
+
+fix bug in Apache::Registry if $r->uri eq "/", thanks to Mike Wertheim
+for the spot
+
+Added Doug Bagley's Apache::SizeLimit [Brian Moseley <ix@maz.org>]
+
+a Perl syntax error may corrupt the Perl stack, rendering the
+process useless, so we now child_terminate() if this is the case  
+(thanks to Ken Williams for the Apache::Death bug illustration)
+
+<Perl> sections will now report configuration syntax errors
+
+added Apache::SubRequest->bytes_sent method
+
+added Apache::Server->register_cleanup method
+
+DYNAMIC=1 works again
+
+Apache::PerlRun will now save/restore %INC to cure problem with
+"library" files that don't include a package delaration
+
+global renames: $Apache::Server{Re}Starting -> $Apache::Server::{Re}Starting
+
+s/PERL_TIE_TABLES/PERL_TABLE_API/g
+
+fix Apache::URI so components can be properly undef-d, thanks to
+Charles C. Fu for the spot
+
+</Perl> match is now case insensitive, thanks to Randal Schwartz for
+the spot 
+
+added Apache::Util::string_size function
+
+PerlDirectiveHandlers changes:
+
+ -fix Apache::ExtUtils::command_table to properly deal with
+  <Containers> inside HASH ref entries
+ -now looks for a DIR_CREATE() method rather than new()
+ -dir_merge() must now be DIR_MERGE()
+ -order of $parms and $cfg args swapped
+ -added missing FLAG directive handler
+ -module.name is now the Perl package name, rather than Foo.xs 
+
+add dTHR for PERL_TIE_SCRIPTNAME=1 [Michael Parker <parker@austx.tandem.com>]
+
+deprecate $r->cgi_{env,var}, $r->subprocess_env can do all that and
+them some
+
+when rwrite() returns -1, break out of the loop, no longer checking
+r->connection->aborted 
+
+fix $...NameWithVirtualHost defaulting in Apache::PerlRun 
+["Ryan A. Whelan" <rwhelan@2rad.net>
+
+r->as_string now uses table_do() and moved to xs
+
+use 1.3.2-dev+'s ap_custom_response() when possible
+
+remove Apache::DESTROY method (was only for avoiding old AutoLoader bug)
+
+Apache::exit fixed under Apache::PerlRun
+
+fix chdir_file() call in Apache::Registry so we go back to the original
+directory [Gerald Richter <richter@ecos.de>]
+
+added :override :args_how tags to Apache::Constants
+
+add DIR_MAGIC_TYPE to perl_handlers[] table for directory indexing
+modules
+
+Apache::Log optimizations/enhancements:
+  $r->log now invokes ap_log_rerror (w/ 1.3.2-dev+)
+  ${r,s}->log->$method() will now accept a CODE ref as it's first
+  argument, which is only called when LogLevel >= $method
+  caller() file/line info determined only if LogLevel >= debug
+  avoid copy of message SV 
+  log() method and aliases now in xs
+
+tweak Apache->module so it can test for configured .c modules
+
+pushing out experimental stuff:
+  EXPERIMENTAL=1 (enables all experiments, except PERL_DEFAULT_OPMASK)
+  PERL_GET_SET_HANDLERS=1 if PERL_STACKED_HANDLERS
+  PERL_MARK_WHERE=1, PERL_TIE_SCRIPTNAME=1 if PERL_TRACE
+
+new $r->server->next method
+
+removed use of Term::ReadLine in Makefile.PL to make it work on
+systems with broken Term::ReadLines installed. 
+[Ask Bjoern Hansen <ask@netcetera.dk>]
+
+fix Makefile.PL and Apache::src to find MODULE_MAGIC_NUMBER in ap_mmn.h
+
+if PERL_DESTRUCT_LEVEL < 0, skip perl_destruct(), etc. in perl_shutdown()
+
+add CLOSE method for tied *STD{OUT,IN}
+
+add config for mod_ssl and 'make test' [Lupe Christoph <lupe@alanya.m.isar.de>]
+
+PerlInitHandler is now aliased to PerlPostReadRequestHandler when
+configured a the "top-level", that is, not within any Location,
+Directory or Files, where it is still aliased to
+PerlHeaderParserHandler
+ 
+PerlCleanupHandler is now run by a register_cleanup(), rather than an
+alias for PerlLogHandler 
+
+get rid of warning in Apache::RedirectLogFix [Brian Moseley <ix@maz.org>]
+
+added $r->internal_redirect method
+
+Apache::TieHashTable class enhancements:
+
+ -get() in list context will return all values found for the given key
+ -merge() and add() will accept an array reference of values
+ -new method do()
+
+add -DMOD_PERL to apaci/configure for USE_APXS=1
+[Andrea Borgia <bab0069@iperbole.bologna.it>]
+
+set LD_RUN_PATH in Makefile.PL [Tom Hughes <tom@compton.demon.co.uk>]
+
+add =pod config support for '={begin,for} apache ... =end apache'
+
+move mod_perl_cleanup_av outside of #ifdef PERL_DIRECTIVE_HANDLERS to
+cure compile problem spotted by David-Michael Lincke
+
+Fixed problem with 'POST' requests when using Apache::Include
+[Doug Bagley <doug@dejanews.com>]
+
+make $r->connection->remote_ip set-able [Doug Bagley <doug@dejanews.com>]
+
+new experimental options PERL_SAFE_STARTUP and PERL_DEFAULT_OPMASK
+when httpd is starting, opcodes will be disabled during PerlModule,
+PerlRequire and <Perl></Perl>
+ 
+ -PERL_SAFE_STARTUP=1 enables PerlOpmask directive
+   if PerlOpmask is "default", use mask generated from src/opcodes.txt
+   else it's a file to create the mask in the format of src/opcodes.txt
+   if no PerlOpmask, no opcodes are disabled
+ - 'make update_op_mask OPCODE_FILE=my_opcodes.txt && make'
+   changes the default opmask generated from OPCODE_FILE
+ -PERL_DEFAULT_OPMASK=1 disables PerlOpmask directive, forces default
+   opmask on
+ -PERL_ORALL_OPMASK=1 enables $r->set_opmask method for per-directory masks
+ -new module Apache::Opcode for generating op_mask
+
+Fixed Apache::Util::ht_time test (util.t) so it doesn't fail without
+any reason
+
+added $r->finfo method
+
+Apache::Connection and Apache::Server will not be loaded by default if
+a PerlRequire file says: no mod_perl qw(Connection Server);
+
+Apache.xs cleanups:
+
+ -move Apache::Connection code from Apache.xs to Connection.xs
+ -move Apache::Server code from Apache.xs to Server.xs
+ -remove Apache::fork stuff
+ -remove max_request_per_client method (use Apache::Globals instead)
+
 =item 1.15 - July 24, 1998
 
 new experimental XS implementation of Apache::PerlRun/Apache::Registry

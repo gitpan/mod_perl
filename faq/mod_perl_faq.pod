@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1998/07/01 23:16:23 $)
+Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1998/09/03 21:12:29 $)
 
 =head1 DESCRIPTION
 
@@ -113,6 +113,11 @@ should have the lowest possible privileges.  It should only have access
 to world readable files.  Even so, careless scripts can give away
 information.  You would not want your /etc/passwd file to be readable over
 the net, for instance.
+
+Different mod_perl scripts run successively using the same Perl
+interpreter instance. So, in addition to classical CGI mischiefs, a
+malicious mod_perl script can redefine any Perl object and change the
+behavior of other mod_perl scripts.
 
 If you turn on tainting checks, perl can help you to avoid the pitfalls of
 using data received from the net.  Setting the C<-T> switch on the first line

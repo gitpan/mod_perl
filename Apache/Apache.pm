@@ -4,8 +4,8 @@ use Exporter ();
 use Apache::Constants qw(OK DECLINED);
 use Apache::SIG ();
 
-@Apache::EXPORT_OK = qw(system exit warn fork forkoption);
-$Apache::VERSION = "1.22";
+@Apache::EXPORT_OK = qw(exit warn);
+$Apache::VERSION = "1.24";
 
 *import = \&Exporter::import;
 
@@ -20,6 +20,8 @@ if (caller eq "CGI::Apache") {
 }
 else {
     if(exists $ENV{MOD_PERL}) {
+      require Apache::Server unless $mod_perl::UNIMPORT{'server'};
+      require Apache::Connection unless $mod_perl::UNIMPORT{'connection'};
 	bootstrap Apache $Apache::VERSION;
     }
     Apache::SIG->set;
@@ -59,12 +61,6 @@ sub args {
     my($r, $val) = @_;
     parse_args(wantarray, 
 	       $val ? $r->query_string($val) : $r->query_string);
-}
-
-sub cgi_var {
-    my($r, $key) = @_;
-    my $val = $r->cgi_env($key);
-    return $val;
 }
 
 *READ = \&read unless defined &READ;
@@ -159,15 +155,12 @@ sub PRINTF {
     my $fmt = shift;
     $r->print(sprintf($fmt, @_));
 }
+*printf = \&PRINTF;
 
 sub WRITE {
     my($r, $buff, $length, $offset) = @_;
     my $send = substr($buff, $offset, $length);
     $r->print($send);
-}
-
-sub system {
-    print `@_`;
 }
 
 sub send_cgi_header {
@@ -196,29 +189,6 @@ sub send_cgi_header {
 	    last;
 	}
     }
-}
-
-sub as_string {
-    my($r) = @_;
-    my($k,$v,@retval);
-    my(%headers_in) = $r->headers_in;
-
-    push @retval, $r->the_request;
-    while(($k,$v) = each %headers_in) {
-	push @retval, "$k: $v";
-    }
-
-    push @retval, "";
-
-    push @retval, $r->status_line;
-    for (qw(err_headers_out headers_out)) {
-	my(%headers_out) = $r->$_();
-
-	while(($k,$v) = each %headers_out) {
-	    push @retval, "$k: $v";
-	}
-    }    
-    join "\n", grep { defined $_ } @retval, "";
 }
 
 sub TIEHANDLE {
@@ -501,6 +471,10 @@ The dotted decimal representation of the remote client's IP address.
 This is set by then server when the connection record is created so
 is always defined.
 
+You can also set this value by providing an argument to it. This is
+helpful if your server is behind a squid accelerator proxy which add
+a HTTP_X_FORWARDED_FOR header.
+
 =item $c->local_addr
 
 A packed SOCKADDR_IN in the same format as returned by
@@ -662,7 +636,7 @@ Returns true if this is a virtual server.
 
 =item $s->names
 
-Returns the wild-carded names for HostAlias servers. 
+Returns the wild-carded names for ServerAlias servers. 
 
 =item $s->warn
 
@@ -834,12 +808,16 @@ like this:
   $r->send_fd(FILE);
   close(FILE);
 
-=item $r->internal_redirect_handler( $newplace )
+=item $r->internal_redirect( $newplace )
 
 Redirect to a location in the server namespace without 
 telling the client. For instance:
 
-   $r->internal_redirect_handler("/home/sweet/home.html");
+   $r->internal_redirect("/home/sweet/home.html");
+
+=item $r->internal_redirect_handler( $newplace )
+
+Same as I<internal_redirect>, but the I<handler> from C<$r> is preserved.
 
 =item $r->custom_response($code, $uri)
 
@@ -945,34 +923,6 @@ We also provide some methods that make it easier to support the CGI
 type of interface.
 
 =over 4
-
-=item $r->cgi_env
-
-Return a %hash that can be used to set up a standard CGI environment.
-Typical usage would be:
-
-   %ENV = $r->cgi_env
-
-B<NOTE:> The $ENV{GATEWAY_INTERFACE} is set to C<'CGI-Perl/1.1'> so
-you can say:
-
-   if($ENV{GATEWAY_INTERFACE} =~ /^CGI-Perl/) {
-       # do mod_perl stuff
-   }
-   else {
-       # do normal CGI stuff
-   }
-
-When given a key => value pair, this will set an environment variable.
-
-   $r->cgi_env(REMOTE_GROUP => "camels");
-
-=item $r->cgi_var($key);
-
-Calls $r->cgi_env($key) in a scalar context to prevent the mistake
-of calling in a list context.
-
-   my $doc_root = $r->cgi_env('DOCUMENT_ROOT');
 
 =item $r->send_cgi_header()
 

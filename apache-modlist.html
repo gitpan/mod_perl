@@ -1,14 +1,14 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Gerald Richter, 17-Jul-1998 -->
 <!-- Changed by: Doug MacEachern, 22-Jul-1998 -->
+<!-- Changed by: Gerald Richter, 12-Aug-1998 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@pobox.com">Doug MacEachern</a>,
-<br><i> $Revision: 1.30 $ $Date: 1998/07/22 23:06:06 $</i>
+<br><i> $Revision: 1.41 $ $Date: 1998/09/17 22:55:44 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -72,28 +72,34 @@ Archive		i	List archive contents			PETERSON
 ASP		bdpO	Implement Active Server Pages		CHAMAS
 BBS		bdpO 	BBS like System for Apache		MKOSS
 CallHandler	cdpf	Map filenames to subroutine calls	GKNOPS
+Cachet		i	OutputChain with caching		MERLYN
 Dir		i	OO (subclassable) mod_dir replacement 	DOUGM
-Embperl		Rmcf	Embed Perl in HTML			GRICHTER
+<a href="http://perl.apache.org/embperl/">Embperl</a>		Rmcf	Embed Perl in HTML			GRICHTER
 ePerl		Rdpr  	Fast emulated Embedded Perl (ePerl)	RSE            
 FTP		i	Full-fledged FTP proxy			PMKANE
 Gateway		bdpf	A multiplexing gateway			CCWF
 GzipChain	bmpf	Compress files on the fly		ANDK
 IDC_HTX		i						PTI
 JavaScript	bdpf	Generate JavaScript code		ABH
+Layer		bdpf	Layer content tree over one or more	SAM
 ModuleDoc	bdpf	Self documentation for Apache C modules	DOUGM
 OutputChain     bmpO	Chain output of stacked handlers	JANPAZ
 PassFile	bdpf	Send file via OutputChain		ANDK
 PerlRun		bmpf	Run unaltered CGI scripts		APML
+PrettyText	bdpf	Re-format .txt files for client display	CHTHORMAN
 RandomLocation	bdpf	Random image display 			MDARWIN
 Registry	Rmpf	Run unaltered CGI scripts 		APML
 RobotRules	bdpf	Enforce robot rules (robots.txt)	PARKER
-Sandwich	bmpf	Layered document (sandwich) maker	DOUGM
+Sandwich	bmpf	Layered document (sandwich) maker	VKHERA
 VhostSandwich	bdpf	Virtual host layered document maker	MARKC
 SSI		bmpO	Implement server-side includes in Perl	KWILLIAM
 SSIChain	bmpO	SSI on other modules output		JANPAZ
 Stage		bdpf	Manage a document staging directory	ANDK
 TarGzip		c						ZENIN
+TimedRedirect	bdpf	Redirect urls for a given time period	PETERM 
+UploadSvr	bdpO	A lightweight publishing system		ANDK
 WDB		bdpf	Database query/edit tool using DBI	JROWE
+WebSQL		cdpO	Adaptation of Sybase's WebSQL		GUNTHER
 
 * PerlHeaderParserHandler's
 AgentDeny	bdpf	Deny abusive User-Agents		ROBH
@@ -101,18 +107,21 @@ AgentDeny	bdpf	Deny abusive User-Agents		ROBH
 * PerlAuthenHandler's
 AuthAny		bdpf	Authenticate with any username/password	DOUGM
 Authen		bmpf	Perl Apache authentication utilities	SKANE
+AuthenCache	bmpf	Cache authentication credentials	JBODNAR
 AuthCookie	bdpO	Authen + Authz via cookies		EBARTLEY
 AuthenDBI	bmpO	Authenticate via Perl's DBI		MERGL
-AuthExpire	cmpO	Expire Basic auth credentials		DOUGM
+AuthExpire	i	Expire Basic auth credentials		DOUGM
 AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
 AuthenIMAP	bdpf	Authentication via an IMAP server	MICB
 AuthLDAP	bdpf	LDAP authentication module		CDONLEY
 AuthNIS		bdpf	NIS authentication and authorization	DOUGM
 AuthenRaduis	bdpf	Authentication via a Radius server	DANIEL
 AuthenSmb	bdpf	Authenticate against NT server		PARKER
+AuthenURL	bdpf	Authenticate via another URL		JGROENVEL
 BasicCookieAuth	cdpf	Accept cookie or basic auth creds	PMKANE
 DBILogin	bdpf	Authenticate to backend database 	JGROENVEL
 DCELogin	bdpf	Obtain a DCE login context		DOUGM
+PHLogin		bdpf	Authenticate via a PH database		JGROENVEL
 
 * PerlAuthzHandler's
 AuthCookie	cdpf	Authen + Authz via cookies		EBARTLEY
@@ -138,10 +147,12 @@ MsqlProxy	bmpf	Translate URI's into mSQL queries	APML
 ProxyPass	bdpf	Perl implementation of ProxyPass	MJS
 ProxyPassThru	bdpO	Skeleton for vanilla proxy		RMANGI
 ProxyCache	i	Caching proxy				DOUGM
+Throttle        bdpf    Speed-based content negotiation         DONS
 
 * PerlFixupHandler's
 HttpEquiv	bdpf	HTML HTTP-EQUIV tags to HTTP headers	ROBH
 Timeit		bmpf	Benchmark PerlHandlers			APML
+Usertrack	bdpf	Perl version of mod_usertrack		ABH
 
 * PerlLogHandler's
 DBILogConfig	bdpf	Custom format logging via DBI		JBODNAR
@@ -164,6 +175,7 @@ src		ampO	Finding and reading bits of source	APML
 * Database
 DBI		bmpO	Persistent DBI connection mgmt.		MERGL
 Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
+Sybase::CTlib	bapO	Persistent CTlib connection mgmt.	MDOWNING
 Mysql		bdpO	Persistent connection mgmt. for Mysql	NJENSEN
 
 * Interfaces and integration with various Apache C modules
@@ -190,6 +202,7 @@ FakeRequest	ampO	Implement Apache methods off-line	APML
 Peek		amcf	Devel::Peek for mod_perl		APML
 SawAmpersand	bmpf	Make sure noone is using $&, $' or $`	APML
 SizeLimit	bmpf	Graceful exit for large children	DOUGB
+SmallProf	bmpf	Hook Devel::SmallProf into mod_perl	DOUGM
 StatINC		bmpf	Reload require'd files when updated	APML
 Status		Rmpf	Embedded interpreter runtime status	APML
 Symbol		bmcO	Things for symbol things		APML
@@ -197,6 +210,7 @@ test		Rmpf	Handy routines for 'make test' scripts	APML
 
 * Misc
 Byterun		i	Run Perl bytecode modules		DOUGM
+Icon		idcO	Access to AddIcon* configuration	DOUGM
 Mmap		bdcf	Share data via Mmap module		FLETCH
 Persistent	bdpO	Store data via IPC::, DBI, or disk	DOUGM
 PUT		cdpf	HTTP PUT method handler module		SORTIZ
@@ -206,6 +220,7 @@ Safe		ampO	Adaptation of "safecgiperl"		APML
 Session		bmpO	Maintain client &lt;-&gt; httpd session/state	JBAKER
 SIG		amoO	Signal handlers for mod_perl		APML
 State		i	Powerful state engine			RSE
+TempFile	bdpf	Manage temporary files			TOMHUGHES
 
 </pre>
 <h3><a name="where">Where Are The Modules Kept?</a></h3>
@@ -223,51 +238,61 @@ how you can go about getting your hands on a copy.
 
 <h3><a name="contacts">Contacts</a></h3>
 <pre>
-ABH  	 Ask Bjørn Hansen &lt;ask@netcetera.dk&gt;
-ANDK	 Andreas König &lt;a.koenig@franz.ww.TU-Berlin.DE&gt;
-APML	 The Apache/Perl Mailing List &lt;modperl@apache.org&gt;
-BMILLETT Brian Millett &lt;bpm@techapp.com&gt;
-CCWF	 Charles C. Fu &amp;lt;ccwf@bacchus.com&amp;gt;
-CDONLEY  Clayton Donley &lt;donley@wwa.com&gt;
-CHAMAS	 Joshua Chamas &lt;chamas@alumni.stanford.org&gt;
-DANIEL	 Daniel &lt;daniel-authenradius@electricrain.com&gt;
-DOUGB    Doug Bagley &lt;doug@dejanews.com&gt;
-DOUGM	 Doug MacEachern &lt;dougm@pobox.com&gt;
-EBARTLEY Eric Bartley  &lt;bartley@osd.cc.purdue.edu&gt;
-FLETCH   Mike Fletcher &lt;lemur1@mindspring.com&gt;
-GKNOPS	 Gerd Knops &lt;gerti@BITart.com&gt;
-GRICHTER Gerald Richter &lt;richter@ecos.de&gt;
-HMUELLER Hanno Mueller &lt;hmueller@mail.kabel.de&gt;
-IKLUFT	 Ian Kluft &lt;ikluft@cisco.com&gt;
-JANPAZ	 Honza Pazdziora &lt;adelton@informatics.muni.cz&gt;
-JBAKER   Jeffrey Baker &lt;jeff@godzilla.tamu.edu&gt;
-JBODNAR	 Jason Bodnar &lt;jcbodnar@mail.utexas.edu&gt;
-JGROV	 John D Groenveld &lt;jdg117@elvis.arl.psu.edu&gt;
-JROWE	 Jeff Rowe &lt;beowulf@lava.net&gt;
-KWILLIAM Ken Williams  &lt;ken@forum.swarthmore.edu&gt;
-LDS	 Lincoln D. Stein &lt;lstein@genome.wi.mit.edu&gt;
-MARKC	 Mark Constable &lt;markc@goldcoast.org&gt;
-MARKIM	 Mark A. Imbriaco &lt;mark@itribe.net&gt;
-MARKK	 Mark Kennedy &lt;mtk@ny.ubs.com&gt;
-MAURICE	 Maurice Aubrey &lt;maurice@hevanet.com&gt
-MDARWIN	 Matthew Darwin &lt;matthew@davin.ottawa.on.ca&gt;
-MDORMAN	 Michael Alan Dorman  &lt;mdorman@calder.med.miami.edu&gt;
-MERGL	 Edmund Mergl &lt;E.Mergl@bawue.de&gt;
-MJS      Michael Smith &lt;mjs@iii.co.uk&gt;
-MKOSS	 Max Kossatzmax &lt;kossatz@thing.at&gt;
-MICB  	 Malcolm Beattie &lt;mbeattie@sable.ox.ac.uk&gt;
-NJENSEN	 Neil Jensen &lt;njensen@habaneros.com&gt;
-PARKER	 Michael Parker &lt;parker@austx.tandem.com&gt;
-PETERSON Jonathan Peterson &lt;jon@amxstudios.com&gt;
-PLISTER  Peter Lister &lt;p.lister@cranfield.ac.uk&gt;
-PMKANE	 Patrick Michael Kane &lt;modus@pr.es.to&gt;
-PTI	 Peter Tillemans &lt;pti@pandora.be&gt;
-RMANGI   Rick Mangi &lt;rmangi@tgix.com&gt;
-ROBH	 Rob Hartill &lt;robh@imdb.com&gt;
-RSE      Ralf S. Engelschall &lt;rse@engelschall.com&gt;
-SKANE    Stephen E Kane &lt;sek112@elvis.arl.psu.edu&gt;
-SORTIZ	 Salvador Ortiz &lt;sortiz@sog@msg.com.mx&gt;
-ZENIN	 Byron Brummer &lt;zenin@archive.rhps.org&gt;
+ABH  	  Ask Bjørn Hansen &lt;ask@netcetera.dk&gt;
+ANDK	  Andreas König &lt;a.koenig@franz.ww.TU-Berlin.DE&gt;
+APML	  The Apache/Perl Mailing List &lt;modperl@apache.org&gt;
+BMILLETT  Brian Millett &lt;bpm@techapp.com&gt;
+CCWF	  Charles C. Fu &amp;lt;ccwf@bacchus.com&amp;gt;
+CDONLEY   Clayton Donley &lt;donley@wwa.com&gt;
+CHAMAS	  Joshua Chamas &lt;chamas@alumni.stanford.org&gt;
+CHTHORMAN Chris Thorman &lt;chris@thorman.com&gt;
+DANIEL	  Daniel &lt;daniel-authenradius@electricrain.com&gt;
+DONS	  Don Schwarz &lt;don@dons.xnet.com&gt;
+DOUGB     Doug Bagley &lt;doug@dejanews.com&gt;
+DOUGM	  Doug MacEachern &lt;dougm@pobox.com&gt;
+EBARTLEY  Eric Bartley  &lt;bartley@osd.cc.purdue.edu&gt;
+FLETCH    Mike Fletcher &lt;lemur1@mindspring.com&gt;
+GKNOPS	  Gerd Knops &lt;gerti@BITart.com&gt;
+GRICHTER  Gerald Richter &lt;richter@ecos.de&gt;
+GUNTHER   Gunther Birznieks &lt;gunther@nhgri.nih.gov&gt;
+HMUELLER  Hanno Mueller &lt;hmueller@mail.kabel.de&gt;
+IKLUFT	  Ian Kluft &lt;ikluft@cisco.com&gt;
+JANPAZ	  Honza Pazdziora &lt;adelton@informatics.muni.cz&gt;
+JBAKER    Jeffrey Baker &lt;jeff@godzilla.tamu.edu&gt;
+JBODNAR	  Jason Bodnar &lt;jcbodnar@mail.utexas.edu&gt;
+JGROV	  John D Groenveld &lt;jdg117@elvis.arl.psu.edu&gt;
+JEFFH	  Jeffrey Hulten &lt;jeffh@premier1.net&gt;
+JROWE	  Jeff Rowe &lt;beowulf@lava.net&gt;
+KWILLIAM  Ken Williams  &lt;ken@forum.swarthmore.edu&gt;
+LDS	  Lincoln D. Stein &lt;lstein@genome.wi.mit.edu&gt;
+MARKC	  Mark Constable &lt;markc@goldcoast.org&gt;
+MARKIM	  Mark A. Imbriaco &lt;mark@itribe.net&gt;
+MARKK	  Mark Kennedy &lt;mtk@ny.ubs.com&gt;
+MAURICE	  Maurice Aubrey &lt;maurice@hevanet.com&gt
+MDARWIN	  Matthew Darwin &lt;matthew@davin.ottawa.on.ca&gt;
+MDORMAN	  Michael Alan Dorman  &lt;mdorman@calder.med.miami.edu&gt;
+MDOWNING  Mark Downing &lt;mdowning@rdatasys.com&gt;
+MERGL	  Edmund Mergl &lt;E.Mergl@bawue.de&gt;
+MERLYN	  Randal L. Schwartz &lt;merlyn@stonehenge.com&gt;
+MJS       Michael Smith &lt;mjs@iii.co.uk&gt;
+MKOSS	  Max Kossatzmax &lt;kossatz@thing.at&gt;
+MICB  	  Malcolm Beattie &lt;mbeattie@sable.ox.ac.uk&gt;
+NJENSEN	  Neil Jensen &lt;njensen@habaneros.com&gt;
+PARKER	  Michael Parker &lt;parker@austx.tandem.com&gt;
+PETERM	  Peter Marshall &lt;peterm@pageactive.com&gt;
+PETERSON  Jonathan Peterson &lt;jon@amxstudios.com&gt;
+PLISTER   Peter Lister &lt;p.lister@cranfield.ac.uk&gt;
+PMKANE	  Patrick Michael Kane &lt;modus@pr.es.to&gt;
+PTI	  Peter Tillemans &lt;pti@pandora.be&gt;
+RMANGI    Rick Mangi &lt;rmangi@tgix.com&gt;
+ROBH	  Rob Hartill &lt;robh@imdb.com&gt;
+RSE       Ralf S. Engelschall &lt;rse@engelschall.com&gt;
+SAM	  Simon Matthews &lt;sam@peritas.com&gt;
+SKANE     Stephen E Kane &lt;sek112@elvis.arl.psu.edu&gt;
+SORTIZ	  Salvador Ortiz &lt;sortiz@sog@msg.com.mx&gt;
+TOMHUGHES Tom Hughes &lt;tom@compton.demon.co.uk&gt;
+VKHERA    Vivek Khera &lt;vivek@khera.org&gt;
+ZENIN	  Byron Brummer &lt;zenin@archive.rhps.org&gt;
 </pre>
 
 <h3><a name="info">More Info</a></h3>

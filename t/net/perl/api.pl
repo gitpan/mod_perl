@@ -13,11 +13,12 @@ else {
     $r = Apache->request;
 }
 
-%ENV = $r->cgi_env;
-$r->subprocess_env; #test void context
+
 my $is_xs = ($r->uri =~ /_xs/);
 
-my $tests = 46;
+my $tests = 50;
+my $is_win32 = WIN32;
+$tests += 2 unless $is_win32;
 my $test_get_set = Apache->can('set_handlers') && ($tests += 4);
 my $test_custom_response = (MODULE_MAGIC_NUMBER >= 19980324) && $tests++;
 my $test_dir_config = $INC{'Apache/TestDirectives.pm'} && ($tests += 7);
@@ -27,12 +28,36 @@ my $i;
 $r->content_type("text/plain");
 $r->content_languages([qw(en)]);
 $r->send_http_header;
+
 $r->print("1..$tests\n");
+
+#backward compat
+%ENV = $r->cgi_env;
+my $envk = keys %ENV;
+#print "cgi_env ($envk):\n";
+#print map { "$_ = $ENV{$_}\n" } keys %ENV;
+
+$r->subprocess_env; #test void context
+$envk = keys %ENV;
+#print "subprocess_env ($envk):\n";
+#print map { "$_ = $ENV{$_}\n" } keys %ENV;
+
+test ++$i, $r->as_string;
+print $r->as_string;
 print "r == $r\n";
 test ++$i, $r->filename eq $0;
 test ++$i, -d $Apache::Server::CWD;
 print "\$Apache::Server::CWD == $Apache::Server::CWD\n";
 print "\$0 == $0\n";
+
+unless ($is_win32) {
+  my $ft_s = -s $INC{'Apache.pm'};
+  $r->finfo;
+  my $ft_def = -s _;
+  print "Apache.pm == $ft_s, $0 == $ft_def\n";
+  test ++$i, $ft_s != $ft_def;
+  test ++$i, (-s $r->finfo) == $ft_def;
+}
 
 my $loc = $r->location;
 print "<Location $loc>\n";
@@ -45,6 +70,7 @@ test ++$i, SERVER_VERSION =~ /mod_perl/;
 
 test ++$i, $r->last;
 test ++$i, $ENV{GATEWAY_INTERFACE};
+test ++$i, scalar $r->cgi_var('GATEWAY_INTERFACE');
 test ++$i, defined($r->seqno);
 test ++$i, $r->protocol;
 #hostname
@@ -116,6 +142,10 @@ test ++$i, $s->server_admin;
 test ++$i, $s->server_hostname;
 test ++$i, $s->port;
 
+for (my $srv = $r->server; $srv; $srv = $srv->next) {
+    my $name = $srv->server_hostname;
+}
+
 ++$i;
 my $str = "ok $i\n";
 $r->print(\$str);
@@ -123,6 +153,8 @@ $r->print(\$str);
 test ++$i, $r->module("Apache");
 test ++$i, not Apache->module("Not::A::Chance");
 test ++$i, Apache->module("Apache::Constants");
+test ++$i, not Apache->module("mod_nochance.c");
+test ++$i, Apache->module("mod_perl.c");
 
 #just make sure we can call this one
 if($test_custom_response) {
