@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.54 1997/05/19 22:25:31 dougm Exp $ */
+/* $Id: Apache.xs,v 1.55 1997/06/06 00:48:01 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -258,6 +258,12 @@ kill_timeout(r)
 
 void
 reset_timeout(r)
+    Apache     r
+
+#functions from http_config.c
+
+int
+translate_name(r)
     Apache     r
 
 #functions from http_core.c

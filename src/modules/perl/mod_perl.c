@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.57 1997/06/03 03:00:42 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.58 1997/06/06 00:48:01 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -173,14 +173,6 @@ module perl_module = {
 #define APACHE_SSL
 #endif
 
-#ifndef PERL_DO_ALLOC
-#  ifdef APACHE_SSL
-#    define PERL_DO_ALLOC 0
-#  else
-#    define PERL_DO_ALLOC 1
-#  endif
-#endif
-
 int PERL_RUNNING (void) 
 {
     return (perl_is_running);
@@ -194,15 +186,15 @@ void perl_startup (server_rec *s, pool *p)
     perl_server_config *cls;
 
     argv[0] = server_argv0;
-#ifndef PERL_SECTIONS
-    perl_destruct_level = 0;
-#else
-    perl_destruct_level = 1;
-#endif
 
     if(perl_is_running++) {
 	if(perl_is_running > 2) {
+
 #if 0 /* XXX restarts are _tricky_, it'll work right someday, maybe */
+
+#ifdef HAVE_PERL_5__4
+	    perl_destruct_level = 1;
+#endif
 	    fprintf(stderr, "mod_perl_restart: \n");
 	    if (perl_destruct_level > 0) {
 		MP_TRACE(fprintf(stderr, 
@@ -215,7 +207,7 @@ void perl_startup (server_rec *s, pool *p)
 #else
 	    MP_TRACE(fprintf(stderr, "perl_startup: perl aleady running...ok\n"));
 	    return;
-#endif
+#endif /*0*/
 
 	}
 	else {
@@ -271,12 +263,20 @@ void perl_startup (server_rec *s, pool *p)
     }
     MP_TRACE(fprintf(stderr, "ok\n"));
 
-    /* trick require now that TieHandle.pm is gone */
-    hv_fetch(perl_get_hv("INC", TRUE), "Apache/TieHandle.pm", 19, 1);
-
     perl_clear_env;
     hv_store(PerlEnvHV, "GATEWAY_INTERFACE", 17, 
 	     newSVpv(PERL_GATEWAY_INTERFACE,0), 0);
+
+    if(hv_exists(GvHV(incgv), "CGI.pm", 6)) {
+	/* be sure CGI.pm knows GATEWAY_INTERFACE by recompiling  
+	 * we'll only get here if there's a `use CGI' in the PerlScript file 
+	 */
+	bool old_warn = dowarn;
+	hv_delete(GvHV(incgv), "CGI.pm", 6, G_DISCARD);
+	MP_TRACE(fprintf(stderr, 
+		 "Reloading CGI.pm so it sees GATEWAY_INTERFACE...\n"));
+	dowarn = FALSE; perl_require_module("CGI", s); dowarn = old_warn;
+    }
 
     MP_TRACE(fprintf(stderr, "running perl interpreter..."));
     status = perl_run(perl);
@@ -327,6 +327,7 @@ int mod_perl_sent_header(SV *self, int val)
 
 int perl_handler(request_rec *r)
 {
+    dSP;
     int status = OK;
     perl_dir_config *cld = get_module_config (r->per_dir_config,
 					      &perl_module);   
@@ -338,6 +339,11 @@ int perl_handler(request_rec *r)
 #else
     IoFLAGS(GvIOp(defoutgv)) &= ~IOf_FLUSH; /* $|=0 */
 #endif
+
+    MP_TRACE(fprintf(stderr, "(ent): SVs = %5d, OBJs = %5d\n",
+		     sv_count, sv_objcount));
+    ENTER;
+    SAVETMPS;
 
     /* hookup STDIN & STDOUT to the client */
     perl_stdout2client(r);
@@ -362,7 +368,13 @@ int perl_handler(request_rec *r)
 	perl_setup_env(r);
 
     mod_perl_dir_env(cld);
+
     PERL_CALLBACK("PerlHandler", cld->PerlHandler);
+
+    FREETMPS;
+    LEAVE;
+    MP_TRACE(fprintf(stderr, "(lea): SVs = %5d, OBJs = %5d\n", 
+		     sv_count, sv_objcount));
     return status;
 }
 
@@ -652,6 +664,8 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 
 	    if ((end_class = strstr(imp, "->"))) {
 		end_class[0] = '\0';
+		if(class)
+		    SvREFCNT_dec(class);
 		class = newSVpv(imp, 0);
 		end_class[0] = ':';
 		end_class[1] = ':';
@@ -767,10 +781,10 @@ callback:
     
     SPAGAIN;
 
-    if(perl_eval_ok(r->server) != OK) 
-	return SERVER_ERROR;
-    
-    if(count != 1) {
+    if (perl_eval_ok(r->server) != OK) {
+        status = SERVER_ERROR;
+    }
+    else if (count != 1) {
 	log_error("perl_call did not return a status arg, assuming OK",
 		  r->server);
 	status = OK;
@@ -783,7 +797,8 @@ callback:
     PUTBACK;
     FREETMPS;
     LEAVE;
-
+    MP_TRACE(fprintf(stderr, "perl_call_handler: SVs = %5d, OBJs = %5d\n", 
+	    sv_count, sv_objcount));
     return status;
 }
 
@@ -827,6 +842,7 @@ int perl_require_module(char *mod, server_rec *s)
     sv_setpv(sv, "require ");
     sv_catsv(sv, m);
     perl_eval_sv(sv, G_DISCARD);
+    SvREFCNT_dec(m);
     if(perl_eval_ok(s) != OK) {
 	MP_TRACE(fprintf(stderr, "not ok\n"));
 	return -1;
@@ -937,7 +953,7 @@ void perl_stdout2client(request_rec *r)
 #endif
 
     MP_TRACE(fprintf(stderr, "tie *STDOUT => Apache\n"));
-
+    sv_unmagic((SV*)handle, 'q');
     sv_magic((SV *)handle, 
 	     (SV *)perl_bless_request_rec(r),
 	     'q', Nullch, 0);
@@ -951,8 +967,10 @@ void perl_stdin2client(request_rec *r)
     sfdisc(PerlIO_stdin(), sfdcnewapache(r));
     sfsetbuf(PerlIO_stdin(), NULL, 0);
 #else
+    GV *handle = gv_fetchpv("STDIN", TRUE, SVt_PVIO);  
     MP_TRACE(fprintf(stderr, "tie *STDIN => Apache\n"));
-    sv_magic((SV *)gv_fetchpv("STDIN", TRUE, SVt_PVIO), 
+    sv_unmagic((SV*)handle, 'q');
+    sv_magic((SV *)handle,
 	     (SV *)perl_bless_request_rec(r),
 	     'q', Nullch, 0);
 #endif

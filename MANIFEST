@@ -47,10 +47,12 @@ t/net/http-get.t
 t/net/http-post.t
 t/net/taint.t
 t/net/perl/cgi.pl
+t/net/perl/ssi.pl
 t/net/perl/test
 t/net/perl/taint.pl
 ToDo
 t/net/perl/io/perlio.pl
+lib/Apache/Include.pm
 lib/Apache/Status.pm
 src/Makefile.tmpl-Ben-SSL
 lib/Bundle/Apache.pm

@@ -1,3 +1,8 @@
+#for testing perl mod_include's
+
+$Access::Cnt = 0;
+sub main::pid { print $$ }
+sub main::access { print ++$Access::Cnt }
 
 $ENV{GATEWAY_INTERFACE} =~ /^CGI-Perl/ or die "GATEWAY_INTERFACE not set!";
 

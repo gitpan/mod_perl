@@ -1,5 +1,14 @@
 
 BEGIN { require "net/config.pl"; }
+
+eval { require CGI; };
+if($@) {
+    print "1..1\n";
+    warn "skipping CGI.pm test\n";
+    print "ok 1\n";
+    exit();
+}
+
 $ua = new LWP::UserAgent;    # create a useragent to test
 
 print "1..4\nok 1\n";

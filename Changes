@@ -16,6 +16,37 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.98_12
+
+applied patch from Alexander Demenshin <aldem@techie.com> to plug
+leaks in perl_{stdout,stdin}2client
+
+can now say 'perl Makefile.PL PERL_SSI=1' to enable mod_include stuff
+
+the link order of apache 1.2b12-dev has been switched back to the way
+it was in b10, now we only have to muck with Makefile.tmpl if $Is_b11
+
+once again, ensure CGI.pm knows GATEWAY_INTERFACE if it is use'd in a
+PerlScript, thanks to Tom Hughes for spotting this
+
+removed trick to make `require Apache::TieHandle' a noop, *nobody*
+should still have that in any code, if so, sorry, get rid of it!
+
+inspired by Pai-Ling Hsiao, added tiny Apache::Include module so the
+mod_include <--!#perl directive can take advantage of
+Apache::Registry, like so: 
+
+ <!--#perl sub="Apache::Include" arg="/perl/ssi.pl" -->
+
+added $r->translate_name method to run translate handlers
+
+fix Apache::Status so it sends http headers!  spotted by Mike Stok
+
+have cgi.t skip it's tests if CGI.pm is not installed, for Rob, the
+only person in the whole world who doesn't have CGI.pm installed ;-)
+
+s/make/$(MAKE)/ for 'make test_report' thanks to Tom Hughes 
+
 =item 0.98_11
 
 switch Apache::parse_args behavior back to pre-0.98_09

@@ -74,6 +74,7 @@ Possible arguments are:
   PERL_STACKED_HANDLERS
   PERL_METHOD_HANDLERS
   PERL_SECTIONS
+  PERL_SSI
 
 Example to enable PerlAuthenHandler and PerlFixupHandler:
  
@@ -97,19 +98,7 @@ Config.pm.  You may either edit Config.pm and add these extensions, or
 configure mod_perl like so:
 
  perl Makefile.PL "PERL_STATIC_EXTS=Something::Static Another::One" 
-
-=item Reducing the size of httpd
-
-In addition to the suggestions listed in the mod_perl.pod section
-"MEMORY CONSUMPTION", it is possible to reduce httpd even more by
-configuring mod_perl with the DYNAMIC attribute:
-
- perl Makefile.PL DYNAMIC=1
-
-This will link the Apache::Constants and Apache extensions as shared
-libraries rather than static with httpd.  However, some systems have
-trouble with this, such as aix.
-
+ 
 =back
 
 
@@ -338,16 +327,13 @@ the output of 'make test'
 
 if you get a core dump, please send a backtrace if possible.
 
-if you can compile but not run a mod_perl script, recompile with:
- 
- % make TRACE=-DPERL_TRACE
+if you can compile but not run a mod_perlend mail to modperl@listproc.itribe.net with the output of:
 
-then send the output of the server startup and run   
+Output of C<perl -v; perl -V>
 
-=back
+version of the mod_perl package.
 
-=head1 IF YOU DON'T HAVE PROBLEMS
+which script from the eg/ directory you are using.
+(please try a script from there first.)
 
-Feel free to send a note to the list and let us know what you're 
-doing with mod_perl!
-
+your apache server ver

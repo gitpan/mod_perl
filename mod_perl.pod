@@ -1,6 +1,6 @@
 =head1 NAME 
 
-mod_perl - Embed a Perl interpreter in the Apache server 
+mod_perl - Embed a Perl interpreter in the Apache HTTP server 
 
 
 =head1 DESCRIPTION
@@ -520,12 +520,11 @@ To configure this feature build with
 
 =head1 mod_perl and mod_include integration
 
-As of apache 1.2b11, adding -DUSE_PERL_SSI to your Configuration's
-EXTRA_CFLAGS will enable mod_include handling of Perl callbacks.
+As of apache 1.2b11, mod_include can handle Perl callbacks.
 
 A `sub' key value may be anything a Perl*Handler can be:
 subroutine name, package name (defaults to package::handler),
-Class->method call or anoymous sub {}
+Class->method call or anonymous sub {}
 
 Example:
 
@@ -534,11 +533,27 @@ Example:
 
  <!--#perl sub="Package::handler" arg="one" arg="two" -->
 
+The B<Apache::Include> module makes it simple to include
+B<Apache::Registry> scripts with the mod_include perl directive. 
+
+Example:
+
+ <!--#perl sub="Apache::Include" arg="/perl/ssi.pl" -->
+
 You can also use 'virtual include' to include Apache::Registry scripts
 of course.  However, using #perl will save the overhead of making
 Apache go through the motions of creating/destroying a subrequest and
 making all the necessary access checks to see that the request would
 be allowed outside of a 'virtual include' context.
+
+To enable perl in mod_include parsed files, when building apache the
+following must be present in the Configuration file:
+
+ EXTRA_CFLAGS=-DUSE_PERL_SSI -I. `perl -MExtUtils::Embed -ccopts`
+
+mod_perl's Makefile.PL script can take care of this for you as well:
+
+ perl Makefile.PL PERL_SSI=1
 
 If you're interested in sprinkling Perl code inside your HTML
 documents, you'll also want to look at the Apache::Embperl,

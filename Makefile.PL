@@ -10,7 +10,7 @@ use File::Copy qw(cp);
 #version 1.5 that ships with 5.003 is broken!
 *cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
 
-$VERSION = "0.98_11";
+$VERSION = "0.98_12";
 
 use subs qw(_prompt iedit);
 
@@ -36,6 +36,9 @@ system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
 #soes yous can try out the zamples
 unless (-l "t/net/perl/eg") {
     system "$Config{lns} $PWD/eg $PWD/t/net/perl/eg";
+}
+unless (-e "t/docs/test.shtml") {
+    cp "t/docs/test.html", "t/docs/test.shtml";
 }
 
 chmod 0644, "t/conf/mod_perl_srm.conf";
@@ -77,6 +80,7 @@ $PERL_TRACE = 0;
 $ALL_HOOKS  = 0;
 $APACHE_SRC = "";
 $PERL_SECTIONS = 0;
+$PERL_SSI = 0;
 $ADD_VERSION = 1;
 $STATIC = 1;
 $DYNAMIC = 0;
@@ -241,10 +245,7 @@ unless ($NO_HTTPD) {
     cp "src/modules/perl/Apache.xs", "Apache/Apache.xs" if $DYNAMIC;
     setup_for_static();
 
-    iedit "$APACHE_SRC/modules/perl/Makefile", 's/^(PERL_SECTIONS) /#$1 /'
-	if $PERL_SECTIONS;
-
-    for ( @callback_hooks) {
+    for (@callback_hooks) {
 	($k,$v) = ($_,$callback_hooks{$_});
 
 	iedit "$APACHE_SRC/modules/perl/Makefile", "s/^$k /#$k /" if $v;
@@ -254,6 +255,19 @@ unless ($NO_HTTPD) {
 	$k .= "Handler" unless $k =~ /Handlers?$/;
 	print $k . '.' x (25 - length($k));
 	print $v ? "enabled\n" : "disabled $why\n";
+    }
+
+    iedit "$APACHE_SRC/modules/perl/Makefile", 's/^(PERL_SECTIONS) /#$1 /'
+	if $PERL_SECTIONS;
+
+    for (qw(PERL_SECTIONS PERL_SSI)) {
+	$k = $_;
+	$why = "(enable with $k=1)" unless $$_;
+	$k =~ s/([A-Z]+)/ucfirst(lc($1))/ge;
+	$k =~ s/_//g;
+	$k =~ s/Ssi$/SSI/; #*shrug*
+	print $k . '.' x (25 - length($k));
+	print $$_ ? "enabled\n" : "disabled $why\n";
     }
 
     iedit "$APACHE_SRC/modules/perl/Makefile", "s/^#TRACE/TRACE/" if $PERL_TRACE;
@@ -533,7 +547,7 @@ run_tests:
 test:	pure_all start_httpd run_tests kill_httpd
 
 test_report:
-	make test | t/report
+	$(MAKE) test | t/report
 );
 }
 
@@ -572,6 +586,7 @@ sub httpd_version {
 		    ++$do_b8_chop if($frest == 8);
 		    if($frest >= 8) {
 			#warn "Don't need our own Makefile.tmpl (b$frest)!\n";
+			++$Has_b11 if $frest == 11;
 			return "NONE";
 		    }
 		}
@@ -668,22 +683,26 @@ sub conf_fixup {
     my($mf, $cfg) = @_;
 
     if ($ADD_VERSION and not is_ssl()) {
-	my $inc = " -I$Config{archlibexp}/CORE -I./";
+	my $inc;
+	$inc = " `$^X -MExtUtils::Embed -e ccopts` -I. -DUSE_PERL_SSI" if $PERL_SSI; 
 	iedit $cfg,
 	      q{next unless /EXTRA_CFLAGS\s*=/;}.
 	      q{next if /mod_perl/; chomp; }.
-		  qq{\$_ .= q: $inc -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;};
+		  qq{\$_ .= q| $inc -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n|;};
 		
     }
 
-    if(has_module($cfg, 'php')) {
-	iedit $cfg, "s/(Rule WANTHSREGEX)\=(default)/\$1=no/";
-	warn "setting Rule WANTHSREGEX=no\n";
-    }
-    else {
+#    if(has_module($cfg, 'php')) {
+#	iedit $cfg, "s/(Rule WANTHSREGEX)\=(default)/\$1=no/";
+#	warn "setting Rule WANTHSREGEX=no\n";
+#    }
+#    else {
+    if($Has_b11) {
+	warn "swaping link order back to b10\n";
 	my $repl = quotemeta('$(REGLIB) $(LIBS)');
 	iedit $mf, "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;";
     }
+#    }
 
     $b8_chop = (split "/", $PWD)[1];
 

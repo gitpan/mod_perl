@@ -2,7 +2,7 @@ package Apache::Status;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = (qw$Revision: 1.11 $)[1];
+$VERSION = (qw$Revision: 1.12 $)[1];
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -26,7 +26,7 @@ sub handler {
     my $qs = $r->args;
     my $sub = "status_$qs";
     no strict 'refs';
-    $r->print(header());
+    header($r);
     if(defined &$sub) {
 	$r->module('CGI::Switch');
 	$r->module('Devel::Symdump');
@@ -48,9 +48,12 @@ sub handler {
 }
 
 sub header {
+    my $r = shift;
     my $start = scalar localtime $^T;    
     my $srv = Apache::Constants::SERVER_VERSION();
-    return <<"EOF";
+    $r->content_type("text/html");
+    $r->send_http_header;
+    $r->print(<<"EOF");
 <html>
 <head><title>Apache::Status</title></head>
 <body>
