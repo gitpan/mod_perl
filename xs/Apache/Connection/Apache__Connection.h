@@ -1,3 +1,8 @@
+/* backwards compat for c->keepalive (see ap_mmn.h) */
+#if MODULE_MAGIC_NUMBER < 20020625
+typedef int ap_conn_keepalive_e;
+#endif
+
 static MP_INLINE
 apr_socket_t *mpxs_Apache__Connection_client_socket(pTHX_ conn_rec *c,
                                                     apr_socket_t *s)
@@ -13,9 +18,9 @@ apr_socket_t *mpxs_Apache__Connection_client_socket(pTHX_ conn_rec *c,
 }
 
 static MP_INLINE
-char *mpxs_Apache__Connection_get_remote_host(pTHX_ conn_rec *c,
-                                              int type,
-                                              apr_table_t *dir_config)
+const char *mpxs_Apache__Connection_get_remote_host(pTHX_ conn_rec *c,
+                                                    int type,
+                                                    ap_conf_vector_t *dir_config)
 {
     return ap_get_remote_host(c, (void *)dir_config, type, NULL);
 }

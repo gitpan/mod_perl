@@ -133,6 +133,8 @@ typedef struct {
 #endif
     MpAV *argv;
     modperl_options_t *flags;
+    apr_hash_t *modules;
+    server_rec *server;
 } modperl_config_srv_t;
 
 typedef struct {

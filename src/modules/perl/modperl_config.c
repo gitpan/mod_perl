@@ -180,6 +180,8 @@ void *modperl_config_srv_create(apr_pool_t *p, server_rec *s)
     scfg->interp_pool_cfg->max_requests = 2000;
 #endif /* USE_ITHREADS */
 
+    scfg->server = s;
+
     return scfg;
 }
 
@@ -195,6 +197,7 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     MP_TRACE_d(MP_FUNC, "basev==0x%lx, addv==0x%lx\n", 
                (unsigned long)basev, (unsigned long)addv);
 
+    merge_item(modules);
     merge_item(PerlModule);
     merge_item(PerlRequire);
 
@@ -204,9 +207,9 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     merge_table_overlap_item(PassEnv);
  
     merge_item(threaded_mpm);
+    merge_item(server);
 
 #ifdef USE_ITHREADS
-    merge_item(mip);
     merge_item(interp_pool_cfg);
     merge_item(interp_scope);
 #else
@@ -238,6 +241,16 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     for (i=0; i < MP_HANDLER_NUM_CONNECTION; i++) {
         merge_handlers(MpSrvMERGE_HANDLERS, handlers_connection[i]);
     }
+
+    if (modperl_is_running()) {
+        if (modperl_init_vhost(mrg->server, p, NULL) != OK) {
+            exit(1); /*XXX*/
+        }
+    }
+
+#ifdef USE_ITHREADS
+    merge_item(mip);
+#endif
 
     return mrg;
 }
@@ -322,4 +335,122 @@ int modperl_config_apply_PerlRequire(server_rec *s,
     }
 
     return TRUE;
+}
+
+typedef struct {
+    AV *av;
+    I32 ix;
+    PerlInterpreter *perl;
+} svav_param_t;
+
+static void *svav_getstr(void *buf, size_t bufsiz, void *param)
+{
+    svav_param_t *svav_param = (svav_param_t *)param;
+    dTHXa(svav_param->perl);
+    AV *av = svav_param->av;
+    SV *sv;
+    STRLEN n_a;
+
+    if (svav_param->ix > AvFILL(av)) {
+        return NULL;
+    }
+
+    sv = AvARRAY(av)[svav_param->ix++];
+    SvPV_force(sv, n_a);
+
+    apr_cpystrn(buf, SvPVX(sv), bufsiz);
+
+    return buf;
+}
+
+const char *modperl_config_insert(pTHX_ server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptmp,
+                                  int override,
+                                  char *path,
+                                  ap_conf_vector_t *conf,
+                                  SV *lines)
+{
+    const char *errmsg;
+    cmd_parms parms;
+    svav_param_t svav_parms;
+    ap_directive_t *conftree = NULL;
+
+    memset(&parms, '\0', sizeof(parms));
+
+    parms.limited = -1;
+    parms.server = s;
+    parms.override = override;
+    parms.path = path;
+    parms.pool = p;
+
+    if (ptmp) {
+        parms.temp_pool = ptmp;
+    }
+    else {
+        apr_pool_create(&parms.temp_pool, p);
+    }
+
+    if (!(SvROK(lines) && (SvTYPE(SvRV(lines)) == SVt_PVAV))) {
+        return "not an array reference";
+    }
+
+    svav_parms.av = (AV*)SvRV(lines);
+    svav_parms.ix = 0;
+#ifdef USE_ITHREADS
+    svav_parms.perl = aTHX;
+#endif
+
+    parms.config_file = ap_pcfg_open_custom(p, "mod_perl",
+                                            &svav_parms, NULL,
+                                            svav_getstr, NULL);
+
+    errmsg = ap_build_config(&parms, p, parms.temp_pool, &conftree);
+
+    if (!errmsg) {
+        errmsg = ap_walk_config(conftree, &parms, conf);
+    }
+
+    ap_cfg_closefile(parms.config_file);
+
+    if (ptmp != parms.temp_pool) {
+        apr_pool_destroy(parms.temp_pool);
+    }
+
+    return errmsg;
+}
+
+const char *modperl_config_insert_server(pTHX_ server_rec *s, SV *lines)
+{
+    int override = (RSRC_CONF | OR_ALL) & ~(OR_AUTHCFG | OR_LIMIT);
+    apr_pool_t *p = s->process->pconf;
+
+    return modperl_config_insert(aTHX_ s, p, NULL, override, NULL,
+                                 s->lookup_defaults, lines);
+}
+
+const char *modperl_config_insert_request(pTHX_
+                                          request_rec *r,
+                                          SV *lines,
+                                          char *path,
+                                          int override)
+{
+    const char *errmsg;
+    ap_conf_vector_t *dconf = ap_create_per_dir_config(r->pool);
+
+    errmsg = modperl_config_insert(aTHX_
+                                   r->server, r->pool, r->pool,
+                                   override, path,
+                                   dconf, lines);
+
+    if (errmsg) {
+        return errmsg;
+    }
+
+    r->per_dir_config = 
+        ap_merge_per_dir_configs(r->pool,
+                                 r->per_dir_config,
+                                 dconf);
+
+    return NULL;
 }

@@ -1,5 +1,17 @@
 #include "mod_perl.h"
 
+static char *modperl_cmd_unclosed_directive(cmd_parms *parms)
+{
+    return apr_pstrcat(parms->pool, parms->cmd->name,
+                       "> directive missing closing '>'", NULL);
+}
+
+static char *modperl_cmd_too_late(cmd_parms *parms)
+{
+    return apr_pstrcat(parms->pool, "mod_perl already running, "
+                       "too late for ", parms->cmd->name, NULL);
+}
+
 char *modperl_cmd_push_handlers(MpAV **handlers, const char *name,
                                 apr_pool_t *p)
 {
@@ -36,9 +48,30 @@ MP_CMD_SRV_DECLARE(trace)
     return NULL;
 }
 
+static int modperl_vhost_is_running(server_rec *s)
+{
+#ifdef USE_ITHREADS
+    MP_dSCFG(s);
+    int is_vhost = (s != modperl_global_get_server_rec());
+
+    if (is_vhost && scfg->mip) {
+        return TRUE;
+    }
+    else {
+        return FALSE;
+    }
+#else
+    return TRUE;
+#endif
+}
+
 MP_CMD_SRV_DECLARE(switches)
 {
-    MP_dSCFG(parms->server);
+    server_rec *s = parms->server;
+    MP_dSCFG(s);
+    if (modperl_is_running() && modperl_vhost_is_running(s)) {
+        return modperl_cmd_too_late(parms);
+    }
     MP_TRACE_d(MP_FUNC, "arg = %s\n", arg);
     modperl_config_srv_argv_push(arg);
     return NULL;
@@ -47,16 +80,59 @@ MP_CMD_SRV_DECLARE(switches)
 MP_CMD_SRV_DECLARE(modules)
 {
     MP_dSCFG(parms->server);
-    *(const char **)apr_array_push(scfg->PerlModule) = arg;
-    MP_TRACE_d(MP_FUNC, "arg = %s\n", arg);
+
+    if (modperl_is_running() &&
+        modperl_init_vhost(parms->server, parms->pool, NULL) != OK)
+    {
+        return "init mod_perl vhost failed";
+    }
+
+    if (modperl_is_running()) {
+#ifdef USE_ITHREADS
+        /* XXX: .htaccess support cannot use this perl with threaded MPMs */
+        dTHXa(scfg->mip->parent->perl);
+#endif
+        MP_TRACE_d(MP_FUNC, "load PerlModule %s\n", arg);
+
+        if (!modperl_require_module(aTHX_ arg, FALSE)) {
+            return SvPVX(ERRSV);
+        }
+    }
+    else {
+        MP_TRACE_d(MP_FUNC, "push PerlModule %s\n", arg);
+        *(const char **)apr_array_push(scfg->PerlModule) = arg;
+    }
+
     return NULL;
 }
 
 MP_CMD_SRV_DECLARE(requires)
 {
     MP_dSCFG(parms->server);
-    *(const char **)apr_array_push(scfg->PerlRequire) = arg;
-    MP_TRACE_d(MP_FUNC, "arg = %s\n", arg);
+
+    if (modperl_is_running() &&
+        modperl_init_vhost(parms->server, parms->pool, NULL) != OK)
+    {
+        return "init mod_perl vhost failed";
+    }
+
+    if (modperl_is_running()) {
+#ifdef USE_ITHREADS
+        /* XXX: .htaccess support cannot use this perl with threaded MPMs */
+        dTHXa(scfg->mip->parent->perl);
+#endif
+
+        MP_TRACE_d(MP_FUNC, "load PerlRequire %s\n", arg);
+
+        if (!modperl_require_file(aTHX_ arg, FALSE)) {
+            return SvPVX(ERRSV);
+        }
+    }
+    else {
+        MP_TRACE_d(MP_FUNC, "push PerlRequire %s\n", arg);
+        *(const char **)apr_array_push(scfg->PerlRequire) = arg;
+    }
+
     return NULL;
 }
 
@@ -169,9 +245,158 @@ MP_CMD_SRV_DECLARE(init_handlers)
     return modperl_cmd_post_read_request_handlers(parms, mconfig, arg);
 }
 
+static const char *modperl_cmd_parse_args(pTHX_ apr_pool_t *p,
+                                          const char *args,
+                                          HV **hv)
+{
+    const char *orig_args = args;
+    char *pair, *key, *val;
+    *hv = newHV();
+
+    while (*(pair = ap_getword(p, &args, ',')) != '\0') {
+        key = ap_getword_nc(p, &pair, '=');
+        val = pair;
+
+        if (!(*key && *val)) {
+            SvREFCNT_dec(*hv);
+            *hv = Nullhv;
+            return apr_pstrcat(p, "invalid args spec: ",
+                               orig_args, NULL);
+        }
+
+        hv_store(*hv, key, strlen(key), newSVpv(val,0), 0);
+    }
+
+    return NULL;
+}
+
 MP_CMD_SRV_DECLARE(perl)
 {
-    return "<Perl> sections not yet implemented in modperl-2.0";
+    apr_pool_t *p = parms->pool;
+    server_rec *s = parms->server;
+    const char *endp = ap_strrchr_c(arg, '>');
+    const char *errmsg;
+    modperl_handler_t *handler;
+    AV *args = Nullav;
+    HV *hv = Nullhv;
+    SV **handler_name;
+    int status = OK;
+#ifdef USE_ITHREADS
+    MP_dSCFG(s);
+    pTHX;
+#endif
+
+    if (endp == NULL) {
+        return modperl_cmd_unclosed_directive(parms);
+    }
+
+    /* we must init earlier than normal */
+    modperl_run(p, s);
+
+    if (modperl_init_vhost(s, p, NULL) != OK) {
+        return "init mod_perl vhost failed";
+    }
+
+#ifdef USE_ITHREADS
+    /* XXX: .htaccess support cannot use this perl with threaded MPMs */
+    aTHX = scfg->mip->parent->perl;
+#endif
+
+    arg = apr_pstrndup(p, arg, endp - arg);
+
+    if ((errmsg = modperl_cmd_parse_args(aTHX_ p, arg, &hv))) {
+        return errmsg;
+    }
+
+    if (!(handler_name = hv_fetch(hv, "handler", strlen("handler"), 0))) {
+        /* XXX: we will have a default handler in the future */
+        return "no <Perl> handler specified";
+    }
+
+    handler = modperl_handler_new(p, SvPVX(*handler_name));
+
+    modperl_handler_make_args(aTHX_ &args,
+                              "Apache::CmdParms", parms,
+                              "HV", hv,
+                              NULL);
+
+    status = modperl_callback(aTHX_ handler, p, NULL, s, args);
+
+    SvREFCNT_dec((SV*)args);
+
+    if (status != OK) {
+        return SvTRUE(ERRSV) ? SvPVX(ERRSV) :
+            apr_psprintf(p, "<Perl> handler %s failed with status=%d",
+                         handler->name, status);
+    }
+
+    return NULL;
+}
+
+#define MP_POD_FORMAT(s) \
+   (ap_strstr_c(s, "httpd") || ap_strstr_c(s, "apache"))
+
+MP_CMD_SRV_DECLARE(pod)
+{
+    char line[MAX_STRING_LEN];
+
+    if (arg && *arg && !(MP_POD_FORMAT(arg) || strstr("pod", arg))) {  
+        return "Unknown =back format";
+    }
+
+    while (!ap_cfg_getline(line, sizeof(line), parms->config_file)) {
+        if (strEQ(line, "=cut")) {
+            break;
+        }
+        if (strnEQ(line, "=over", 5) && MP_POD_FORMAT(line)) {
+            break;
+        }
+    }
+
+    return NULL;
+}
+
+MP_CMD_SRV_DECLARE(pod_cut)
+{
+    return "=cut without =pod";
+}
+
+MP_CMD_SRV_DECLARE(END)
+{
+    char line[MAX_STRING_LEN];
+
+    while (!ap_cfg_getline(line, sizeof(line), parms->config_file)) {
+	/* soak up rest of the file */
+    }
+
+    return NULL;
+}
+
+/*
+ * XXX: the name of this directive may or may not stay.
+ * need a way to note that a module has config directives.
+ * don't want to start mod_perl when we see a non-special PerlModule.
+ */
+MP_CMD_SRV_DECLARE(load_module)
+{
+    apr_pool_t *p = parms->pool;
+    server_rec *s = parms->server;
+    const char *errmsg;
+
+    if (!ap_strstr_c(arg, "::")) {
+        return DECLINE_CMD; /* let mod_so handle it */
+    }
+
+    MP_TRACE_d(MP_FUNC, "LoadModule %s\n", arg);
+
+    /* we must init earlier than normal */
+    modperl_run(p, s);
+
+    if ((errmsg = modperl_cmd_modules(parms, mconfig, arg))) {
+        return errmsg;
+    }
+
+    return modperl_module_add(p, s, arg);
 }
 
 #ifdef MP_COMPAT_1X

@@ -84,6 +84,7 @@ docs/api/mod_perl-2.0/Apache/Log.pod
 docs/api/mod_perl-2.0/Apache/Reload.pod
 docs/api/mod_perl-2.0/Apache/RequestRec.pod
 docs/api/mod_perl-2.0/Apache/ServerUtil.pod
+docs/api/mod_perl-2.0/Apache/SubProcess.pod
 docs/api/mod_perl-2.0/Apache/compat.pod
 docs/api/mod_perl-2.0/Makefile.PL
 docs/config.cfg
@@ -113,10 +114,14 @@ docs/user/handlers/bucket_brigades.png
 docs/user/handlers/connection_cycle.dia
 docs/user/handlers/connection_cycle.gif
 docs/user/handlers/connection_cycle.png
-docs/user/handlers/handlers.pod
+docs/user/handlers/filters.pod
+docs/user/handlers/http.pod
 docs/user/handlers/http_cycle.dia
 docs/user/handlers/http_cycle.gif
 docs/user/handlers/http_cycle.png
+docs/user/handlers/intro.pod
+docs/user/handlers/protocols.pod
+docs/user/handlers/server.pod
 docs/user/handlers/server_life_cycle.dia
 docs/user/handlers/server_life_cycle.gif
 docs/user/handlers/server_life_cycle.png
@@ -124,6 +129,7 @@ docs/user/help/help.pod
 docs/user/install/install.pod
 docs/user/intro/start_fast.pod
 docs/user/overview/overview.pod
+docs/user/troubleshooting/troubleshooting.pod
 examples/lib/Apache/HelloWorld.pm
 lib/APR/XSLoader.pm
 lib/Apache/Build.pm
@@ -179,6 +185,8 @@ src/modules/perl/modperl_log.c
 src/modules/perl/modperl_log.h
 src/modules/perl/modperl_mgv.c
 src/modules/perl/modperl_mgv.h
+src/modules/perl/modperl_module.c
+src/modules/perl/modperl_module.h
 src/modules/perl/modperl_options.c
 src/modules/perl/modperl_options.h
 src/modules/perl/modperl_pcw.c
@@ -191,6 +199,8 @@ src/modules/perl/modperl_perl_includes.h
 src/modules/perl/modperl_perl_pp.c
 src/modules/perl/modperl_perl_pp.h
 src/modules/perl/modperl_perl_unembed.h
+src/modules/perl/modperl_svptr_table.c
+src/modules/perl/modperl_svptr_table.h
 src/modules/perl/modperl_sys.c
 src/modules/perl/modperl_sys.h
 src/modules/perl/modperl_time.h
@@ -211,6 +221,7 @@ t/compat/request_body.t
 t/compat/send_fd.t
 t/conf/extra.conf.in
 t/conf/modperl_extra.pl
+t/directive/perl.t
 t/directive/perlmodule.t
 t/directive/perlrequire.t
 t/directive/setupenv.t
@@ -290,8 +301,10 @@ t/response/TestCompat/request.pm
 t/response/TestCompat/request_body.pm
 t/response/TestCompat/send_fd.pm
 t/response/TestDirective/env.pm
+t/response/TestDirective/loadmodule.pm
 t/response/TestDirective/perlmodule.pm
 t/response/TestDirective/perlrequire.pm
+t/response/TestDirective/pod.pm
 t/response/TestDirective/setupenv.pm
 t/response/TestModperl/dir_config.pm
 t/response/TestModperl/endav.pm

@@ -268,13 +268,20 @@ static IV PerlIOAPR_close(pTHX_ PerlIO *f)
 
 #ifdef PERLIO_APR_DEBUG
     const char *new_path = NULL;
+    apr_os_file_t os_file;
+
     if (!PL_dirty) {
         /* if this is called during perl_destruct we are in trouble */
         apr_file_name_get(&new_path, st->file);
     }
 
-    Perl_warn(aTHX_ "PerlIOAPR_close obj=0x%lx, file=0x%lx, name=%s\n",
-              (unsigned long)f, (unsigned long)st->file,
+    rc = apr_os_file_get(&os_file, st->file); 
+    if (rc != APR_SUCCESS) {
+        Perl_croak(aTHX_ "filedes retrieval failed!");
+    }
+
+    Perl_warn(aTHX_ "PerlIOAPR_close obj=0x%lx, file=0x%lx, fd=%d, name=%s\n",
+              (unsigned long)f, (unsigned long)st->file, os_file,
               new_path ? new_path : "(UNKNOWN)");
 #endif
 
@@ -415,9 +422,11 @@ PerlIO *apr_perlio_apr_file_to_PerlIO(pTHX_ apr_file_t *file, apr_pool_t *pool,
 {
     char *mode;
     const char *layers = ":APR";
+    PerlIOAPR *st;
     PerlIO *f = PerlIO_allocate(aTHX);
+
     if (!f) {
-        return NULL;
+        Perl_croak(aTHX_ "Failed to allocate PerlIO struct");
     }
     
     switch (type) {
@@ -430,19 +439,33 @@ PerlIO *apr_perlio_apr_file_to_PerlIO(pTHX_ apr_file_t *file, apr_pool_t *pool,
     };
     
     PerlIO_apply_layers(aTHX_ f, mode, layers);
-
-    if (f) {
-        PerlIOAPR *st = PerlIOSelf(f, PerlIOAPR);
-
-        /* XXX: should we dup first? the timeout could close the fh! */
-        st->pool = pool;
-        st->file = file;
-        PerlIOBase(f)->flags |= PERLIO_F_OPEN;
-
-        return f;
+    if (!f) {
+        Perl_croak(aTHX_ "Failed to apply the ':APR' layer");
     }
 
-    return NULL;
+    st = PerlIOSelf(f, PerlIOAPR);
+
+#ifdef PERLIO_APR_DEBUG    
+    {
+        apr_status_t rc;
+        apr_os_file_t os_file;
+
+        /* convert to the OS representation of file */
+        rc = apr_os_file_get(&os_file, file); 
+        if (rc != APR_SUCCESS) {
+            croak("filedes retrieval failed!");
+        }
+    
+        Perl_warn(aTHX_ "converting to PerlIO fd %d, mode '%s'\n",
+                  os_file, mode);
+    }
+#endif
+
+    st->pool = pool;
+    st->file = file;
+    PerlIOBase(f)->flags |= PERLIO_F_OPEN;
+
+    return f;
 }
 
 static SV *apr_perlio_PerlIO_to_glob(pTHX_ PerlIO *pio, apr_perlio_hook_e type)
@@ -455,11 +478,15 @@ static SV *apr_perlio_PerlIO_to_glob(pTHX_ PerlIO *pio, apr_perlio_hook_e type)
 
     switch (type) {
       case APR_PERLIO_HOOK_WRITE:
-        IoOFP(GvIOp(gv)) = pio;
+          /* if IoIFP() is not assigned to it'll be never closed, see
+           * Perl_io_close() */
+        IoIFP(GvIOp(gv)) = IoOFP(GvIOp(gv)) = pio;
         IoFLAGS(GvIOp(gv)) |= IOf_FLUSH;
+        IoTYPE(GvIOp(gv)) = IoTYPE_WRONLY;
         break;
       case APR_PERLIO_HOOK_READ:
         IoIFP(GvIOp(gv)) = pio;
+        IoTYPE(GvIOp(gv)) = IoTYPE_RDONLY;
         break;
     };
 
@@ -498,15 +525,32 @@ static FILE *apr_perlio_apr_file_to_FILE(pTHX_ apr_file_t *file,
     /* convert to the OS representation of file */
     rc = apr_os_file_get(&os_file, file); 
     if (rc != APR_SUCCESS) {
-        croak("filedes retrieval failed!");
+        Perl_croak(aTHX_ "filedes retrieval failed!");
     }
-    
-    fd = PerlLIO_dup(os_file); 
-    /* Perl_warn(aTHX_ "fd old: %d, new %d\n", os_file, fd); */
-    
-    if (!(retval = PerlIO_fdopen(fd, mode))) { 
+
+#ifdef PERLIO_APR_DEBUG
+    Perl_warn(aTHX_ "converting fd %d\n", os_file);
+#endif
+
+    /* let's try without the dup, it seems to work fine:
+
+       fd = PerlLIO_dup(os_file);
+       Perl_warn(aTHX_ "fd old: %d, new %d\n", os_file, fd);
+       if (!(retval = PerlIO_fdopen(fd, mode))) { 
+       ...
+       }
+
+       in any case if we later decide to dup, remember to:
+
+       apr_file_close(file);
+
+       after PerlIO_fdopen() or that fh will be leaked
+       
+    */
+
+    if (!(retval = PerlIO_fdopen(os_file, mode))) { 
         PerlLIO_close(fd);
-        croak("fdopen failed!");
+        Perl_croak(aTHX_ "fdopen failed!");
     } 
 
     return retval;
@@ -523,11 +567,14 @@ SV *apr_perlio_apr_file_to_glob(pTHX_ apr_file_t *file, apr_pool_t *pool,
 
     switch (type) {
       case APR_PERLIO_HOOK_WRITE:
-        IoOFP(GvIOp(gv)) = apr_perlio_apr_file_to_FILE(aTHX_ file, type);
+        IoIFP(GvIOp(gv)) = IoOFP(GvIOp(gv)) =
+            apr_perlio_apr_file_to_FILE(aTHX_ file, type);
         IoFLAGS(GvIOp(gv)) |= IOf_FLUSH;
+        IoTYPE(GvIOp(gv)) = IoTYPE_WRONLY;
         break;
       case APR_PERLIO_HOOK_READ:
         IoIFP(GvIOp(gv)) = apr_perlio_apr_file_to_FILE(aTHX_ file, type);
+        IoTYPE(GvIOp(gv)) = IoTYPE_RDONLY;
         break;
     };
   

@@ -19,6 +19,8 @@ extern module AP_MODULE_DECLARE_DATA perl_module;
 #include "modperl_perl_global.h"
 #include "modperl_perl_pp.h"
 #include "modperl_sys.h"
+#include "modperl_const.h"
+#include "modperl_constants.h"
 
 /* both perl and apr have largefile support enabled */
 #define MP_LARGE_FILES_ENABLED \
@@ -66,8 +68,14 @@ extern module AP_MODULE_DECLARE_DATA perl_module;
 #include "modperl_env.h"
 #include "modperl_cgi.h"
 #include "modperl_perl.h"
+#include "modperl_svptr_table.h"
+#include "modperl_module.h"
 
+int modperl_init_vhost(server_rec *s, apr_pool_t *p,
+                       server_rec *base_server);
 void modperl_init(server_rec *s, apr_pool_t *p);
+int modperl_run(apr_pool_t *p, server_rec *s);
+int modperl_is_running(void);
 int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog, 
                       apr_pool_t *ptemp, server_rec *s);
 int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,

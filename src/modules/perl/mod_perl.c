@@ -16,10 +16,6 @@ static apr_status_t modperl_shutdown(void *data)
 
     modperl_xs_dl_handles_close(handles);
 
-    modperl_env_unload();
-
-    modperl_perl_pp_unset_all();
-
     return APR_SUCCESS;
 }
 #endif
@@ -62,6 +58,9 @@ static void modperl_boot(pTHX_ void *data)
         char *name = Perl_form(aTHX_ MP_xs_loader_name, MP_xs_loaders[i]);
         newCONSTSUB(PL_defstash, name, newSViv(1));
     }
+
+    /* outside mod_perl this is done by ModPerl::Const.xs */
+    newXS("ModPerl::Const::compile", XS_modperl_const_compile, __FILE__);
 
     newCONSTSUB(PL_defstash, "Apache::MPM_IS_THREADED",
                 newSViv(scfg->threaded_mpm));
@@ -180,6 +179,103 @@ PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
     return perl;
 }
 
+int modperl_init_vhost(server_rec *s, apr_pool_t *p,
+                       server_rec *base_server)
+{
+    MP_dSCFG(s);
+    modperl_config_srv_t *base_scfg;
+    PerlInterpreter *base_perl;
+    PerlInterpreter *perl;
+    const char *vhost = modperl_server_desc(s, p);
+
+    if (base_server == NULL) {
+        base_server = modperl_global_get_server_rec();
+    }
+
+    if (base_server == s) {
+        MP_TRACE_i(MP_FUNC, "skipping vhost init for base server %s\n",
+                   vhost);
+        return OK;
+    }
+
+    base_scfg = modperl_config_srv_get(base_server);
+
+#ifdef USE_ITHREADS
+    perl = base_perl = base_scfg->mip->parent->perl;
+#else
+    perl = base_perl = base_scfg->perl;
+#endif /* USE_ITHREADS */
+
+    if (!scfg) {
+        MP_TRACE_i(MP_FUNC, "server %s has no mod_perl config\n", vhost);
+        return OK;
+    }
+
+#ifdef USE_ITHREADS
+
+    if (scfg->mip) {
+        MP_TRACE_i(MP_FUNC, "server %s already initialized\n", vhost);
+        return OK;
+    }
+
+    if (!MpSrvENABLE(scfg)) {
+        MP_TRACE_i(MP_FUNC, "mod_perl disabled for server %s\n", vhost);
+        scfg->mip = NULL;
+        return OK;
+    }
+
+    PERL_SET_CONTEXT(perl);
+
+#endif /* USE_ITHREADS */
+
+    MP_TRACE_d_do(MpSrv_dump_flags(scfg, s->server_hostname));
+
+    /* if alloc flags is On, virtual host gets its own parent perl */
+    if (MpSrvPARENT(scfg)) {
+        perl = modperl_startup(s, p);
+        MP_TRACE_i(MP_FUNC,
+                   "created parent interpreter for VirtualHost %s\n",
+                   modperl_server_desc(s, p));
+    }
+    else {
+        if (!modperl_config_apply_PerlModule(s, scfg, perl, p)) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+#ifdef USE_ITHREADS
+
+    /* if alloc flags is On or clone flag is On,
+     *  virtual host gets its own mip
+     */
+    if (MpSrvPARENT(scfg) || MpSrvCLONE(scfg)) {
+        MP_TRACE_i(MP_FUNC, "modperl_interp_init() server=%s\n",
+                   modperl_server_desc(s, p));
+        modperl_interp_init(s, p, perl);
+    }
+
+    /* if we allocated a parent perl, mark it to be destroyed */
+    if (MpSrvPARENT(scfg)) {
+        MpInterpBASE_On(scfg->mip->parent);
+    }
+
+    if (!scfg->mip) {
+        /* since mips are created after merge_server_configs()
+         * need to point to the base mip here if this vhost
+         * doesn't have its own
+         */
+        MP_TRACE_i(MP_FUNC, "%s mip inherited from %s\n",
+                   vhost, modperl_server_desc(base_server, p));
+        scfg->mip = base_scfg->mip;
+    }
+#endif  /* USE_ITHREADS */
+
+    return OK;
+}
+
 void modperl_init(server_rec *base_server, apr_pool_t *p)
 {
     server_rec *s;
@@ -210,60 +306,9 @@ void modperl_init(server_rec *base_server, apr_pool_t *p)
 #endif
 
     for (s=base_server->next; s; s=s->next) {
-        MP_dSCFG(s);
-        PerlInterpreter *perl = base_perl;
-
-        PERL_SET_CONTEXT(perl);
-
-        MP_TRACE_d_do(MpSrv_dump_flags(scfg, s->server_hostname));
-
-        /* if alloc flags is On, virtual host gets its own parent perl */
-        if (MpSrvPARENT(scfg)) {
-            perl = modperl_startup(s, p);
-            MP_TRACE_i(MP_FUNC,
-                       "created parent interpreter for VirtualHost %s\n",
-                       modperl_server_desc(s, p));
+        if (modperl_init_vhost(s, p, base_server) != OK) {
+            exit(1); /*XXX*/
         }
-        else {
-            if (!modperl_config_apply_PerlModule(s, scfg, perl, p)) {
-                exit(1);
-            }
-            if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
-                exit(1);
-            }
-        }
-
-#ifdef USE_ITHREADS
-
-        if (!MpSrvENABLE(scfg)) {
-            scfg->mip = NULL;
-            continue;
-        }
-
-        /* if alloc flags is On or clone flag is On,
-         *  virtual host gets its own mip
-         */
-        if (MpSrvPARENT(scfg) || MpSrvCLONE(scfg)) {
-            MP_TRACE_i(MP_FUNC, "modperl_interp_init() server=%s\n",
-                       modperl_server_desc(s, p));
-            modperl_interp_init(s, p, perl);
-        }
-
-        /* if we allocated a parent perl, mark it to be destroyed */
-        if (MpSrvPARENT(scfg)) {
-            MpInterpBASE_On(scfg->mip->parent);
-        }
-
-        if (!scfg->mip) {
-            /* since mips are created after merge_server_configs()
-             * need to point to the base mip here if this vhost
-             * doesn't have its own
-             */
-            scfg->mip = base_scfg->mip;
-        }
-
-#endif /* USE_ITHREADS */
-
     }
 }
 
@@ -355,8 +400,12 @@ static apr_status_t modperl_sys_init(void)
     return APR_SUCCESS;
 }
 
+static int MP_init_done = 0;
+
 static apr_status_t modperl_sys_term(void *data)
 {
+    MP_init_done = 0;
+
     modperl_env_unload();
 
     modperl_perl_pp_unset_all();
@@ -370,6 +419,10 @@ static apr_status_t modperl_sys_term(void *data)
 int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog, 
                       apr_pool_t *ptemp, server_rec *s)
 {
+    if (MP_init_done++ > 0) {
+        return OK;
+    }
+
     apr_pool_create(&server_pool, pconf);
 
     modperl_sys_init();
@@ -379,6 +432,25 @@ int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog,
     modperl_init(s, pconf);
 
     return OK;
+}
+
+/*
+ * if we need to init earlier than post_config,
+ * e.g. <Perl> sections or directive handlers.
+ */
+/*
+ * XXX: this probably won't work well if called from a
+ * vhost rather than the base config if modperl_hook_init
+ * hasn't been run first from the base config.
+ */
+int modperl_run(apr_pool_t *p, server_rec *s)
+{
+    return modperl_hook_init(p, NULL, NULL, s);
+}
+
+int modperl_is_running(void)
+{
+    return MP_init_done;
 }
 
 int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,
@@ -558,6 +630,13 @@ static const command_rec modperl_cmds[] = {
     MP_CMD_DIR_TAKE2("PerlSetEnv", set_env, "PerlSetEnv"),
     MP_CMD_SRV_TAKE1("PerlPassEnv", pass_env, "PerlPassEnv"),
     MP_CMD_SRV_RAW_ARGS("<Perl", perl, "NOT YET IMPLEMENTED"),
+	
+    MP_CMD_DIR_RAW_ARGS_ON_READ("=pod", pod, "Start of POD"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("=back", pod, "End of =over"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("=cut", pod_cut, "End of POD"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("__END__", END, "Stop reading config"),
+
+    MP_CMD_SRV_RAW_ARGS("LoadModule", load_module, "A Perl module"),
 #ifdef MP_TRACE
     MP_CMD_SRV_TAKE1("PerlTrace", trace, "Trace level"),
 #endif
