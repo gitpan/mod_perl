@@ -5,7 +5,7 @@ $r->content_type("text/html");
 $r->send_http_header();
 %ENV = $r->cgi_env;
 
-$r->write_client(
+$r->print(
    "Hi There!",
    "<hr><pre>",
    (map { "$_ = $ENV{$_}\n" } keys %ENV),	  

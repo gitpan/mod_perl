@@ -15,6 +15,29 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.85_05
+
+fixed Makefile.PL bug spotted by Gary Shea <shea@XMISSION.COM>
+
+applied XA.pm fix from Edmund Mergl <E.Mergl@BAWUE.DE>
+
+updated docs and examples here and there
+
+'make test' improved, all uneeded directives and files stripped out,
+should be able to run with no modification, nothing by hand other than
+'make test'
+
+now make sure that CC we use to build httpd is the same as CC used to
+build Perl, thanks to Andreas
+
+added 'make offsite-tar' target to build the perl-side on machines 
+without apache source
+
+fixed Makefile.tmpl* so people can define EXTRA_FLAGS as suggested by 
+Rob Hartill
+
+a few minor fixes for Apache-SSL users
+
 =item 0.85_04
 
 applied patch from Rob Hartill to fix bug in $r->cgi_env

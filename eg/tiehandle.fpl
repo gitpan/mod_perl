@@ -2,6 +2,8 @@
 #You must apply the 'pp_hot.patch' to
 #your perl source and re-build/re-install 
 #before this will work...
+#**** There is _no need_ for this module unless your
+#Perl version is <= 5.003
 
 require Apache::TieHandle;
 

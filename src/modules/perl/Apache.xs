@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.37 1996/12/10 23:12:42 dougm Exp $ */
+/* $Id: Apache.xs,v 1.38 1996/12/17 04:24:38 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -204,7 +204,7 @@ Sfdisc_t*       disc;   /* discipline */
     long nrd;
     int extra = 0;
     request_rec	*r = ((Apache_t*)disc)->r;
-    /* CTRACE(stderr, "sfapacheread: want %d bytes\n", bufsiz); */
+    CTRACE(stderr, "sfapacheread: want %d bytes\n", bufsiz); 
     PERL_READ_FROM_CLIENT;
     return bufsiz;
 }
@@ -509,7 +509,7 @@ cgi_env(r, ...)
     PPCODE:
    {
    array_header *env_arr = table_elts (r->subprocess_env);
-   char *key;
+   char *key=NULL;
 
    if(items > 1) {
        key = SvPV(ST(1),na);
@@ -528,7 +528,8 @@ cgi_env(r, ...)
    }
    else if(key) 
        XPUSHs(sv_2mortal((SV*)newSVpv(table_get(env_arr, key), 0)));
-
+   else
+      croak("need an argument in scalar context"); 
    }
    
 #see httpd.h

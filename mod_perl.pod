@@ -68,7 +68,7 @@ In an access.conf <Directory /foo> or .htaccess you need:
 
 This is the name of the subroutine to call to handle each request. 
 e.g. 
-in the PerlScript mpf_eg.pl this is "main::handler".
+in the PerlScript mpf_eg.pl this is "MyPackage::handler".
 in the PerlModule Apache::Registry this is "Apache::Registry::handler".
 
 The recommended configuration is as follows:
@@ -142,6 +142,8 @@ are present in the directory configuration:
     PerlSendHeader On	
     PerlSetupEnv   On
 
+If you use the C<SendHeaders()> function, be sure to call $req_obj->cgi->done
+when you are done with a request, just as you would under I<CGI::MiniSrv>.
 
 =head1 MEMORY CONSUMPTION
 
@@ -190,7 +192,8 @@ Tradeoffs...
 
 =head1 WARNINGS
 
-Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin) directory.
+Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin)
+directory.
 
 Your scripts *will not* run from the command line (yet) unless you use
 CGI::Switch and no direct calls to Apache->methods.

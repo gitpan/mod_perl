@@ -13,12 +13,12 @@ OBJS= alloc.o http_main.o http_core.o http_config.o http_request.o \
 all: Configuration $(TARGET)
 
 RANLIB=ranlib
-PERL=/afs/ri/project/perl/bin/perl
+PERL=/opt/perl5/bin/perl
 PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
 	(cd modules/perl; \
-	make CC=$(CC) AUX_CFLAGS="$(CFLAGS)" RANLIB=$(RANLIB) PERL=$(PERL);)
+	make CC=$(CC) AUX_CFLAGS='$(CFLAGS) $(SSL_CFLAGS)' RANLIB=$(RANLIB) PERL=$(PERL);)
 
 Configuration: Configuration.tmpl
 	@echo "Configuration older than Configuration.tmpl, or doesn't exist."

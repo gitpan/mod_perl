@@ -1,18 +1,26 @@
 #example script for mod_perl_fast
+
+#it's recommened that you use Apache::Registry as your default
+#handler for the handler stage of a request
+#or, implement your handler for this or any stage of a request
+#as a PerlModule under the Apache:: namespace
+#PerlScript is here if you choose otherwise...
+
 #To load this file when the server starts -
 #wherever you choose:
-#AddType httpd/fast-perl .fpl
+#AddHandler perl-script .fpl
 
 #add this to srm.conf:
 #PerlScript /path/where/you/put/it/mpf_eg.pl
 
 #in access.conf or .htaccess say:
-#PerlHandler main::handler
+#PerlHandler MyPackage::handler
 #and the subroutine named 'response' will be called for 
 #each request when you ask for a 'file.fpl' in that directory
 #the 'file.fpl' does not need to exist, just the directory
 
-require Apache;
+package MyPackage;
+use Apache ();
 
 #load perl modules of your choice here
 #this code is interpreted *once* when the server starts
@@ -21,22 +29,24 @@ require Apache;
 #use HTTP::Status;
 #require Penguin;
 
-#here's where you can open a database connection when
-#httpd starts up
-#this needs work, since the children are sharing a socket, 
-#data collisions are possible.
+#here's how to setup a persistent database connection
 # ***experimental try at own risk ***
-#use DBI;
+#use DBI ();
 #my($host,$db,$table,$driver) = ("", "test", "Users", "mSQL");
-#my $dbh = DBI->connect($host, $db, "", $driver);
+my $dbh; #see below
 
 sub handler {
-    my $r    = Apache->request;
+    my($r)   = @_;
     my $srv  = $r->server;
     my $conn = $r->connection;
 
     my %headers = $r->headers_in;
     my $host = $r->get_remote_host;
+
+    #create a database handle once, it's open for the lifetime
+    #of a request, unless an error occurs, you're own your for
+    #error checking
+    #$dbh ||= DBI->connect($host, $db, "", $driver);
 
     $r->content_type("text/html");
     $r->send_http_header;
@@ -108,8 +118,6 @@ FORM
 sub hello {
     return "<h1>hi there speedy!</h1><pre>\n";
 }
-
-1;
 
 
 

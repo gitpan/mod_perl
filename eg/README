@@ -1,0 +1,4 @@
+
+These are just some simple examples to get you going.
+See modules in the lib/ directory for examples of implementing
+handlers for other stages of a request to the Apache httpd.

@@ -25,7 +25,7 @@ use FileHandle ();
 # this package will be. If Lincoln integrates the changes, I'll drop
 # it.
 
-$Revision = q$Id: XA.pm,v 1.11 1996/12/10 23:12:42 dougm Exp $;
+$Revision = q$Id: XA.pm,v 1.12 1996/12/17 04:24:38 dougm Exp $;
 
 # The path separator is a slash, backslash or semicolon, depending
 # on the paltform.
@@ -1125,7 +1125,7 @@ sub submit {
 	 }
 	 $p{label} = $p{name};
      } else {
-	 @p{qw/name value other/} = @p;
+	 @p{qw/label value other/} = @p;
     }
     $p{value} = $p{label} unless defined $p{value};
     $self->escapeHTML($p{label});

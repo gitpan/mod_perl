@@ -24,12 +24,12 @@ Configuration: Configuration.tmpl
 	@echo "If not, you will at least have to touch Configuration."
 	@false
 
-PERL=/afs/ri/project/perl/bin/perl
+PERL=/opt/perl5/bin/perl
 PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
 	(cd modules/perl; \
-	make CC=$(CC) AUX_CFLAGS="$(CFLAGS)" RANLIB=$(RANLIB) PERL=$(PERL);)
+	make CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB=$(RANLIB) PERL=$(PERL);)
 
 httpd: $(REGLIB) $(OBJS)
 	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS) $(PERL_LD_OPTS)

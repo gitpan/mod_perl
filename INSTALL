@@ -1,7 +1,14 @@
-INSTALLATION for mod_perl
+=head1 NAME
 
-Prerequisites
--------------
+INSTALL - Apache mod_perl installation instructions
+
+=head1 DESCRIPTION
+
+How to build, test, configure and install mod_perl
+
+=head1 PREREQUSITES
+
+=over 3
 
 Apache version 1.1, 1.1.1 or 1.2b0+
 
@@ -11,13 +18,17 @@ If you do not have Perl version 5.003_01 or higher,
 fetch and install ExtUtils::Embed from CPAN 
 <URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.09.tar.gz>
 
-Build and install mod_perl
---------------------------
+=back
+
+=head1 Build and install mod_perl
+
+=over 3
 
 In this current directory run:
 
   perl Makefile.PL
   make
+  make test (optional)	
   make install
 
 Makefile.PL will search for apache source trees to configure against, 
@@ -29,14 +40,23 @@ If you answer 'n', see the instructions below on how to build by hand.
 In either case, you need to 'make install' so the perl side of mod_perl
 will be installed.
 
-Testing mod_perl
-----------------
+=back
 
-See t/README on how to run the mod_perl test suite
+=head1 Testing mod_perl
 
+=over 3
 
-Building apache and mod_perl by hand
-------------------------------------
+Running 'make test' will start an httpd on port 8005 running as user
+'nobody' in group 'no group', the httpd will be terminated when the
+tests are finshed.
+
+See t/README on how to run the mod_perl test suite by hand
+
+=back
+
+=head1 Building apache and mod_perl by hand
+
+=over 3
 
 ** Only if you did not let Makefile.PL take care of this already **
 
@@ -61,8 +81,35 @@ We suggest you add this entry at the end of the Configuration file if you want y
 
 Follow the apache install docs from there
 
-Notes
------
+=back
+
+=head1 Installing on multiple machines
+
+=over 3
+
+You may wish to build httpd once, then copy it to other machines.
+The Perl side of mod_perl needs the apache headers files to compile,
+to avoid dragging and build apache on all your other machines, there
+are a few Makefile targets to help you out:
+
+   'make tar_Apache'
+
+This will tar all files mod_perl installs in your 'site_perl' directory,
+into a file called 'Apache.tar'.
+You can then unpack this under 'site_perl' on another machine.
+
+   'make offsite-tar'
+
+This will copy all header files from the apache source directroy you 
+configured mod_perl against, then it will 'make dist' where you'll
+a mod_perl-x.xx.tar.gz created, ready to unpack on another machine
+to compile and install the Perl side of mod_perl.
+
+=back
+
+=head1 Notes
+
+=over 3
 
 This install includes the module Apache::Registry, which uses the
 standard module 'FileHandle'.  There was a bug in the version of this
@@ -78,19 +125,25 @@ that most callbacks are disabled.
 
 Type 'perldoc mod_perl' for info on configuring, running
 and writing Apache/Perl scripts and modules.
+
+=back
  
-Using PerlIO
-------------
+=head1 Using PerlIO
+
+=over 3
 
 See 'perldoc mod_perl' for an explaination
 See the Perl INSTALL document for more information.
 
 To hookup STDOUT and STDIN to the client I configure my Perl like so:
 
-% Configure -des -Duseperlio -Dusesfio 
+ % Configure -des -Duseperlio -Dusesfio 
 
-Support
--------
+=back
+
+=head1 Support
+
+=over 3
 
 For comments, questions, bug-reports, announcements, etc., send mail
 to majordomo@listproc.itribe.net with the string "subscribe modperl"
@@ -101,27 +154,31 @@ there is a hypermail archive for this list at:
  
 http://www.coe.missouri.edu/~faq/lists/modperl/
  
+=back
 
-IF YOU HAVE PROBLEMS
---------------------
+=head1 IF YOU HAVE PROBLEMS
+
+=over 3
 
 Please send mail to modperl@listproc.itribe.net with the output of:
 
-    Output of perl -v; perl -V
+Output of C<perl -v; perl -V>
 
-    version of the mod_perl package.
+version of the mod_perl package.
 
-    which script from the eg/ directory you are using.
-    (please try a script from there first.)
+which script from the eg/ directory you are using.
+(please try a script from there first.)
 
-    your apache server version details and your server configuration.
+your apache server version details and your server configuration.
 
-    if you get a core dump, please send a backtrace if possible.
+the output of 'make test'
 
-    if you can compile but not run a mod_perl script, recompile with:
+if you get a core dump, please send a backtrace if possible.
 
-    % make TRACE=-DPERL_TRACE
+if you can compile but not run a mod_perl script, recompile with:
+ 
+ % make TRACE=-DPERL_TRACE
 
-    then send the output of the server startup and run   
+then send the output of the server startup and run   
 
-    also see t/README on how to run the mod_perl test suite
+=back

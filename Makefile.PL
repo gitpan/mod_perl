@@ -2,7 +2,7 @@ use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
 
-$VERSION = "0.85_04";
+$VERSION = "0.85_06";
 
 print "WARNING: \$r->read is no longer an alias for \$r->read_client_block\n",
       "          see perldoc Apache for more information\n";
@@ -20,7 +20,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
 );	     
 
 foreach $src_dir (qw(../apache_1.1.1/src), <../apache_1.2*/src>,
-		  <../apache*/src>, <../stronghold*/src>, <../src>, <src>) 
+		  <../apache*/src>, <../stronghold*/src>, <../src>, <./src>) 
 {
     next if $seen{$src_dir}++;
     next unless $vers = httpd_version($src_dir);
@@ -28,7 +28,7 @@ foreach $src_dir (qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 	print STDERR "Apache version '$vers' unsupported\n";
 	next;
     }
-    print STDERR "$src_dir -> $vers_map{$vers}\n";
+    #print STDERR "$src_dir -> $vers_map{$vers}\n";
     push @adirs, $src_dir;
 }
 
@@ -51,18 +51,21 @@ unless (@adirs) {
 
 foreach $adir (@adirs) {
     $conf = "$adir/Configuration";
-    if (-e $conf) {
+    $httpd_h = "$adir/httpd.h";
+    if (-e $httpd_h) {
 	$ans = prompt "Configure mod_perl with $adir ?", "y";
 	next unless $ans eq "y";
+	$APACHE_SRC = $adir;
+	last unless -e $conf; #building from 'make offsite-tar' 
+
 	system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
 	system "cp", "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
 	print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
-	$APACHE_SRC = $adir;
 	
 	mkdir "$adir/modules", 0755;
 	mkdir "$adir/modules/perl", 0755;
 	#ignore make's output here
-	`(cd $adir/modules/perl; make clean > /dev/null)`;
+	`(cd $adir/modules/perl; make clean 2> /dev/null)`;
 
 	local(*MANI);
 	open *MANI => "MANIFEST" or die "open MANIFEST $!";
@@ -97,7 +100,7 @@ EOT
        } else {
 	   print "mod_perl already present in $conf\n";
        }
-	system "(cd $adir; ./Configure)";
+	system "(cd $adir; ./Configure)" unless $ENV{NO_HTTPD};
     }    		
 
     last if $APACHE_SRC;
@@ -114,7 +117,7 @@ WriteMakefile(
     dist    => {
 	COMPRESS=> 'gzip -9f', SUFFIX=>'gz', 
 	DIST_DEFAULT => 'all tardist',
-	POSTOP => 'mv $(DISTNAME)-*.tar.gz ../'
+#	POSTOP => 'mv $(DISTNAME)-*.tar.gz ../'
 	},
     clean   => {
 	FILES	=> "Apache.c *.o *~"
@@ -124,7 +127,7 @@ WriteMakefile(
 sub MY::clean {
     my $self = shift;
     my $string = $self->MM::clean;
-    return $string unless $APACHE_SRC;
+    return $string unless $APACHE_SRC and -e "$APACHE_SRC/http_main.c";
     $string .= "\t-cd \$(APACHE_SRC) && \$(MAKE) clean\n";
     $string;
 }
@@ -133,16 +136,29 @@ sub MY::top_targets {
     my $self = shift;
     my $string = $self->MM::top_targets;
     return $string unless $APACHE_SRC;
-    $string =~ s/(pure_all\s+::\s+)(.*)/$1 apache_httpd $2/;
+    if(-e "$APACHE_SRC/http_main.c" and !$ENV{NO_HTTPD}) {
+        $string =~ s/(pure_all\s+::\s+)(.*)/$1 apache_httpd $2/;
+    }
     $string .= <<'EOF';
 
 apache_httpd: $(APACHE_SRC)/Configuration	
-	(cd $(APACHE_SRC); $(MAKE);)
+	(cd $(APACHE_SRC); $(MAKE) CC="$(CC)";)
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \
 	     $(TAR) -cf Apache.tar CGI/Switch.pm CGI/XA.pm Apache/ $(ARCHNAME)/auto/Apache; )
 	$(MV) $(INSTALLSITELIB)/Apache.tar .
+
+offsite-tar:
+	$(CP) MANIFEST MANIFEST.orig
+	$(PERL) -e 'for (<$(APACHE_SRC)/*.h>) {' \
+	-e 'system "$(CP) $$_ src/";' \
+	-e 's,^$(APACHE_SRC),,;' \
+	-e 'system "echo src$$_ >> MANIFEST";' \
+	-e '}' 
+	$(MAKE) dist
+	$(RM_F) src/*.h
+	$(MV) MANIFEST.orig MANIFEST
 
 EOF
 
@@ -161,7 +177,14 @@ sub MY::test {
 TEST_VERBOSE=0
 
 test:
+	@(cd t/conf; test -f httpd.conf || cp httpd.conf-dist httpd.conf)
+	@(cd t/net; test -f config.pl || cp config.pl.dist config.pl)
+	$(APACHE_SRC)/httpd -X -d `pwd`/t &
+	@echo will write error_log to: /tmp/mod_perl_error_log
 	$(FULLPERL) t/TEST $(TEST_VERBOSE)
+	kill `cat /tmp/mod_perl_httpd.pid`
+	$(RM_F) /tmp/mod_perl_httpd.pid
+	$(RM_F) /tmp/mod_perl_error_log
 
 );
 }
@@ -173,7 +196,7 @@ sub httpd_version {
     my($fserver, $fversion, $frest);
     my($string, $extra, @vers);
     while(<$fh>) {
-	next unless s/^#define\s+SERVER_VERSION\s+"(.*)\s*".*/$1/;
+	next unless s/^#define\s+SERVER_(BASE|)VERSION\s+"(.*)\s*".*/$2/;
 	chomp($string = $_);
 
 	#print STDERR "Examining SERVER_VERSION '$string'...";
@@ -181,30 +204,30 @@ sub httpd_version {
 	#Stronghold-1.4b1-dev Ben-SSL/1.3 Apache/1.1.1 
 	@vers = split /\s+/, $string;
 	foreach (@vers) {
-	    ($fserver,$fversion,$frest) =  
-		m,^([^/]+)/(\d\.\d+\.?\d*)(.*),i;
+	    next unless ($fserver,$fversion,$frest) =  
+		m,^([^/]+)/(\d\.\d+\.?\d*)([^ ]*),i;
+	    #print STDERR "match ($fserver,$fversion,$frest)\n";  
 	    if($fserver eq "Ben-SSL") {
 		$extra = $fserver;
 		print STDERR "I see $fserver/$fversion, ok\n";
 		next;
 	    }
-	    #last if $server eq "Apache";
-	}
 
-	if($fserver eq "Apache") {
-	    ($server, $version) = ($fserver, $fversion);
-	}
-	else {
-	    #print STDERR "unrecognized.\n";
-	    next;
-	}
+	    if($fserver eq "Apache") {
+		($server, $version) = ($fserver, $fversion);
+	    }
+	    else {
+		#print STDERR "'$fserver/$fversion' unrecognized.\n";
+		next;
+	    }
 
-	if("$version$rest" eq "1.2-dev") {
-	    print STDERR "Apache/1.2-dev not supported, upgrade to 1.2bX\n";
-	    next;
-	}
+	    if("$version$rest" eq "1.2-dev") {
+		print STDERR "Apache/1.2-dev not supported, upgrade to 1.2bX\n";
+		next;
+	    }
 
-	print STDERR "Found $fserver '$fversion' in $dir/httpd.h\n";
+	    print STDERR "Found $fserver '$fversion' in $dir/httpd.h\n";
+	}
     }
     $fh->close;
     #print STDERR "return $version$extra\n";

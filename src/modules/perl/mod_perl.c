@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.31 1996/12/10 23:12:42 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.32 1996/12/17 04:24:38 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -113,9 +113,9 @@ module perl_module = {
 
 #ifndef PERL_DO_ALLOC
 #  ifdef APACHE_SSL
-#    define PERL_DO_ALLOC 1
-#  else
 #    define PERL_DO_ALLOC 0
+#  else
+#    define PERL_DO_ALLOC 1
 #  endif
 #endif
 
@@ -167,6 +167,7 @@ void perl_init (server_rec *s, pool *p)
   }
   CTRACE(stderr, "ok\n");
 
+  perl_require_module("Apache", s);
   for(i = 0; i < cls->NumPerlModules; i++) 
     perl_require_module(cls->PerlModules[i], s);
 

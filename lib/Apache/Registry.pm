@@ -5,8 +5,8 @@ use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.19 1996/12/10 23:12:42 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.19 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.20 1996/12/17 04:24:38 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.20 $ =~ /(\d+)\.(\d+)/);
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -85,6 +85,7 @@ sub handler {
 	    $Apache::Registry->{$package}{mtime} = $mtime;
 	}
 
+	#eval "&$package\:\:handler();";
 	eval {$package->handler;};
 	if ($@) {
 	    $r->log_error($@);

@@ -2,8 +2,8 @@ package Apache::TieHandle;
 require Apache;
 
 use vars qw($VERSION);
-#$Id: TieHandle.pm,v 1.1 1996/07/26 19:11:08 dougm Exp $ 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.1 $ =~ /(\d+)\.(\d+)/);
+#$Id: TieHandle.pm,v 1.2 1996/12/17 04:24:38 dougm Exp $ 
+$VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
 
 sub TIEHANDLE {
     my($class, $r) = @_;
@@ -41,8 +41,9 @@ Apache::TieHandle - tie stdio to Apache's i/o methods
 This module tie's stdio filehandles to Apache's i/o methods.
 
 *** NOTE ***
-This is experimental, you must apply Sven Verdoolaege's patch 
-'pp_hot.patch' for it to work
+There is no need to use this module unless your version of Perl
+is <= 5.003
+You must apply Sven Verdoolaege's patch 'pp_hot.patch' for it to work
 
 =head1 AUTHOR
 

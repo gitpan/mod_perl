@@ -71,6 +71,22 @@ extern "C" {
        PERL_READ_SETUP; \
        PERL_READ_CLIENT
 
+/* muck with %ENV */
+#define PUSHelt(key,val,klen) \
+    XPUSHs(sv_2mortal((SV*)newSVpv(key, klen))); \
+    XPUSHs(sv_2mortal((SV*)newSVpv(val, 0))) 
+
+#define CGIENVinit \
+       int i; \
+       char *tz; \
+       table_entry *elts; \
+       add_common_vars(r); \
+       add_cgi_vars(r); \
+       elts = (table_entry *)env_arr->elts; \
+       tz = getenv("TZ"); \
+       table_set (env_arr, "PATH", DEFAULT_PATH); \
+       table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1") 
+
 /* on/off switches for callback hooks during request stages */
 
 #ifndef NO_PERL_TRANS
@@ -236,5 +252,18 @@ CHAR_P set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val);
 CHAR_P perl_sendheader_on (cmd_parms *cmd, void *rec, int arg);
 CHAR_P perl_set_env_on (cmd_parms *cmd, void *rec, int arg);
 CHAR_P set_perl_trans (cmd_parms *parms, void *dummy, char *arg);
+#ifdef APACHE_SSL
+void xs_init (void);
+#else
 void xs_init _((void));
+#endif
 void perl_set_request_rec(request_rec *);
+void perl_set_pid(void);
+void perl_stdin2client(request_rec *);
+void perl_stdio2client(request_rec *); 
+void perl_require_module(char *, server_rec *);
+int  perl_eval_ok(server_rec *);
+void perl_setup_env(request_rec *r);
+void perl_clear_env(void);
+SV  *perl_bless_request_rec(request_rec *); 
+void perl_set_request_rec(request_rec *); 

@@ -1,7 +1,7 @@
 #!/user/local/bin/perl
 
-require Apache::CGI;
-my $q = new Apache::CGI;
+use CGI::Switch ();
+my $q = new CGI::Switch;
 
 $q->print(
    $q->header,	

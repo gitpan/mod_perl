@@ -1,7 +1,7 @@
 package Apache::SSI;
-require Apache;
+use Apache ();
 use Apache::Options qw(&OPT_EXECCGI); #for exec
-require HTML::TreeBuilder;
+use HTML::TreeBuilder ();
 use HTTP::Date;
 use File::Basename;
 
@@ -9,11 +9,11 @@ use vars qw($VERSION @ISA);
 
 @ISA = qw(HTML::TreeBuilder);
 
-#$Id: SSI.pm,v 1.11 1996/07/22 00:50:12 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.11 $ =~ /(\d+)\.(\d+)/);
+#$Id: SSI.pm,v 1.12 1996/12/17 04:24:38 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.12 $ =~ /(\d+)\.(\d+)/);
 
 #wherever you choose:
-#AddType httpd/fast-perl .phtml
+#AddHandler perl-script .phtml
 
 #add this to srm.conf:
 #PerlModule Apache::SSI
@@ -154,7 +154,7 @@ Apache::SSI - Implement Server Side Includes in Perl
 =head1 SYNOPSIS
 
 wherever you choose:
-AddType text/x-perl-server-parsed-html .phtml
+AddHandler perl-script .phtml
 
 add this to srm.conf:
 PerlScript Apache::SSI

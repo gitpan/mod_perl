@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.14 1996/12/05 02:47:50 dougm Exp $
+# $Id: Makefile,v 1.15 1996/12/17 04:24:38 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -58,6 +58,7 @@ SHELL = /bin/sh
 INCDIR=../..
 
 LIB=libmodperl.a
+PERL_STATIC_EXTS = Apache
 
 #on/off switches for Perl API hooks
 #comment out to enable callbacks at a certain stage in the request
@@ -73,12 +74,12 @@ PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOGGER) 
 
 #TRACE = -DPERL_TRACE
-PERL=/afs/ri/project/perl/bin/perl
+PERL=/opt/perl5/bin/perl
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
-PERL_STATIC_EXTS = -std
-XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- $(PERL_STATIC_EXTS) Apache`
+
+XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- -std $(PERL_STATIC_EXTS)`
 LD_OPTS = `$(EXTUTILS_EMBED) -e ccdlflags -e ldopts -- $(PERL_STATIC_EXTS)`
 
 CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
@@ -94,7 +95,7 @@ perlxsi.c:
 Apache.c: Apache.xs
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Apache.xs >Apache.c
 
-PERLSRC=mod_perl.c Apache.c perlxsi.c
+PERLSRC=mod_perl.c perlxsi.c Apache.c
 
 OBJS=$(PERLSRC:.c=.o)
 
@@ -107,14 +108,14 @@ $(LIB):	$(OBJS)
 	$(RANLIB) $@
 
 # dependencies
-$(OBJS): mod_perl.h $(INCDIR)/httpd.h $(INCDIR)/http_config.h
-mod_perl.o: perlxsi.c Apache.c 
+$(OBJS): mod_perl.h $(INCDIR)/httpd.h $(INCDIR)/http_config.h 
+mod_perl.o: $(PERLSRC)
 
 # various forms of cleanup
 tidy:
 	rm -f *.out
 
 clean:	tidy
-	rm -f *.o libmodperl.a Apache.c perlxsi.c
+	rm -f *.o libmodperl.a perlxsi.c Apache.c
 
 
