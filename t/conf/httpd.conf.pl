@@ -1,4 +1,7 @@
 AddType text/x-server-parsed-html .shtml
+AddType text/perl-module .pm
+
+Action text/perl-module /perl/action.pl
 
 #these three are passed to perl_parse(), 
 #which happens before <Perl> sections are processed
@@ -17,10 +20,12 @@ PerlSetVar KeyForPerlSetVar OK
 #!perl
 #line 16 httpd.conf
 
+use Apache::Constants qw(MODULE_MAGIC_NUMBER);
 use IO::Handle ();
 use Cwd qw(fastcwd);
 my $dir = join "/", fastcwd, "t";
 my $Is_Win32 = ($^O eq "MSWin32");
+my $mmn = MODULE_MAGIC_NUMBER;
 
 sub prompt ($;$) {
     my($mess,$def) = @_;
@@ -47,11 +52,11 @@ if($User eq "root") {
 print "Will run tests as User: '$User' Group: '$Group'\n";
 
 $Port = 8529;
-$ServerName = "localhost";
 $DocumentRoot = "$dir/docs";
+$ServerName = "localhost";
 
 push @AddType, ["text/x-server-parsed-html" => ".shtml"];
-
+ 
 for (qw(/perl/ /cgi-bin/)) {
     push @Alias, [$_ => "$dir/net/perl/"];
 }

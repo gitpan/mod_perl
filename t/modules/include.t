@@ -1,5 +1,5 @@
 
-BEGIN { require "net/config.pl"; }
+use Apache::test;
 
 my $ua = LWP::UserAgent->new;    # create a useragent to test
 

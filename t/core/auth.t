@@ -1,4 +1,4 @@
-BEGIN { require "net/config.pl"; }
+use Apache::test;
 
 my $ua = Apache::UserAgent->new;
 my $url = URI::URL->new("http://$net::httpserver/auth/");

@@ -14,7 +14,7 @@ if($] > 5.003) {
 
 print "1..$num_tests\n";
 
-BEGIN { require "net/config.pl"; }
+use Apache::test;
 require LWP::UserAgent;
 
 my $ua = new LWP::UserAgent;    # create a useragent to test

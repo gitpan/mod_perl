@@ -4,7 +4,7 @@ BEGIN {
 	require 5.004_02;
     }
     else {
-	require 5.004; 
+	require 5.003_97; 
     } 
 }
 
@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.03";
+$VERSION = "1.04";
 
 use subs qw(_prompt iedit asrc);
 
@@ -46,11 +46,13 @@ my %SSL = (
     "mod_ssl.h"   => "Stronghold",
 );
 
-# Patch up the Makefiles we are going to use with Apache
-system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
-            <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
+unless ($Is_Win32) {
+    # Patch up the Makefiles we are going to use with Apache
+    system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
+                <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
 
-iedit "t/net/perl/cgi.pl", "s:^(#!.*perl):#!$Config{'perlpath'}:";
+    iedit "t/net/perl/cgi.pl", "s:^(#!.*perl):#!$Config{'perlpath'}:";
+}
 
 #soes yous can try out the zamples
 unless (-l "t/net/perl/eg") {
@@ -338,6 +340,7 @@ if($APACHE_SRC) {
 	($k,$v) = ($_,$callback_hooks{$_});
 
 	iedit "$APACHE_SRC/modules/perl/Makefile", "s/^$k /#$k /" if $v;
+
 	$why = ($cant_hook{$k} || "(enable with $k=1)") unless $v;
 	$k =~ s/([A-Z]+)/ucfirst(lc($1))/ge;
 	$k =~ s/_//g;
@@ -599,7 +602,7 @@ WriteMakefile(
 );
 
 unless (-l "mod_perl.pm") {
-    system "$Config{lns} lib/mod_perl.pm mod_perl.pm";
+#    system "$Config{lns} lib/mod_perl.pm mod_perl.pm";
 }
 
 print "*** BSDI users: be sure to read the INSTALL `Notes' section ***\n"
@@ -941,6 +944,8 @@ sub report_setup {
 
 sub iedit {
     my $file = shift;
+    return if $Is_Win32;
+
     #print STDERR "-e @_\n";
     system $^X, "-pi~", "-e", "@_", $file;
 }
@@ -1014,3 +1019,5 @@ sub ldopts {
     $Embed::ldopts ||= `$^X -MExtUtils::Embed -e ldopts`;
     $Embed::ldopts;
 }
+
+                                    

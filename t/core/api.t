@@ -1,5 +1,3 @@
+use Apache::test;
 
-BEGIN { require "net/config.pl"; }
-use LWP::Simple;
-
-print get "http://$net::httpserver$net::perldir/api.pl";
+print fetch "http://$net::httpserver$net::perldir/api.pl";

@@ -40,6 +40,8 @@ Apache::DBI   - Wrapper around DBI->connect to transparently maintain persistent
 
 Apache::Stage - Management of document staging directories
 
+Apache::Sandwich - Layered document maker
+
 =head1 DESCRIPTION
 
 This bundle contains modules used by Apache mod_perl.

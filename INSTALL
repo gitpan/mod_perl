@@ -402,22 +402,35 @@ your apache server version details and your server configuration.
 
 the output of 'make test'
 
+a copy of /tmp/mod_perl_error_log
+
 if you get a core dump, please send a backtrace if possible (be sure
 to add '-g' to EXTRA_CFLAGS in the Apache Configuration file).
+
+Here's how to get a backtrace:
+
+ % cd mod_perl-x.xx
+ % touch /tmp/mod_perl_srm.conf
+ % gdb ../apache_x.xx/src/httpd
+ (gdb) run -X -d `pwd/t'
+ [now make request that causes core dump]
+ (gdb) bt
 
 If the dump is happening in libperl a -DDEBUGGING enabled libperl
 would help show us what's really happening. 
 
 Go to your Perl source tree:
-% rm *.[oa]
-% make LIBPERL=libperld.a
-% cp libperld.a $Config{archlibexp}/CORE
-% cd $Config{archlibexp}/CORE
-% mv libperl.a libperle.a
-% ln -s libperld.a libperl.a
+
+ % rm *.[oa]
+ % make LIBPERL=libperld.a
+ % cp libperld.a $Config{archlibexp}/CORE
+ % cd $Config{archlibexp}/CORE
+ % mv libperl.a libperle.a
+ % ln -s libperld.a libperl.a
 
 $Config{archlibexp} is:
-% perl -V:archlibexp
+
+ % perl -V:archlibexp
 
 Rebuild httpd, let's see a new backtrace.  After we're done debugging,
 ln -s libperle.a libperl.a

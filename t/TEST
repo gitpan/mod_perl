@@ -17,15 +17,6 @@ if (-d "t") {
 unshift(@INC, "../blib/lib", "../blib/arch");
 #print "@INC\n";
 
-BEGIN {
-    #shutdown httpd before make aborts
-    $SIG{'__DIE__'} = sub {
-	return unless $_[0] =~ /^Failed/i; 
-	system "kill `cat /tmp/mod_perl_httpd.pid`";
-	warn "httpd terminated\n";
-    }
-}
-
 use Test::Harness;
 $Test::Harness::verbose = shift
   if $ARGV[0] =~ /^\d+$/ || $ARGV[0] eq "-v";
@@ -40,6 +31,14 @@ if (@ARGV) {
 	}
     }
 } else {
+
+    #shutdown httpd before make aborts
+    $SIG{'__DIE__'} = sub {
+	return unless $_[0] =~ /^Failed/i; 
+	system "kill `cat /tmp/mod_perl_httpd.pid`";
+	warn "httpd terminated\n";
+    };
+
     @tests = (<constants/*.t>);
     eval { require LWP::UserAgent; };
     if ($@) {

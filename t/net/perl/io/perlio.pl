@@ -74,6 +74,3 @@ sub test_3 {
     print "3";
 }
  
-END {
-    warn "END block called for `perlio.pl' ($0)\n";
-}

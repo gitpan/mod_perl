@@ -24,7 +24,7 @@ sub handler {
 	if($mtime > $Stat{$file}) {
 	    delete $INC{$key};
 	    require $key;
-	    warn "process $$ reloading $key\n";
+	    #warn "Apache::StatINC: process $$ reloading $key\n";
 	}
 	$Stat{$file} = $mtime;
     }

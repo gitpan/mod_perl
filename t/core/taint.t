@@ -7,8 +7,7 @@ my(@tests) = qw{
 my $num_tests = scalar @tests;
 print "1..$num_tests\n";
 
-BEGIN { require "net/config.pl"; }
-require LWP::UserAgent;
+use Apache::test;
 
 my $ua = new LWP::UserAgent;    # create a useragent to test
 

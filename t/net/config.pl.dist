@@ -1,6 +1,10 @@
 package net;
 
-BEGIN { delete $ENV{'HTTP_PROXY'} }
+BEGIN { 
+    for( qw(HTTP_PROXY http_proxy) ) {
+	delete $ENV{$_};
+    }
+}
 
 # Configure these for your local system
 $httpserver  = "localhost:8529";
@@ -11,6 +15,7 @@ $perldir      = "/perl";
     package main;
     require LWP::UserAgent;
 
+=pod	
     sub test { print $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n" }
     sub fetch ($$) {
 	my $ua = shift;
@@ -20,6 +25,38 @@ $perldir      = "/perl";
 	$response->content;
     }
 
+    sub simple_fetch ($) {
+	my $ua = LWP::UserAgent->new;
+	my $url = URI::URL->new("http://$net::httpserver");
+	$url->path(shift);
+        my $request = new HTTP::Request('GET', $url);
+        my $response = $ua->request($request, undef, undef);   
+	$response->is_success;
+    }
+
+    sub have_module {
+	my $mod = shift;
+        {# surpress "can't boostrap" warnings
+            local $SIG{__WARN__} = sub {};
+            require Apache;
+            require Apache::Constants;
+        }  
+	eval "require $mod";
+	if($@ && ($@ =~ /Can't locate/)) {
+           return 0;
+        }
+        elsif($@) {
+           warn "$@\n";
+        }
+        print "module $mod is installed\n";
+        return 1;
+    }
+
+    sub skip_test {
+	print "1..0\n";
+	exit;
+    }
+=cut
     # avoid -w warning
     sub dummy_sub { return($net::httpserver, $net::perldir) };
 }

@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.39 1997/10/24 03:33:02 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.39 $)[1];
+#$Id: Registry.pm,v 1.40 1997/10/31 03:25:20 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.40 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -120,7 +120,7 @@ sub handler {
 	}
 
 	my $cv = \&{"$package\::handler"};
-	eval {$cv->($r, @_);} if $r->seqno;
+	eval { &{$cv}($r, @_) } if $r->seqno;
 	{
 	    local $^W = 0; #shutup Cwd.pm
 	    chdir $cwd;

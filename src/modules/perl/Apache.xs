@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.63 1997/10/24 03:33:02 dougm Exp $ */
+/* $Id: Apache.xs,v 1.64 1997/10/31 03:25:20 dougm Exp $ */
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -75,6 +75,16 @@ static pool *perl_get_startup_pool(void)
     if(sv) {
 	IV tmp = SvIV((SV*)SvRV(sv));
 	return (pool *)tmp;
+    }
+    return NULL;
+}
+
+static server_rec *perl_get_startup_server(void)
+{
+    SV *sv = perl_get_sv("Apache::__SERVER", FALSE);
+    if(sv) {
+	IV tmp = SvIV((SV*)SvRV(sv));
+	return (server_rec *)tmp;
     }
     return NULL;
 }
@@ -193,7 +203,8 @@ exit(...)
 	if(SvTRUE(ST(0)) && SvIOK(ST(0)))
 	    sts = (int)SvIV(ST(0));
     }
-    rflush(r);
+    if(!r->connection->aborted)
+        rflush(r);
 #ifndef WIN32
     if(sts == DONE)
         child_terminate(r); /* only 1.3b1+ does this right */
@@ -384,7 +395,7 @@ server_root_relative(rsv, name)
     }
     else {
 	if(!(p = perl_get_startup_pool()))
-	   croak("r is not of type Apache");
+	   croak("Apache::server_root_relative: no startup pool available");
     }
 
     RETVAL = (char *)server_root_relative(p, name);
@@ -556,8 +567,11 @@ log_error(...)
 
     ALIAS:
     Apache::warn = 1
+    Apache::Server::log_error = 2
+    Apache::Server::warn = 3
 
     PREINIT:
+    server_rec *s = NULL;
     request_rec *r = NULL;
     int i=0;
     char *errstr = NULL;
@@ -565,10 +579,21 @@ log_error(...)
 
     CODE:
 
-    if((items > 1) && sv_isa(ST(0), "Apache")) {
+    if((items > 1) && sv_derived_from(ST(0), "Apache")) {
 	IV tmp = SvIV((SV*)SvRV(ST(0)));
-	r = (Apache) tmp;
+	s = ((Apache) tmp)->server;
 	i=1;
+    }
+    else if((items > 1) && sv_derived_from(ST(0), "Apache::Server")) {
+	IV tmp = SvIV((SV*)SvRV(ST(0)));
+	s = (Apache__Server )tmp;
+	i=1;	
+
+	/* if below is true, delay log_error */
+	if(PERL_RUNNING() < PERL_DONE_STARTUP) {
+	    MP_TRACE(fprintf(stderr, "error_log not open yet\n"));
+	    XSRETURN(1);
+	}
     }
     else { 
 	if(!sv_isa(ST(0), "Apache"))
@@ -585,15 +610,17 @@ log_error(...)
 
     switch((ix = XSANY.any_i32)) {
 	case 0:
-	mod_perl_error(r->server, errstr);
+	case 2:
+	mod_perl_error(s, errstr);
 	break;
 
 	case 1:
-	mod_perl_warn(r->server, errstr);
+	case 3:
+	mod_perl_warn(s, errstr);
 	break;
 
         default:
-	mod_perl_error(r->server, errstr);
+	mod_perl_error(s, errstr);
 	break;
     }
 
@@ -683,15 +710,25 @@ connection(r)
     sv_setref_pv(ST(0), packname, (void*)r->connection);
 
 void
-server(r)
-    Apache	r
+server(rsv)
+    SV *rsv
 	
     PREINIT:
     char *packname = "Apache::Server";
+    server_rec *s;
 
     CODE:
+    if (SvROK(rsv) && sv_derived_from(rsv, "Apache")) {
+	IV tmp = SvIV((SV*)SvRV(rsv));
+	s = ((Apache)tmp)->server;
+    }
+    else {
+	if(!(s = perl_get_startup_server()))
+	   croak("Apache->server: no startup server_rec available");
+    }
+
     ST(0) = sv_newmortal();
-    sv_setref_pv(ST(0), packname, (void*)r->server);
+    sv_setref_pv(ST(0), packname, (void*)s);
 
 #  request_rec *next;		/* If we wind up getting redirected,
 #				 * pointer to the request we redirected to.
@@ -1026,18 +1063,22 @@ cgi_header_out(r, key, ...)
         }
         else if(!strncasecmp(key, "Location", 8)) {
 	    if (val && val[0] == '/' && r->status == 200) {
-		r->method = pstrdup(r->pool, "GET");
-	        r->method_number = M_GET;
+		/* not sure if this is quite right yet */
+		/* set $Apache::DoInternalRedirect++ to test */
+		if(perl_get_sv("Apache::DoInternalRedirect", FALSE)) {
+		    r->method = pstrdup(r->pool, "GET");
+		    r->method_number = M_GET;
 
-		table_unset(r->headers_in, "Content-Length");
+		    table_unset(r->headers_in, "Content-Length");
 
-		internal_redirect_handler(val, r);
-		perl_call_halt();
+		    internal_redirect_handler(val, r);
+#ifndef USE_SFIO
+		    perl_call_halt();
+#endif
+		}
 	    }
-	    else {
-		table_set (r->headers_out, key, val);
-		r->status = 302;
-	    }
+	    table_set (r->headers_out, key, val);
+	    r->status = 302;
         }   
         else if(!strncasecmp(key, "Content-Length", 14)) {
 	    table_set (r->headers_out, key, val);
@@ -1541,7 +1582,7 @@ port(server, ...)
   
 #  char *error_fname;
 #  FILE *error_log;
-  
+
 #  /* Module-specific configuration for server, and defaults... */
 
 #  int is_virtual;               /* true if this is the virtual server */

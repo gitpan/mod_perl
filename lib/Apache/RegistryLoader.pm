@@ -1,11 +1,11 @@
 package Apache::RegistryLoader;
-use 5.004;
+use 5.003_97;
 use mod_perl 1.01;
 use strict;
 use Apache::Registry ();
 use Apache::Constants qw(OPT_EXECCGI);
 @Apache::RegistryLoader::ISA = qw(Apache::Registry);
-$Apache::RegistryLoader::VERSION = (qw$Revision: 1.10 $)[1];
+$Apache::RegistryLoader::VERSION = (qw$Revision: 1.11 $)[1];
 
 sub new { 
     my $class = shift;

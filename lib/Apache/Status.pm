@@ -1,7 +1,7 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.14 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.15 $)[1];
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -36,7 +36,7 @@ sub handler {
 	}		      
 	$r->print(@{ &{$sub}($r,CGI::Switch->new) });
     }
-    elsif (exists $Apache::Registry->{$qs}) { 
+    elsif ($qs and defined %{$qs."::"}) {
 	$r->module('Devel::Symdump');
 	$r->print(symdump($qs));
     }
@@ -77,22 +77,21 @@ sub status_symdump { [symdump('main')] }
 
 sub status_inc {
     my($r,$q) = @_;
-    my(@retval, $module, $v);
-    foreach $module ($q->param("INC")) {
-	delete $INC{$module};
-    }
-    $q->delete("INC");
-    foreach $module (sort keys %INC) {
-	next unless $INC{$module}; #e.g. fake Apache/TieHandle.pm
+    my(@retval, $module, $v, $file);
+    my $uri = $r->uri;
+    push @retval, "<table border=1>";
+    push @retval, "<tr><td><b>Package</b></td><td><b>Version</b><td><b>File</b></td></tr>";
+    foreach $file (sort keys %INC) {
+	next if $file =~ m:^/::;
+	next unless $INC{$file}; #e.g. fake Apache/TieHandle.pm
 	no strict 'refs';
-	$module =~ s,/,::,g;
+	($module = $file) =~ s,/,::,g;
 	$module =~ s,\.pm$,,;
 	$v = ${"$module\:\:VERSION"} || '0.00';
 	push @retval, 
-	"$module ($v) <br>\n";
-	#$q->checkbox(-name => "INC", -value => $_, -label => $_), "<br>";
+	qq(<tr><td><a href="$uri?$module">$module</a></td><td>$v</td><td>$INC{$file}</td></tr>);
     }
-    push @retval, "<hr>"; #, $q->submit(-value => "Delete");
+    push @retval, "</table>";
     \@retval;
 }
 

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.66 1997/10/24 03:33:02 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.67 1997/10/31 03:25:20 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -254,26 +254,6 @@ void perl_shutdown (server_rec *s, pool *p)
 #endif
 }
 
-void perl_load_startup_script(server_rec *s, pool *p, I32 my_warn)
-{
-    dPSRV(s);
-    char *script;
-    if(!cls->PerlScript) {
-	MP_TRACE(fprintf(stderr, "no PerlScript to load\n"));
-	return;
-    }
-    script = server_root_relative(p, cls->PerlScript);
-    MP_TRACE(fprintf(stderr, "attempting to load `%s'\n", script));
-    ENTER;
-    save_hptr(&curstash);
-    curstash = defstash;
-    SAVEI32(dowarn);
-    dowarn = my_warn;
-    perl_require_pv(script);
-    (void)hv_delete(GvHV(incgv), script, strlen(script), G_DISCARD);
-    LEAVE;
-} 
-
 void perl_restart(server_rec *s, pool *p)
 {
     /* restart as best we can */
@@ -298,25 +278,20 @@ void perl_restart(server_rec *s, pool *p)
 
 void perl_startup (server_rec *s, pool *p)
 {
-    char *argv[] = { NULL, "-I.", "-Mmod_perl", NULL, NULL, NULL };
-    int status, i, argc=3;
+    char *argv[] = { NULL, NULL, NULL, NULL, NULL };
+    int status, i, argc=1;
+    char *dash_e = "BEGIN { $ENV{MOD_PERL} = 1; $ENV{GATEWAY_INTERFACE} = 'CGI-Perl/1.1'; }";
     dPSRV(s);
-    SV *pool_rv;
+    SV *pool_rv, *server_rv;
 
 #ifndef WIN32
     argv[0] = server_argv0;
 #endif
 
-#ifdef APACHE_SSL
-#define DONE_STARTUP 1
-#else
-#define DONE_STARTUP 2
-#endif
-
     if(perl_is_running == 0) {
 	/* we'll boot Perl below */
     }
-    else if(perl_is_running < DONE_STARTUP) {
+    else if(perl_is_running < PERL_DONE_STARTUP) {
 	/* skip the -HUP at server-startup */
 	perl_is_running++;
 	MP_TRACE(fprintf(stderr, "perl_startup: perl aleady running...ok\n"));
@@ -347,14 +322,9 @@ void perl_startup (server_rec *s, pool *p)
     if(cls->PerlWarn)
 	argv[argc++] = "-w";
 
-    if(cls->PerlScript) {
-        argv[argc++] = server_root_relative(p, cls->PerlScript);
-    }
-    else {
-        argv[argc++] = "-e";
-        argv[argc++] = "0";
-    }
-     
+    argv[argc++] = "-e";
+    argv[argc++] = dash_e;
+
     MP_TRACE(fprintf(stderr, "parsing perl script: "));
     for(i=1; i<argc; i++)
 	MP_TRACE(fprintf(stderr, "'%s' ", argv[i]));
@@ -370,13 +340,6 @@ void perl_startup (server_rec *s, pool *p)
 
     perl_clear_env();
 
-#if 0 /* -Mmod_perl will take care of this now */
-    hv_store(PerlEnvHV, "GATEWAY_INTERFACE", 17, 
-	     newSVpv(PERL_GATEWAY_INTERFACE,0), 0);
-
-    perl_reload_inc(); /* so all can see GATEWAY_INTERFACE */
-#endif
-
     MP_TRACE(fprintf(stderr, "running perl interpreter..."));
 
     ENTER;
@@ -386,17 +349,24 @@ void perl_startup (server_rec *s, pool *p)
     
     pool_rv = perl_get_sv("Apache::__POOL", TRUE);
     sv_setref_pv(pool_rv, Nullch, (void*)p);
+    server_rv = perl_get_sv("Apache::__SERVER", TRUE);
+    sv_setref_pv(server_rv, Nullch, (void*)s);
 
     status = perl_run(perl);
 
-    SvREFCNT_dec(pool_rv);
+    if(cls->PerlScript) {
+	if(perl_load_startup_script(s, p, cls->PerlWarn) != OK) {
+	    fprintf(stderr, "mod_perl: failed to load PerlScript `%s'\n", cls->PerlScript);
+	    exit(1);
+	}
+    }
 
     MP_TRACE(fprintf(stderr, 
 	     "mod_perl: %d END blocks encountered during server startup\n",
 	     endav ? AvFILL(endav)+1 : 0));
 #if MODULE_MAGIC_NUMBER < 19970728
     if(endav)
-	fprintf(stderr, "mod_perl: cannot run END blocks encoutered at server startup without apache_1.3b1+\n");
+	MP_TRACE(fprintf(stderr, "mod_perl: cannot run END blocks encoutered at server startup without apache_1.3b2+\n"));
 #endif
 
     LEAVE;
@@ -418,18 +388,15 @@ void perl_startup (server_rec *s, pool *p)
 
     orig_inc = av_copy_array(GvAV(incgv));
 
-    (void)gv_fetchpv("Apache::FreshRestart", GV_ADDMULTI, SVt_PV);
-
     {
 	GV *gv = gv_fetchpv("Apache::__T", GV_ADDMULTI, SVt_PV);
 	if(cls->PerlTaintCheck) 
 	    sv_setiv(GvSV(gv), 1);
 	SvREADONLY_on(GvSV(gv));
     }
-    {
-	GV *sig = gv_fetchpv("SIG", FALSE, SVt_PVHV);
-	hv_store(GvHV(sig), "PIPE", 4, newSVpv("IGNORE",6), FALSE);
-    }
+
+    hv_store(GvHV(siggv), "PIPE", 4, newSVpv("IGNORE",6), FALSE);
+
 #ifdef PERL_STACKED_HANDLERS
     if(!stacked_handlers)
 	stacked_handlers = newHV();
@@ -652,6 +619,9 @@ void mod_perl_end_cleanup(void *data)
 #ifdef PERL_STACKED_HANDLERS
     hv_clear(stacked_handlers);
 #endif
+#ifdef USE_SFIO
+    PerlIO_flush(PerlIO_stdout());
+#endif
     (void)release_mutex(mod_perl_mutex); 
 }
 
@@ -821,8 +791,6 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 void perl_per_request_init(request_rec *r)
 {
     dPPDIR;
-
-    if(!is_initial_req(r)) return;
 
     /* PerlSetEnv */
     mod_perl_dir_env(cld);
@@ -1068,8 +1036,8 @@ void perl_setup_env(request_rec *r)
 	hv_store(cgienv, "TZ", 2, newSVpv(tz,0), 0);
     
     for (i = 0; i < env_arr->nelts; ++i) {
+	if (!elts[i].key || !elts[i].val) continue;
 	if (strnEQ("HTTP_AUTHORIZATION", elts[i].key, 18)) continue;
-	if (!elts[i].key) continue;
 	klen = strlen(elts[i].key);  
 	hv_store(cgienv, elts[i].key, klen,
 		 newSVpv(elts[i].val,0), 0);

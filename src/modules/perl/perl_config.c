@@ -329,22 +329,14 @@ CHAR_P perl_cmd_script (cmd_parms *parms, void *dummy, char *arg)
 {
     dPSRV(parms->server);
     MP_TRACE(fprintf(stderr, "perl_cmd_script: %s\n", arg));
+    cls->PerlScript = arg;
+#if 0
 #ifdef PERL_SECTIONS
     if(PERL_RUNNING() && NO_PERL_SCRIPT) {
-	ENTER;
-	save_hptr(&curstash);
-	curstash = defstash;
-	perl_require_pv(server_root_relative(parms->pool, arg));
-	LEAVE;
-	if(SvTRUE(GvSV(errgv))) {
-	    fprintf(stderr, "parse of script %s failed: %s\n", arg, SvPVX(GvSV(errgv)));
-	    perror("parse");
-	    exit(1);
-	}
+	perl_load_startup_script(parms->server, parms->pool, cls->PerlWarn);
     } 
-    else
 #endif
-	cls->PerlScript = arg;
+#endif
     return NULL;
 }
 
@@ -422,6 +414,72 @@ void add_per_url_conf (server_rec *s, void *url_config);
 void add_file_conf (core_dir_config *conf, void *url_config);
 const command_rec *find_command_in_modules (const char *cmd_name, module **mod);
 
+#if MODULE_MAGIC_NUMBER > 19970912 
+#define cmd_infile parms->config_file
+
+void perl_config_getstr(void *buf, size_t bufsiz, void *param)
+{
+    SV *sv = (SV*)param;
+    STRLEN len;
+    char *tmp = SvPV(sv,len);
+
+    if(!SvTRUE(sv)) 
+	return;
+
+    Move(tmp, buf, bufsiz, char);
+
+    if(len < bufsiz) {
+	sv_setpv(sv, "");
+    }
+    else {
+	tmp += bufsiz;
+	sv_setpv(sv, tmp);
+    }
+}
+
+int perl_config_getch(void *param)
+{
+    SV *sv = (SV*)param;
+    STRLEN len;
+    char *tmp = SvPV(sv,len);
+    register int retval = *tmp;
+
+    if(!SvTRUE(sv)) 
+	return EOF;
+
+    if(len <= 1) {
+	sv_setpv(sv, "");
+    }
+    else {
+	++tmp;
+	sv_setpv(sv, tmp);
+    }
+
+    return retval;
+}
+
+void perl_eat_config_string(cmd_parms *cmd, void *dummy, SV *sv) {
+    CHAR_P errmsg; 
+    configfile_t *perl_cfg = 
+	pcfg_open_custom(cmd->pool, "mod_perl", (void*)sv,
+			 perl_config_getch, NULL, NULL);
+
+    configfile_t *old_cfg = cmd->config_file;
+    cmd->config_file = perl_cfg;
+    errmsg = srm_command_loop(cmd, dummy);
+    cmd->config_file = old_cfg;
+
+    if(errmsg)
+	fprintf(stderr, "mod_perl: %s\n", errmsg);
+}
+
+#define STRING_MEAL(s) ( (*s == 'P') && strEQ(s,"PerlConfig") )
+#else
+#define cmd_infile parms->infile
+#define STRING_MEAL(s) 0
+#define perl_eat_config_string(cmd, dummy, sv)
+#endif
+
 CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
 {
     char l[MAX_STRING_LEN];
@@ -429,7 +487,7 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
 	sv_catpvn(sv, "\npackage ApacheReadConfig;\n{\n", 29);
 	sv_catpvn(sv, "\n", 1);
     }
-    while (!(cfg_getline (l, MAX_STRING_LEN, parms->infile))) {
+    while (!(cfg_getline (l, MAX_STRING_LEN, cmd_infile))) {
 	if(instr(l, "</Perl>"))
 	    break;
 	if(PERL_RUNNING()) {
@@ -506,18 +564,19 @@ CHAR_P perl_virtualhost_section (cmd_parms *cmd, void *dummy, HV *hv)
     server_rec *main_server = cmd->server, *s;
     pool *p = cmd->pool;
     char *arg; 
-    const char *errmsg;
+    const char *errmsg = NULL;
     dSECiter_start
 
     arg = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
 
 #if MODULE_MAGIC_NUMBER >= 19970912
     errmsg = init_virtual_host(p, arg, main_server, &s);
-    if (errmsg)
-	return errmsg;   
 #else
     s = init_virtual_host(p, arg, main_server);
 #endif
+
+    if (errmsg)
+	return errmsg;   
 
     s->next = main_server->next;
     main_server->next = s;
@@ -868,10 +927,15 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 
 	if((sv = GvSV((GV*)val))) {
 	    if(SvTRUE(sv)) {
-		MP_TRACE(fprintf(stderr, "SVt_PV: $%s = `%s'\n", 
-				 key, SvPV(sv,na)));
-		sprintf(line, "%s %s", key, SvPV(sv,na));
-		perl_handle_command(cmd, dummy, line);
+		if(STRING_MEAL(key)) {
+		    perl_eat_config_string(cmd, dummy, sv);
+		}
+		else {
+		    MP_TRACE(fprintf(stderr, "SVt_PV: $%s = `%s'\n", 
+				     key, SvPV(sv,na)));
+		    sprintf(line, "%s %s", key, SvPV(sv,na));
+		    perl_handle_command(cmd, dummy, line);
+		}
 	    }
 	}
 
@@ -880,11 +944,17 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	}
 	else if((av = GvAV((GV*)val))) {	
 	    module *mod = top_module;
-	    const command_rec *c = 
-		find_command_in_modules ((const char *)key, &mod);
+	    const command_rec *c; 
 	    I32 shift, alen = AvFILL(av);
 
-	    if(!c) {
+	    if(STRING_MEAL(key)) {
+		SV *tmpsv;
+		while((tmpsv = av_shift(av)) != &sv_undef)
+		    perl_eat_config_string(cmd, dummy, tmpsv);
+		continue;
+	    }
+
+	    if(!(c = find_command_in_modules((const char *)key, &mod))) {
 		fprintf(stderr, "command_rec for directive `%s' not found!\n", key);
 		continue;
 	    }

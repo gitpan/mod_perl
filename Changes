@@ -16,6 +16,61 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.04 - 10/30/97
+
+PerlScript and -Mmod_perl are no longer handed to perl_parse(),
+instead perl_parse() gets a -e to set $ENV{MOD_PERL} and
+$ENV{GATEWAY_INTERFACE} (and possibly other switches -T, -w)
+PerlScript is pulled in via 'do $PerlScript';
+
+applied patch from Ron Hawkins to fix bug in perl_setup_env() when
+running with Stronghold in secure mode
+
+added Apache::PerlSections module, currently with one method: dump()
+
+for use in <Perl> sections, PerlScript and PerlModules, can now say 
+'my $s = Apache->server' during server startup, which returns a
+server_rec* blessed into the Apache::Server class just as $r->server
+does during request time.   
+
+Apache::Server class can now warn() and log_error()
+
+avoid using LWP::Simple so we don't get caught up on HTTP_PROXY which
+was cause 'make test' to fail several tests for some people.
+thanks to Philippe Froidevaux, Tom Hughes and Frank Cringle
+
+added some 3rd-party tests for Apache::Stage and Apache::Sandwich
+
+added Apache::test module
+
+back out support for internal redirects, caused big problems with
+sfio-enabled Perl spotted by Lupe Christoph and Salvador Ortiz Garcia 
+(can still try by setting $Apache::DoInternalRedirect=1 #ifndef USE_SFIO)
+
+added Apache::SIG module for testing
+
+Apache::exit will not rflush if r->connection->aborted
+
+updated Vivek's mod_perl_tuning.pod
+
+now that 1.3b3-dev config gears are not tied so tight to a FILE*,
+<Perl> sections may define $PerlConfig and/or @PerlConfig, who's
+string values are fed to the apache config  
+
+some mod_perl.pm fixes
+
+Apache::Status "Loaded Modules" item enhancements:
+-now shows file location
+-can click on module package for dump of it's symbol table
+-pretty table format
+
+don't add -I. to perl_startup() which may cause confusion spotted by
+Mike Fletcher
+
+make _sure_ perl_per_request_init() is called for sub-requests so
+everything works properly, e.g. Action or a mod_include'd #perl
+thanks to Peter Levart and Scott Holdren for spotting this
+
 =item 1.03 - 10/23/97
 
 configure/build/INSTALL enhancements with much help from Bowen Dwelle:

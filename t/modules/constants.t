@@ -1,5 +1,3 @@
-BEGIN { require "net/config.pl"; }  
+use Apache::test;
 
-use LWP::Simple;
-
-print get "http://$net::httpserver$net::perldir/constants.pl";
+print fetch "http://$net::httpserver$net::perldir/constants.pl";

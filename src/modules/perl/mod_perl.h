@@ -147,6 +147,12 @@ if((add->flags & f) || (base->flags & f)) \
 #define PERL_SECTIONS
 #endif
 
+#ifdef APACHE_SSL
+#define PERL_DONE_STARTUP 1
+#else
+#define PERL_DONE_STARTUP 2
+#endif
+
 /* some 1.2.x/1.3.x compat stuff */
 
 #if MODULE_MAGIC_NUMBER > 19970909
@@ -647,7 +653,7 @@ void perl_call_halt(void);
 CV *empty_anon_sub(void);
 void perl_reload_inc(void);
 int perl_require_module(char *, server_rec *);
-void perl_load_startup_script(server_rec *s, pool *p, I32 my_warn);
+int perl_load_startup_script(server_rec *s, pool *p, I32 my_warn);
 void newCONSTSUB(HV *stash, char *name, SV *sv);
 void perl_clear_env(void);
 void mod_perl_init_ids(void);

@@ -269,6 +269,36 @@ int perl_require_module(char *mod, server_rec *s)
     return 0;
 }
 
+void perl_do_file(char *pv)
+{
+    SV* sv = sv_newmortal();
+    sv_setpv(sv, "do '");
+    sv_catpv(sv, pv);
+    sv_catpv(sv, "'");
+    perl_eval_sv(sv, G_DISCARD);
+    (void)hv_delete(GvHV(incgv), pv, strlen(pv), G_DISCARD);
+}      
+
+int perl_load_startup_script(server_rec *s, pool *p, I32 my_warn)
+{
+    dPSRV(s);
+    char *script;
+    if(!cls->PerlScript) {
+	MP_TRACE(fprintf(stderr, "no PerlScript to load\n"));
+	return OK;
+    }
+    script = server_root_relative(p, cls->PerlScript);
+    MP_TRACE(fprintf(stderr, "attempting to load `%s'\n", script));
+    ENTER;
+    save_hptr(&curstash);
+    curstash = defstash;
+    SAVEI32(dowarn);
+    dowarn = my_warn;
+    perl_do_file(script);
+    LEAVE;
+    return perl_eval_ok(s);
+} 
+
 void perl_clear_env(void)
 {
     char *key; 
@@ -280,6 +310,8 @@ void perl_clear_env(void)
     (void)hv_iterinit(hv); 
     while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { 
 	if((*key == 'G') && strEQ(key, "GATEWAY_INTERFACE"))
+	    continue;
+	else if((*key == 'M') && strnEQ(key, "MOD_PERL", 8))
 	    continue;
 	else if((*key == 'T') && strnEQ(key, "TZ", 2))
 	    continue;

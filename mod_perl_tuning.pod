@@ -12,9 +12,10 @@ enabled HTTPD processes.
 
 This document assumes familiarity with Apache configuration directives
 some familiarity with the mod_perl configuration directives, and that
-you have already built and installed a mod_perl enabled Apache
-server.  Please also read the mod_perl documentation that comes with
-mod_perl for programming tips.
+you have already built and installed a mod_perl enabled Apache server.
+Please also read the mod_perl documentation that comes with mod_perl
+for programming tips.  Some configurations below use features from
+mod_perl version 1.03 which were not present in earlier versions.
 
 These performance tuning hints are collected from my experiences in
 setting up and running servers for handling large promotional sites,
@@ -94,8 +95,8 @@ programs directory, or the *.perl files).  Here is an example:
  use strict;
  
  # load up necessary perl function modules to be able to call from Perl-SSI
- # files.  Changes made to these functions will require killing and restarting
- # the httpd since it does not re-initialize Perl (as of mod_perl 1.00).
+ # files.  These objects are reloaded upon server restart (SIGHUP or SIGUSR1)
+ # if PerlFreshRestart is "On" in httpd.conf (as of mod_perl 1.03).
  
  # only library-type routines should go in this directory.
  
@@ -116,12 +117,16 @@ programs directory, or the *.perl files).  Here is an example:
 
  1;
 
-What this does is pull in all of the code used by any program into the
-main HTTPD process, which then creates the child processes with the
-code already in place.  You can also put any new modules you like into
-the F</var/www/perllib> directory and simpley C<use> them in your
+What this does is pull in all of the code used by the programs (but
+does not C<import> any of the module methods) into the main HTTPD
+process, which then creates the child processes with the code already
+in place.  You can also put any new modules you like into the
+F</var/www/perllib> directory and simpley C<use> them in your
 programs.  There is no need to put C<use lib "/var/www/perllib";> in
-all of your programs.
+all of your programs.  You do, however, still need to C<use> the
+modules in your programs.  Perl is smart enough to know it doesn't
+need to recompile the code, but it does need to C<import> the module
+methods into your program's name space.
 
 The biggest benefit here is that the child process never needs to
 recompile the code, so it is faster to start, and the child process
@@ -129,7 +134,7 @@ actually shares the same physical copy of the code in memory due to
 the way the virtual memory system in modern operating systems works.
 
 You will want to replace the C<use> lines above with modules you
-actually use.
+actually need.
 
 =head2 Simple Test Program
 
@@ -175,24 +180,19 @@ One way to reduce the amount of real memory taken up by each process
 is to pre-load commonly used modules into the primary HTTPD process so
 that the code is shared by all processes.  This is accomplished by
 inserting the C<use Foo ();> lines into the F<startup.perl> file for
-any C<use Foo;> statement in any commonly used program.  The idea is
-that the operating system's VM subsystem will share the data across
-the processes.
+any C<use Foo;> statement in any commonly used Registry program.  The
+idea is that the operating system's VM subsystem will share the data
+across the processes.
 
-The only problem with this is that you can't pre-load the scripts
-called by Apache::Registry.  So how do you work around that?  The
-thing to do is to put all of your code into a module, say
-F<VicksProgram.pm> in the F</var/www/perllib> directory.  Then, in
-your F<startup.perl> file, add a C<use VicksProgram;> line.  Now, your
-registry program becomes something like this:
+You can also pre-load Apache::Registry programs using the
+C<Apache::RegistryLoader> module so that the code for these programs
+is shared by all HTTPD processes as well.
 
- use strict;
- use VicksProgram;
- VicksProgram::main();
-
-Where the function main() in the VicksProgram module is the thing that
-does the real work.  The code is now shared among all HTTPD processes,
-which I<should> reduce total memory usage.
+B<NOTE>: When you pre-load modules in the startup script, you will
+need to kill and restart HTTPD for changes to take effect.  A simple
+C<kill -HUP> or C<kill -USR1> will not reload that code unless you
+have set the C<PerlFreshRestart> configuration parameter in
+F<httpd.conf> to be "On".
 
 =head1 REDUCING THE NUMBER OF LARGE PROCESSES
 
@@ -224,8 +224,8 @@ host, since you must log to different files.
 The simplest way is to put all static content on one machine, and all
 mod_perl programs on another.  The only trick is to make sure all
 links are properly coded to refer to the proper host.  The static
-content will be served up by lots of small HTTPD processes (I<not>
-configured to use mod_perl), and the relatively few mod_perl requests
+content will be served up by lots of small HTTPD processes (configured
+I<not> to use mod_perl), and the relatively few mod_perl requests
 can be handled by the smaller number of large HTTPD processes on the
 other machine.
 
@@ -311,7 +311,7 @@ Thanks to Bowen Dwelle for this idea.
 
 Another approach to reducing the number of large HTTPD processes on
 one machine is to use an accelerator such as Squid
-C<http://squid.nlanr.net/Squid/> between the clients and your large
+http://squid.nlanr.net/Squid/ between the clients and your large
 mod_perl HTTPD processes.  The idea here is that squid will handle the
 static objects from its cache while the HTTPD processes will handle
 mostly just the mod_perl requests.  This reduces the number of HTTPD
@@ -324,9 +324,15 @@ such as 8042, rather than its default port 80.  To do this, just change
 the F<httpd.conf> line C<Port> to match the port specified in
 the F<squid.conf> file.  Your URLs do not need to change.
 
+In the F<squid.conf> file, you will probably want to add C<programs>
+and C<perl> to the C<cache_stoplist> parameter so that these are
+always passed through to the HTTPD server under the assumption that
+they always produce different results.
+
 This is very similar to the two port, ProxyPass version above, but the
 Squid cache may be more flexible to fine tune for dynamic documents
-that do not change on every view.
+that do not change on every view.  The Squid proxy server also seems
+to be more stable and robust than the Apache 1.2.4 proxy module.
 
 =head1 SUMMARY
 
@@ -337,12 +343,15 @@ memory usage.  If your mod_perl requests are fewer than your static
 page requests, then splitting the servers into mod_perl and
 non-mod_perl versions further allows you to tune the amount of
 resources used by each type of request.  Using the C<ProxyPass>
-directive allows these multiple servers to be connected transparently
-to the users.
+directive allows these multiple servers to appear as one to the
+users.  Using the Squid accelerator also achieves this effect, but
+Squid takes care of deciding when to acccess the large server
+automatically.
 
 If all of your requests require processing by mod_perl, then the only
 thing you can really do is throw a I<lot> of memory on your machine
-and try to tweak the perl code to be as small and lean as possible.
+and try to tweak the perl code to be as small and lean as possible,
+and to share the virtual memory pages by pre-loading the code.
 
 =head1 AUTHOR
 
@@ -352,12 +361,14 @@ automatic mass-mail address collector to find me.
 
 This document is copyright 1997 by Vivek Khera.
 
-If you have contributions for this document, please send them to me.
-Perl POD format is best, but plain text will do, too.  If you need
-assistance, contact the mod_perl mailing list at
+If you have contributions for this document, please send them to me or
+post them to the mailing list.  Perl POD format is best, but plain
+text will do, too.
+
+If you need assistance, contact the mod_perl mailing list at
 modperl@LISTPROC.ITRIBE.NET first.  There are lots of people there
 that can help.  Also, check the web pages http://perl.apache.org/ and
 http://www.apache.org/ for explanations of the configuration options.
 
-$Revision: 1.11 $
-$Date: 1997/10/16 23:21:47 $
+$Revision: 1.12 $
+$Date: 1997/10/31 03:25:20 $

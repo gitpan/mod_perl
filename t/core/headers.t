@@ -1,5 +1,5 @@
 
-BEGIN { require "net/config.pl"; }
+use Apache::test;
 
 if($] < 5.003_02) {
     print "1..1\nok 1;\n";

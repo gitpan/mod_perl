@@ -1,4 +1,5 @@
 BEGIN { require "net/config.pl"; }
+use Config;
 
 {
     package NoRedirect::UA;
@@ -6,6 +7,12 @@ BEGIN { require "net/config.pl"; }
     @ISA = qw(LWP::UserAgent);
     
     sub redirect_ok {0}
+}
+
+if($Config{usesfio} eq "true") {
+    print "1..1\n";
+    print "ok 1\n";
+    exit;
 }
 
 my $ua = NoRedirect::UA->new;

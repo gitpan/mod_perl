@@ -4,11 +4,29 @@ BEGIN {
 
     use lib './t/docs';
     require "blib.pl" if -e "./t/docs/blib.pl";
+
 }
+
+{
+    my $s = Apache->server;
+
+    my($host,$port) = map { $s->$_() } qw(server_hostname port);
+    $s->log_error("starting server $host on port $port");
+
+    my $admin = $s->server_admin;
+    $s->warn("report any problems to server_admin $admin");
+}
+
+#$Apache::TestSIG = 1;
+$Apache::DoInternalRedirect = 1;
 
 #use Apache::Debug level => 4;
 
-use mod_perl 1.00_05;
+use mod_perl 1.03_01;
+
+if(defined &main::subversion) {
+    die "mod_perl.pm is broken\n";
+}
 
 #test Apache::RegistryLoader
 {
@@ -100,3 +118,5 @@ sub DESTROY { warn "global object $global_object DESTROYed\n" }
 
 #prior to 1.3b1 (and the child_exit hook), this object's DESTROY method would not be invoked
 $global_object = Destruction->new;
+
+0; #make sure we're not required to return a true value

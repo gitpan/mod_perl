@@ -1,25 +1,26 @@
 package mod_perl;
-use 5.004;
+use 5.003_97;
 use strict;
 
 BEGIN {
-    $mod_perl::VERSION = "1.03";
-    $ENV{MOD_PERL} = $mod_perl::VERSION;
-    $ENV{GATEWAY_INTERFACE} = "CGI-Perl/1.1";
+    $mod_perl::VERSION = "1.04";
 }
 
 sub subversion {
-    print qq( SERVER_SUBVERSION=\\"mod_perl/$mod_perl::VERSION\\" );
+    print qq( -DSERVER_SUBVERSION=\\"mod_perl/$mod_perl::VERSION\\" );
 }
 
 sub import {
     my $class = shift;
 
     #so we can say EXTRA_CFLAGS = `perl -Mmod_perl -e subversion`
-    if($^X !~ /(httpd|apache.exe)$/i and $0 eq "-e") {
+    unless(exists $ENV{MOD_PERL}) {
 	*main::subversion = \&subversion;
 	return;
     }
+
+    $ENV{MOD_PERL} = $mod_perl::VERSION;
+    $ENV{GATEWAY_INTERFACE} = "CGI-Perl/1.1";
 
     return unless @_;
 
@@ -29,7 +30,12 @@ sub import {
 
     for my $hook (@_) {
 	require Apache;
-	unless (Apache::perl_hook($hook)) {
+	my $enabled = Apache::perl_hook($hook); 
+	next if $enabled > 0;
+	if($enabled < 0) {
+	    die "unknown mod_perl option `$hook'\n";
+	}
+	else {
 	    (my $flag = $hook) =~ s/([A-Z])/_$1/g;
 	    $flag = uc $flag;
 	    die "`$hook' not enabled, rebuild mod_perl with PERL$flag=1\n";

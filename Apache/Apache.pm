@@ -66,7 +66,7 @@ sub read {
     $nrd = $total = 0;
     $buf = "";
     $_[1] ||= "";
-    #$#{$_[1]} = $bufsiz unless defined $_[1];
+    #$_[1] = " " x $bufsiz unless defined $_[1]; #XXX?
 
     $r->hard_timeout("Apache->read");
 
@@ -471,7 +471,7 @@ soon.
 
 If the configuration directive B<IdentityCheck> is set to on:  then the
 first time C<$r-E<gt>get_remote_logname> is called the server does an RFC
-1413 (ident) lookup to get the remote user's system name. Generally for
+1413 (ident) lookup to get the remote users system name. Generally for
 UNI* systems this is their login. The result is cached in C<$c-E<gt>remote_logname>
 then returned.  Subsequent calls to C<$r-E<gt>get_remote_host> return the
 cached value.
@@ -534,7 +534,7 @@ something else and implement your own authentication scheme.
 
 Returns a reference to the current value of the per directory
 configuration directive B<AuthName>.  The AuthName directive creates
-protection realm within the server's document space. To quote RFC 1945
+protection realm within the server document space. To quote RFC 1945
 "These realms allow the protected resources on a server to be
 partitioned into a set of protection spaces, each with its own
 authentication scheme and/or authorization database." The client uses
@@ -571,6 +571,11 @@ Return a reference to the server info object (blessed into the
 B<Apache::Server> package).  This is really a C<server_rec*> in
 disguise.  The following methods can be used on the server object:
 
+=item $s = Apache->server
+
+Same as above, but only available during server startup for use in
+<Perl> sections, B<PerlScript> or B<PerlModule>.
+
 =item $s->server_admin
 
 Returns the mail address of the person responsible for this server.
@@ -590,6 +595,14 @@ Returns true if this is a virtual server.
 =item $s->names
 
 Returns the wild-carded names for HostAlias servers. 
+
+=item $s->warn
+
+Alias for Apache::warn.
+
+=item $s->log_error
+
+Alias for Apache::log_error.
 
 =back
 
@@ -649,11 +662,11 @@ writing handlers in mod_perl you can use Perl variables for this.
 
 Return the value of a named entry in the Apache C<subprocess_env>
 table, or optionally set the value of a named entry. This table is
-used by Apache's mod_include. By setting some custom variables inside
+used by mod_include.  By setting some custom variables inside
 a perl handler it is possible to combine perl with mod_include nicely.
 If you say, e.g. in a PerlHeaderParserHandler
 
-   $r->subprocess_env("MyLanguage", "de");
+   $r->subprocess_env(MyLanguage => "de");
 
 you can then write in your .shtml document:
 
