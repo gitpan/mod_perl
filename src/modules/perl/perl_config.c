@@ -89,6 +89,26 @@ void mod_perl_dir_env(perl_dir_config *cld)
     }
 }
 
+void mod_perl_pass_env(pool *p, perl_server_config *cls)
+{
+    char *key, *val;
+    CHAR_P arg;
+
+    if(!cls->PerlPassEnv) return;
+
+    arg = pstrdup(p, cls->PerlPassEnv);
+
+    while (*arg) {
+        key = getword(p, &arg, ' ');
+        val = getenv(key);
+        if(val != NULL) {
+	    MP_TRACE(fprintf(stderr, "PerlPassEnv: `%s'=`%s'\n", key, val));
+	    hv_store(GvHV(envgv), key, strlen(key), 
+		     newSVpv(val,0), 0);
+        }
+    }
+}    
+
 void *perl_merge_dir_config (pool *p, void *basev, void *addv)
 {
     perl_dir_config *new = (perl_dir_config *)pcalloc (p, sizeof(perl_dir_config));
@@ -181,6 +201,7 @@ void *perl_create_server_config (pool *p, server_rec *s)
     perl_server_config *cls =
 	(perl_server_config *)palloc(p, sizeof (perl_server_config));
 
+    cls->PerlPassEnv = NULL;
     cls->PerlModules = (char **)NULL; 
     cls->PerlModules = (char **)palloc(p, (MAX_PERL_MODS+1)*sizeof(char *));
     cls->PerlModules[0] = "Apache";
@@ -391,6 +412,15 @@ CHAR_P perl_cmd_sendheader (cmd_parms *cmd,  perl_dir_config *rec, int arg) {
     return NULL;
 }
 
+CHAR_P perl_cmd_pass_env (cmd_parms *parms, void *dummy, char *arg)
+{
+    dPSRV(parms->server);
+    cls->PerlPassEnv = pstrcat(parms->pool, arg, " ", 
+			       cls->PerlPassEnv, NULL);
+    arg = NULL;
+    return NULL;
+}
+  
 CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg) {
     if(arg) MP_ENV_on(rec);
     else	   MP_ENV_off(rec);
@@ -904,6 +934,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 
     if(!PERL_RUNNING()) perl_startup(cmd->server, cmd->pool); 
 
+    sv_setpv(code, "");
     errmsg = perl_srm_command_loop(cmd, code);
 
     if(!PERL_RUNNING()) {

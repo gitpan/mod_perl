@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.68 1997/11/07 03:47:14 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.72 1997/11/21 00:10:11 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -104,6 +104,9 @@ static command_rec perl_cmds[] = {
     { "PerlSetEnv", perl_cmd_setenv,
       NULL,
       OR_ALL, TAKE2, "Perl %ENV key and value" },
+    { "PerlPassEnv", perl_cmd_pass_env, 
+      NULL,
+      RSRC_CONF, RAW_ARGS, "pass environment variables to %ENV"},  
     { "PerlSendHeader", perl_cmd_sendheader,
       NULL,
       OR_ALL, FLAG, "Tell mod_perl to parse and send HTTP headers" },
@@ -349,6 +352,7 @@ void perl_startup (server_rec *s, pool *p)
     MP_TRACE(fprintf(stderr, "ok\n"));
 
     perl_clear_env();
+    mod_perl_pass_env(p, cls);
 
     MP_TRACE(fprintf(stderr, "running perl interpreter..."));
 
@@ -405,7 +409,19 @@ void perl_startup (server_rec *s, pool *p)
 	SvREADONLY_on(GvSV(gv));
     }
 
-    hv_store(GvHV(siggv), "PIPE", 4, newSVpv("IGNORE",6), FALSE);
+    if(hv_exists(GvHV(incgv), "Apache/SIG.pm", 13)) {
+#if 0
+	char *sargs[] = { NULL };
+	perl_call_argv("Apache::SIG::set", G_EVAL | G_DISCARD, sargs); 
+#endif
+	MP_TRACE(fprintf(stderr, "mod_perl: Apache::SIG is installed\n"));
+    }
+    else {
+	hv_store(GvHV(siggv), "PIPE", 4, newSVpv("IGNORE",6), FALSE);
+	MP_TRACE(fprintf(stderr, "mod_perl: defaulting $SIG{PIPE}=IGNORE\n"));
+    }
+
+    (void)gv_fetchpv("Apache::__SendHeader", GV_ADDMULTI, SVt_PV);    
 
 #ifdef PERL_STACKED_HANDLERS
     if(!stacked_handlers)
@@ -434,6 +450,8 @@ int perl_handler(request_rec *r)
     dSTATUS;
     dPPDIR;
 
+    (void)acquire_mutex(mod_perl_mutex);
+    
     /* force 'PerlSendHeader On' for sub-requests
      * e.g. Apache::Sandwich 
      */
@@ -478,6 +496,8 @@ int perl_handler(request_rec *r)
     LEAVE;
     MP_TRACE(fprintf(stderr, "perl_handler LEAVE: SVs = %5d, OBJs = %5d\n", 
 		     (int)sv_count, (int)sv_objcount));
+
+    (void)release_mutex(mod_perl_mutex);
     return status;
 }
 
@@ -485,30 +505,36 @@ int perl_handler(request_rec *r)
 #ifdef PERL_CHILD_INIT
 void PERL_CHILD_INIT_HOOK(server_rec *s, pool *p)
 {
+    char *hook = "PerlChildInitHandler";
     request_rec *r = (request_rec *)palloc(p, sizeof(request_rec));
     dSTATUS;
     dPSRV(s);
 
     r->pool = p; 
     r->server = s;
+    r->per_dir_config = NULL;
+    r->uri = hook;
 
     mod_perl_init_ids();
 
-    PERL_CALLBACK("PerlChildInitHandler", cls->PerlChildInitHandler);
+    PERL_CALLBACK(hook, cls->PerlChildInitHandler);
 }
 #endif
 
 #ifdef PERL_CHILD_EXIT
 void PERL_CHILD_EXIT_HOOK(server_rec *s, pool *p)
 {
+    char *hook = "PerlChildExitHandler";
     request_rec *r = (request_rec *)palloc(p, sizeof(request_rec));
     dSTATUS;
     dPSRV(s);
 
     r->pool = p; 
     r->server = s;
+    r->per_dir_config = NULL;
+    r->uri = hook;
 
-    PERL_CALLBACK("PerlChildExitHandler", cls->PerlChildExitHandler);
+    PERL_CALLBACK(hook, cls->PerlChildExitHandler);
 
     perl_shutdown(s,p);
 }
@@ -825,6 +851,11 @@ void perl_per_request_init(request_rec *r)
 
     if(callbacks_this_request++ > 0) return;
 
+    {
+	dPSRV(r->server);
+	mod_perl_pass_env(r->pool, cls);
+    }
+
     register_cleanup(r->pool, NULL, mod_perl_end_cleanup, mod_perl_noop);
 
     /* hookup stderr to error_log */
@@ -846,16 +877,26 @@ API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 {
     int count, status, is_method=0;
     dSP;
-    dPPDIR;
+    perl_dir_config *cld = NULL;
     HV *stash = Nullhv;
-    SV *class = newSVsv(sv);
+    SV *class = newSVsv(sv), *dispsv = Nullsv;
     CV *cv = Nullcv;
     char *method = "handler";
     int defined_sub = 0, anon = 0;
     char *dispatcher = NULL;
 
+    if(r->per_dir_config)
+	cld = get_module_config(r->per_dir_config, &perl_module);
+
 #ifdef PERL_DISPATCH
-    dispatcher = cld->PerlDispatchHandler;
+    if(cld && (dispatcher = cld->PerlDispatchHandler)) {
+	if(!(dispsv = (SV*)perl_get_cv(dispatcher, FALSE))) {
+	    fprintf(stderr, 
+		    "mod_perl: unable to fetch PerlDispatchHandler `%s'\n",
+		    dispatcher); 
+	    dispatcher = NULL;
+	}
+    }
 #endif
 
     if(r->per_dir_config)
@@ -979,13 +1020,12 @@ callback:
     XPUSHs((SV*)perl_bless_request_rec(r)); 
 
     if(dispatcher) {
-	MP_TRACE(fprintf(stderr, "mod_perl: handing off to PerlDispatchHandler `%s'\n", dispatcher));
-	/*XPUSHs(sv_mortalcopy(sv));*/
+	MP_TRACE(fprintf(stderr, 
+		 "mod_perl: handing off to PerlDispatchHandler `%s'\n", 
+			 dispatcher));
+        /*XPUSHs(sv_mortalcopy(sv));*/
 	XPUSHs(sv);
-	sv = (SV*)perl_get_cv(dispatcher, FALSE);
-	if(!sv) {
-	    fprintf(stderr, "mod_perl: unable to fetch PerlDispatchHandler `%s'\n", dispatcher); 
-	}
+	sv = dispsv;
     }
 
     {

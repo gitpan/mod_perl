@@ -4,7 +4,7 @@ use Exporter ();
 use Apache::Constants qw(OK DECLINED);
 
 @Apache::EXPORT_OK = qw(exit warn);
-$Apache::VERSION = "1.19";
+$Apache::VERSION = "1.20";
 
 *import = \&Exporter::import;
 
@@ -120,7 +120,14 @@ sub send_cgi_header {
 	}
 	else {
 	    #warn "mod_perl: found header terminator\n";
-	    $r->send_http_header if not $r->sent_header;
+	    my $not_sent = 0;
+	    if($Apache::__SendHeader) {
+		$not_sent = not $r->sent_header;
+	    }
+	    else {
+		$not_sent = 1;
+	    }
+	    $r->send_http_header if $not_sent;
 	    $r->print($headers); #send rest of buffer, without stripping newlines!!!
 	    last;
 	}
@@ -765,6 +772,39 @@ Redirect to a location in the server namespace without
 telling the client. For instance:
 
    $r->internal_redirect_handler("/home/sweet/home.html");
+
+=item $r->custom_response($code, $uri)
+
+This method provides a hook into the B<ErrorDocument> mechanism,
+allowing you to configure a custom response for a given response
+code at request-time.
+
+Example:
+
+    use Apache::Constants ':common';
+
+    sub handler {
+        my($r) = @_;
+
+        if($things_are_ok) {
+	    return OK;
+        }
+
+        #<Location $r->uri>
+        #ErrorDocument 401 /error.html
+        #</Location>
+
+        $r->custom_response(AUTH_REQUIRED, "/error.html");
+
+        #can send a string too
+        #<Location $r->uri>
+        #ErrorDocument 401 "sorry, go away"
+        #</Location>
+
+        #$r->custom_response(AUTH_REQUIRED, qq("sorry, go away"));
+
+        return AUTH_REQUIRED;
+    }
 
 =back
 

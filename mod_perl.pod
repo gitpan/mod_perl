@@ -72,8 +72,12 @@ Optionally:
 
     PerlScript  perl-scripts/script_to_load_at_startup.pl
 
-This script will be loaded when the server starts. See eg/startup.pl
-for an example to start with.
+This script will be loaded when the server starts.  The C<PerlScript>
+must return a true value, i.e., the end of this file should have a:
+
+ 1; #return true value
+
+See eg/startup.pl for an example to start with.
 
 In an httpd.conf <Location /foo> or .htaccess you need:
 
@@ -142,6 +146,11 @@ a C<PerlAuthenHandler>, you may use the C<PerlSetEnv> configuration
 directive: 
 
  PerlSetEnv  SomeKey  SomeValue
+
+You may also use the C<PerlPassEnv> directive to pass an already
+existing environment variable to Perl's C<%ENV>:
+
+ PerlPassEnv SomeKey 
 
 =over 4
 

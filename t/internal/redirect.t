@@ -9,7 +9,7 @@ use Config;
     sub redirect_ok {0}
 }
 
-if($Config{usesfio} eq "true") {
+if(not $net::Is_Win32 and $Config{usesfio} eq "true") {
     print "1..1\n";
     print "ok 1\n";
     exit;

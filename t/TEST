@@ -10,7 +10,7 @@ if (-d "t") {
 
     # fix all relative library locations
     foreach (@INC) {
-	$_ = "../$_" unless m,^/,;
+	$_ = "../$_" unless m,^(/)|([a-f]:),i;
     }
 }
 # Pick up the library files from the ../blib directory

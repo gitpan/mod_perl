@@ -1,13 +1,13 @@
 package Apache::Registry;
 use Apache ();
 #use strict; #eval'd scripts will inherit hints
-use Apache::Constants qw(:common &OPT_EXECCGI);
+use Apache::Constants qw(:common &OPT_EXECCGI &REDIRECT);
 use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.41 1997/11/07 03:47:14 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.41 $)[1];
+#$Id: Registry.pm,v 1.42 1997/11/20 23:17:59 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.42 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -149,6 +149,11 @@ sub handler {
 	    return Apache::Debug::dump($r, SERVER_ERROR);
 	}
 
+	if(my $loc = $r->header_out("Location")) {
+	    if($r->status == 200 and substr($loc, 0, 1) ne "/") {
+		return REDIRECT;
+	    }
+	}
 	return $r->status;
     } else {
 	return NOT_FOUND unless $Debug && $Debug & 2;

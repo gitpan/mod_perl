@@ -1,13 +1,18 @@
 
 in no particular order:
 
+port to threaded 5.004_5x (5.005-tobe)
+
+win32:
+- integrate with Perl 5.005's threading
+- Apache and Apache::Constants should be built as dlls
+- look at providing ASP (Active Server Plugin) support for NT users
+
+special treatment for nph- scripts?
+
 overload %ENV magic so it's not setup unless asked for
 
 "save stack" mechanism so we can go back to caching CV lookups
-
-win32:
-- Apache and Apache::Constants should be built as dlls
-- look at providing ASP (Active Server Plugin) support for NT users
 
 cleanup Makefile.PL!!!
 

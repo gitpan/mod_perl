@@ -51,9 +51,13 @@ unless ($hook_tests > 0) { #no callbacks enabled, fine.
 
 print "1..$hook_tests\n";
 $i = 1;
-foreach (split /\n/, `cat docs/hooks.txt`) {
+
+open HOOKS, "docs/hooks.txt";
+while(<HOOKS>) {
+    chomp;
     next if $Seen{$_}++;
     print "ok $i\n"; $i++;
 }
+close HOOKS;
 
 unlink "docs/.htaccess";

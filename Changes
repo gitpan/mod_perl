@@ -16,6 +16,80 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.07 - 11/25/97
+
+added notes from Larry Denneau and Michael Smith on building with
+mod_auth_dbm to mod_perl_traps.pod 
+
+added $r->custom_response method
+
+$r->proxyreq can now be set
+
+'use Apache qw(warn);' will now work during server startup
+
+fixed loading of PerlScript, so errors are reported!
+(your PerlScript must "return a true value")
+
+fix TEST.win32 thanks to Peter Tillemans
+
+s/DEFAULT_RSS_LIMIT/DEFAULT_RLIMIT_RSS/ in Apache::Resource
+thanks to Jarkko Hietaniemi
+
+fix Apache::RegistryLoader bug spotted by Brian Mosley
+
+changed "Options ExecCGI" to "Options +ExecCGI" in httpd.conf-dist to
+fix problem in 'make test' seen by Frank Ridderbusch
+
+=item 1.06 - 11/20/97
+
+fixed core dump seen under linux if PerlChild{Init,Exit}Handler is
+defined (bug was introduced in 1.05 when PerlDispatchHandler was added)
+
+added new module Apache::Resource
+
+fix core dump in $r->notes when val is an IV, spotted by Dwayne Fontenot
+
+get rid of "use of uninitialized value" from <Perl></Perl> pointed out
+by Joel Wagner
+
+fixed strict refs bug in Apache::PerlSections spotted by Brian Mosley
+
+Apache::Registry will return REDIRECT if $r->header_out("Location")
+so the request is logged properly, thanks to spot by Jon Drukman
+
+call mod_perl_pass_env() during perl_startup() so PerlScript and
+<Perl> sections can see PerlPassEnv variables
+
+mkdir t/logs so we can run tests with ApacheSSL 
+
+Makefile.PL will add -I$(SSL_BASE)/include to EXTRA_CFLAGS for ApacheSSL
+
+fix core dump with 1.3b3-dev
+
+=item 1.05_01 - 11/15/97
+
+If Apache::SIG is set, don't install the default $SIG{PIPE}="IGNORE"
+ 
+added PerlPassEnv directive suggested by Joel Wagner
+
+stop core dump in Apache::exit spotted by Joel Wagner if called as a
+function, too early (before PerlHandler) without having called
+Apache->request($r)  
+
+fixed bug spotted by Roland Friedwagne where CGI.pm-2.37bx's header()
+method (Apache->send_cgi_header underneath) would not work unless
+PerlSendHeader was On (added new tests to internal/headers.t to make
+sure from now on!)
+
+applied patches from Peter Tillemans so we can run the test suite
+under win32
+
+applied win32 patches from Peter Tillemans so perl_handler() is mutex
+locked and to cut out Makefile.PL attempt to symlink the eg directory
+
+Apache::test will define the bootstrap method for Apache and
+Apache::Constants to quiet 'make test' noize spotted by Andreas
+
 =item 1.05 - 11/06/97
 
 no longer include $r->server->server_name as part of the

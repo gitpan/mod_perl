@@ -272,7 +272,7 @@ int perl_require_module(char *mod, server_rec *s)
 void perl_do_file(char *pv)
 {
     SV* sv = sv_newmortal();
-    sv_setpv(sv, "do '");
+    sv_setpv(sv, "require '");
     sv_catpv(sv, pv);
     sv_catpv(sv, "'");
     perl_eval_sv(sv, G_DISCARD);
@@ -335,8 +335,7 @@ void mod_perl_init_ids(void)  /* $$, $>, $), etc */
 
 int perl_eval_ok(server_rec *s)
 {
-    SV *sv;
-    sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
+    SV *sv = GvSV(errgv);
     if(SvTRUE(sv)) {
 	MP_TRACE(fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na)));
 	mod_perl_error(s, SvPV(sv, na));

@@ -116,4 +116,18 @@ $LockFile = "/tmp/mod_perl.lock";
 #push @PerlChildInitHandler, "My::child_init";
 #push @PerlChildExitHandler, "My::child_exit";
 
+$Location{"/STAGE"} = {
+    ErrorDocument => [
+	      [403 => "/stage-redir"],
+	      [404 => "/stage-redir"],
+    ],
+};
+
+$Location{"/stage-redir"} = {
+    @mod_perl,
+    PerlHandler => "Apache::Stage",
+};
+
+$PerlTransHandler =  "PerlTransHandler::handler";
+
 </Perl>

@@ -45,6 +45,7 @@ if($Apache::TestSIG) {
 }
 
 $r->content_type("text/plain");
+$r->header_out("X-Perl-Script" => "test");
 $r->send_http_header;
 
 my(@args);

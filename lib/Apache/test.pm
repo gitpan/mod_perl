@@ -16,6 +16,9 @@ BEGIN {
 
 my $UA = LWP::UserAgent->new;
 
+*Apache::bootstrap = sub {};
+*Apache::Constants::bootstrap = sub {};
+
 sub test { 
     my $s = $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n";
     if($ENV{MOD_PERL}) {

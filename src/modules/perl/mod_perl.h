@@ -589,6 +589,7 @@ PERL_READ_CLIENT
 #endif
 
 typedef struct {
+    char *PerlPassEnv;
     char *PerlScript;
     char **PerlModules;
     int  NumPerlModules;
@@ -731,6 +732,7 @@ CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_var(cmd_parms *cmd, perl_dir_config *rec, char *key, char *val);
 CHAR_P perl_cmd_setenv(cmd_parms *cmd, perl_dir_config *rec, char *key, char *val);
 CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg);
+CHAR_P perl_cmd_pass_env (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_sendheader (cmd_parms *cmd, perl_dir_config *rec, int arg);
 CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
@@ -753,4 +755,4 @@ CHAR_P perl_cmd_handler_handlers (cmd_parms *parms, perl_dir_config *rec, char *
 CHAR_P perl_cmd_log_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 
 void mod_perl_dir_env(perl_dir_config *cld);
-
+void mod_perl_pass_env(pool *p, perl_server_config *cls);

@@ -9,18 +9,15 @@ BEGIN {
 
 {
     last;
-   my $s = Apache->server;
+    Apache::warn("use Apache 'warn' is ok\n");
+
+    my $s = Apache->server;
 
     my($host,$port) = map { $s->$_() } qw(server_hostname port);
     $s->log_error("starting server $host on port $port");
 
     my $admin = $s->server_admin;
     $s->warn("report any problems to server_admin $admin");
-
-#    if(my $fh = $s->error_log) {
-#	print $fh "Apache->server->error_log ok\n";
-#	print "FH=`$fh'\n";
-#    }
 }
 
 #$Apache::TestSIG = 1;
@@ -54,7 +51,10 @@ if(defined &main::subversion) {
     for my $file ($d->read) {
 	next if $file eq "hooks.pl"; 
 	next unless $file =~ /\.pl$/;
-	$rl->handler("/perl/$file");
+	my $status = $rl->handler("/perl/$file");
+	unless($status == 200) {
+	    die "pre-load of `/perl/$file' failed, status=$status\n";
+	}
     }
 }
 
@@ -88,8 +88,9 @@ sub BaseClass::handler ($$) {
 
 sub My::child_init {
     my $r = shift;
-    my $sa = $r->server->server_admin;
-    warn "child_init for process $$, report any problems to $sa\n";
+    my $s = $r->server;
+    my $sa = $s->server_admin;
+    $s->warn("child_init for process $$, report any problems to $sa\n");
 }
 
 sub My::child_exit {
@@ -99,10 +100,14 @@ sub My::child_exit {
 sub Apache::AuthenTest::handler {
     use Apache::Constants ':common';
     my $r = shift;
+
+    $r->custom_response(AUTH_REQUIRED, "/error.txt");
+
     my($res, $sent_pwd) = $r->get_basic_auth_pw;
     return $res if $res; #decline if not Basic
 
     my $user = lc $r->connection->user;
+    $r->notes("DoAuthenTest", 1);
 
     unless($user eq "dougm" and $sent_pwd eq "mod_perl") {
         $r->note_basic_auth_failure;
@@ -125,4 +130,5 @@ sub DESTROY { warn "global object $global_object DESTROYed\n" }
 #prior to 1.3b1 (and the child_exit hook), this object's DESTROY method would not be invoked
 $global_object = Destruction->new;
 
-0; #make sure we're not required to return a true value
+#0; #make sure we're not required to return a true value
+1;

@@ -6,8 +6,8 @@ API.
 These pieces are seamlessly glued together by the `mod_perl' server
 plugin, making it is possible to write Apache modules entirely in
 Perl.  In addition, the persistent interpreter embedded in the server
-avoids the overhead of starting an external interpreter and the
-penalty of Perl start-up (compile) time.  
+avoids the overhead of starting an external interpreter program and
+the additional Perl start-up (compile) time. 
 
 Without question, the most popular Apache/Perl module is
 Apache::Registry module.  This module emulates the CGI environment,

@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern,  5-Nov-1997 -->
+<!-- Changed by: Doug MacEachern, 19-Nov-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.35 $ $Date: 1997/11/07 03:47:14 $</i>
+<br><i> $Revision: 1.37 $ $Date: 1997/11/20 23:17:59 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -73,8 +73,10 @@ Apache::
 Embperl		bdcf	Embed Perl in HTML			GRICHTER
 ePerl		Rdpr  	Fast emulated Embedded Perl (ePerl)	RSE            
 FTP		i	Full-fledged FTP proxy			PMKANE
+Gzip		c	Unzip compressed files on the fly	ANDK
 JavaScript	bdpf	Generate JavaScript code		ABH
 Registry	Rmpf	Run unaltered CGI scripts 		APML
+RobotRules	bdpf	Enforce robot rules (robots.txt)	PARKER
 Sandwich	bmpO	Layered document (sandwich) maker	DOUGM
 SSI		bmpO	Implement server-side includes in Perl	KWILLIAM
 Stage		bdpf	Manage a document staging directory	ANDK
@@ -105,6 +107,7 @@ RoleAuthz	i	Role-based authorization		DOUGM
 * PerlAccessHandler's
 AccessLimitNum	bmpf	Limit user access by number of requests	APML
 DayLimit	bmpf	Limit access based on day of week	APML
+RobotLimit	bdpf	Limit access of robots			PARKER
 
 * PerlTypeHandler's
 AcceptLanguage	bdpf	Send file type based on language pref	ROBH
@@ -124,6 +127,9 @@ Timeit		bmpf	Benchmark PerlHandlers			APML
 * PerlLogHandler's
 DumpHeaders	bdpf	Watch HTTP transaction via headers	DOUGM
 WatchDog	c	Look for problematic URIs		DOUGM
+
+* PerlChildInitHandler's
+Resource	bmpf	Limit resources used by httpd children	APML
 
 * Server Configuration
 ConfigLDAP	i	Config via LDAP and &lt;Perl&gt;		MARKK
@@ -156,6 +162,7 @@ PUT		cdpf	HTTP PUT method handler module		PLISTER
 RegistryLoader	bmpf	Apache::Registry startup script loader 	APML
 Safe		ampO	Adaptation of "safecgiperl"		APML
 Session		cmpf	Maintain client <-> httpd session/state	APML
+SIG		amoO	Signal handlers for mod_perl		APML
 StatINC		bmpf	Reload require'd files when updated	APML
 State		i	Powerful state engine			RSE
 
@@ -196,6 +203,7 @@ MARKK	 Mark Kennedy &lt;mtk@ny.ubs.com&gt;
 MDORMAN	 Michael Alan Dorman  &lt;mdorman@calder.med.miami.edu&gt;
 MERGL	 Edmund Mergl &lt;E.Mergl@bawue.de&gt;
 NJENSEN	 Neil Jensen &lt;njensen@habaneros.com&gt;
+PARKER	 Michael Parker &lt;parker@austx.tandem.com&gt;
 PLISTER  Peter Lister &lt;p.lister@cranfield.ac.uk&gt;
 PMKANE	 Patrick Michael Kane &lt;modus@enews.com&gt;
 RMANGI   Rick Mangi &lt;rmangi@tgix.com&gt;

@@ -3,7 +3,7 @@ use 5.003_97;
 use strict;
 
 BEGIN {
-    $mod_perl::VERSION = "1.05";
+    $mod_perl::VERSION = "1.07";
 }
 
 sub subversion {

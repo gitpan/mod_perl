@@ -61,7 +61,18 @@ ApacheCore.lib (e.g. C:\Apache\ApacheCore.lib)
 
 select "Build -> Build ApacheModulePerl.dll"
 
-(You may see some harmless warnings)
+You may see some harmless warnings, which can be reduced (along with
+the size of the DLL), by setting:
+
+"Project -> Settings -> [C/C++] -> Category: [Code Generation] -> 
+  Use runtime library: [Multithreaded DLL]
+
+=item Testing
+
+Once ApacheModulePerl.dll is built and apache.exe in installed you may
+test mod_perl with:
+
+ nmake test
 
 =item Apache setup
 

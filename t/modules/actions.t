@@ -11,7 +11,7 @@ my $c = fetch($ua, "http://$net::httpserver$module");
 
 print "fetch: `$c'\n";
 
-unless ($c eq "OK $module") {
+unless ($c =~ /^OK ${module}$/i) {
     print "not ";
 }
 

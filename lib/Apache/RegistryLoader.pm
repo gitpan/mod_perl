@@ -5,7 +5,7 @@ use strict;
 use Apache::Registry ();
 use Apache::Constants qw(OPT_EXECCGI);
 @Apache::RegistryLoader::ISA = qw(Apache::Registry);
-$Apache::RegistryLoader::VERSION = (qw$Revision: 1.11 $)[1];
+$Apache::RegistryLoader::VERSION = (qw$Revision: 1.12 $)[1];
 
 sub new { 
     my $class = shift;
@@ -47,6 +47,7 @@ sub request {}
 sub seqno {0} 
 sub server { shift }
 sub is_virtual {0}
+sub header_out {""}
 
 1;
 

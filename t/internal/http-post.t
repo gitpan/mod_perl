@@ -8,7 +8,8 @@ use Config;
 my $num_tests = 5;
 my(@test_scripts) = qw(test);
 
-if($Config{usesfio} eq "true" or $] >= 5.003_93) {
+#if($Config{usesfio} eq "true" or $] >= 5.003_93) {
+if($] >= 5.003_93) {
     $num_tests += 2;
     push @test_scripts, qw(io/perlio.pl);
 }

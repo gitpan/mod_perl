@@ -50,9 +50,10 @@
  *
  */
 
+#define CORE_PRIVATE
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.65 1997/11/07 03:47:14 dougm Exp $ */
+/* $Id: Apache.xs,v 1.68 1997/11/26 01:30:29 dougm Exp $ */
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -101,9 +102,12 @@ static server_rec *perl_get_startup_server(void)
 	if(ST(2) == &sv_undef) \
 	    table_unset(table, key); \
 	else \
-	    table_set(table, key, SvPVX(ST(2))); \
+	    table_set(table, key, SvPV(ST(2),na)); \
     } \
 }
+
+#define MP_CHECK_REQ(r,f) \
+    if(!r) croak("`%s' called without setting Apache->request!", f)
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -117,6 +121,7 @@ max_requests_per_child(...)
 
     CODE:
     items = items; /*avoid warning*/
+    RETVAL = 0;
 #ifdef WIN32
     croak("Apache->max_requests_per_child not supported under win32!");
 #else
@@ -232,6 +237,9 @@ exit(...)
 	if(SvTRUE(ST(0)) && SvIOK(ST(0)))
 	    sts = (int)SvIV(ST(0));
     }
+
+    MP_CHECK_REQ(r, "Apache::exit");
+
     if(!r->connection->aborted)
         rflush(r);
 #ifndef WIN32
@@ -340,6 +348,37 @@ translate_name(r)
     RETVAL
 
 #functions from http_core.c
+
+void
+custom_response(r, status, string)
+    Apache     r
+    int status
+    char *string
+    
+    PREINIT:
+    core_dir_config *conf;
+    int type, idx500;
+
+    CODE:
+#ifdef WIN32
+    croak("Apache->custom_response not supported under win32!");
+#else
+    idx500 = index_of_response(HTTP_INTERNAL_SERVER_ERROR);
+    conf = get_module_config(r->per_dir_config, &core_module);
+
+    if(conf->response_code_strings == NULL) {
+        conf->response_code_strings = 
+	    pcalloc(r->pool,
+		    sizeof(*conf->response_code_strings) * 
+		    RESPONSE_CODES);
+    }
+
+    if((type = index_of_response(status)) == idx500) {
+	croak("Unsupported HTTP response code %d\n", status);
+    }
+
+    conf->response_code_strings[type] = pstrdup(r->pool, string);
+#endif
 
 void
 requires(r)
@@ -474,9 +513,6 @@ send_http_header(r)
     mod_perl_sent_header(r, 1);
     r->status = 200; /* XXX, why??? */
  
-# Beware that we have changes the order of the arguments for this
-# function.
-
 int
 send_fd(r, f)
     Apache	r
@@ -528,6 +564,7 @@ print(r, ...)
     if(!mod_perl_sent_header(r, 0)) {
 	SV *sv = sv_newmortal();
 	SV *rp = ST(0);
+	SV *sendh = perl_get_sv("Apache::__SendHeader", TRUE);
 
 	if(items > 2)
 	    do_join(sv, &sv_no, MARK+1, SP); /* $sv = join '', @_[1..$#_] */
@@ -538,7 +575,9 @@ print(r, ...)
 	XPUSHs(rp);
 	XPUSHs(sv);
 	PUTBACK;
+	sv_setiv(sendh, 1);
 	perl_call_pv("Apache::send_cgi_header", G_SCALAR);
+	sv_setiv(sendh, 0);
     }
     else {
 	CV *cv = GvCV(gv_fetchpv("Apache::write_client", FALSE, SVt_PVCV));
@@ -582,8 +621,6 @@ internal_redirect_handler(r, location)
     internal_redirect_handler(location, r);
 
 #functions from http_log.c
-# Beware, we have changed the order of the arguments for the log_reason()
-# funtion.
 
 void
 log_reason(r, reason, filename)
@@ -630,7 +667,13 @@ log_error(...)
     else { 
 	if(!sv_isa(ST(0), "Apache"))
 	    r = perl_request_rec(NULL);
+	if(r) 
+	    s = r->server;
+	else
+	    s = perl_get_startup_server();
     }
+
+    if(!s) croak("Apache::warn: no server_rec!");
 
     if(items > 1+i) {
 	sv = newSV(0);
@@ -837,11 +880,14 @@ the_request(r)
     RETVAL
 
 int
-proxyreq(r)
+proxyreq(r, ...)
     Apache   r
 
     CODE:
     RETVAL = r->proxyreq;
+
+    if(items > 1)
+        r->proxyreq = (int)SvIV(ST(1));
 
     OUTPUT:
     RETVAL
@@ -1143,11 +1189,6 @@ err_headers_out(r, ...)
     hdrs_arr = table_elts (r->err_headers_out);
     hdrs = (table_entry *)hdrs_arr->elts;
 
-    if(items == 3) {
-	warn("use $r->err_header_out to set, not err_headers_out");
-	table_set(r->err_headers_out, SvPVX(ST(1)), SvPVX(ST(2)));
-    }
-
     for (i = 0; i < hdrs_arr->nelts; ++i) {
 	if (!hdrs[i].key) continue;
 	PUSHelt(hdrs[i].key, hdrs[i].val, 0);
@@ -1262,7 +1303,9 @@ filename(r, ...)
 
     if(items > 1) {
         r->filename = pstrdup(r->pool, SvPVX(ST(1)));
+#ifndef WIN32
 	stat(r->filename, &r->finfo);
+#endif
     }
     OUTPUT:
     RETVAL

@@ -67,7 +67,7 @@ CLEAN :
 "$(OUTDIR)" :
     if not exist "$(OUTDIR)/$(NULL)" mkdir "$(OUTDIR)"
 
-CPP_PROJ=/nologo /MT /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS"\
+CPP_PROJ=/nologo /MD /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS"\
  /Fp"$(INTDIR)\ApacheModulePerl.pch" /YX /Fo"$(INTDIR)\\" /Fd"$(INTDIR)\\" /FD\
  /c 
 CPP_OBJS=.\Release/
@@ -229,69 +229,54 @@ SOURCE=..\perl\Apache.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_APACH=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"arpa\inet.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_conf_globals.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"http_log.h"\
-	{$(INCLUDE)}"http_main.h"\
-	{$(INCLUDE)}"http_protocol.h"\
-	{$(INCLUDE)}"http_request.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"multithread.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"util_script.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
-NODEP_CPP_APACH=\
-	"..\..\..\..\..\apache\src\main\os.h"\
-	"..\..\..\..\..\apache\src\main\sfio.h"\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
 	
 
 "$(INTDIR)\Apache.obj" : $(SOURCE) $(DEP_CPP_APACH) "$(INTDIR)"
@@ -301,54 +286,54 @@ NODEP_CPP_APACH=\
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
 DEP_CPP_APACH=\
-	"..\..\..\..\apache_1.3b1-dev\src\main\alloc.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\buff.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\conf.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_conf_globals.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_config.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_core.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_log.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_main.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_protocol.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_request.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\httpd.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\multithread.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\util_script.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\os.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\readdir.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\regex\regex.h"\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
+	"..\..\..\..\..\apache\src\os\win32\os.h"\
+	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
 	
 
 "$(INTDIR)\Apache.obj"	"$(INTDIR)\Apache.sbr" : $(SOURCE) $(DEP_CPP_APACH)\
@@ -363,60 +348,46 @@ SOURCE=..\perl\Constants.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_CONST=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"arpa\inet.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
-NODEP_CPP_CONST=\
-	"..\..\..\..\..\apache\src\main\os.h"\
-	"..\..\..\..\..\apache\src\main\sfio.h"\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
+	"..\perl\dirent.h"\
 	
 
 "$(INTDIR)\Constants.obj" : $(SOURCE) $(DEP_CPP_CONST) "$(INTDIR)"
@@ -426,46 +397,46 @@ NODEP_CPP_CONST=\
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
 DEP_CPP_CONST=\
-	"..\..\..\..\apache_1.3b1-dev\src\main\alloc.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\buff.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\conf.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_config.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_core.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\httpd.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\os.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\readdir.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\regex\regex.h"\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\os\win32\os.h"\
+	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
 	
 
 "$(INTDIR)\Constants.obj"	"$(INTDIR)\Constants.sbr" : $(SOURCE)\
@@ -480,69 +451,54 @@ SOURCE=..\perl\mod_perl.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_MOD_P=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"arpa\inet.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_conf_globals.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"http_log.h"\
-	{$(INCLUDE)}"http_main.h"\
-	{$(INCLUDE)}"http_protocol.h"\
-	{$(INCLUDE)}"http_request.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"multithread.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"util_script.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
-NODEP_CPP_MOD_P=\
-	"..\..\..\..\..\apache\src\main\os.h"\
-	"..\..\..\..\..\apache\src\main\sfio.h"\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
 	
 
 "$(INTDIR)\mod_perl.obj" : $(SOURCE) $(DEP_CPP_MOD_P) "$(INTDIR)"
@@ -552,54 +508,54 @@ NODEP_CPP_MOD_P=\
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
 DEP_CPP_MOD_P=\
-	"..\..\..\..\apache_1.3b1-dev\src\main\alloc.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\buff.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\conf.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_conf_globals.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_config.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_core.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_log.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_main.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_protocol.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_request.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\httpd.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\multithread.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\util_script.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\os.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\readdir.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\regex\regex.h"\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
+	"..\..\..\..\..\apache\src\os\win32\os.h"\
+	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
 	
 
 "$(INTDIR)\mod_perl.obj"	"$(INTDIR)\mod_perl.sbr" : $(SOURCE) $(DEP_CPP_MOD_P)\
@@ -614,69 +570,54 @@ SOURCE=..\perl\perl_config.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_PERL_=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"arpa\inet.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_conf_globals.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"http_log.h"\
-	{$(INCLUDE)}"http_main.h"\
-	{$(INCLUDE)}"http_protocol.h"\
-	{$(INCLUDE)}"http_request.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"multithread.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"util_script.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
-NODEP_CPP_PERL_=\
-	"..\..\..\..\..\apache\src\main\os.h"\
-	"..\..\..\..\..\apache\src\main\sfio.h"\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
 	
 
 "$(INTDIR)\perl_config.obj" : $(SOURCE) $(DEP_CPP_PERL_) "$(INTDIR)"
@@ -686,55 +627,54 @@ NODEP_CPP_PERL_=\
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
 DEP_CPP_PERL_=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_conf_globals.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"http_log.h"\
-	{$(INCLUDE)}"http_main.h"\
-	{$(INCLUDE)}"http_protocol.h"\
-	{$(INCLUDE)}"http_request.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"multithread.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"util_script.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
 	
 
 "$(INTDIR)\perl_config.obj"	"$(INTDIR)\perl_config.sbr" : $(SOURCE)\
@@ -749,69 +689,54 @@ SOURCE=..\perl\perl_util.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_PERL_U=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"arpa\inet.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_conf_globals.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"http_log.h"\
-	{$(INCLUDE)}"http_main.h"\
-	{$(INCLUDE)}"http_protocol.h"\
-	{$(INCLUDE)}"http_request.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"multithread.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"util_script.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
-NODEP_CPP_PERL_U=\
-	"..\..\..\..\..\apache\src\main\os.h"\
-	"..\..\..\..\..\apache\src\main\sfio.h"\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
 	
 
 "$(INTDIR)\perl_util.obj" : $(SOURCE) $(DEP_CPP_PERL_U) "$(INTDIR)"
@@ -821,54 +746,54 @@ NODEP_CPP_PERL_U=\
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
 DEP_CPP_PERL_U=\
-	"..\..\..\..\apache_1.3b1-dev\src\main\alloc.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\buff.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\conf.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_conf_globals.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_config.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_core.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_log.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_main.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_protocol.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_request.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\httpd.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\multithread.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\util_script.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\os.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\readdir.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\regex\regex.h"\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
+	"..\..\..\..\..\apache\src\os\win32\os.h"\
+	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
 	
 
 "$(INTDIR)\perl_util.obj"	"$(INTDIR)\perl_util.sbr" : $(SOURCE)\
@@ -883,69 +808,54 @@ SOURCE=..\perl\perlio.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_PERLI=\
+	"..\..\..\..\..\apache\src\main\alloc.h"\
+	"..\..\..\..\..\apache\src\main\buff.h"\
+	"..\..\..\..\..\apache\src\main\conf.h"\
+	"..\..\..\..\..\apache\src\main\http_conf_globals.h"\
+	"..\..\..\..\..\apache\src\main\http_config.h"\
+	"..\..\..\..\..\apache\src\main\http_core.h"\
+	"..\..\..\..\..\apache\src\main\http_log.h"\
+	"..\..\..\..\..\apache\src\main\http_main.h"\
+	"..\..\..\..\..\apache\src\main\http_protocol.h"\
+	"..\..\..\..\..\apache\src\main\http_request.h"\
+	"..\..\..\..\..\apache\src\main\httpd.h"\
+	"..\..\..\..\..\apache\src\main\multithread.h"\
+	"..\..\..\..\..\apache\src\main\util_script.h"\
 	"..\..\..\..\..\apache\src\os\win32\os.h"\
 	"..\..\..\..\..\apache\src\os\win32\readdir.h"\
+	"..\..\..\..\..\apache\src\regex\regex.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\..\..\..\..\perl\lib\core\xsub.h"\
 	"..\perl\dirent.h"\
 	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"alloc.h"\
-	{$(INCLUDE)}"arpa\inet.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"buff.h"\
-	{$(INCLUDE)}"conf.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"http_conf_globals.h"\
-	{$(INCLUDE)}"http_config.h"\
-	{$(INCLUDE)}"http_core.h"\
-	{$(INCLUDE)}"http_log.h"\
-	{$(INCLUDE)}"http_main.h"\
-	{$(INCLUDE)}"http_protocol.h"\
-	{$(INCLUDE)}"http_request.h"\
-	{$(INCLUDE)}"httpd.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"multithread.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regex.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"util_script.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
-NODEP_CPP_PERLI=\
-	"..\..\..\..\..\apache\src\main\os.h"\
-	"..\..\..\..\..\apache\src\main\sfio.h"\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
 	
 
 "$(INTDIR)\perlio.obj" : $(SOURCE) $(DEP_CPP_PERLI) "$(INTDIR)"
@@ -954,59 +864,8 @@ NODEP_CPP_PERLI=\
 
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
-DEP_CPP_PERLI=\
-	"..\..\..\..\apache_1.3b1-dev\src\main\alloc.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\buff.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\conf.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_conf_globals.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_config.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_core.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_log.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_main.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_protocol.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\http_request.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\httpd.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\multithread.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\main\util_script.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\os.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\os\win32\readdir.h"\
-	"..\..\..\..\apache_1.3b1-dev\src\regex\regex.h"\
-	"..\perl\dirent.h"\
-	"..\perl\mod_perl.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	{$(INCLUDE)}"xsub.h"\
-	
 
-"$(INTDIR)\perlio.obj"	"$(INTDIR)\perlio.sbr" : $(SOURCE) $(DEP_CPP_PERLI)\
- "$(INTDIR)"
+"$(INTDIR)\perlio.obj"	"$(INTDIR)\perlio.sbr" : $(SOURCE) "$(INTDIR)"
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 
@@ -1017,47 +876,36 @@ SOURCE=..\perl\perlxsi.c
 !IF  "$(CFG)" == "ApacheModulePerl - Win32 Release"
 
 DEP_CPP_PERLX=\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dirent.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"nostdio.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perlsfio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"sys\stat.h"\
-	{$(INCLUDE)}"sys\types.h"\
-	{$(INCLUDE)}"unixish.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	
-NODEP_CPP_PERLX=\
-	"..\..\..\..\..\perl\lib\core\cw32imp.h"\
-	"..\..\..\..\..\perl\lib\core\os2ish.h"\
-	"..\..\..\..\..\perl\lib\core\plan9\plan9ish.h"\
-	"..\..\..\..\..\perl\lib\core\vmsish.h"\
+	"..\..\..\..\..\perl\lib\core\av.h"\
+	"..\..\..\..\..\perl\lib\core\config.h"\
+	"..\..\..\..\..\perl\lib\core\cop.h"\
+	"..\..\..\..\..\perl\lib\core\cv.h"\
+	"..\..\..\..\..\perl\lib\core\dosish.h"\
+	"..\..\..\..\..\perl\lib\core\embed.h"\
+	"..\..\..\..\..\perl\lib\core\extern.h"\
+	"..\..\..\..\..\perl\lib\core\form.h"\
+	"..\..\..\..\..\perl\lib\core\gv.h"\
+	"..\..\..\..\..\perl\lib\core\handy.h"\
+	"..\..\..\..\..\perl\lib\core\hv.h"\
+	"..\..\..\..\..\perl\lib\core\mg.h"\
+	"..\..\..\..\..\perl\lib\core\netdb.h"\
+	"..\..\..\..\..\perl\lib\core\op.h"\
+	"..\..\..\..\..\perl\lib\core\opcode.h"\
+	"..\..\..\..\..\perl\lib\core\perl.h"\
+	"..\..\..\..\..\perl\lib\core\perlio.h"\
+	"..\..\..\..\..\perl\lib\core\perlsdio.h"\
+	"..\..\..\..\..\perl\lib\core\perly.h"\
+	"..\..\..\..\..\perl\lib\core\pp.h"\
+	"..\..\..\..\..\perl\lib\core\proto.h"\
+	"..\..\..\..\..\perl\lib\core\regexp.h"\
+	"..\..\..\..\..\perl\lib\core\scope.h"\
+	"..\..\..\..\..\perl\lib\core\sv.h"\
+	"..\..\..\..\..\perl\lib\core\sys\socket.h"\
+	"..\..\..\..\..\perl\lib\core\util.h"\
+	"..\..\..\..\..\perl\lib\core\win32.h"\
+	"..\..\..\..\..\perl\lib\core\win32io.h"\
+	"..\..\..\..\..\perl\lib\core\win32iop.h"\
+	"..\perl\dirent.h"\
 	
 
 "$(INTDIR)\perlxsi.obj" : $(SOURCE) $(DEP_CPP_PERLX) "$(INTDIR)"
@@ -1066,41 +914,8 @@ NODEP_CPP_PERLX=\
 
 !ELSEIF  "$(CFG)" == "ApacheModulePerl - Win32 Debug"
 
-DEP_CPP_PERLX=\
-	"..\perl\dirent.h"\
-	{$(INCLUDE)}"av.h"\
-	{$(INCLUDE)}"config.h"\
-	{$(INCLUDE)}"cop.h"\
-	{$(INCLUDE)}"cv.h"\
-	{$(INCLUDE)}"dosish.h"\
-	{$(INCLUDE)}"embed.h"\
-	{$(INCLUDE)}"extern.h"\
-	{$(INCLUDE)}"form.h"\
-	{$(INCLUDE)}"gv.h"\
-	{$(INCLUDE)}"handy.h"\
-	{$(INCLUDE)}"hv.h"\
-	{$(INCLUDE)}"mg.h"\
-	{$(INCLUDE)}"netdb.h"\
-	{$(INCLUDE)}"op.h"\
-	{$(INCLUDE)}"opcode.h"\
-	{$(INCLUDE)}"perl.h"\
-	{$(INCLUDE)}"perlio.h"\
-	{$(INCLUDE)}"perlsdio.h"\
-	{$(INCLUDE)}"perly.h"\
-	{$(INCLUDE)}"pp.h"\
-	{$(INCLUDE)}"proto.h"\
-	{$(INCLUDE)}"regexp.h"\
-	{$(INCLUDE)}"scope.h"\
-	{$(INCLUDE)}"sv.h"\
-	{$(INCLUDE)}"sys\socket.h"\
-	{$(INCLUDE)}"util.h"\
-	{$(INCLUDE)}"win32.h"\
-	{$(INCLUDE)}"win32io.h"\
-	{$(INCLUDE)}"win32iop.h"\
-	
 
-"$(INTDIR)\perlxsi.obj"	"$(INTDIR)\perlxsi.sbr" : $(SOURCE) $(DEP_CPP_PERLX)\
- "$(INTDIR)"
+"$(INTDIR)\perlxsi.obj"	"$(INTDIR)\perlxsi.sbr" : $(SOURCE) "$(INTDIR)"
 	$(CPP) $(CPP_PROJ) $(SOURCE)
 
 

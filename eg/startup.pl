@@ -22,7 +22,7 @@
 
 #you may define Perl*Handler subroutines here too 
 
-
+1; #return true value
 
 
 

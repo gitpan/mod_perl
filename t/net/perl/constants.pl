@@ -6,10 +6,10 @@
 # Change 1..1 below to 1..last_test_to_print .
 # (It may become useful if the test is moved to ./t subdirectory.)
 
-use CGI::Switch ();
+use CGI ();
 use Apache::Constants;
 use strict qw(vars);
-my $q = CGI::Switch->new;
+my $q = CGI->new;
 $q->print($q->header(-type => "text/plain"));
 
 my $version = SERVER_VERSION; 

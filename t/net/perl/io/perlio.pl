@@ -17,6 +17,7 @@ if (defined &{$sub}) {
 else {
     print "Status: 200 Bottles of beer on the wall\n",
     "X-Perl-Version: $]\n";
+    print "X-Perl-Script: perlio.pl\n";
     print "X-Message: hello\n";
     print "Content-type: text/plain\n\n";
 

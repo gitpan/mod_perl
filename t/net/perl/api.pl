@@ -1,7 +1,7 @@
 use Apache ();
 use strict;
 
-my $tests = 26;
+my $tests = 27;
 my $i;
 my $r = Apache->request;
 $r->content_type("text/plain");
@@ -41,9 +41,11 @@ my(%err_headers_out) = $r->headers_out;
 test ++$i, keys %err_headers_out;
 #test ++$i, $r->err_header_out("Content-Type");
 $r->err_header_out('X-Die' => "uhoh"); 
-#$r->err_headers_out('X-Die' => "uhoh"); #test compatible
 test ++$i, $r->err_header_out("X-Die") eq "uhoh";
 
+$r->notes("FOO", 1); 
+$r->notes("ANoteKey", "TRUE");
+test ++$i, $r->notes("ANoteKey");
 test ++$i, $r->content_type;
 test ++$i, $r->handler;
 

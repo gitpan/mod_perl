@@ -26,6 +26,7 @@ lib/Apache/Options.pm
 lib/Apache/PerlSections.pm
 lib/Apache/Registry.pm
 lib/Apache/RegistryLoader.pm
+lib/Apache/Resource.pm
 #lib/Apache/Safe.pm
 lib/Apache/SIG.pm
 lib/Apache/StatINC.pm
@@ -47,8 +48,10 @@ src/modules/ApacheModulePerl/ApacheModulePerl.mak
 t/report.PL
 t/README
 t/TEST
+t/TEST.win32
 t/conf/httpd.conf.pl
 t/conf/httpd.conf-dist
+t/conf/httpd.conf-win32
 eg/httpd.conf.pl
 t/conf/mod_perl_srm.conf
 t/net/config.pl.dist
@@ -74,11 +77,12 @@ t/net/perl/hooks.pl
 t/net/perl/action.pl
 t/net/perl/api.pl
 t/net/perl/constants.pl
-t/net/perl/cgi.pl
+t/net/perl/cgi.pl.PL
 t/net/perl/ssi.pl
 t/net/perl/echo
 t/net/perl/test
 t/net/perl/taint.pl
+t/net/perl/raw.pl
 #t/net/perl/resolver.pl
 t/net/perl/io/redir.pl
 t/net/perl/io/perlio.pl
@@ -90,6 +94,7 @@ lib/Apache/Status.pm
 src/Makefile.tmpl-Ben-SSL
 lib/Bundle/Apache.pm
 t/docs/auth/.htaccess
+t/docs/error.txt
 t/docs/env.iphtml
 t/docs/lists.ehtml
 t/docs/test.html

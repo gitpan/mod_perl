@@ -1,7 +1,7 @@
 package Apache::PerlSections;
 
 use strict;
-$Apache::PerlSections::VERSION = (qw$Revision: 1.10 $)[1];
+$Apache::PerlSections::VERSION = (qw$Revision: 1.11 $)[1];
 
 use Devel::Symdump ();
 use Data::Dumper ();
@@ -20,6 +20,7 @@ sub dump {
     );
 
     while(my($meth,$type) = each %dump) {
+	no strict 'refs';
 	push @retval, "$meth:\n";
 	for my $name ($stab->$meth()) {
 	    my $s = Data::Dumper->Dump([*$name{$type}], [$name]);

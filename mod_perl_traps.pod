@@ -1,4 +1,4 @@
-=head1 NAME
+head1 NAME
 
 mod_perl_traps - common/known mod_perl traps
 
@@ -166,14 +166,29 @@ command:
 
  % perl -V:libs
 
-If C<-lgdbm> is before C<-lndbm> or C<-ldb>, example:
+If C<-lgdbm> or C<-ldb> is before C<-lndbm>, example:
 
  libs='-lnet -lnsl_s -lgdbm -lndbm -ldb -ldld -lm -lc -lndir -lcrypt';
 
-Edit B<Config.pm> and move C<-lgdbm> to the end of the list.  Here's
-how to find B<Config.pm>:
+Edit B<Config.pm> and move C<-lgdbm> and C<-ldb> to the end of the
+list.  Here's how to find B<Config.pm>:
 
  % perl -MConfig -e 'print "$Config{archlibexp}/Config.pm\n"'
+
+Another solution for building Apache/mod_perl+mod_auth_dbm under Solaris
+is to remove the DBM and NDBM "emulation" from libgdbm.a.  Seems
+Solaris already provides its own DBM and NDBM, and there's no reason
+to build GDBM with them (for us anyway).
+
+In our Makefile for GDBM, we changed
+
+  OBJS = $(DBM_OF) $(NDBM_OF) $(GDBM_OF)
+
+to
+
+  OBJS = $(GDBM_OF)
+
+Rebuild libgdbm, then Apache/mod_perl.  
 
 =back
 

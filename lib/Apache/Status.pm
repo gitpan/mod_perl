@@ -1,7 +1,7 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.16 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.17 $)[1];
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -100,7 +100,7 @@ sub status_rgysubs {
     my(@retval);
     local $_;
     my $uri = $r->uri;
-    push @retval, "<b>Click on package name to see it's symbol table</b><p>\n";
+    push @retval, "<b>Click on package name to see its symbol table</b><p>\n";
     foreach (sort keys %{$Apache::Registry}) {
 	push @retval, 
 	#$q->checkbox(-name => "RGY", 

@@ -25,12 +25,14 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.05";
+$VERSION = "1.07";
 
 use subs qw(_prompt iedit asrc);
 
+gen_script("t/net/perl/cgi.pl");
+gen_script("t/report");
+
 unless ($Is_Win32) {
-    report_setup();
     readline_setup();        
 }
 
@@ -52,12 +54,15 @@ unless ($Is_Win32) {
                 <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
 
     iedit "t/net/perl/cgi.pl", "s:^(#!.*perl):#!$Config{'perlpath'}:";
+
+    #soes yous can try out the zamples
+    unless (-l "t/net/perl/eg") {
+	system "$Config{lns} $PWD/eg $PWD/t/net/perl/eg";
+    }
+
+    mkdir "t/logs", 0755;
 }
 
-#soes yous can try out the zamples
-unless (-l "t/net/perl/eg") {
-    system "$Config{lns} $PWD/eg $PWD/t/net/perl/eg";
-}
 unless (-e "t/docs/test.shtml") {
     cp "t/docs/test.html", "t/docs/test.shtml";
 }
@@ -268,6 +273,19 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    cp $_, "$atopdir/$_";
 	}
 	close MANI;
+
+	open FH, "$APACHE_SRC/Makefile";
+	while(<FH>) {
+	    $SSL_BASE  = $1 if /SSL_BASE\s*=\s*(.*)/;
+	    $EXTRA_CFLAGS = $1 if /CFLAGS1\s*=\s*(.*)/;
+	}
+	close FH;
+	if($SSL_BASE) {
+	    $SSL_INCLUDE = " -I$SSL_BASE/include ";
+	    $EXTRA_CFLAGS .= $SSL_INCLUDE;
+	}
+	print "EXTRA_CFLAGS: $EXTRA_CFLAGS\n" if $EXTRA_CFLAGS;
+
 	unless(-e "src/Configuration" and (-M "src/Configuration" < -M $conf)) {
 	    unless(-e $conf) {
 		cp "$conf.tmpl", $conf;
@@ -288,13 +306,6 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	$cfgfile = $CONFIG ? $CONFIG : "$PWD/$conf";
 	system "(cd $adir && ./Configure${dash_make} -file $cfgfile)";
     }
-
-    open FH, "$APACHE_SRC/Makefile";
-    while(<FH>) {
-	$EXTRA_CFLAGS = $1 if /CFLAGS1\s*=\s*(.*)/;
-    }
-    close FH;
-    print "EXTRA_CFLAGS: $EXTRA_CFLAGS\n" if $EXTRA_CFLAGS;
 
     last if $APACHE_SRC;
 }
@@ -317,13 +328,24 @@ if($APACHE_SRC) {
 	    "(need 1.2.0 or higher)";
     }
 
-    unless($httpdv >= 130) {
+    if($httpdv >= 130) {
+	if($callback_hooks{PERL_CHILD_INIT}) {
+	    $My::child_init++;
+
+	}
+    }
+    else {
 	$callback_hooks{PERL_CHILD_INIT} = 0;
 	$cant_hook{PERL_CHILD_INIT} = 
 	    "(need 1.3b2 or higher)";
     }
 
-    unless($mmn >= 19970728) {
+    if($mmn >= 19970728) {
+	if($callback_hooks{PERL_CHILD_EXIT}) {
+	    $My::child_exit++
+	}
+    }
+    else {
 	$callback_hooks{PERL_CHILD_EXIT} = 0;
 	$cant_hook{PERL_CHILD_EXIT} = 
 	    "(need 1.3b2 or higher)";
@@ -472,6 +494,8 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
     my $v = httpd_version($APACHE_SRC, 1);
 
     conf_append("LockFile /tmp/mod_perl.lock") if $v >= 121;
+    conf_append("PerlChildInitHandler My::child_init") if $My::child_init;
+    conf_append("PerlChildExitHandler My::child_exit") if $My::child_exit;
 }
 
 
@@ -665,7 +689,24 @@ sub MY::pasthru {
 }
 
 sub MY::test {
+    my $script = "t/TEST";
+    $script .= ".win32" if $Is_Win32;
+    my $my_test = $Is_Win32 ? q(
+
+test:	run_tests
+
+) :
+
+q(
+
+test:	pure_all start_httpd run_tests kill_httpd
+
+);
+
     join '', @test_pre_init,
+    qq(
+MP_TEST_SCRIPT=$script
+),
     q(
 TEST_VERBOSE=0
 
@@ -686,10 +727,16 @@ start_httpd: test_pre_init
 	@sleep 2
 	@echo done
 
-run_tests:
-	$(FULLPERL) t/TEST $(TEST_VERBOSE)
+rehttpd:   kill_httpd start_httpd
 
-test:	pure_all start_httpd run_tests kill_httpd
+run_tests:
+	$(FULLPERL) $(MP_TEST_SCRIPT) $(TEST_VERBOSE)
+
+),
+
+$my_test,
+
+q(
 
 test_report:
 	$(MAKE) test | t/report
@@ -871,6 +918,7 @@ sub conf_fixup {
 #    $inc = qq{$dssv=\\"mod_perl/$VERSION\\" } if $ADD_VERSION;
 #    $inc .= " $ccopts -I. -I../.. -DUSE_PERL_SSI" if $PERL_SSI; 
     $inc .= " -DAPACHE_SSL" if is_ssl() and $PERL_SSI;
+    $inc .= $SSL_INCLUDE if $SSL_INCLUDE;
     iedit $cfg,
     q{next unless /EXTRA_CFLAGS\s*=/;}.
 	q{next if /mod_perl/; chomp; }.
@@ -937,14 +985,15 @@ sub has_module {
     return 0;
 }
  
-sub report_setup {
+sub gen_script {
+    my $file = shift;
     local(*IN,*OUT);
-    open IN, "t/report.PL" or die "Couldn't open t/report.PL: $!";
-    open OUT, ">t/report" or die "Couldn't open >t/report: $!";
+    open IN, "$file.PL" or die "Couldn't open $file.PL: $!";
+    open OUT, ">$file" or die "Couldn't open $file: $!";
     print OUT "#!$Config{perlpath}\n", join '', <IN>;
     close OUT;
     close IN;
-    chmod 0755, "t/report";
+    chmod 0755, "$file";    
 }
 
 sub iedit {
