@@ -1,26 +1,17 @@
 Apache/Perl API
 ---------------
 Type 'perldoc Apache' for info on how to use the Perl-Apache API.
-See also: Apache::Registry, Apache::SSI, Apache::CGI, Apache::Debug
+See the lib/ directory for example modules.
 See the eg/ directory for example scripts.
 
-
 mod_perl
---------
-To tell Apache you want mod_perl to handle your scripts add to your
-srm.conf:
-
-    AddType httpd/perl .pl
-
-
-mod_perl_fast
 -------------
-To tell Apache you want mod_perl_fast to handle your scripts add to
+To tell Apache you want mod_perl to handle your scripts add to
 your srm.conf:
 
     AddHandler perl-script .fpl
 
-Now, any file with the extension '.fpl' will be executed by mod_perl_fast.
+Now, any file with the extension '.fpl' will be executed by mod_perl.
 However, if your PerlHandler is Apache::Registry::handler, this module
 will check to see if 'ExecCGI' is allowed in that directory before
 executing it.
@@ -59,12 +50,12 @@ PerlHandler Apache::Registry::handler
 Options ExecCGI
 </Location>
 
-By default, mod_perl_fast does not send any headers by itself, however, you
+By default, mod_perl does not send any headers by itself, however, you
 may wish to change this:
 
     PerlSendHeader On	
 
-By default, mod_perl_fast does not setup %ENV, you may wish to change this:
+By default, mod_perl does not setup %ENV, you may wish to change this:
 
     PerlSetupEnv On
 
@@ -90,8 +81,6 @@ of the subroutine to call.
 
 WARNINGS
 --------
-
-For *both* mod_perl and mod_perl_fast:
 
 Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin) directory.
 

@@ -2,7 +2,7 @@ package Apache::Constants;
 
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = "1.00";
+$VERSION = "1.01";
 
 use Carp ();
 use Exporter ();
@@ -14,7 +14,7 @@ use DynaLoader ();
    options => [qw(OPT_NONE OPT_INDEXES OPT_INCLUDES 
 		  OPT_SYMLINKS OPT_EXECCGI OPT_UNSET OPT_INCNOEXEC
 		  OPT_SYM_OWNER OPT_MULTI OPT_ALL)],
-   response_codes => [qw(OK
+   response_codes => [qw(
 			 DOCUMENT_FOLLOWS
 			 PARTIAL_CONTENT 
 			 MULTIPLE_CHOICES

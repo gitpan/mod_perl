@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.12 1996/10/20 17:15:51 dougm Exp $
+# $Id: Makefile,v 1.13 1996/10/25 13:25:10 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -94,7 +94,7 @@ perlxsi.c:
 Apache.c: Apache.xs
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Apache.xs >Apache.c
 
-PERLSRC=mod_perl.c mod_perl_fast.c Apache.c perlxsi.c
+PERLSRC=mod_perl.c Apache.c perlxsi.c
 
 OBJS=$(PERLSRC:.c=.o)
 
@@ -108,7 +108,7 @@ $(LIB):	$(OBJS)
 
 # dependencies
 $(OBJS): mod_perl.h $(INCDIR)/httpd.h $(INCDIR)/http_config.h
-mod_perl_fast.o: perlxsi.c Apache.c 
+mod_perl.o: perlxsi.c Apache.c 
 
 # various forms of cleanup
 tidy:

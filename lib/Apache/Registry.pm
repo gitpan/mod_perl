@@ -5,8 +5,8 @@ use Apache::Options qw(&OPT_EXECCGI);
 require FileHandle;
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.15 1996/10/09 05:45:07 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.15 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.16 1996/10/25 13:25:10 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
 
 #should really just use for developing.
 $Apache::Registry::Debug ||= 0;
@@ -76,7 +76,7 @@ sub handler {
 	    return 500 unless $Debug;
 	    return Apache::Debug::dump($r, 500);
 	}
-	return 200;
+	return $r->status;
     } else {
 	return 404 unless $Debug;
 	return Apache::Debug::dump($r, 404);

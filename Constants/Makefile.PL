@@ -1,7 +1,13 @@
 use ExtUtils::MakeMaker;
 use Config;
 
-$VERSION = "1.00";
+$VERSION = "1.01";
+
+for (<../../apache*/src>) {
+    print "Checking $_ for httpd.h\n";
+    last if -e "$_/httpd.h", $httpd_src=$_;
+    undef $httpd_src;
+}
 
 $httpd_src ||= prompt "httpd source directory?", "/opt/src/apache/src"; 
 unless (-e "$httpd_src/httpd.h") {

@@ -1,8 +1,9 @@
 package Apache;
 
 use vars qw($VERSION);
+use Apache::Constants;
 
-$VERSION = "1.04";
+$VERSION = "1.05";
 
 bootstrap Apache $VERSION;
 
@@ -42,14 +43,22 @@ sub send_cgi_header {
 		$r->status_line($val);
 		next;
 	    }
-	    elsif($key eq "Location" and $val =~ m,^/,) {
-	   #/* This redirect needs to be a GET no matter what the original
-	   # * method was.
-	   # */
-		$r->method("GET");
-		$r->method_number(0); #M_GET 
-		$r->internal_redirect_handler($val);
-		return 0;
+	    elsif($key eq "Location") {
+		if($val =~ m,^/,) {
+		    #/* This redirect needs to be a GET no 
+                    #   matter what the original
+		    # * method was.
+
+		    $r->method("GET");
+		    $r->method_number(0); #M_GET 
+		    $r->internal_redirect_handler($val);
+		    return OK;
+		}
+		else {
+		    $r->header_out(Location => $val);
+		    $r->status(302);
+		    next;
+		}
 	    }
 	    elsif($key eq "Content-type") {
 		$r->content_type($val);

@@ -44,7 +44,7 @@ extern "C" {
 #if MODULE_MAGIC_NUMBER > 19960526 
 #define PERL_READ_SETUP \
        setup_client_block(r); \
-       extra = 1; 
+       extra = 0; 
 #else
 #define PERL_READ_SETUP
 #endif 
@@ -221,11 +221,11 @@ typedef struct {
    int setup_env;
 } perl_dir_config;
 
-extern module perl_fast_module;
+extern module perl_module;
 
 /* prototypes */
 
-int perl_fast_handler(request_rec *r);
+int perl_handler(request_rec *r);
 void perl_init (server_rec *s, pool *p);
 void *create_perl_dir_config (pool *p, char *dirname);
 void *create_perl_server_config (pool *p, server_rec *s);

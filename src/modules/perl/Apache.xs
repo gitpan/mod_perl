@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.32 1996/10/21 01:35:55 dougm Exp $ */
+/* $Id: Apache.xs,v 1.33 1996/10/25 13:25:10 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -897,7 +897,7 @@ dir_config(r, key)
    CODE:
    {
    perl_dir_config *c;
-   c = get_module_config(r->per_dir_config, &perl_fast_module);
+   c = get_module_config(r->per_dir_config, &perl_module);
    RETVAL = table_get(c->vars, key);
    }
 

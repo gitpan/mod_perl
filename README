@@ -1,18 +1,14 @@
-  
 README for the Apache/Perl modules
 
-These are Apache modules that embed a perl interpreter in the HTTP
-server.  The benefit of this is that we are able to run scripts
-without going through the expensive (fork/exec/parameter
-passing/parsing, etc.) CGI interface.  The scripts will run faster and
-they have direct access to the C API of the server.
+This Apache module embeds a perl interpreter in the HTTP server.  
+One benefit of this is that we are able to run scripts without 
+going through the expensive (fork/exec/parameter passing/parsing, 
+perl-startup time, etc.) CGI interface.  
+Not only will scripts run faster, they have direct access to the C API 
+of the server, allowing the developer to extend Apache server 
+functionality with modules written in Perl.
 
-The current approach of mod_perl is to allocate and construct a new
-perl interpreter for each request.  The interpreter will then parse
-and run a perl script and we finally destruct the perl interpreter in
-order to free memory consumed.
-
-The current approach of mod_perl_fast is to allocate and construct one
+The current approach of mod_perl is to allocate and construct one
 perl interpreter when the server starts.  At the same time, load,
 parse and run one perl script, which may pull in other perl code such
 as your favorite modules.  This also allows you to initiate persistent
@@ -40,8 +36,9 @@ modules.
 There are modules on the way to support the CGI::* modules as well.
 
 It is also possible to write full-blown Apache modules in Perl for
-things such as server side includes.  See the Apache::SSI and 
-Apache::Registry modules as examples.
+things such as server side includes.  See the Apache::SSI, Apache::Authen,
+Apache::AuthzAge, Apache::AccessLimitNum and Apache::Registry modules as 
+examples.
  
 For comments, questions, bug-reports, announcements, etc., send mail
 to majordomo@listproc.itribe.net with the string "subscribe modperl"
@@ -52,28 +49,21 @@ there is a hypermail archive for this list at:
  
 http://www.coe.missouri.edu/~faq/lists/modperl/
  
-
 The latest version of this software and other information is available
 at: http://www.osf.org/~dougm/apache/
 
 KNOWN BUGS
 
-mod_perl leaks memory, this is a problem with perl itself, which is
-being fixed.
-
-mod_perl_fast leaks memory when the server is restarted this too is a
+mod_perl leaks memory when the server is restarted, this is a
 problem with perl itself, which is being fixed.
 
 Installation needs work.
 
 TODO
 o Provide full support for CGI.pm and CGI::* module with Apache::* subclasses
-o Make sure we are inline with Apache's security policy
 o Apache::Database module or some such to manage 
   persistent database connections 
-o Resolve multiple perl interpreter issues.
 o Complete Apache.xs interface
-o Look closer at the PerlIO and TIEHANDLE interface
 o Provide an optional and configurable Safe wrapper around embedded scripts
   (almost there)
 

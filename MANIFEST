@@ -23,7 +23,6 @@ README
 UsersGuide
 eg/cgi-pm.pl
 eg/file_upload.fpl
-eg/mod_perl_eg.pl
 eg/mpf_eg.pl
 eg/perlio.pl
 eg/registry.fpl
@@ -41,11 +40,9 @@ lib/Apache/SSI.pm
 lib/Apache/TieHandle.pm
 pp_hot.patch
 src/Makefile.tmpl
-src/mod_alias.patch
 src/modules/perl/Apache.xs
 src/modules/perl/ldopts
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
-src/modules/perl/mod_perl_fast.c
 src/modules/perl/typemap
 src/modules/perl/Makefile

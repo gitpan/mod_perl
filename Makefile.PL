@@ -1,9 +1,13 @@
 use ExtUtils::MakeMaker;
 use Config;
 
+# Patch up the Makefiles we are going to use with Apache
+system $^X, "-pi", "-e", "s!^PERL=.*!PERL=$Config{'perlpath'}!",
+            "src/Makefile.tmpl", "src/modules/perl/Makefile";
+
 WriteMakefile(
     NAME	=> "mod_perl",
-    VERSION => "0.83_09",
+    VERSION => "0.83_10",
 #    SKIP      => [qw(static dynamic)], #for now
 #    'linkext' => {LINKTYPE => '' }, 	      
 #    MAP_TARGET	=> "httpd",
@@ -13,7 +17,7 @@ WriteMakefile(
    'dist'    => {
 	COMPRESS=> 'gzip -9f', SUFFIX=>'gz', 
 	DIST_DEFAULT => 'all tardist',
-	POSTOP => 'mv $(DISTNAME)-*.tar.gz ../'
+	POSTOP => 'mv $(DISTNAME)-*.tar.gz /users/dougm/public_html/apache'
 	},
     clean	=> {
 	FILES	=> "Apache.c *.o *~"

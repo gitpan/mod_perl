@@ -1,12 +1,5 @@
 INSTALLATION for mod_perl
 
-**IMPORTANT**
--------------
-
-Currently, you can only use mod_perl *or* mod_perl_fast.
-You may however, build Apache with both modules.
-To "turn off" mod_perl, simply #comment out the AddType httpd/perl .pl in srm.conf.
-
 Prerequisites
 -------------
 
@@ -51,10 +44,6 @@ directory):
 For mod_perl add:
 
 	Module perl_module	   modules/perl/libmodperl.a
-
-For mod_perl_fast add:
-
-	Module perl_fast_module	   modules/perl/libmodperl.a	
 
 We suggest you add this entry at the end of the Configuration file if you want your
 callback hooks to have precedence over core handlers.
@@ -123,8 +112,7 @@ Please send mail to modperl@listproc.itribe.net with the output of:
 
     Output of perl -v; perl -V
 
-    which module you are trying to use (mod_perl or mod_perl_fast),
-    and version of the package.
+    version of the mod_perl package.
 
     which script from the eg/ directory you are using.
     (please try a script from there first.)

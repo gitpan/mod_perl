@@ -15,6 +15,25 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.83_10
+
+send_cgi_header now sets $r->status to REDIRECT when it finds a Location
+header which is not an internal redirect
+
+Apache::Registry now returns $r->status rather than always OK
+
+dropped old approach of the original mod_perl.c, mod_perl_fast functionality
+has moved to the all-knowing, all-doing mod_perl
+
+Makefile.PL for Apache::Constants looks for httpd.h in ../../apache*/src/ 
+before prompting
+
+dropped OK from @{$Apache::Constants::EXPORT_TAGS{response_codes}}
+
+updated Constants.xs with patch from Gisle
+
+applied Makefile.PL patch from Gisle to set PERL= in Makefile*
+
 =item 0.83_09
 
 fixed bug with get_basic_auth_pw spotted by Patrick Kane <modus@enews.com>

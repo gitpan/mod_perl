@@ -64,6 +64,234 @@ char *name;
     case 'G':
 	break;
     case 'H':
+       if (strEQ(name, "HTTP_ACCEPTED"))
+#ifdef HTTP_ACCEPTED
+           return HTTP_ACCEPTED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_BAD_GATEWAY"))
+#ifdef HTTP_BAD_GATEWAY
+           return HTTP_BAD_GATEWAY;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_BAD_REQUEST"))
+#ifdef HTTP_BAD_REQUEST
+           return HTTP_BAD_REQUEST;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_CONFLICT"))
+#ifdef HTTP_CONFLICT
+           return HTTP_CONFLICT;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_CONTINUE"))
+#ifdef HTTP_CONTINUE
+           return HTTP_CONTINUE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_CREATED"))
+#ifdef HTTP_CREATED
+           return HTTP_CREATED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_FORBIDDEN"))
+#ifdef HTTP_FORBIDDEN
+           return HTTP_FORBIDDEN;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_GATEWAY_TIME_OUT"))
+#ifdef HTTP_GATEWAY_TIME_OUT
+           return HTTP_GATEWAY_TIME_OUT;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_GONE"))
+#ifdef HTTP_GONE
+           return HTTP_GONE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_INTERNAL_SERVER_ERROR"))
+#ifdef HTTP_INTERNAL_SERVER_ERROR
+           return HTTP_INTERNAL_SERVER_ERROR;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_LENGTH_REQUIRED"))
+#ifdef HTTP_LENGTH_REQUIRED
+           return HTTP_LENGTH_REQUIRED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_METHOD_NOT_ALLOWED"))
+#ifdef HTTP_METHOD_NOT_ALLOWED
+           return HTTP_METHOD_NOT_ALLOWED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_MOVED_PERMANENTLY"))
+#ifdef HTTP_MOVED_PERMANENTLY
+           return HTTP_MOVED_PERMANENTLY;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_MOVED_TEMPORARILY"))
+#ifdef HTTP_MOVED_TEMPORARILY
+           return HTTP_MOVED_TEMPORARILY;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_MULTIPLE_CHOICES"))
+#ifdef HTTP_MULTIPLE_CHOICES
+           return HTTP_MULTIPLE_CHOICES;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_NON_AUTHORITATIVE"))
+#ifdef HTTP_NON_AUTHORITATIVE
+           return HTTP_NON_AUTHORITATIVE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_NOT_ACCEPTABLE"))
+#ifdef HTTP_NOT_ACCEPTABLE
+           return HTTP_NOT_ACCEPTABLE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_NOT_FOUND"))
+#ifdef HTTP_NOT_FOUND
+           return HTTP_NOT_FOUND;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_NOT_IMPLEMENTED"))
+#ifdef HTTP_NOT_IMPLEMENTED
+           return HTTP_NOT_IMPLEMENTED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_NOT_MODIFIED"))
+#ifdef HTTP_NOT_MODIFIED
+           return HTTP_NOT_MODIFIED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_NO_CONTENT"))
+#ifdef HTTP_NO_CONTENT
+           return HTTP_NO_CONTENT;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_OK"))
+#ifdef HTTP_OK
+           return HTTP_OK;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_PARTIAL_CONTENT"))
+#ifdef HTTP_PARTIAL_CONTENT
+           return HTTP_PARTIAL_CONTENT;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_PAYMENT_REQUIRED"))
+#ifdef HTTP_PAYMENT_REQUIRED
+           return HTTP_PAYMENT_REQUIRED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_PRECONDITION_FAILED"))
+#ifdef HTTP_PRECONDITION_FAILED
+           return HTTP_PRECONDITION_FAILED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_PROXY_AUTHENTICATION_REQUIRED"))
+#ifdef HTTP_PROXY_AUTHENTICATION_REQUIRED
+           return HTTP_PROXY_AUTHENTICATION_REQUIRED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_REQUEST_ENTITY_TOO_LARGE"))
+#ifdef HTTP_REQUEST_ENTITY_TOO_LARGE
+           return HTTP_REQUEST_ENTITY_TOO_LARGE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_REQUEST_TIME_OUT"))
+#ifdef HTTP_REQUEST_TIME_OUT
+           return HTTP_REQUEST_TIME_OUT;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_REQUEST_URI_TOO_LARGE"))
+#ifdef HTTP_REQUEST_URI_TOO_LARGE
+           return HTTP_REQUEST_URI_TOO_LARGE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_RESET_CONTENT"))
+#ifdef HTTP_RESET_CONTENT
+           return HTTP_RESET_CONTENT;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_SEE_OTHER"))
+#ifdef HTTP_SEE_OTHER
+           return HTTP_SEE_OTHER;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_SERVICE_UNAVAILABLE"))
+#ifdef HTTP_SERVICE_UNAVAILABLE
+           return HTTP_SERVICE_UNAVAILABLE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_SWITCHING_PROTOCOLS"))
+#ifdef HTTP_SWITCHING_PROTOCOLS
+           return HTTP_SWITCHING_PROTOCOLS;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_UNAUTHORIZED"))
+#ifdef HTTP_UNAUTHORIZED
+           return HTTP_UNAUTHORIZED;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_UNSUPPORTED_MEDIA_TYPE"))
+#ifdef HTTP_UNSUPPORTED_MEDIA_TYPE
+           return HTTP_UNSUPPORTED_MEDIA_TYPE;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_USE_PROXY"))
+#ifdef HTTP_USE_PROXY
+           return HTTP_USE_PROXY;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_VARIANT_ALSO_VARIES"))
+#ifdef HTTP_VARIANT_ALSO_VARIES
+           return HTTP_VARIANT_ALSO_VARIES;
+#else
+           goto not_there;
+#endif
+       if (strEQ(name, "HTTP_VERSION_NOT_SUPPORTED"))
+#ifdef HTTP_VERSION_NOT_SUPPORTED
+           return HTTP_VERSION_NOT_SUPPORTED;
+#else
+           goto not_there;
+#endif
 	if (strEQ(name, "HUGE_STRING_LEN"))
 #ifdef HUGE_STRING_LEN
 	    return HUGE_STRING_LEN;
@@ -103,6 +331,12 @@ char *name;
 	    return M_CONNECT;
 #else
 	    goto not_there;
+#endif
+        if (strEQ(name, "MODULE_MAGIC_NUMBER"))
+#ifdef MODULE_MAGIC_NUMBER
+            return MODULE_MAGIC_NUMBER;
+#else
+            goto not_there;
 #endif
 	if (strEQ(name, "M_DELETE"))
 #ifdef M_DELETE
