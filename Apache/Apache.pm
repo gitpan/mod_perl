@@ -6,7 +6,7 @@ use DynaLoader ();
 
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(exit warn);
-$VERSION = "1.13";
+$VERSION = "1.14";
 $Apache::CRLF = "\015\012";
 
 bootstrap Apache $VERSION;
@@ -107,11 +107,8 @@ sub send_cgi_header {
 	if (/^(\S+?):\s*(.*)$/) {
 	    ($key, $val) = ($1, $2);
 	    last unless $key;
-	    if($key eq "Status") {
-		$r->status_line($val);
-		next;
-	    }
-	    elsif($key eq "Location") {
+	    $r->cgi_header_out($key, $val);
+	    if($key eq "Location") {
 		if($val =~ m,^/,) {
 		    #/* This redirect needs to be a GET no 
                     #   matter what the original
@@ -122,20 +119,6 @@ sub send_cgi_header {
 		    $r->internal_redirect_handler($val);
 		    return OK;
 		}
-		else {
-		    $r->header_out(Location => $val);
-		    $r->err_header_out(Location => $val);
-		    $r->status(302);
-		    next;
-		}
-	    }
-	    elsif($key eq "Content-type") {
-		$r->content_type($val);
-		next;
-	    }
-	    else {
-		$r->header_out($key,$val);
-		next;
 	    }
 	}
 	else {
@@ -740,6 +723,16 @@ implemented in http_main.c.
 kill_timeout() will disarm either variety of timeout.
 
 reset_timeout() resets the timeout in progress.
+
+=item $r->register_cleanup($code_ref)
+
+Register a cleanup function which is called just before $r->pool is
+destroyed.
+
+ $r->register_cleanup(sub {
+     my $r = shift;
+     warn "registered cleanup called for ", $r->uri, $/;
+ });
 
 =back
 

@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath rmtree);
 use Cwd;
 
-$VERSION = "0.98";
+$VERSION = "0.98_03";
 #
 # Check if Readline is installed
 #
@@ -87,10 +87,11 @@ $STATIC = 0;
    PERL_METHOD_HANDLERS
 };
 $callback_alias{PERL_INIT} = "PERL_HEADER_PARSER";
+$callback_alias{PERL_CLEANUP} = "PERL_LOG";
 %callback_hooks = map { $_,0 } @callback_hooks;
 $callback_hooks{PERL_HANDLER} = 1; #PerlHandler always on
-$callback_hooks{PERL_CLEANUP} = 1;
-$callback_hooks{PERL_TRANS}   = 1;
+#$callback_hooks{PERL_CLEANUP} = 1;
+#$callback_hooks{PERL_TRANS}   = 1;
 %cant_hook = ();
 
 while($_ = shift) {
@@ -132,7 +133,7 @@ unless (@adirs) {
     print "Enter `q' to stop search\n";
     while(1) {
        print "Please tell me where I can find your apache src\n" ; 
-       $src_dir = _prompt "", $APACHE_SRC_DEFAULT;
+       $src_dir = _prompt("", $APACHE_SRC_DEFAULT);
        last if $src_dir eq "q";
 	if(-d $src_dir) {
 	    push(@adirs, $src_dir);
@@ -151,14 +152,14 @@ foreach $adir (@adirs) {
 
     if (-e $httpd_h) {
 	unless($APACHE_SRC) {
-	    $ans = _prompt "Configure mod_perl with $adir ?", "y";
+	    $ans = _prompt("Configure mod_perl with $adir ?", "y");
 	    next unless $ans =~ /^y$/i;
 	    $APACHE_SRC = $adir;
 	}
 	$IsBenSSL = -e "$adir/apache_ssl.c";
 	last unless(-e $conf || -e "$conf.tmpl"); #building from 'make offsite-tar' 
 	unless ($NO_HTTPD) {
-	    $ans = _prompt "Shall I build httpd in $adir for you?", "y";
+	    $ans = _prompt("Shall I build httpd in $adir for you?", "y");
 	    ++$NO_HTTPD unless $ans =~ /^y$/i;
 	}
 	last if $NO_HTTPD;
@@ -196,10 +197,11 @@ foreach $adir (@adirs) {
 	    $conf = "src/Configuration";
 
 	    if ($ADD_VERSION) {
+		my $inc = " -I$Config{archlibexp}/CORE -I./";
 		system $^X, "-pi", "-e",  
 		q{next unless /EXTRA_CFLAGS\s*=/;}.
  	        q{next if /mod_perl/; chomp; }.
-		qq{\$_ .= q: -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;},
+		qq{\$_ .= q: $inc -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;},
 			$conf;
 	    }
 
@@ -259,7 +261,7 @@ EOT
 }
 
 unless ($NO_HTTPD) {
-    ++$STATIC if $Config{osname} =~ /^aix$/i;
+    ++$STATIC if $Config{osname} =~ /^(aix|bsdos)$/i;
 
     if($no_header_parser{$APACHE_SRC}) {
 	$callback_hooks{PERL_HEADER_PARSER} = 0;
@@ -293,7 +295,7 @@ unless ($NO_HTTPD) {
     "s/^#APACHE_SSL/APACHE_SSL/",
     "$APACHE_SRC/modules/perl/Makefile" if is_ssl();
 
-    my $pv = $]+0;
+    my $p54 = "-DHAVE_PERL_5__4" if $] > 5.00398;
     my $edit_note = quotemeta(<<EOF);
 
 #---------------------------------------------------------------------
@@ -308,7 +310,9 @@ unless ($NO_HTTPD) {
 # INSTEAD
 #---------------------------------------------------------------------
 
-PERL_VERSION = $pv
+#let's not bother with patchlevel.h
+PERL_VERSION = $p54
+
 EOF
     system $^X, "-pi~", "-e", 
     "s/^#__ORIGINAL__/$edit_note/",
@@ -344,8 +348,9 @@ unless(-e "t/conf/httpd.conf") {
 	"s/$Port/$PORT/;", "t/net/config.pl";
     }
 
+    #expand ./t to full path
     system $^X, "-pi~", "-e", 
-    "s:^(DocumentRoot) .*:\$1 $PWD/t/docs:", "t/conf/httpd.conf";
+    "s: \./t(\S*): $PWD/t\$1:", "t/conf/httpd.conf";
 
     for (qw(User Group)) {
 	system $^X, "-pi~", "-e", "s/^$_ .*/$_ $$_/", "t/conf/httpd.conf";
@@ -456,7 +461,7 @@ EOF
         close FH;
 }
 
-
+print "Ignore warnings about Constants.xs and Apache.xs\n" if $STATIC;
 WriteMakefile(
     NAME    => "mod_perl",
     VERSION => $VERSION,
@@ -623,14 +628,19 @@ sub httpd_version {
 }
 
 sub cleanup_for_static {
-    rename "Apache/Apache.xs.disabled", "Apache/Apache.xs";
+    for (qw(Apache Constants)) {
+	rename "${_}/${_}.xs.disabled", "${_}/${_}.xs";
+    }
 }
 
 sub setup_for_static {
     my $d = "$APACHE_SRC/modules/perl";
-    cp "Apache/Apache.xs", $d;
     cp "Apache/typemap", $d;
-    rename "Apache/Apache.xs", "Apache/Apache.xs.disabled";
+
+    for (qw(Apache Constants)) {
+	cp "${_}/${_}.xs", $d;
+	rename "${_}/${_}.xs", "${_}/${_}.xs.disabled";
+    }
 
     system $^X, "-pi~", "-e", 
     "s/^#STATIC_/STATIC_/",
@@ -669,7 +679,7 @@ sub readline_setup {
 	eval <<'EOT' ;
     
 	sub main::_prompt {
-	    prompt @_ ;
+	    prompt(@_);
 	}
 EOT
     }

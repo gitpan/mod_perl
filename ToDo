@@ -16,6 +16,8 @@ Apache::Registry should honor __END__ and __DATA__,
 but how to get it right?
 
 improve the "stacked handlers" implementation, including:
+- config merging of AV*'s
+
 -allowing all array-like operations besides push_handlers,
 pop_handlers, shift_handlers, unshift_handlers, splice_handlers, etc.
 

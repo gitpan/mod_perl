@@ -4,7 +4,7 @@ User nobody
 Group nogroup
 Port 8529
 ServerName localhost
-DocumentRoot 
+DocumentRoot ./t/docs
 AddType text/x-server-parsed-html .shtml
 
 #mod_perl stuff
@@ -13,13 +13,23 @@ AddType text/x-server-parsed-html .shtml
 PerlTaintCheck On
 PerlWarn On
 
-PerlScript t/docs/startup.pl
+PerlSetEnv KeyForPerlSetEnv OK
+PerlSetVar KeyForPerlSetVar OK
+ 
+PerlScript ./t/docs/startup.pl
 
 Alias /perl/ ./t/net/perl/
 
 <Location /perl>
 SetHandler perl-script
 PerlHandler Apache::Registry
+Options ExecCGI
+</Location>
+
+Alias /cgi-bin/ ./t/net/perl/
+
+<Location /cgi-bin>
+SetHandler cgi-script
 Options ExecCGI
 </Location>
 

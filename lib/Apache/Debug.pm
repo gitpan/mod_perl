@@ -1,5 +1,5 @@
 package Apache::Debug;
-
+use Cwd 'fastcwd';
 #from HTTP::Status
 my %StatusCode = (
     100 => 'Continue',
@@ -47,12 +47,12 @@ sub dump {
     my $conn = $r->connection;
     my %headers = $r->headers_in;
     my $host = $r->get_remote_host;
-
+    my $cwd = fastcwd;
     $r->status($status);
     $r->content_type("text/html");
     $r->content_language("en");
     $r->no_cache(1);
-    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.14 1997/03/10 00:25:45 dougm Exp $);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.15 1997/05/12 22:04:01 dougm Exp $);
     $r->send_http_header;
     
     return 0 if $r->header_only;   # should not generate a body
@@ -61,7 +61,7 @@ sub dump {
     $r->write_client(join("\n", "<html>",
 			  "<head><title>$title</title></head>",
                           "<body>", "<h3>$title</h3>", @_, 
-			  "<pre>", ($@ ? "$@\n" : "")));
+			  "<pre>", ($@ ? "$@\n" : ""), "cwd=$cwd\n"));
 
     for (
 	 qw(

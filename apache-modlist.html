@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern,  2-May-1997 -->
+<!-- Changed by: Doug MacEachern, 12-May-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.21 $ $Date: 1997/05/02 19:37:14 $</i>
+<br><i> $Revision: 1.23 $ $Date: 1997/05/12 22:06:34 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -74,7 +74,7 @@ Registry	Rmpf	Run unaltered CGI scripts 		APML
 Status		Rmpf	Embedded interpreter runtime status	APML
 SSI		bmpO	Implement server-side includes in Perl	APML
 Embperl		bdcf	Embed Perl in HTML			GRICHTER
-ePerl		bdpf	Adaptation of 'ePerl' for mod_perl	MARKIM
+ePerl		bdpf	Adaptation of 'ePerl' for mod_perl	HMUELLER
 FTP		i	Full-fledged FTP proxy			PMKANE
 WDB		cdpf	Database query/edit tool using DBI	JROWE
 
@@ -117,14 +117,17 @@ HttpEquiv	bdpf	HTML HTTP-EQUIV tags to HTTP headers	ROBH
 DumpHeaders	bdpf	Watch HTTP transaction via headers	DOUGM
 
 * Misc
-DBI		bmpO	Persistent database connection mgmt.	MERGL
-Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
 Constants	Rmcf	Constants defined in httpd.h		APML
-Options		Rmpf	Import Apache::Constants 'options'	APML
+DBI		bmpO	Persistent database connection mgmt.	MERGL
 Debug		Rmpf	mod_perl debugging utilities		APML
-Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 ModuleConfig	cmcO	Interface to configuration API		DOUGM
+OutputChain     i	Chain output of stacked handlers
+Options		Rmpf	Import Apache::Constants 'options'	APML
+Safe		cmpO	Adaptation of "safecgiperl"		APML
+Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 Session		cmpf	Maintain client <-> httpd session/state	APML
+State		i	Powerful state engine			RSE
+Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
 
 </pre>
 <a name="where">
@@ -151,10 +154,12 @@ EBARTLEY Eric Bartley  &lt;bartley@pdn.cc.purdue.edu&gt;
 GRICHTER Gerald Richter &lt;richter@ecos.de&gt;
 JGROV	 John D Groenveld &lt;groenvel@cse.psu.edu&gt;
 JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;
+HMUELLER Hanno Mueller &lt;hmueller@mail.kabel.de&gt;
 MARKIM	 Mark A. Imbriaco &lt;mark@itribe.net&gt;
 MERGL	 Edmund Mergl &lt;E.Mergl@bawue.de&gt;
 PMKANE	 Patrick Michael Kane &lt;modus@enews.com&gt;
 ROBH	 Rob Hartill &lt;robh@imdb.com&gt;
+RSE      Ralf S. Engelschall &lt;rse@engelschall.com&gt;
 SKANE    Stephen E Kane &lt;sek112@ELVIS.ARL.PSU.EDU&gt;
 </pre>
 

@@ -32,6 +32,8 @@ typedef server_rec  * Apache__Server;
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
 
+#define av_copy_array(av) av_make(av_len(av)+1, AvARRAY(av))  
+
 #define PerlEnvHV GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV))
 
 #ifndef newRV_noinc
@@ -53,9 +55,9 @@ typedef server_rec  * Apache__Server;
       if(!set_pid++) sv_setiv(GvSV(gv_fetchpv("$", TRUE, SVt_PV)), (I32)getpid())
 
 #ifdef PERL_TRACE
-#define CTRACE fprintf
+#define MP_TRACE(a) a 
 #else
-#define CTRACE mp_void_fprintf
+#define MP_TRACE(a)
 #endif
 
 #define PERL_GATEWAY_INTERFACE "CGI-Perl/1.1"
@@ -83,18 +85,17 @@ typedef server_rec  * Apache__Server;
 
 #define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 1)
 
-#define PERL_CALLBACK_RETURN(h,name) \
+#define PERL_CALLBACK(h,name) \
 perl_set_pid; \
 status = perl_run_stacked_handlers(h, r, Nullav); \
 if((status != OK) && (status != DECLINED)) { \
-    CTRACE(stderr, "%s handlers returned %d\n", h, status); \
+    MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status)); \
 } \
 else if(name != Nullav) { \
-    CTRACE(stderr, "running stacked handlers...\n"); \
+    MP_TRACE(fprintf(stderr, "running server configured stacked handlers...\n")); \
     status = perl_run_stacked_handlers(h, r, name); \
 } \
-perl_clear_env; \
-CTRACE(stderr, "%s handlers returned %d\n", h, status)
+MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status))
 
 
 #else
@@ -105,15 +106,15 @@ CTRACE(stderr, "%s handlers returned %d\n", h, status)
 
 #define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 0)
 
-#define PERL_CALLBACK_RETURN(h,name) \
+#define PERL_CALLBACK(h,name) \
 if(name != NULL) { \
     SV *sv = newSVpv(name,0); \
-    status = perl_call_handler(sv, r); \
+    status = perl_call_handler(sv, r, Nullav); \
     SvREFCNT_dec(sv); \
-    CTRACE(stderr, "perl_call %s '%s' returned: %d\n", h,name,status); \
+    MP_TRACE(fprintf(stderr, "perl_call %s '%s' returned: %d\n", h,name,status)); \
 } \
 else { \
-    CTRACE(stderr, "mod_perl: declining to handle %s, no callback defined\n", h); \
+    MP_TRACE(fprintf(stderr, "mod_perl: declining to handle %s, no callback defined\n", h)); \
 }
 
 #endif
@@ -185,7 +186,6 @@ PERL_READ_CLIENT
        }
 
 /* on/off switches for callback hooks during request stages */
-
 
 #ifndef NO_PERL_TRANS
 #define PERL_TRANS
@@ -307,7 +307,6 @@ PERL_READ_CLIENT
 #define PERL_LOG_CREATE(s) 
 #endif
 
-#undef PERL_CLEANUP
 #ifndef NO_PERL_CLEANUP
 #define PERL_CLEANUP
 
@@ -379,6 +378,8 @@ typedef struct {
     PERL_CMD_TYPE *PerlCleanupHandler;
     PERL_CMD_TYPE *PerlHeaderParserHandler;
     PERL_CMD_TYPE *PerlInitHandler;
+    table *env;
+    int has_env;
     table *vars;
     int  sendheader;
     int  new_sendheader;
@@ -392,7 +393,7 @@ int multi_log_transaction(request_rec *r);
 int basic_http_header(request_rec *r);
 /* prototypes */
 int perl_handler_ismethod(HV *class, char *sub);
-int perl_call_handler(SV *sv, request_rec *r);
+int perl_call_handler(SV *sv, request_rec *r, AV *args);
 int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 int perl_handler(request_rec *r);
@@ -414,12 +415,13 @@ CHAR_P perl_urlsection (cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_cmd_script (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_var(cmd_parms *cmd, void *rec, char *key, char *val);
+CHAR_P perl_cmd_setenv(cmd_parms *cmd, void *rec, char *key, char *val);
 CHAR_P perl_cmd_sendheader (cmd_parms *cmd, void *rec, int arg);
 CHAR_P perl_cmd_new_sendheader (cmd_parms *cmd, void *rec, int arg);
 CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_env (cmd_parms *cmd, void *rec, int arg);
-
+void mod_perl_dir_env(perl_dir_config *cld);
 CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_header_parser_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
@@ -448,6 +450,7 @@ int  perl_eval_ok(server_rec *);
 void perl_setup_env(request_rec *r);
 SV  *perl_bless_request_rec(request_rec *); 
 void perl_set_request_rec(request_rec *); 
-int mp_void_fprintf(FILE *, const char *, ...);
-void perl_cleanup_handler(void *data);
-void perl_end_cleanup(void *data);
+void mod_perl_cleanup_handler(void *data);
+void mod_perl_end_cleanup(void *data);
+void mod_perl_register_cleanup(request_rec *r, SV *sv);
+int PERL_RUNNING(void);

@@ -1,7 +1,6 @@
 Changes
 Constants/Constants.pm
 Constants/Constants.xs
-Constants/MANIFEST
 Constants/Makefile.PL
 FileHandle.patch
 INSTALL
@@ -28,6 +27,7 @@ Apache/Apache.xs
 Apache/typemap
 Apache/Makefile.PL
 src/modules/perl/ldopts
+src/modules/perl/config.c
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/Makefile
@@ -40,6 +40,7 @@ t/constants/export.t
 t/net/config.pl.dist
 t/net/cgi.t
 t/net/api.t
+t/net/headers.t
 t/net/http-get.t
 t/net/http-post.t
 t/net/taint.t

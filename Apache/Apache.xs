@@ -52,14 +52,14 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.52 1997/05/02 00:36:12 dougm Exp $ */
+/* $Id: Apache.xs,v 1.54 1997/05/19 22:25:31 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
 PROTOTYPES: DISABLE
 
 BOOT:
-    CTRACE(stderr, "boot_Apache: items = %d\n", items);
+    MP_TRACE(fprintf(stderr, "boot_Apache: items = %d\n", items));
 
 int
 max_requests_per_child(...)
@@ -110,13 +110,13 @@ perl_hook(name)
     char *name
 
 int
-mod_perl_push_handlers(self, hook, sub)
+mod_perl_push_handlers(self, hook, cv)
     SV *self
     SV *hook
-    SV *sub
+    SV *cv;
 
     CODE:
-    RETVAL = mod_perl_push_handlers(self, hook, sub, Nullav);
+    RETVAL = mod_perl_push_handlers(self, hook, cv, Nullav);
 
     OUTPUT:
     RETVAL
@@ -124,6 +124,11 @@ mod_perl_push_handlers(self, hook, sub)
 int
 mod_perl_can_stack_handlers(self)
     SV *self
+
+void
+mod_perl_register_cleanup(r, sv)
+    Apache     r
+    SV *sv
 
 void
 untaint(...)
@@ -364,7 +369,8 @@ send_http_header(r)
     CODE:
     send_http_header(r);
     mod_perl_sent_header(&sv_undef, 1);
-
+    r->status = 200; /* XXX, why??? */
+ 
 void
 basic_http_header(r)
     Apache	r
@@ -439,7 +445,11 @@ print(r, ...)
 	(void)(*CvXSUB(cv))(cv); /* &Apache::write_client; */
 
 	if(IoFLAGS(GvIOp(defoutgv)) & IOf_FLUSH) /* if $| != 0; */
+#if MODULE_MAGIC_NUMBER >= 19970103
 	    rflush(r);
+#else
+	    bflush(r->connection->client);
+#endif
 	kill_timeout(r);
     }
 
@@ -863,6 +873,55 @@ header_out(r, key, ...)
 
     OUTPUT:
     RETVAL
+
+SV *
+cgi_header_out(r, key, ...)
+    Apache	r
+    char *key
+
+    PREINIT:
+    char *val;
+
+    CODE:
+    if((val = table_get(r->headers_out, key))) 
+	RETVAL = newSVpv(val, 0);
+    else
+        RETVAL = newSV(0);
+
+    SvTAINTED_on(RETVAL);
+
+    if(items > 2) {
+	val = SvPV(ST(2),na);
+        if(strnEQ(key, "Content-type", 12)) {
+	    r->content_type = pstrdup (r->pool, val);
+	}
+        else if(strnEQ(key, "Status", 6)) {
+            sscanf(val, "%d", &r->status);
+            r->status_line = pstrdup(r->pool, val);
+        }
+        else if(strnEQ(key, "Location", 8)) {
+	    table_set (r->headers_out, key, val);
+	    r->status = 302;
+        }   
+        else if(strnEQ(key, "Content-Length", 14)) {
+	    table_set (r->headers_out, key, val);
+        }   
+        else if(strnEQ(key, "Transfer-Encoding", 17)) {
+	    table_set (r->headers_out, key, val);
+        }   
+
+#The HTTP specification says that it is legal to merge duplicate
+#headers into one.  Some browsers that support Cookies don't like
+#merged headers and prefer that each Set-Cookie header is sent
+#separately.  Lets humour those browsers.
+
+	else if(strnEQ(key, "Set-Cookie", 10)) {
+	    table_add(r->err_headers_out, key, val);
+	}
+        else {
+	    table_merge (r->err_headers_out, key, val);
+        }
+    }
 
 void
 headers_out(r)

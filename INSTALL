@@ -47,8 +47,7 @@ When asked:
 answering 'y' will run ../apache_xxx/Configure 
 and httpd will be built when running 'make'
 
-You can avoid this prompt by setting the environment variable 'NO_HTTPD'
-or by starting with the following command:
+You can avoid this prompt by starting with the following command:
 
   perl Makefile.PL NO_HTTPD=1
 
@@ -105,7 +104,7 @@ To shutdown this httpd run:
 
 See t/README on how to run the mod_perl test suite by hand
 
-NOTE to Ben-SSL/1.1.1+1.3 users:
+NOTE to Ben-SSL users:
 httpsd does not seem to handle '/dev/null' as the location of certain
 files, you'll have to change these by hand. 
 Tests are run with 'SSLDisable'
@@ -118,24 +117,31 @@ Tests are run with 'SSLDisable'
 
 ** Only if you did not let Makefile.PL take care of this already **
 
+=item mod_perl source files
+
 Copy the source files into the apache build directory:
 (For apache versions < 1.2 you'll need to mkdir src/modules/ first)
 
 	cp -r src/modules/perl  apache_xxx/src/modules/
 
-Copy src/Makefile.tmpl     to apache_xxx/src/ for apache_1.1.1
-			- or -
-Copy src/Makefile.tmpl-1.2 to apache_xxx/src/ for apache_1.2
+=item Makefile.tmpl
 
-Edit apache_xxx/src/Configuration (if you don't have Configuration
-yet, this should be a copy of Configuration.tmpl in the same
-directory):
+apache_1.1.x users: copy src/Makefile.tmpl to apache_xxx/src/  
 
-For mod_perl add:
+apache 1.2 (b8+) users: no need to modify the Makefile.tmpl
+
+=item Configuration
+
+Edit apache_xxx/src/Configuration, and add: 
 
 	Module perl_module	   modules/perl/libmodperl.a
 
-We suggest you add this entry at the end of the Configuration file if you want your callback hooks to have precedence over core handlers.
+We suggest you add this entry at the end of the Configuration file if
+you want your callback hooks to have precedence over core handlers. 
+
+Add the following to EXTRA_LIBS:
+
+	EXTRA_LIBS=`perl -MExtUtils::Embed -e ldopts`
 
 Follow the apache install docs from there
 
@@ -158,7 +164,7 @@ You can then unpack this under 'site_perl' on another machine.
 
    'make offsite-tar'
 
-This will copy all header files from the apache source directroy you 
+This will copy all header files from the apache source directory you 
 configured mod_perl against, then it will 'make dist' where you'll
 a mod_perl-x.xx.tar.gz created, ready to unpack on another machine
 to compile and install the Perl side of mod_perl.

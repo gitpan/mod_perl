@@ -1,3 +1,5 @@
+#!/opt/perl5/bin/perl
+
 use CGI::Switch;
 use strict;
 

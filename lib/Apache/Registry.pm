@@ -1,20 +1,20 @@
 package Apache::Registry;
 use Apache ();
 #use strict; #eval'd scripts will inherit hints
-use Apache::Debug ();
 use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.29 1997/04/30 03:00:43 dougm Exp $
-$VERSION = (qw$Revision: 1.29 $)[1];
+#$Id: Registry.pm,v 1.31 1997/05/19 22:25:31 dougm Exp $
+$VERSION = (qw$Revision: 1.31 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
 # 2 => Apache::Debug::dump in case of $@
 # 4 => trace pedantically
+Apache->module('Apache::Debug') if $Debug;
 
 my(@cleanup);
 
@@ -92,7 +92,9 @@ sub handler {
 			    '',
 			    'package ',
 			    $package,
-			    ';use Apache qw(exit);sub handler {',
+ 			    ';use Apache qw(exit);',
+ 			    'sub handler {',
+ 			    "\n#line 1 $filename\n",
 			    $sub,
 			    "\n}", # last line comment without newline?
 			   );

@@ -1,4 +1,8 @@
-#include "mod_perl.h"
+#include "httpd.h"
+#include "http_core.h"
+#include "EXTERN.h"
+#include "perl.h"
+#include "XSUB.h"
 
 static double
 constant(name)

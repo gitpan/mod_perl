@@ -144,6 +144,22 @@ INSTALL doc).
 Otherwise, mod_perl will tie() STDOUT and STDIN to the client.  
 In order for this to work, you must have Perl version 5.003_93 or higher.
 
+=head1 ENVIRONMENT
+
+Under CGI the Perl hash C<%ENV> is magical in that it inherits
+environment variables from the parent process and will set them should
+a process spawn a child.  However, with mod_perl we're in the parent
+process that would normally setup the common environment variables
+before spawning a CGI process.  Therefore, mod_perl must feed this
+variables to C<%ENV> directly.  Normally, this does not happen until
+the response stage of a request when C<PerlHandler> is called.  If you
+wish to set variables that will be available before then, such as for
+a C<PerlAuthenHandler>, you may use the C<PerlSetEnv> configuration
+directive: 
+
+ PerlSetEnv  SomeKey  SomeValue
+
+
 =head1 Using CGI.pm and CGI::*
 
 CGI.pm users B<must> have version B<2.32> of the package or higher, earlier

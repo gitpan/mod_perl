@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.23 1997/04/30 03:00:43 dougm Exp $
+# $Id: Makefile,v 1.25 1997/05/19 22:25:31 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -83,24 +83,24 @@ PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_HEADER_PARSER) $(PERL_INIT) $(PERL_CLEANUP) \
  $(PERL_STACKED_HANDLERS) $(PERL_SECTIONS) $(PERL_METHOD_HANDLERS)
 
-#STATIC_SRC = Apache.c
-#STATIC_EXTS = Apache
+#STATIC_SRC = Apache.c Constants.c
+#STATIC_EXTS = Apache Apache::Constants
 
 #TRACE = -DPERL_TRACE
 #APACHE_SSL = -DAPACHE_SSL
-PERL=/opt/perl5.003/bin/perl
+PERL=/opt/perl5/bin/perl
 PERL_STATIC_EXTS =
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
 
 XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- -std $(PERL_STATIC_EXTS) $(STATIC_EXTS)`
-LD_OPTS = `$(EXTUTILS_EMBED) -e ccdlflags -e ldopts -- $(PERL_STATIC_EXTS)`
+LD_OPTS = `$(EXTUTILS_EMBED) -e ldopts -- $(PERL_STATIC_EXTS)`
 
 CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
 
 # AUX_CFLAGS comes from higher level Makefile
-CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex $(AUX_CFLAGS) $(APACHE_SSL) $(PERL_CCFLAGS) -DPERL_VERSION=$(PERL_VERSION)
+CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex $(AUX_CFLAGS) $(APACHE_SSL) $(PERL_CCFLAGS) $(PERL_VERSION)
 
 default:	$(LIB)
 
@@ -110,7 +110,10 @@ perlxsi.c:
 Apache.c: Apache.xs
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Apache.xs >Apache.c
 
-PERLSRC=mod_perl.c perlxsi.c $(STATIC_SRC)
+Constants.c: Constants.xs
+	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Constants.xs >Constants.c
+
+PERLSRC=mod_perl.c perlxsi.c config.c $(STATIC_SRC)
 
 OBJS=$(PERLSRC:.c=.o)
 

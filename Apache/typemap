@@ -37,7 +37,7 @@ OUTPUT
 
 T_PV_CONST
 	SvREADONLY_on((SV*)$arg);
-	sv_setpv((SV*)$arg, $var);
+	sv_setpv((SV*)$arg, (char *)$var);
 
 # The Perl object is blessed into 'CLASS', which should be a
 # char* having the name of the package for the blessing.
