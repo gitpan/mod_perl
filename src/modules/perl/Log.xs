@@ -1,8 +1,4 @@
-#ifdef MOD_PERL
 #include "mod_perl.h"
-#else
-#include "modules/perl/mod_perl.h"
-#endif
 
 #if MODULE_MAGIC_NUMBER >= MMN_132
 #define HAVE_LOG_RERROR 1
@@ -38,7 +34,10 @@ static void ApacheLog(int level, SV *sv, SV *msg)
     }
 
     if((lmask == APLOG_DEBUG) && (s->loglevel >= APLOG_DEBUG)) {
-	SV *caller = perl_eval_pv("[ (caller)[1,2] ]", TRUE);
+	SV *caller;
+	bool old_T = tainting; tainting = FALSE;
+	caller = perl_eval_pv("[ (caller)[1,2] ]", TRUE);
+	tainting = old_T;
 	file = SvPV(*av_fetch((AV *)SvRV(caller), 0, FALSE),na);
 	line = (int)SvIV(*av_fetch((AV *)SvRV(caller), 1, FALSE));
     }

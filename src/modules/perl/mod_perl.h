@@ -25,7 +25,7 @@
 #include "http_request.h" 
 #include "util_script.h" 
 #include "http_conf_globals.h"
-#ifdef APACHE_SSL
+#if defined(APACHE_SSL) || defined(MOD_SSL)
 #undef _
 #ifdef _config_h_
 #ifdef CAN_PROTOTYPE
@@ -49,8 +49,8 @@
  * plus chance that another patchlevel.h might be in -I paths
  * so try to avoid it if possible 
  */ 
-#ifdef PERL_VERSION
-#if PERL_VERSION >= 500476
+#ifdef PERLV
+#if PERLV >= 500476
 #include "perl_PL.h"
 #endif
 #else
@@ -58,7 +58,7 @@
 #if ((PATCHLEVEL >= 4) && (SUBVERSION >= 76)) || (PATCHLEVEL >= 5)
 #include "perl_PL.h"
 #endif
-#endif /*PERL_VERSION*/
+#endif /*PERLV*/
 
 #ifdef PERL_OBJECT
 #include <perlhost.h>
@@ -118,7 +118,7 @@ extern "C" {
 #include "http_request.h" 
 #include "util_script.h" 
 #include "http_conf_globals.h"
-#ifdef APACHE_SSL
+#if defined(APACHE_SSL) || defined(MOD_SSL)
 #undef _
 #ifdef _config_h_
 #ifdef CAN_PROTOTYPE
@@ -162,8 +162,16 @@ hv_store(ERRHV, k, strlen(k), newSVsv(v), FALSE)
 (void)hv_delete(ERRHV, k, strlen(k), G_DISCARD)
 
 
+#ifndef PERL_AUTOPRELOAD
+#define PERL_AUTOPRELOAD perl_get_sv("Apache::Server::AutoPreLoad", FALSE)
+#endif
+
 #ifndef ERRSV_CAN_BE_HTTP
-#define ERRSV_CAN_BE_HTTP perl_get_sv("Apache::ERRSV_CAN_BE_HTTP", FALSE)
+# ifdef WIN32
+#  define ERRSV_CAN_BE_HTTP perl_get_sv("Apache::ERRSV_CAN_BE_HTTP", FALSE)
+# else
+#  define ERRSV_CAN_BE_HTTP 1
+# endif
 #endif
 
 #ifndef PERL_DESTRUCT_LEVEL
@@ -178,12 +186,20 @@ hv_store(ERRHV, k, strlen(k), newSVsv(v), FALSE)
 #undef NO_PERL_RESTART
 #endif
 
+typedef struct {
+    table *table;
+    array_header *arr;
+    table_entry *elts;
+    int ix;
+} TiedTable;
+
 typedef request_rec * Apache;
 typedef request_rec * Apache__SubRequest;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
 typedef cmd_parms   * Apache__CmdParms;
-typedef table       * Apache__Table;
+typedef TiedTable   * Apache__Table;
+typedef table       * Apache__table;
 typedef module      * Apache__Module;
 typedef handler_rec * Apache__Handler;
 typedef command_rec * Apache__Command;
@@ -379,9 +395,13 @@ if((add->flags & f) || (base->flags & f)) \
 #endif
 
 #ifdef PERL_SECTIONS
-#ifndef PERL_SECTIONS_SELF_BOOT
-#define PERL_SECTIONS_SELF_BOOT getenv("PERL_SECTIONS_SELF_BOOT")
-#endif
+# ifndef PERL_SECTIONS_SELF_BOOT
+#  ifdef WIN32
+#   define PERL_SECTIONS_SELF_BOOT getenv("PERL_SECTIONS_SELF_BOOT")
+#  else
+#   define PERL_SECTIONS_SELF_BOOT 1
+#  endif
+# endif
 #endif
 
 #ifndef PERL_STARTUP_DONE_CHECK
@@ -401,7 +421,17 @@ if((add->flags & f) || (base->flags & f)) \
 /* some 1.2.x/1.3.x compat stuff */
 /* once 1.3.0 is here, we can toss most of this junk */
 
+#ifdef MODULE_MAGIC_AT_LEAST
+#undef MODULE_MAGIC_AT_LEAST
+#define MODULE_MAGIC_AT_LEAST(major,minor)              \
+    (MODULE_MAGIC_NUMBER_MAJOR >= (major)                \
+            && MODULE_MAGIC_NUMBER_MINOR >= minor)
+#else
+#define MODULE_MAGIC_AT_LEAST(major,minor) (0 > 1)
+#endif
+
 #define MMN_130 19980527
+#define MMN_131 19980713
 #define MMN_132 19980806
 #if MODULE_MAGIC_NUMBER >= MMN_130
 #define HAVE_APACHE_V_130
@@ -1054,8 +1084,12 @@ void perl_stdout2client(request_rec *r);
 
 /* perl_config.c */
 
+#define defined_Apache__ReadConfig \
+SvTRUE(perl_eval_pv("grep {defined %$_ or defined @$_ or defined $$_} keys %Apache::ReadConfig::;",TRUE))
+
 char *mod_perl_auth_name(request_rec *r, char *val);
 
+module *perl_get_module_ptr(char *name, int len);
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *perl_create_dir_config(pool *p, char *dirname);
 void *perl_create_server_config(pool *p, server_rec *s);
@@ -1119,6 +1153,7 @@ CHAR_P perl_cmd_perl_FLAG(cmd_parms *cmd, mod_perl_perl_dir_config *d, int flag)
 #define perl_cmd_perl_TAKE23 perl_cmd_perl_TAKE123
 #define perl_cmd_perl_TAKE3 perl_cmd_perl_TAKE123
 void *perl_perl_merge_dir_config(pool *p, void *basev, void *addv);
+void *perl_perl_merge_srv_config(pool *p, void *basev, void *addv);
 
 void mod_perl_dir_env(perl_dir_config *cld);
 void mod_perl_pass_env(pool *p, perl_server_config *cls);
@@ -1132,6 +1167,7 @@ void mod_perl_pass_env(pool *p, perl_server_config *cls);
 
 /* Apache.xs */
 
+pool *perl_get_util_pool(void);
 pool *perl_get_startup_pool(void);
 server_rec *perl_get_startup_server(void);
 request_rec *sv2request_rec(SV *in, char *class, CV *cv);

@@ -143,6 +143,17 @@ request_rec *sv2request_rec(SV *in, char *class, CV *cv)
     return r;
 }
 
+pool *perl_get_util_pool(void)
+{
+    request_rec *r = NULL;
+
+    if((r = perl_request_rec(NULL)))
+        return r->pool;
+    else
+        return perl_get_startup_pool();
+    return NULL;
+}
+
 pool *perl_get_startup_pool(void)
 {
     SV *sv = perl_get_sv("Apache::__POOL", FALSE);
@@ -203,14 +214,20 @@ SV *mod_perl_slurp_filename(request_rec *r)
 
 SV *mod_perl_tie_table(table *t)
 {
-    HV *hv;
+    HV *hv = newHV();
     SV *sv = sv_newmortal();
-    iniHV(hv);
-    sv_setref_pv(sv, "Apache::Table", (void*)t);
-    perl_qrequire_module("Apache::Tie");
-    perl_tie_hash(hv, "Apache::TieHashTable", sv);
-    return sv_bless(newRV_noinc((SV*)hv), 
-		    gv_stashpv("Apache::TieHashTable", TRUE));
+
+    /*try to make this quick as possible*/  
+    if(!hv_exists(GvHV(incgv), "Apache/Table.pm", 15)) {
+	fprintf(stderr, "WARNING: autoloading Apache::Table\n");
+	utilize(TRUE, start_subparse(FALSE, 0), Nullop, 
+		newSVOP(OP_CONST, 0, newSVpv("Apache/Table.pm",15)), Nullop);
+    }
+
+    sv_setref_pv(sv, "Apache::table", (void*)t);
+    perl_tie_hash(hv, "Apache::Table", sv);
+    return sv_bless(sv_2mortal(newRV_noinc((SV*)hv)), 
+		    gv_stashpv("Apache::Table", TRUE));
 }
 
 SV *perl_hvrv_magic_obj(SV *rv)

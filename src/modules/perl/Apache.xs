@@ -278,6 +278,26 @@ unsigned get_server_port(const request_rec *r)
     (r->hostname ? r->hostname : r->server->server_hostname) 
 #endif
 
+#if MODULE_MAGIC_AT_LEAST(19981108, 1)
+#define mod_perl_define(sv,name) ap_exists_config_define(name)
+#elif(MODULE_MAGIC_NUMBER >= MMN_131) && !defined(WIN32)
+static int mod_perl_define(SV *sv, char *name)
+{
+    char **defines;
+    int i;
+
+    defines = (char **)ap_server_config_defines->elts;
+    for (i = 0; i < ap_server_config_defines->nelts; i++) {
+        if (strcmp(defines[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+#else
+#define mod_perl_define(sv,name) 0
+#endif
+
 static int sv_str_header(void *arg, const char *k, const char *v)
 {
     SV *sv = (SV*)arg;
@@ -341,7 +361,7 @@ current_callback(r)
     Apache     r
 
     CODE:
-    RETVAL = perl_get_sv("Apache::__CurrentCallback", TRUE);
+    RETVAL = newSVsv(perl_get_sv("Apache::__CurrentCallback", TRUE));
 
     OUTPUT:
     RETVAL
@@ -425,6 +445,11 @@ mod_perl_stash_rgy_endav(r, sv=APACHE_REGISTRY_CURSTASH)
 
     CODE:
     perl_stash_rgy_endav(r->uri, sv);
+
+I32
+mod_perl_define(sv, name)
+    SV *sv
+    char *name
 
 I32
 module(sv, name)
@@ -1806,15 +1831,3 @@ run(r)
     OUTPUT:
     RETVAL
 
-long
-bytes_sent(r, ...)
-    Apache      r
-
-    CODE:
-    RETVAL = r->bytes_sent;
-
-    if(items > 1)
-        r->bytes_sent = (long)SvIV(ST(1));
-
-    OUTPUT:
-    RETVAL

@@ -1,26 +1,11 @@
-#ifdef MOD_PERL
 #include "mod_perl.h"
-#else
-#include "modules/perl/mod_perl.h"
-#endif 
-
 #include "util_date.h"
 
 #define TIME_NOW time(NULL)
 #define DEFAULT_TIME_FORMAT "%a, %d %b %Y %H:%M:%S %Z"
 
 #define parsedate ap_parseHTTPdate
- 
-static pool *util_pool(void)
-{
-    request_rec *r = NULL;
-
-    if((r = perl_request_rec(NULL)))
-        return r->pool;
-    else
-        return perl_get_startup_pool();
-    return NULL;
-}
+#define util_pool() perl_get_util_pool()
 
 static SV *size_string(size_t size)
 {
@@ -62,7 +47,7 @@ static SV *my_escape_html(char *s)
 	    j += 5;
 
     if (j == 0)
-	return newSVpv(s,0);
+	return newSVpv(s,i);
     x = newSV(i + j + 1);
 
     for (i = 0, j = 0; s[i] != '\0'; i++, j++)

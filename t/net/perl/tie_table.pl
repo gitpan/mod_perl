@@ -5,15 +5,20 @@ my $r = shift;
 
 $r->send_http_header("text/plain");
 
+unless(have_module "Apache::Table") {
+    print "1..0\n";
+    return;
+}
+
 my $i = 0;
-my $tests = 30;
+my $tests = 32;
 print "1..$tests\n";
 
 my $headers_in = $r->headers_in;
 my $table = tied %$headers_in;
 
 test ++$i, UNIVERSAL::isa($headers_in, 'HASH');
-test ++$i, $table->isa('Apache::TieHashTable');
+test ++$i, $table->isa('Apache::Table');
 test ++$i, $table->get('User-Agent');
 test ++$i, $r->headers_in->get('User-Agent');
 test ++$i, $headers_in->{'User-Agent'};
@@ -62,26 +67,26 @@ test ++$i, $Seen{three} == 2;
 test ++$i, $Seen{two};
 
 %Seen = ();
-$r->notes->do(\&print_header, undef, qw(three));
+$r->notes->do(\&print_header, qw(three));
 test ++$i, not exists $Seen{two};
-
-sub str_header {
-    my($av, $k, $v) = @_;
-    push @$av, "$k: $v";
-    1;
-}
 
 sub my_as_string {
     my $r = shift;
     my @retval = ();
     push @retval, $r->the_request;
 
-    $r->headers_in->do(\&str_header, \@retval);
+    my $str_header = sub {
+	my($k, $v) = @_;
+	push @retval, "$k: $v";
+	1;
+    };
+
+    $r->headers_in->do($str_header);
     push @retval, "";
 
     push @retval, join(" ", $r->protocol, $r->status_line);
     for my $meth (qw(headers_out err_headers_out)) {
-	$r->$meth()->do(\&str_header, \@retval);
+	$r->$meth()->do($str_header);
     }
     push @retval, "", "";
     join "\n", grep { defined $_ } @retval;
@@ -119,5 +124,12 @@ for my $meth (qw{
     print "TOTAL: ", scalar keys %$hash_ref, "\n\n";
 
     test ++$i, UNIVERSAL::isa($hash_ref, 'HASH');
-    test ++$i, $tab->isa('Apache::TieHashTable');
+    test ++$i, $tab->isa('Apache::Table');
 }
+
+my $tabobj = Apache::Table->new($r);
+test ++$i, $tabobj;
+
+$tabobj->{'a'} = 1;
+
+test ++$i, $tabobj->get('a');

@@ -20,6 +20,11 @@ use IO::File ();
 
 use Apache ();
 use Apache::Registry ();
+unless ($INC{'Apache.pm'} =~ /blib/) {
+    die "Wrong Apache.pm loaded: $INC{'Apache.pm'}";
+}
+
+Apache::Constants->export(qw(HTTP_MULTIPLE_CHOICES));
 
 #no mod_perl qw(Connection Server);
 
@@ -47,7 +52,7 @@ eval {
 
 $Apache::DoInternalRedirect = 1;
 $Apache::ERRSV_CAN_BE_HTTP  = 1;
-
+$Apache::Server::AddPerlVersion = 1;
 #warn "ServerStarting=$Apache::ServerStarting\n";
 #warn "ServerReStarting=$Apache::ServerReStarting\n";
 
@@ -62,7 +67,10 @@ if($ENV{PERL_TEST_NEW_READ}) {
     *Apache::READ = \&Apache::new_read;
 }
 
-$ENV{KeyForPerlSetEnv} eq "OK" or warn "PerlSetEnv is broken\n";
+unless($ENV{KeyForPerlSetEnv} and 
+       $ENV{KeyForPerlSetEnv} eq "OK") {
+    warn "PerlSetEnv is broken\n";
+}
 
 %net::callback_hooks = ();
 require "net/config.pl";

@@ -1,32 +1,22 @@
 #include "mod_perl.h"
 
 typedef struct {
-    table *table;
-    array_header *arr;
-    table_entry *elts;
-    int ix;
-} apache_tiehash_table;
-
-typedef apache_tiehash_table * Apache__TieHashTable;
-
-typedef struct {
-    SV *sv;
     SV *cv;
-    HV *hv;
+    table *only;
 } TableDo;
+
+#define table_pool(t) ((array_header *)(t))->pool
 
 static int Apache_table_do(TableDo *td, const char *key, const char *val)
 {
     int count=0, rv=1;
     dSP;
 
-    if(td->hv && !hv_exists(td->hv, (char*)key, strlen(key))) 
+    if(td->only && !table_get(td->only, key))
        return 1;
 
     ENTER;SAVETMPS;
     PUSHMARK(sp);
-    if(td->sv && (td->sv != &sv_undef))
-	XPUSHs(td->sv);
     XPUSHs(sv_2mortal(newSVpv((char *)key,0)));
     XPUSHs(sv_2mortal(newSVpv((char *)val,0)));
     PUTBACK;
@@ -39,7 +29,7 @@ static int Apache_table_do(TableDo *td, const char *key, const char *val)
     return rv;
 }
 
-static void table_modify(apache_tiehash_table *self, const char *key, SV *sv, 
+static void table_modify(TiedTable *self, const char *key, SV *sv, 
 			 void (*tabfunc) (table *, const char *, const char *))
 {
     const char *val;
@@ -61,39 +51,60 @@ static void table_modify(apache_tiehash_table *self, const char *key, SV *sv,
 
 }
 
-MODULE = Apache::Tie		PACKAGE = Apache::TieHashTable
+static Apache__Table ApacheTable_new(table *table)
+{
+    Apache__Table RETVAL = (Apache__Table)safemalloc(sizeof(TiedTable));
+    RETVAL->table = table;
+    RETVAL->ix = 0;
+    RETVAL->elts = NULL;
+    RETVAL->arr = NULL;
+    return RETVAL;
+}
+
+MODULE = Apache::Table		PACKAGE = Apache::Table
 
 PROTOTYPES: DISABLE
 
 BOOT:
     items = items; /*avoid warning*/ 
 
-Apache::TieHashTable
+Apache::Table
 TIEHASH(class, table)
     SV *class
-    Apache::Table table
+    Apache::table table
 
     CODE:
     if(!class) XSRETURN_UNDEF;
-    RETVAL = (Apache__TieHashTable)safemalloc(sizeof(apache_tiehash_table));
-    RETVAL->table = table;
-    RETVAL->ix = 0;
-    RETVAL->elts = NULL;
-    RETVAL->arr = NULL;
+    RETVAL = ApacheTable_new(table);
 
     OUTPUT:
     RETVAL
 
 void
-destroy(self)
-    Apache::TieHashTable self
+new(class, r, nalloc=10)
+    SV *class
+    Apache r
+    int nalloc
 
     CODE:
-    safefree(self);
+    if(!class) XSRETURN_UNDEF;
+    ST(0) = mod_perl_tie_table(make_table(r->pool, nalloc));
+
+void
+DESTROY(self)
+    SV *self
+
+    PREINIT:
+    Apache__Table tab;
+
+    CODE:
+    tab = (Apache__Table)hvrv2table(self);
+    if(SvROK(self) && SvTYPE(SvRV(self)) == SVt_PVHV) 
+        safefree(tab);
 
 void
 FETCH(self, key)
-    Apache::TieHashTable self
+    Apache::Table self
     const char *key
 
     ALIAS:
@@ -119,7 +130,7 @@ FETCH(self, key)
 
 bool
 EXISTS(self, key)
-    Apache::TieHashTable self
+    Apache::Table self
     const char *key
 
     CODE:
@@ -131,7 +142,7 @@ EXISTS(self, key)
 
 const char*
 DELETE(self, key)
-    Apache::TieHashTable self
+    Apache::Table self
     const char *key
 
     ALIAS:
@@ -154,7 +165,7 @@ DELETE(self, key)
 
 void
 STORE(self, key, val)
-    Apache::TieHashTable self
+    Apache::Table self
     const char *key
     const char *val
 
@@ -168,7 +179,7 @@ STORE(self, key, val)
 
 void
 CLEAR(self)
-    Apache::TieHashTable self
+    Apache::Table self
 
     ALIAS:
     clear = 1
@@ -180,7 +191,7 @@ CLEAR(self)
 
 const char *
 NEXTKEY(self, lastkey=Nullsv)
-    Apache::TieHashTable self
+    Apache::Table self
     SV *lastkey
 
     CODE:
@@ -192,7 +203,7 @@ NEXTKEY(self, lastkey=Nullsv)
 
 const char *
 FIRSTKEY(self)
-    Apache::TieHashTable self
+    Apache::Table self
 
     CODE:
     if(!self->table) XSRETURN_UNDEF;
@@ -207,48 +218,43 @@ FIRSTKEY(self)
 
 void
 add(self, key, sv)
-    Apache::TieHashTable self
+    Apache::Table self
     const char *key
     SV *sv;
 
     CODE:
-    table_modify(self, key, sv, table_add);
+    table_modify(self, key, sv, (void*)table_add);
 
 void
 merge(self, key, sv)
-    Apache::TieHashTable self
+    Apache::Table self
     const char *key
     SV *sv
 
     CODE:
-    table_modify(self, key, sv, table_merge);
+    table_modify(self, key, sv, (void*)table_merge);
 
 void
-do(self, cv, sv=Nullsv, ...)
-    Apache::TieHashTable self
+do(self, cv, ...)
+    Apache::Table self
     SV *cv
-    SV *sv
 
     PREINIT:
     TableDo td;
-    HV *hv = Nullhv;
+    td.only = (table *)NULL;
 
     CODE:
-    if(items > 3) {
+    if(items > 2) {
 	int i;
 	STRLEN len;
-	hv = newHV();
-	for(i=3; ; i++) {
+        td.only = make_table(table_pool(self->table), items-2);
+	for(i=2; ; i++) {
 	    char *key = SvPV(ST(i),len);
-	    hv_store(hv, key, len, newSViv(1), FALSE);
+	    table_set(td.only, key, "1");
 	    if(i == (items - 1)) break; 
 	}
     }
-    td.sv = sv;
     td.cv = cv;
-    td.hv = hv;
 
     table_do((int (*) (void *, const char *, const char *)) Apache_table_do,
 	    (void *) &td, self->table, NULL);
-
-    if(hv) SvREFCNT_dec(hv);

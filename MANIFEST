@@ -59,6 +59,7 @@ lib/Apache/Resource.pm
 lib/Apache/SIG.pm
 lib/Apache/SizeLimit.pm
 lib/Apache/StatINC.pm
+lib/Apache/Symdump.pm
 lib/Apache/Constants/Exports.pm
 Apache/Apache.pm
 Apache/typemap
@@ -67,6 +68,10 @@ Symbol/Makefile.PL
 Symbol/Symbol.pm
 Symbol/Symbol.xs
 Symbol/test.pl
+Leak/Leak.pm
+Leak/Leak.xs
+Leak/Makefile.PL
+Leak/typemap
 src/modules/perl/perl_PL.h
 src/modules/perl/mod_perl_version.h
 src/modules/perl/Exports.c
@@ -79,7 +84,7 @@ src/modules/perl/ModuleConfig.xs
 src/modules/perl/Log.xs
 src/modules/perl/URI.xs
 src/modules/perl/Util.xs
-src/modules/perl/Tie.xs
+src/modules/perl/Table.xs
 src/modules/perl/ldopts
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
@@ -91,7 +96,6 @@ src/modules/perl/perlio.c
 src/modules/perl/perl_config.c
 src/modules/perl/Makefile
 src/modules/ApacheModulePerl/ApacheModulePerl.dsp
-src/modules/ApacheModulePerl/ApacheModulePerl.mak
 src/opcodes.txt
 t/report.PL
 t/README
@@ -122,6 +126,7 @@ t/modules/src.t
 t/modules/stage.t
 t/modules/status.t
 t/modules/symbol.t
+t/modules/module.t
 t/internal/api.t
 t/internal/auth.t
 t/internal/croak.t
@@ -136,8 +141,9 @@ t/internal/redirect.t
 t/internal/rwrite.t
 t/internal/stacked.t
 #t/internal/resolver.t
+t/internal/table.t
 t/internal/taint.t
-t/internal/tie.t
+t/net/perl/module.pl
 t/net/perl/file.pl
 t/net/perl/log.pl
 t/net/perl/uri.pl
@@ -200,8 +206,8 @@ faq/mod_perl_cgi.pod
 faq/mod_perl_faq.pod
 faq/mjtg-news.txt
 htdocs/manual/mod/mod_perl.html
-Tie/Makefile.PL
-Tie/Tie.pm
+Table/Makefile.PL
+Table/Table.pm
 apaci/Makefile.libdir
 apaci/Makefile.tmpl
 apaci/README

@@ -88,7 +88,7 @@ static command_rec perl_cmds[] = {
     { "</Perl>", perl_end_section, NULL, OR_ALL, NO_ARGS, "End Perl code" },
 #endif
     { "=pod", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "Start of POD" },
-    { "=end", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "End of =begin" },
+    { "=back", perl_pod_section, NULL, OR_ALL, RAW_ARGS, "End of =over" },
     { "=cut", perl_pod_end_section, NULL, OR_ALL, NO_ARGS, "End of POD" },
     { "__END__", perl_config_END, NULL, OR_ALL, RAW_ARGS, "Stop reading config" },
     { "PerlFreshRestart", perl_cmd_fresh_restart,
@@ -433,6 +433,17 @@ static void mp_dso_unload(void *data)
 } 
 #endif
 
+static void mp_server_notstarting(void *data) 
+{
+    saveINC;
+    perl_require_module("Apache", NULL); 
+    Apache__ServerStarting(FALSE);
+}
+
+#define Apache__ServerStarting_on() \
+    Apache__ServerStarting(PERL_RUNNING()); \
+    register_cleanup(p, NULL, mp_server_notstarting, mod_perl_noop) 
+
 #define MP_APACHE_VERSION 1.25
 
 void mp_check_version(void)
@@ -440,6 +451,7 @@ void mp_check_version(void)
     I32 i;
     SV *namesv;
     SV *version = perl_get_sv("Apache::VERSION", FALSE);
+
     if(!version)
 	croak("Apache.pm failed to load!"); /*should never happen*/
     if(SvNV(version) >= MP_APACHE_VERSION) /*no worries*/
@@ -485,6 +497,11 @@ void perl_startup (server_rec *s, pool *p)
 #include "mod_perl_version.h"
 #endif
     ap_add_version_component(MOD_PERL_STRING_VERSION);
+    if(PERL_RUNNING()) {
+	if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
+	    ap_add_version_component(form("Perl/%s", patchlevel));
+	}
+    }
 #endif
 
 #ifndef WIN32
@@ -512,12 +529,18 @@ void perl_startup (server_rec *s, pool *p)
     dstr = NULL;
 #endif
 
+    if(PERL_RUNNING()) {
+	saveINC;
+	mp_check_version();
+    }
+    
     if(perl_is_running == 0) {
 	/* we'll boot Perl below */
     }
     else if(perl_is_running < PERL_DONE_STARTUP) {
 	/* skip the -HUP at server-startup */
 	perl_is_running++;
+	Apache__ServerStarting_on();
 	MP_TRACE_g(fprintf(stderr, "perl_startup: perl aleady running...ok\n"));
 	return;
     }
@@ -611,7 +634,7 @@ void perl_startup (server_rec *s, pool *p)
     (void)GvHV_init("mod_perl::UNIMPORT");
 
     Apache__ServerReStarting(FALSE); /* just for -w */
-    Apache__ServerStarting(PERL_RUNNING());
+    Apache__ServerStarting_on();
 
 #ifdef PERL_STACKED_HANDLERS
     if(!stacked_handlers) {
@@ -651,7 +674,6 @@ void perl_startup (server_rec *s, pool *p)
 			   "mod_perl: PerlModule,PerlRequire postponed\n"));
 	my_setenv("PERL_STARTUP_DONE", "1");
 	saveINC;
-	Apache__ServerStarting(FALSE);
 	return;
     }
 
@@ -675,7 +697,7 @@ void perl_startup (server_rec *s, pool *p)
 	    exit(1);
 	}
     }
-    mp_check_version();
+
     LEAVE_SAFE;
 
     MP_TRACE_g(fprintf(stderr, 
@@ -687,10 +709,9 @@ void perl_startup (server_rec *s, pool *p)
 #endif
 
     saveINC;
-    Apache__ServerStarting(FALSE);
 #if MODULE_MAGIC_NUMBER >= MMN_130
     if(perl_module.dynamic_load_handle) 
-	register_cleanup(p, NULL, mp_dso_unload, NULL); 
+	register_cleanup(p, NULL, mp_dso_unload, null_cleanup); 
 #endif
 }
 

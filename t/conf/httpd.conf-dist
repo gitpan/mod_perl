@@ -10,14 +10,21 @@ mod_perl test configuration file
 
 umm, we use this to test mod_perl
 
-=cut
+=over to apache
 
-#we do this to test that `PerlSendHeader Off' will work
-<Files ~ "\.pl$">
-   PerlHandler          Apache::Registry
-   PerlSendHeader       On
-   Options              ExecCGI
-</Files>
+ #-Tw
+ PerlTaintCheck On
+ PerlWarn On
+
+=back to pod
+
+=over 4
+
+=item Test that mod_perl skips this
+
+=back
+
+=cut
 
 #make sure all regex stuff works
 #BrowserMatch Mozilla/2 nokeepalive
@@ -39,16 +46,28 @@ DocumentRoot ./t/docs
 
 #mod_perl stuff
 
-#-Tw
-PerlTaintCheck On
-PerlWarn On
 
 PerlPassEnv TERM EDITOR NOCHANCE USER
 PerlSetEnv KeyForPerlSetEnv OK
 PerlSetVar KeyForPerlSetVar OK
  
-PerlScript docs/startup.pl
-PerlScript docs/stacked.pl
+PerlRequire docs/startup.pl
+PerlRequire docs/stacked.pl
+
+=pod
+<Perl>
+    push @INC, map { "t/TestDirectives/blib/$_" } qw(arch lib);
+    require Apache::TestDirectives;
+</Perl>
+TestCmd one two
+=cut
+
+#we do this to test that `PerlSendHeader Off' will work
+<Files ~ "\.pl$">
+   PerlHandler          Apache::Registry
+   PerlSendHeader       On
+   Options              ExecCGI
+</Files>
 
 Alias /perl/ ./t/net/perl/
 Alias /perl_xs/ ./t/net/perl/
@@ -57,7 +76,7 @@ Alias /dirty-perl/ ./t/net/perl/
 Alias /cgi-bin/ ./t/net/perl/
 
 <Location /dirmagic>
-PerlHandler My::DirIndex
+PerlHandler -My::DirIndex
 </Location>
 
 <Location /perl>
@@ -125,7 +144,7 @@ PerlSetVar StatusPeek On
 PerlSetVar StatusGraph On
 PerlSetVar StatusDumper On
 SetHandler perl-script
-PerlHandler Apache::Status
+PerlHandler +Apache::Status
 </Location>
 
 <Location /perl_xs/perl-status>
@@ -144,8 +163,8 @@ PerlHandler Apache::Status
 
 #end mod_perl stuff
 
-ErrorLog logs/mod_perl_error_log
-PidFile logs/mod_perl_httpd.pid
+ErrorLog logs/error_log
+PidFile logs/httpd.pid
 AccessConfig /dev/null
 ResourceConfig conf/srm.conf
 TypesConfig /dev/null

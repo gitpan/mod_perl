@@ -1,7 +1,7 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.9 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.11 $)[1];
 
 my %is_installed = ();
 
@@ -27,7 +27,7 @@ my(%status) = (
    hooks => "Enabled mod_perl Hooks",
 );
 
-if($Apache::ReadConfig) {
+if($Apache::Server::SaveConfig) {
     $status{"section_config"} = "Perl Section Configuration";
 }
 
@@ -452,7 +452,7 @@ Other modules can "plugin" a menu item like so:
         my($r,$q) = @_; #request and CGI objects
         my(@strings);
         push @strings,  "blobs of html";
-        return \@s;     #return an array ref
+        return \@strings;     #return an array ref
     }
  ) if Apache->module("Apache::Status"); #only if Apache::Status is loaded
 

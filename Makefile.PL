@@ -33,7 +33,7 @@ my $Is_dougm = (defined($ENV{USER}) && ($ENV{USER} eq "dougm"));
 my $USE_THREADS = 
     (defined($Config{usethreads}) && ($Config{usethreads} eq "define"));
    
-$PERL_VERSION = perl_version();
+$PERLV = perl_version();
 
 require "./lib/mod_perl.pm";
 $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
@@ -107,9 +107,9 @@ my(@do_clean) = qw{
    Apache/Apache.xs
    Constants/Constants.xs
    t/modules/ssi.t       
-   t/logs/mod_perl_error_log
+   t/logs/error_log
    t/conf/srm.conf
-   t/logs/mod_perl_httpd.pid
+   t/logs/httpd.pid
 };
 #t/conf/httpd.conf
 #t/net/config.pl
@@ -184,14 +184,12 @@ $PERL_SERVER_API = 1;     #so they are on by default
 $PERL_RUN_XS = 0;
 
 my %experimental = map { $_,1 } qw{
+PERL_AUTOPRELOAD
 PERL_DSO_UNLOAD
 PERL_STARTUP_DONE_CHECK
 PERL_RUN_XS
-PERL_GET_SET_HANDLERS
 PERL_MARK_WHERE
 DO_INTERNAL_REDIRECT
-ERRSV_CAN_BE_HTTP
-PERL_SECTIONS_SELF_BOOT
 PERL_RESTART_HANDLER
 PERL_TIE_SCRIPTNAME
 PERL_STASH_POST_DATA
@@ -310,7 +308,8 @@ for (keys %PassEnv) {
 }
 
 $USE_APACI = 1 if $USE_DSO;
-if($USE_DSO or $USE_APXS and !$DO_HTTPD) {
+if(0) {
+#if($USE_DSO or $USE_APXS and !$DO_HTTPD) {
     print "*" x 65, $/;
     print <<EOF;
 * WARNING: mod_perl as a DSO is known to fail on most platforms *
@@ -443,7 +442,8 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    $USE_APACI = $USE_DSO = 0;
 	    
 	}
-	for (qw(PERL_LOG_API PERL_URI_API PERL_UTIL_API PERL_FILE_API)) {
+	for my $api (qw(LOG URI UTIL FILE TABLE)) {
+	    local $_ = join "_", "PERL", $api, "API";
 	    if(($mmn < MMN_130) and $$_) { #1.3.0
 		$$_ = 0;
 		$cant_hook{$_} = "(need 1.3.0 or higher)";
@@ -590,10 +590,7 @@ if($PERL_DIRECTIVE_HANDLERS) {
     push @xs_modules, "Apache::ModuleConfig";
     $callback_hooks{PERL_DIRECTIVE_HANDLERS} = 1;
 }
-if($PERL_TABLE_API) {
-    push @xs_modules, "Apache::Tie";
-    $callback_hooks{PERL_TABLE_API} = 1;
-}
+
 if($PERL_RUN_XS or $experimental{PERL_RUN_XS} > 1) {
     my $mmn    = $USE_APXS ? MMN_130 : magic_number($APACHE_SRC);
     if($mmn >= MMN_130) {
@@ -605,9 +602,9 @@ if($PERL_RUN_XS or $experimental{PERL_RUN_XS} > 1) {
 	print "Sorry, need 1.3.0+ for Apache::PerlRunXS\n";
     }
 }
-for (qw(Log URI Util Connection Server File)) {
+for (qw(Log URI Util Connection Server File Table)) {
     my $s = "PERL_".uc($_)."_API";
-    if($$s) {
+    if($$s or $Is_Win32) {
 	push @xs_modules, "Apache::$_";
 	$callback_hooks{$s} = 1;
     }
@@ -737,7 +734,7 @@ if($APACHE_SRC or $USE_APXS) {
 		    elsif(s/^StrongholdLicenseFile\s+//) {
 			$lfile = $_;
 			unless ($lfile =~ m:^/:) {
-			    $lfile = "$APACHE_SRC/../$lfile";
+			    $lfile = "$PWD/$APACHE_SRC/../$lfile";
 			}
 		    }
 		}
@@ -784,7 +781,7 @@ if($APACHE_SRC or $USE_APXS) {
 #---------------------------------------------------------------------
 
 MOD_PERL_VERSION = $VERSION
-PERL_VERSION = $PERL_VERSION
+PERLV = $PERLV
 
 INCDIR = $incdir
 
@@ -1101,12 +1098,12 @@ WriteMakefile(
         APACHE_ROOT => $APACHE_ROOT,
         APACHE_SRC => $APACHE_SRC,
 	ARCHNAME => $Config{archname},
-	PERL_VERSION => $]+0,
+	PERLV => $]+0,
 	HTTPD => (is_ssl() ? "httpsd" : "httpd"),
 	PORT => $PORT,
 	PWD => $PWD,
 	SHRPENV => $Config{shrpenv},
-	CVSROOT => 'perl.apache.org:/export/home/cvs',
+	CVSROOT => 'perl.apache.org:/home/cvs',
     },
     'dist'    => {
 	COMPRESS=> 'gzip -9f', SUFFIX=>'gz',
@@ -1282,11 +1279,11 @@ MP_TEST_SCRIPT=$script
 TEST_VERBOSE=0
 
 kill_httpd:
-	kill `cat t/logs/mod_perl_httpd.pid`
+	kill `cat t/logs/httpd.pid`
 	@$(RM_F) t/conf/srm.conf
 	@$(RM_F) t/logs/mod_perl.lock*
-	$(RM_F) t/logs/mod_perl_httpd.pid
-	$(RM_F) t/logs/mod_perl_error_log
+	$(RM_F) t/logs/httpd.pid
+	$(RM_F) t/logs/error_log
 
 start_httpd: test_pre_init
 	@(cd t/conf; test -f httpd.conf || cp httpd.conf-dist httpd.conf)
@@ -1294,7 +1291,7 @@ start_httpd: test_pre_init
 	@$(TOUCH) t/conf/srm.conf
 	$(APACHE_SRC)/$(HTTPD) -f `pwd`/t/conf/httpd.conf -X -d `pwd`/t &
 	@echo httpd listening on port $(PORT)
-	@echo will write error_log to: t/logs/mod_perl_error_log
+	@echo will write error_log to: t/logs/error_log
 	@echo "letting apache warm up...\c"
 	@sleep 2
 	@echo done
@@ -1356,8 +1353,8 @@ sub MY::postamble {
 cvs_export :
 	cvs -d $(CVSROOT) export -rv$(VERSION_SYM) -d$(DISTVNAME) .
 
-cvs_rtag :
-	cvs -d $(CVSROOT) rtag v$(VERSION_SYM) modperl
+cvs_tag :
+	cvs -d $(CVSROOT) tag v$(VERSION_SYM) modperl
 	@echo update mod_perl.pm's VERSION now
 
 EOF
@@ -1564,7 +1561,7 @@ sub edit_extra_cflags {
     $inc .= $SSL_INCLUDE if $SSL_INCLUDE;
     $inc .= " -DSTRONGHOLD" if is_ssl() =~ /stronghold/i;
     $inc .= " $PERL_EXTRA_CFLAGS" if $PERL_EXTRA_CFLAGS;
-    $inc .= " -DMOD_PERL -DPERL_VERSION=$PERL_VERSION";
+    $inc .= " -DMOD_PERL -DPERLV=$PERLV";
 
     while (<$fh>) {
 	push @file, $_;
@@ -1810,6 +1807,27 @@ sub perl_version {
     $v;
 }
 
+#for linking third-party xs modules static built w/ MakeMaker's: 'make static' 
+#must have when the xs module is compiled with profiling `-pg -a' flags
+sub add_static_ar {
+    $PERL_STATIC_AR ||= "";
+    my $cur = $APACHE_SRC =~ /^../ ? "$PWD/" : "";
+    for (qw(blib/arch/auto arch/auto)) {
+	last if -d ($ar_dir = "$APACHE_SRC/modules/perl/$_");
+	$ar_dir = "";
+    }
+
+    finddepth(sub {
+	return unless /\.a$/;
+	(my $rel = $File::Find::dir) =~ s:$APACHE_SRC/?::;
+	(my $mod = $rel) =~ s:.*auto/::;
+	$mod =~ s,/,::,;
+	print "linking static $mod => $rel/$_\n";
+	$PERL_STATIC_AR .= $cur . "$File::Find::dir/$_ ";
+	$PERL_STATIC_EXTS .= "$mod ";
+    }, $ar_dir);
+}
+
 sub APACI::init {
     my $lib_cfg;
     if($USE_APXS) {
@@ -1835,10 +1853,16 @@ sub APACI::init {
     for (@xs_mod_snames) {
 	push @static_src, "$_.c";
     }
-    my $static_targets = <<EOF unless $DYNAMIC;
+
+    add_static_ar();
+
+    my $static_targets = "";
+    $static_targets = <<EOF unless $DYNAMIC;
 PERL_STATIC_EXTS = @xs_modules $PERL_STATIC_EXTS
 PERL_STATIC_SRCS = @static_src
 EOF
+
+    $static_targets .= "PERL_STATIC_AR = $PERL_STATIC_AR\n" if $PERL_STATIC_AR;
 
     print $apaci_cfg <<EOF;
 ##
@@ -1847,7 +1871,7 @@ EOF
 
 #   mod_perl version
 MOD_PERL_VERSION = $VERSION
-PERL_VERSION = $PERL_VERSION
+PERLV = $PERLV
 
 #   Perl interpreter to use 
 PERL = $^X

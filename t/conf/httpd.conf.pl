@@ -9,16 +9,13 @@ AddType text/perl-module .pm
 
 Action text/perl-module /perl/action.pl
 
+PerlRequire docs/startup.pl
+PerlRequire docs/stacked.pl
+
+PerlSetEnv Tops Uno
+PerlChildInitHandler "sub { die 'PerlSetEnv busted' unless $ENV{Tops} eq 'Uno' }"
+
 PerlPassEnv TEST_PERL_DIRECTIVES
-
-#these three are passed to perl_parse(), 
-#which happens before <Perl> sections are processed
-#optionally, they can be inside <Perl>, however for testing we want
-#warnings and taint checks on while processing <Perl>
-#besides that, we rely on the PerlScript below to set @INC to our blib
-
-PerlScript docs/startup.pl
-PerlScript docs/stacked.pl
 
 #-Tw
 PerlTaintCheck On
@@ -33,8 +30,15 @@ use Apache ();
 use Apache::Registry ();
 use Apache::RegistryNG ();
 
+for (qw(TEST NOCHANCE)) {
+    if(Apache->define($_)) {
+	print "IfDefine $_\n";
+    }
+}
+
 Apache::Server->register_cleanup(sub { 
     warn "Apache::Server registered cleanup called for $$\n";
+    0;
 });
 
 if($ENV{TEST_PERL_DIRECTIVES}) {
@@ -157,20 +161,51 @@ $Location{"/cgi-bin"} = {
     Options    => "ExecCGI",
 };
 
-$VirtualHost{"localhost"} = {
-    Location => {
-	"/perl/io" => {
-	    @mod_perl,
-	    PerlSendHeader => "On",
-	    PerlSetupEnv   => "On",
+#just make sure we can parse this
+
+chomp(my $hostname = `hostname`);
+if($hostname =~ /ramona/) {
+    $NameVirtualHost = '209.228.11.20:8529';
+    $VirtualHost{"$NameVirtualHost:8529"} = [
+       {
+	   ServerName   => 'ramona.criticalpath.net',
+	   DocumentRoot => '/home/ix',
+	   ServerAdmin => 'ix',
+       },
+       {
+	   ServerName   => 'ramona.eng.cp.net',
+	   DocumentRoot => '/home/dougm',
+	   ServerAdmin => 'dougm',
+       },
+    ];
+
+    $Location{"/perl/io"} = {
+	@mod_perl,
+	PerlSendHeader => "On",
+	PerlSetupEnv   => "On",
+    };
+    $Location{"/perl_xs/io"} = {
+	@mod_perl,
+	PerlSendHeader => "On",
+	PerlSetupEnv   => "On",
+    };
+}
+else {
+    $VirtualHost{"localhost"} = {
+	Location => {
+	    "/perl/io" => {
+		@mod_perl,
+		PerlSendHeader => "On",
+		PerlSetupEnv   => "On",
+	    },
+	    "/perl_xs/io" => {
+		@mod_perl,
+		PerlSendHeader => "On",
+		PerlSetupEnv   => "On",
+	    },
 	},
-	"/perl_xs/io" => {
-	    @mod_perl,
-	    PerlSendHeader => "On",
-	    PerlSetupEnv   => "On",
-	},
-    },
-};
+    };
+}
 
 #$Location{"/perl/io"} = {
 #    @mod_perl,
@@ -191,8 +226,8 @@ for (qw(status info)) {
     };
 }
 
-$ErrorLog = "logs/mod_perl_error_log";
-$PidFile  = "logs/mod_perl_httpd.pid";
+$ErrorLog = "logs/error_log";
+$PidFile  = "logs/httpd.pid";
 
 $AccessConfig = $TypesConfig = $ScoreBoardFile = "$dir/docs/null.txt";
 

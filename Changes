@@ -6,6 +6,105 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.16_01 - November 24, 1998
+
+$r->connection->remote_addr can now be changed
+
+upgrade perl_PL.h to work with Perl 5.005_53+
+
+use absolute path for StrongholdLicenseFile
+[Todd R. Eigenschink <todd@tekinteractive.com>]
+
+only perl_section_self_boot() if an %Apache::ReadConfig:: entry is defined()
+this fixes a bug spotted by Eric Cholet where a startup file
+subroutine that accessed %Apache::ReadConfig:: would trigger a
+self-boot wipe-out
+
+add Perl/$] to Server: header if $Apache::Server::AddPerlVersion is true
+
+fixed refcnt bug in $r->current_callback
+
+some Apache::Constants updates (see the .pod) and new export() method
+
+ensure @INC value from startup time is always properly saved
+
+pod support '=for apache/=end apache' replaced with:
+ =over to apache
+ #directives for apache
+ =back to pod
+
+Apache::FakeRequest now supports Apache::Constants and is documented
+[Andrew Ford <A.Ford@ford-mason.co.uk>]
+
+new Apache->define method works like IfDefine 
+
+PerlRequire/PerlModule will start Perl if it is not already running
+
+(undocumented) $Apache::ReadConfig variable renamed $Apache::Server::SaveConfig
+
+SERVER_CREATE/SERVER_MERGE methods implemented for directive handlers
+
+new-ish xs modules added to win32 build: Apache::Log, Apache::File,
+Apache::Table, Apache::URI, Apache::Util
+ 
+new Apache::Table->new method
+
+two experimental options now on by default: 
+PERL_SECTIONS_SELF_BOOT and ERRSV_CAN_BE_HTTP
+
+fix so $Apache::ReadConfig = 1; works again, thanks to Stas Bekman for the spot
+
+add support for new 1.3.4-dev M_* methods, M_PATCH, M_LOCK, etc.
+
+fix $r->log->debug when running under -T
+
+new Apache::Leak module
+
+new Apache::Symdump module
+
+allow $VirtualHost{'111.22.33.55'} = [...] syntax in <Perl> sections
+
+Perl*Handler commands will now call perl_startup() if Perl is not
+already running to cure dso problem [Daniel Jacobowitz <drow+@cs.cmu.edu>]
+
+plugged leak in mod_perl_tie_table()
+
+methods that return an Apache::Table object no longer attempt to
+'require Apache::Table' for you (well, maybe not next release, for now, you
+get a big: `WARNING: autoloading Apache::Table')
+
+rename PERL_VERSION macro to PERLV to avoid possibl future conflict
+
+rename Apache::Tie/Apache::TieHashTable -> Apache::Table
+
+Apache::PerlRun::handler will explicitly undef subroutines before
+"flushing" the namespace [Gunther Birznieks <gunther@nhgri.nih.gov>]
+
+Perl*Handler configuration will attempt to pre-load the argument as a
+module if it has a leading `+'.  PERL_AUTOPRELOAD=1 or
+$Apache::Server::AutoPreLoad=1 will turn on auto-preloading for all
+Perl*Handlers except those which have a leading `-'
+
+Apache::URI->parse($r) without a $url argument will create a "self" url 
+from $r->uri
+
+Apache::Registry will now allow DirectoryIndex to work even when
+ExecCGI is off. [ Ari Jolma <ajolma@ahti.hut.fi> / Ask Bjoern Hansen
+<ask@netcetera.dk> ]
+
+added HTTP_OK to Apache::Constants :http export tag
+
+fixed bug in Apache::ModuleConfig->getline
+
+Segfaults when build with Ben-SSL 1.27, and trying to exec the gcache.
+[ Michael Shields <shields@crosslink.net> ]
+
+Fixes for a clean compile with mod_ssl [ Salvador Ortiz Garcia
+<sog@msg.com.mx> ]
+
+Minor fix to the debug option in Apache::StatINC [ Ask Bjoern Hansen
+<ask@netcetera.dk> ]
+
 =item 1.16 - October 2, 1998
 
 Apache::Util::escape_html() now handles `"' and `&'. should also be a

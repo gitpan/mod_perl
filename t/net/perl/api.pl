@@ -16,12 +16,12 @@ else {
 
 my $is_xs = ($r->uri =~ /_xs/);
 
-my $tests = 50;
+my $tests = 51;
 my $is_win32 = WIN32;
 $tests += 2 unless $is_win32;
 my $test_get_set = Apache->can('set_handlers') && ($tests += 4);
 my $test_custom_response = (MODULE_MAGIC_NUMBER >= 19980324) && $tests++;
-my $test_dir_config = $INC{'Apache/TestDirectives.pm'} && ($tests += 7);
+my $test_dir_config = $INC{'Apache/TestDirectives.pm'} && ($tests += 9);
 
 my $i;
 
@@ -49,6 +49,13 @@ test ++$i, $r->filename eq $0;
 test ++$i, -d $Apache::Server::CWD;
 print "\$Apache::Server::CWD == $Apache::Server::CWD\n";
 print "\$0 == $0\n";
+
+if($Apache::Server::Starting) {
+    warn "Apache::ServerStarting var is broken\n";
+}
+if($Apache::Server::ReStarting) {
+    warn "Apache::ReServerStarting var is broken\n";
+}
 
 unless ($is_win32) {
   my $ft_s = -s $INC{'Apache.pm'};
@@ -150,6 +157,12 @@ for (my $srv = $r->server; $srv; $srv = $srv->next) {
 my $str = "ok $i\n";
 $r->print(\$str);
 
+test ++$i, $r->define("FOO") || 1; #just make sure we can call it
+for (qw(TEST NOCHANCE)) {
+    if(Apache->define($_)) {
+	print "IfDefine $_\n";
+    }
+}
 test ++$i, $r->module("Apache");
 test ++$i, not Apache->module("Not::A::Chance");
 test ++$i, Apache->module("Apache::Constants");
@@ -178,10 +191,19 @@ if($test_get_set) {
 }
 
 if($test_dir_config) {
+    require Data::Dumper;
     require Apache::ModuleConfig;
     my $dc = Apache::ModuleConfig->get($r);
     test ++$i, not $dc;
 
+    {
+	package Apache::TestDirectives;
+	use Apache::test 'test';
+	my $scfg = Apache::ModuleConfig->get($r->server);
+	test ++$i, $scfg;
+	test ++$i,  __PACKAGE__->isa($scfg->{ServerClass});
+	print Data::Dumper::Dumper($scfg);
+    }
     for my $cv (
 		sub {
 		    package Apache::TestDirectives;
@@ -192,7 +214,6 @@ if($test_dir_config) {
 		})
     {
         my $cfg = $cv->();
-        require Data::Dumper;
         $r->print(Data::Dumper::Dumper($cfg));
         test ++$i, "$cfg" =~ /HASH/;
         test ++$i, keys(%$cfg) >= 3;
