@@ -42,6 +42,15 @@ int modperl_threaded_mpm(void)
     return MP_threaded_mpm;
 }
 
+/* sometimes non-threaded mpm also needs to know whether it's still
+ * starting up or after post_config) */
+static int MP_post_post_config_phase = 0;
+
+int modperl_post_post_config_phase(void)
+{
+    return MP_post_post_config_phase;
+}
+
 #ifndef USE_ITHREADS
 static apr_status_t modperl_shutdown(void *data)
 {
@@ -130,12 +139,24 @@ static void modperl_xs_init(pTHX)
  * the parent process will run the cleanups since server_pool is a subpool
  * of pconf.  we manually clear the server_pool to run cleanups in the
  * child processes
+ *
+ * the "server_user_pool" is a subpool of the "server_pool", this is
+ * the pool which is exposed to users, so that they can register
+ * cleanup callbacks. This is needed so that the perl cleanups won't
+ * be run before user cleanups are executed.
+ *
  */
 static apr_pool_t *server_pool = NULL;
+static apr_pool_t *server_user_pool = NULL;
 
 apr_pool_t *modperl_server_pool(void)
 {
     return server_pool;
+}
+
+apr_pool_t *modperl_server_user_pool(void)
+{
+    return server_user_pool;
 }
 
 static void set_taint_var(PerlInterpreter *perl)
@@ -274,12 +295,30 @@ PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
 #endif
 
 #ifdef MP_COMPAT_1X
-    av_push(GvAV(PL_incgv),
-            newSVpv(ap_server_root_relative(p, ""), 0));
-    av_push(GvAV(PL_incgv),
-            newSVpv(ap_server_root_relative(p, "lib/perl"), 0));
+    {
+        char *path, *path1;
+        apr_finfo_t finfo;
+        /* 1) push @INC, $ServerRoot */
+        av_push(GvAV(PL_incgv), newSVpv(ap_server_root, 0));
+
+        /* 2) push @INC, $ServerRoot/lib/perl only if it exists */
+        apr_filepath_merge(&path, ap_server_root, "lib",
+                           APR_FILEPATH_NATIVE, p);
+        apr_filepath_merge(&path1, path, "perl",
+                           APR_FILEPATH_NATIVE, p);
+        if (APR_SUCCESS == apr_stat(&finfo, path1, APR_FINFO_TYPE, p)) {
+            if (finfo.filetype == APR_DIR) {
+                av_push(GvAV(PL_incgv), newSVpv(path1, 0));
+            }
+        }
+    }
 #endif /* MP_COMPAT_1X */
-    
+
+    /* things to be done only in the main server */
+    if (!s->is_virtual) {
+        modperl_handler_anon_init(aTHX_ p);
+    }
+
     if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
         exit(1);
     }
@@ -492,6 +531,8 @@ void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
  */
 static apr_status_t modperl_sys_init(void)
 {
+    MP_TRACE_i(MP_FUNC, "mod_perl sys init\n");
+
 #if 0 /*XXX*/
     PERL_SYS_INIT(0, NULL);
 
@@ -518,6 +559,10 @@ static apr_status_t modperl_sys_init(void)
 static apr_status_t modperl_sys_term(void *data)
 {
     MP_init_status = 0;
+    MP_threads_started = 0;
+    MP_post_post_config_phase = 0;
+
+    MP_TRACE_i(MP_FUNC, "mod_perl sys term\n");
 
     modperl_env_unload();
 
@@ -536,13 +581,20 @@ int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog,
         return OK;
     }
 
+    MP_TRACE_i(MP_FUNC, "mod_perl hook init\n");
+
     MP_init_status = 1; /* now starting */
+
+    modperl_restart_count_inc(s);
 
     apr_pool_create(&server_pool, pconf);
     apr_pool_tag(server_pool, "mod_perl server pool");
 
+    apr_pool_create(&server_user_pool, pconf);
+    apr_pool_tag(server_user_pool, "mod_perl server user pool");
+
     modperl_sys_init();
-    apr_pool_cleanup_register(pconf, NULL,
+    apr_pool_cleanup_register(server_pool, NULL,
                               modperl_sys_term, apr_pool_cleanup_null);
 
     modperl_init(s, pconf);
@@ -585,13 +637,20 @@ static int modperl_hook_pre_connection(conn_rec *c, void *csd)
     return OK;
 }
 
-static int modperl_hook_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                                    apr_pool_t *ptemp, server_rec *s)
+static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
+                                         apr_pool_t *ptemp, server_rec *s)
 {
+    /* in the threaded environment, no server_rec/process_rec
+     * modifications should be done beyond this point */
 #ifdef USE_ITHREADS
     MP_dSCFG(s);
     dTHXa(scfg->mip->parent->perl);
 #endif
+    if (modperl_threaded_mpm()) {
+        MP_threads_started = 1;
+    }
+
+    MP_post_post_config_phase = 1;
 
 #ifdef MP_TRACE
     /* httpd core open_logs handler re-opens s->error_log, which might
@@ -626,18 +685,6 @@ static int modperl_hook_post_config(apr_pool_t *pconf, apr_pool_t *plog,
     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
                  "mod_perl: using Perl HASH_SEED: %"UVuf, MP_init_hash_seed);
 #endif
-    
-    return OK;
-}
-
-static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
-                                         apr_pool_t *ptemp, server_rec *s)
-{
-    /* in the threaded environment, no server_rec/process_rec
-     * modifications should be done beyond this point */
-    if (modperl_threaded_mpm()) {
-        MP_threads_started = 1;
-    }
     
     return OK;
 }
@@ -755,9 +802,6 @@ void modperl_register_hooks(apr_pool_t *p)
 
     ap_hook_open_logs(modperl_hook_init,
                       NULL, NULL, APR_HOOK_FIRST);
-
-    ap_hook_post_config(modperl_hook_post_config,
-                        NULL, NULL, APR_HOOK_FIRST);
 
     ap_hook_post_config(modperl_hook_post_config_last,
                         NULL, NULL, APR_HOOK_REALLY_LAST);

@@ -49,7 +49,7 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
         GV *gv;
         if (!handler->mgv_obj) {
             Perl_croak(aTHX_ "panic: %s method handler object is NULL!",
-                       handler->name);
+                       modperl_handler_name(handler));
         }
         gv = modperl_mgv_lookup(aTHX_ handler->mgv_obj);
         XPUSHs(modperl_mgv_sv(gv));
@@ -67,20 +67,8 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
 
     if (MpHandlerANON(handler)) {
 #ifdef USE_ITHREADS
-        /* it's possible that the interpreter that is running the anon
-         * cv, isn't the one that compiled it. so to be safe need to
-         * re-eval the deparsed form before using it.
-         * XXX: possible optimizations, see modperl_handler_new_anon */
-        SV *sv = eval_pv(handler->name, TRUE); 
-        cv = (CV*)SvRV(sv);
+        cv = modperl_handler_anon_get(aTHX_ handler->mgv_obj);
 #else
-        /* the same interpreter that has compiled the anon cv is used
-         * to run it */
-        if (!handler->cv) {
-            SV *sv = eval_pv(handler->name, TRUE); 
-            handler->cv = (CV*)SvRV(sv); /* cache */
-            SvREFCNT_inc(handler->cv);
-        }
         cv = handler->cv;
 #endif
     }
@@ -90,7 +78,6 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
             cv = modperl_mgv_cv(gv);
         }
         else {
-            
             const char *name;
             modperl_mgv_t *symbol = handler->mgv_cv;
             
@@ -275,8 +262,8 @@ int modperl_callback_run_handlers(int idx, int type,
     for (i=0; i<av->nelts; i++) {
         status = modperl_callback(aTHX_ handlers[i], p, r, s, av_args);
         
-        MP_TRACE_h(MP_FUNC, "%s returned %d\n",
-                   handlers[i]->name, status);
+        MP_TRACE_h(MP_FUNC, "callback '%s' returned %d\n",
+                   modperl_handler_name(handlers[i]), status);
 
         /* follow Apache's lead and let OK terminate the phase for
          * MP_HOOK_RUN_FIRST handlers.  MP_HOOK_RUN_ALL handlers keep
@@ -284,18 +271,37 @@ int modperl_callback_run_handlers(int idx, int type,
          */
 
         if (run_mode == MP_HOOK_RUN_ALL) {
+            /* special case */
+            if (type == MP_HANDLER_TYPE_FILES && status != OK) {
+                /* open_logs and post_config require OK return code or
+                 * the server aborts, so we need to log an error in
+                 * case the handler didn't fail but returned something
+                 * different from OK */
+                if (SvTRUE(ERRSV)) {
+                    status = modperl_errsv(aTHX_ status, r, s);
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                                 "Callback '%s' returned %d, whereas "
+                                 "Apache::OK (%d) is the only valid "
+                                 "return value for %s handlers",
+                                 modperl_handler_name(handlers[i]),
+                                 status, OK, desc);
+                }
+                break;
+            }
             /* the normal case:
              *   OK and DECLINED continue 
              *   errors end the phase
              */
-            if ((status != OK) && (status != DECLINED)) {
+            else if ((status != OK) && (status != DECLINED)) {
 
                 status = modperl_errsv(aTHX_ status, r, s);
 #ifdef MP_TRACE
                 if (i+1 != av->nelts) {
                     MP_TRACE_h(MP_FUNC, "error status %d leaves %d "
-                               "uncalled handlers\n",
-                               status, desc, av->nelts-i-1);
+                               "uncalled %s handlers\n",
+                               status, av->nelts-i-1, desc);
                 }
 #endif
                 break;
@@ -311,8 +317,8 @@ int modperl_callback_run_handlers(int idx, int type,
 #ifdef MP_TRACE
                 if (i+1 != av->nelts) {
                     MP_TRACE_h(MP_FUNC, "OK ends the %s stack, "
-                               "leaving %d uncalled handlers\n",
-                               desc, av->nelts-i-1);
+                               "leaving %d uncalled %s handlers\n",
+                               desc, av->nelts-i-1, desc);
                 }
 #endif
                 break;
@@ -322,8 +328,8 @@ int modperl_callback_run_handlers(int idx, int type,
 #ifdef MP_TRACE
                 if (i+1 != av->nelts) {
                     MP_TRACE_h(MP_FUNC, "error status %d leaves %d "
-                               "uncalled handlers\n",
-                               status, desc, av->nelts-i-1);
+                               "uncalled %s handlers\n",
+                               status, av->nelts-i-1, desc);
                 }
 #endif
                 break;

@@ -26,6 +26,7 @@ use lib qw(lib Apache-Test/lib);
 
 use Config;
 use File::Spec::Functions;
+use File::Spec;
 use DirHandle ();
 use File::Copy 'cp';
 use File::Basename 'basename';
@@ -67,7 +68,7 @@ my @exe_files =  map "bin/$_", qw(mp2doc mp2bug);
 
 ModPerl::BuildMM::WriteMakefile(
     NAME          => 'mod_perl',
-    VERSION       => $VERSION,
+    VERSION       => '2.0.0-RC1',
     NO_META       => 1,
     ABSTRACT_FROM => 'lib/mod_perl.pm',
     EXE_FILES     => \@exe_files,
@@ -77,7 +78,7 @@ ModPerl::BuildMM::WriteMakefile(
         MODPERL_MAKEFILE   => basename($build->default_file('makefile')),
         PERL               => $build->perl_config('perlpath'),
         MOD_INSTALL        => ModPerl::BuildMM::mod_install(),
-        MODPERL_AP_INCLUDEDIR  => $build->ap_includedir(),
+        MODPERL_AP_INCLUDEDIR  => $build->install_headers_dir(),
         MODPERL_XS_H_FILES => join(" \\\n\t", @xs_h_files),
     },
     clean     => {
@@ -146,11 +147,28 @@ sub configure {
                     "no collision)\n";
             }
             else {
-                error "not ok";
-                error "cannot install mod_perl/$VERSION on top of $vstring",
-                    "use MP_INST_APACHE2=1 option " .
-                     "or to force installation delete:\n $old_modperl_pm";
-                exit 1;
+                print " not ok\n\n";
+                error <<EOI;
+Cannot install mod_perl/$VERSION on top of $vstring.
+Add the MP_INST_APACHE2=1 option or answer 'yes'
+to the next question
+EOI
+                my $prompt = "Is it OK to install relative to Apache2/?";
+                if ($build->prompt_y($prompt)) {
+                    $build->{MP_INST_APACHE2} = 1;
+                }
+                else {
+                    error <<EOI;
+
+The answer is 'No' => aborting...
+
+To build mod_perl 2 either add MP_INST_APACHE2=1 Makefile.PL option
+or first remove mod_perl $old_modperl_version files, including
+$old_modperl_pm
+
+EOI
+                    exit 1;
+                }
             }
         }
     }
@@ -210,6 +228,13 @@ sub configure {
         debug "Using Apache prefix => $build->{MP_AP_PREFIX}";
     }
     else {
+        unless ($build->{MP_USE_STATIC}) {
+            # may populate $build->{MP_APXS}
+            prompt_for_apxs($build);
+        }
+    }
+
+    unless ($build->{MP_APXS} or $build->{MP_AP_PREFIX}) {
         my $ok = 0;
         for my $path ($build->find) {
             $build->dir($path);
@@ -293,6 +318,50 @@ sub configure {
     }
 
     install_typemap();
+}
+
+sub prompt_for_apxs {
+    my $build = shift;
+
+    print <<EOI;
+
+Next we need to know where the 'apxs' script is located. This script
+provides a lot of information about the Apache installation, and makes
+it easier to find things on your system. Normally it's located in the
+same directory as the 'httpd' executable.
+
+If you don't yet have Apache installed you can build Apache against
+the Apache source code, but you won't be able to run the test suite (a
+very important step). Therefore you may want to install Apache before
+proceeding.
+
+EOI
+
+    my $prompt = "\nPlease provide a full path to 'apxs' executable\n" .
+        "(press Enter if you don't have it installed):";
+    while (1) {
+        my $ans = $build->prompt($prompt);
+
+        print "\n\n";
+
+        # strip leading/closing spaces
+        $ans =~ s/^\s*|\s*$//g;
+
+        last unless length $ans; # skip
+
+        unless (File::Spec->file_name_is_absolute($ans)) {
+            warn "The path '$ans' is not an absolute path. " .
+                "Please specify an absolute path.\n";
+            next;
+        }
+
+        warn("'$ans' doesn't exist.\n"),     next unless -e $ans;
+        warn("'$ans' is not a file.\n"),     next unless -f _;
+        warn("'$ans' is not executable.\n"), next unless -x _;
+
+        $build->{MP_APXS} = $ans;
+        last;
+    }
 }
 
 sub post_configure {
@@ -711,8 +780,8 @@ mydist : Apache-Test/META.yml manifest tardist
 Apache-Test/META.yml:
 	cd Apache-Test && make metafile
 
-cvs_tag :
-	cvs tag MODPERL_$(VERSION_SYM) .
+tag :
+	svn copy . https://svn.apache.org/repos/asf/perl/modperl/tags/$(VERSION_SYM)
 	@$(ECHO) update mod_perl.pm VERSION now
 EOF
 

@@ -1,10 +1,11 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         Apache-Test
-version:      1.16-dev
+version:      1.18-dev
 version_from: 
 installdirs:  site
 requires:
+    Cwd:                           2.06
     File::Spec:                    0.8
 
 distribution_type: module

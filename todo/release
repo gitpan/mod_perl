@@ -4,27 +4,6 @@
 
 -- see also todo/api_status
 
-* APR::Finfo constants: APR::FILETYPE_* and APR::FILEPROT_* will
-  probably be APR::FTYPE_* and APR::FPROT_*
-  will know exactly once libapr is fixed
-  owner: stas
-
-* $r->child_terminate:
-  - a must to be able to port Apache::SizeLimit, which is a
-    showstopper for many mp1 users wanting to move to mp2.
-  - since apache has no API implement as a cleanup handler that calls
-    exit(0)
-  - since it's possible that there are other cleanup handlers
-    registered after, see if it's possible to register another
-    function when this cleanup handler is called, which will actually
-    call exit (which hopefully makes sure that this cleanup handler is
-    always running last).
-  - it should die if called within the threaded mpm, after the
-    post_config phase.
-  - future ideas for threaded mpms: might consider knocking
-    off the current PerlInterpreter instead.
-  owner: gozer
-
 * pools that go out of scope:
 
   perl -MApache2 -MAPR::Pool -MAPR::PerlIO -le '; 
@@ -37,59 +16,4 @@
 
   but that doesn't really solve the problem. So we aren't sure how to
   deal with that.
-
-* $bb->cleanup segfaults (originally in TestProtocol::echo_bbs2
-  http://marc.theaimsgroup.com/?l=apache-modperl-dev&m=108967266419527&w=2
-  owner: gozer
-
-* on windows $pool->clean, followed by $pool->destroy breaks other tests
-  See test TestAPR::pool
-  http://marc.theaimsgroup.com/?l=apache-modperl-dev&m=108547894817083&w=2
-
-* revamp directive handlers, expose modperl_module_add, fix
-  PerlLoadModule, etc.
-  http://marc.theaimsgroup.com/?t=108309295200003
-  owner: geoff
-
-* per-server cleanups core dump or are otherwise ineffective
-    Apache->server->process->pconf->cleanup_register(sub { ...  });
-  Report: geoff
-
-- cgi emulation: %ENV management:
-
-   - %ENV is currently only saved/restored for the perl-script
-     handler, i.e. changes to %ENV outside of a perl-script handler
-     are not cleared.  of course, "clean" modules would use local() to
-     modify %ENV, but there should be an option to save/restore
-     globals outside of the perl-script handler
-
-  STATUS: do the cleanup for all handlers, but provide a new config
-  option so users can disable it if they know what they are doing.
-
-* Apache::SizeLimit
-  o Need to port tools that restrict the memory size used by processes
-    for prefork mpms and develop new ones for threaded mpms. Need to
-    work out the details of the implementation of the garbage
-    collection thread for the threaded mpms as originally suggested by
-    doug.  The issue with threads is that there is no way to know the
-    thread's size, can we use B::Size and B::TerseSize?
-
-    prefork:
-        Apache::SizeLimit - Owner: perrin
-        Apache::GTopLimit - Owner: stas
-    threaded:
-        Garbage Collector thread
-
-  => Ideally the tools should work transparently with threaded and
-  non-threaded mpms, but how?
-
-* Apache::Resource
-
-* It'd be nice to have PAUSE and the clients support packages with
-  several versions, like mod_perl 1.0 and mod_perl 2.0, since once we
-  release it any dependency on mod_perl will be resolved as mod_perl
-  2.0, when mod_perl 1.0 may be required instead.
-  owner: stas: talked to autrijus, he will start working on it, but
-               not sure when. we need to ping him every so often. but
-               it'll probably won't happen by the time we release 2.0.
 

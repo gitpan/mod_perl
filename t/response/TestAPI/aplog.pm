@@ -28,7 +28,7 @@ sub handler {
     my $r = shift;
     my $s = $r->server;
 
-    plan $r, tests => (@LogLevels * 2) + 19;
+    plan $r, tests => (@LogLevels * 2) + 20;
 
     my $logdiff = TestCommon::LogDiff->new($path);
 
@@ -110,7 +110,7 @@ sub handler {
             qr/\[error\] \$s->log_error test/,
             '$s->log_error(...)';
     }
-    
+
     # log_reason
     {
         t_server_log_error_is_expected();
@@ -118,7 +118,7 @@ sub handler {
         ok t_cmp $logdiff->diff,
             qr/\[error\] access to.*failed.*reason: \$r->log_reason test/,
             '$r->log_reason(msg)';
-        
+
         t_server_log_error_is_expected();
         $r->log_reason('$r->log_reason filename test','filename');
         ok t_cmp $logdiff->diff,
@@ -129,6 +129,8 @@ sub handler {
     # XXX: at the moment we can't change loglevel after server startup
     # in a threaded mpm environment
     if (!Apache::MPM->is_threaded) {
+        my $orig_log_level = $s->loglevel;
+
         $s->loglevel(Apache::LOG_INFO);
 
         if ($s->error_fname) {
@@ -144,11 +146,33 @@ sub handler {
             qr/TestAPI::aplog test done/,
             '$slog->debug(sub { })';
 
+        $s->loglevel($orig_log_level);
     }
     else {
         ok 1;
         ok 1;
     }
+
+    # notice() messages ignore the LogLevel value and always get
+    # logged by Apache design (unless error log is set to syslog)
+    if (!Apache::MPM->is_threaded) {
+        my $orig_log_level = $s->loglevel;
+
+        $r->server->loglevel(Apache::LOG_ERR);
+        my $ignore = $logdiff->diff; # reset fh
+        # notice < error
+        my $msg = "This message should appear with LogLevel=error!";
+        $r->log->notice($msg);
+        ok t_cmp $logdiff->diff,
+            qr/[notice] .*? $msg/,
+            "notice() logs regardless of LogLevel";
+
+        $s->loglevel($orig_log_level);
+    }
+    else {
+        ok 1;
+    }
+
 
     t_server_log_warn_is_expected();
     $s->warn('$s->warn test');

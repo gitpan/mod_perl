@@ -95,13 +95,26 @@ extern module AP_MODULE_DECLARE_DATA perl_module;
 
 int modperl_threads_started(void);
 int modperl_threaded_mpm(void);
+int modperl_post_post_config_phase(void);
 
 #define MP_CROAK_IF_THREADS_STARTED(what)                       \
     if (modperl_threads_started()) {                            \
         Perl_croak(aTHX_ "Can't run '%s' in the threaded "      \
                    "environment after server startup", what);   \
     }
-    
+  
+#define MP_CROAK_IF_THREADED_MPM(what)                          \
+    if (modperl_threaded_mpm()) {                               \
+        Perl_croak(aTHX_ "Can't run '%s' in a threaded mpm",    \
+                   what);                                       \
+    }
+
+#define MP_CROAK_IF_POST_POST_CONFIG_PHASE(what)                \
+    if (modperl_post_post_config_phase()) {                     \
+        Perl_croak(aTHX_ "Can't run '%s' after server startup", \
+                   what);                                       \
+    }
+
 int modperl_init_vhost(server_rec *s, apr_pool_t *p,
                        server_rec *base_server);
 void modperl_init(server_rec *s, apr_pool_t *p);
@@ -114,6 +127,7 @@ int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,
                             apr_pool_t *ptemp);
 void modperl_register_hooks(apr_pool_t *p);
 apr_pool_t *modperl_server_pool(void);
+apr_pool_t *modperl_server_user_pool(void);
 PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p);
 int modperl_perl_destruct_level(void);
 void xs_init(pTHX);

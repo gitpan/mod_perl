@@ -834,13 +834,13 @@ sub scan_core_incremental {
         require IO::Dir;
         my @cores = ();
         for (IO::Dir->new($vars->{t_dir})->read) {
-            next unless -f;
+            my $file = catfile $vars->{t_dir}, $_;
+            next unless -f $file;
             next unless /$core_pat/o;
-            my $core = catfile $vars->{t_dir}, $_;
-            next if exists $core_files{$core} &&
-                $core_files{$core} == -M $core;
-            $core_files{$core} = -M $core;
-            push @cores, $core;
+            next if exists $core_files{$file} &&
+                $core_files{$file} == -M $file;
+            $core_files{$file} = -M $file;
+            push @cores, $file;
         }
         return @cores 
             ? join "\n", "server dumped core, for stacktrace, run:",
@@ -1283,6 +1283,9 @@ sub exit_shell {
 # will return them back to where they left
 sub skip_test_suite {
     my $no_doubt = shift;
+
+    # we can't prompt when there is no STDIN;
+    $no_doubt = 1 unless -t STDIN;
 
     print qq[
 

@@ -5,6 +5,7 @@
 
 MODULE=ModPerl::Util
  mpxs_ModPerl__Util_untaint | | ...
+ SV *:DEFINE_current_perl_id
  DEFINE_exit | | int:status=0
  char *:DEFINE_current_callback 
  DEFINE_unload_package | | const char *:package
@@ -32,6 +33,7 @@ MODULE=Apache::RequestUtil   PACKAGE=guess
  mpxs_Apache__RequestRec_pnotes | | r, key=Nullsv, val=Nullsv
  mpxs_Apache__RequestRec_add_config | | r, lines, override=OR_AUTHCFG 
  mpxs_Apache__RequestRec_document_root | | r, new_root=Nullsv
+ mpxs_Apache__RequestRec_child_terminate
 
  #protocol module helpers
  mpxs_Apache__RequestRec_location_merge
@@ -47,7 +49,7 @@ PACKAGE=Apache
 
 MODULE=Apache::RequestIO   PACKAGE=Apache::RequestRec
  SV *:DEFINE_TIEHANDLE    | | SV *:stashsv, SV *:sv=Nullsv
- apr_size_t:DEFINE_PRINT  | | ...
+ SV *:DEFINE_PRINT  | | ...
  apr_size_t:DEFINE_PRINTF | | ...
  SV *:DEFINE_BINMODE  | | request_rec *:r
  SV *:DEFINE_CLOSE    | | request_rec *:r
@@ -81,6 +83,8 @@ MODULE=Apache::ServerUtil  PACKAGE=Apache::ServerRec
 
 MODULE=Apache::ServerUtil PACKAGE=Apache::ServerUtil
  mpxs_Apache__ServerUtil_server_root_relative | | p, fname=""
+ mpxs_Apache__ServerUtil_server_shutdown_cleanup_register | | cv, arg=Nullsv
+ int:DEFINE_restart_count
 
 PACKAGE=Apache
  server_rec *:DEFINE_server | | SV *:classname=Nullsv

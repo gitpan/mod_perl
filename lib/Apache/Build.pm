@@ -239,7 +239,7 @@ sub mpm_name {
         $msg .= " Please specify MP_APXS=/full/path/to/apxs to solve " .
             "this problem." unless exists $self->{MP_APXS};
         error $msg;
-        exit 1;
+        die "\n";
     }
 
     return $self->{mpm_name} = $mpm_name;
@@ -270,7 +270,7 @@ sub configure_apache {
     my $httpd = File::Spec->catfile($self->{MP_AP_PREFIX}, 'httpd');
     $self->{'httpd'} ||= $httpd;
     push @Apache::TestMM::Argv, ('httpd' => $self->{'httpd'});
-    
+
     my $mplib = "$self->{MP_LIBNAME}$Config{lib_ext}";
     my $mplibpath = catfile($self->{cwd}, qw(src modules perl), $mplib);
 
@@ -283,6 +283,14 @@ sub configure_apache {
         split /\s+/, $ENV{CFLAGS} || '';
 
     my $cd = qq(cd $self->{MP_AP_PREFIX});
+
+    #We need to clean the httpd tree before configuring it
+    if (-f File::Spec->catfile($self->{MP_AP_PREFIX}, 'Makefile')) {
+        my $cmd = qq(make clean);
+        debug "Running $cmd";
+        system("$cd && $cmd") == 0 or die "httpd: $cmd failed";
+    }
+
     my $cmd = qq(./configure $self->{MP_AP_CONFIGURE});
     debug "Running $cmd";
     system("$cd && $cmd") == 0 or die "httpd: $cmd failed";
@@ -788,7 +796,8 @@ sub file_path {
 
 sub freeze {
     require Data::Dumper;
-    local $Data::Dumper::Terse = 1;
+    local $Data::Dumper::Terse    = 1;
+    local $Data::Dumper::Sortkeys = 1;
     my $data = Data::Dumper::Dumper(shift);
     chomp $data;
     $data;
@@ -818,7 +827,10 @@ sub save {
     $file ||= $self->default_file('build_config');
     $file = $self->file_path($file);
 
-    (my $obj = $self->freeze) =~ s/^/    /;
+    my $obj = $self->freeze;
+    $obj =~ s/^\s{9}//mg;
+    $obj =~ s/^/    /;
+
     open my $fh, '>', $file or die "open $file: $!";
 
     #work around autosplit braindeadness
@@ -933,6 +945,43 @@ sub ap_includedir  {
 
     $self->{ap_includedir} = $d;
 }
+
+# This is necessary for static builds that needs to make a
+# difference between where the apache headers are (to build
+# against) and where they will be installed (to install our
+# own headers alongside)
+# 
+# ap_exp_includedir is where apache is going to install its
+# headers to
+sub ap_exp_includedir {
+    my ($self) = @_;
+    
+    return $self->{ap_exp_includedir} if $self->{ap_exp_includedir};
+    
+    my $build_vars = File::Spec->catfile($self->{MP_AP_PREFIX}, 
+                                         qw(build config_vars.mk));
+    open my $vars, "<$build_vars" or die "Couldn't open $build_vars $!";
+    my $ap_exp_includedir;
+    while (<$vars>) {
+        if (/exp_includedir\s*=\s*(.*)/) {
+            $ap_exp_includedir = $1;
+            last;
+        }
+    }
+    
+    $self->{ap_exp_includedir} = $ap_exp_includedir;
+}
+
+sub install_headers_dir {
+    my ($self) = @_;
+    if ($self->should_build_apache) {
+        return $self->ap_exp_includedir();
+    }
+    else {
+        return $self->ap_includedir();
+    }
+}
+
 
 # where apr-config and apu-config reside
 sub apr_bindir {
@@ -1310,6 +1359,8 @@ EOF
 
 #when we use a bit of MakeMaker, make it use our values for these vars
 my %perl_config_pm_alias = (
+    ABSPERL      => 'perlpath',
+    ABSPERLRUN   => 'perlpath',
     PERL         => 'perlpath',
     PERLRUN      => 'perlpath',
     PERL_LIB     => 'privlibexp',
@@ -1318,9 +1369,12 @@ my %perl_config_pm_alias = (
 
 my $mm_replace = join '|', keys %perl_config_pm_alias;
 
-my @perl_config_pm =
-  (qw(cc cpprun rm ranlib lib_ext obj_ext cccdlflags lddlflags optimize),
-   values %perl_config_pm_alias);
+# get rid of dups
+my %perl_config_pm_alias_values = reverse %perl_config_pm_alias;
+my @perl_config_pm_alias_values = keys %perl_config_pm_alias_values;
+
+my @perl_config_pm = (@perl_config_pm_alias_values, qw(cc cpprun
+    rm ranlib lib_ext obj_ext cccdlflags lddlflags optimize));
 
 sub mm_replace {
     my $val = shift;
@@ -1593,11 +1647,12 @@ EOI
     }
 
     print $fh $self->canon_make_attr('lib', "@libs");
+    
+    print $fh $self->canon_make_attr('AP_INCLUDEDIR', 
+                                     $self->install_headers_dir());
 
-    for my $q (qw(LIBEXECDIR INCLUDEDIR)) {
-        print $fh $self->canon_make_attr("AP_$q",
-                                         $self->apxs(-q => $q));
-    }
+    print $fh $self->canon_make_attr('AP_LIBEXECDIR',
+                                     $self->apxs(-q => 'LIBEXECDIR'));
 
     my $xs_targ = $self->make_xs($fh);
 
@@ -1748,7 +1803,8 @@ sub includes {
         my $apuc = $self->apu_config_path;
         if ($apuc && -x $apuc) {
             chomp(my $apuincs = qx($apuc --includes));
-            $apuincs =~ s|-I||;
+            # win32: /Ipath, elsewhere -Ipath
+            $apuincs =~ s{^\s*(-|/)I}{};
             push @inc, $apuincs;
         }
 

@@ -66,16 +66,17 @@ register a cleanup callback via
 C<L<cleanup_register|docs::2.0::api::APR::Pool/C_cleanup_register_>>
 on the pool object of choice. Here are some examples of its usage:
 
-To run something at the server shutdown and restart use
-C<$s-E<gt>pool-E<gt>cleanup_register()> in F<startup.pl>:
+To run something at the server shutdown and restart use a cleanup
+handler registered on
+C<L<server_shutdown_cleanup_register()|docs::2.0::api::Apache::ServerUtil/C_server_shutdown_cleanup_register_>>
+in F<startup.pl>:
 
   #PerlRequire startup.pl
   use Apache::ServerUtil ();
   use APR::Pool ();
   
   warn "parent pid is $$\n";
-  my $pool = Apache->server->pool;
-  $pool->cleanup_register(\&cleanup);
+  Apache::ServerUtil::server_shutdown_cleanup_register((\&cleanup);
   sub cleanup { warn "server cleanup in $$\n" }
 
 This is usually useful when some server-wide cleanup should be
@@ -112,7 +113,12 @@ out of scope and gets destroyed. This is very similar to OO C<DESTROY>
 method.
 
 
+
+
+
 =head1 Goodies Toolkit
+
+
 
 =head2 Environment Variables
 
@@ -158,6 +164,11 @@ C<TZ> - Time Zone.
 
 Any of these environment variables can be accessed via C<%ENV>.
 
+
+
+
+
+
 =head2 Threaded MPM or not?
 
 If the code needs to behave differently depending on whether it's
@@ -176,6 +187,10 @@ C<Apache::MPM-E<gt>is_threaded> can be used. For example:
 
 This code prints the current thread id if running under a threaded
 MPM, otherwise it prints the process id.
+
+
+
+
 
 =head2 Writing MPM-specific Code
 
@@ -203,7 +218,12 @@ project to be run under a specific MPM.
   }
 
 
+
+
+
 =head1 Code Developing Nuances
+
+
 
 =head2 Auto-Reloading Modified Modules with Apache::Reload
 
@@ -259,12 +279,22 @@ don't want to use this new functionality.
 
 Refer to the I<perllexwarn> manpage for more information.
 
+
+
+
 =head1 Integration with Apache Issues
 
 In the following sections we discuss the specifics of Apache behavior
 relevant to mod_perl developers.
 
+
+
+
+
 =head2 HTTP Response Headers
+
+
+
 
 =head3 Generating HTTP Response Headers
 
@@ -355,6 +385,8 @@ script's name start with the C<nph-> prefix.
 
 
 
+
+
 =head3 Forcing HTTP Response Headers Out
 
 Apache 2.0 doesn't provide a method to force HTTP response headers
@@ -391,6 +423,7 @@ may ignore the command to flush the data.
 
 
 
+
 =head2 Sending HTTP Response Body
 
 In mod_perl 2.0 a response body can be sent only during the response
@@ -400,6 +433,90 @@ appropriate explanation logged into the I<error_log> file.
 This happens due to the Apache 2.0 HTTP architecture specifics. One of
 the issues is that the HTTP response filters are not setup before the
 response phase.
+
+
+
+
+
+=head2 Using Signal Handlers
+
+3rd party Apache 2 modules should avoid using code relying on
+signals. This is because typical signal use is not thread-safe and
+modules which rely on signals may not work portably. Certain signals
+may still work for non-threaded mpms. For example C<alarm()> can be
+used under prefork MPM, but it won't work on any other MPM. Moreover
+the Apache developers don'tq guarantee that the signals that currently
+happen to work will continue to do so in the future Apache
+releases. So use them at your own risk.
+
+It should be possible to rework the code using signals to use an
+alternative solution, which works under threads. For example if you
+were using C<alarm()> to trap potentially long running I/O, you can
+modify the I/O logic for select/poll usage (or if you use APR I/O then
+set timeouts on the apr pipes or sockets). For example, Apache 1.3 on
+Unix made blocking I/O calls and relied on the parent process to send
+the SIGALRM signal to break it out of the I/O after a timeout expired.
+With Apache 2.0, APR support for timeouts on I/O operations is used so
+that signals or other thread-unsafe mechanisms are not necessary.
+
+CPU timeout handling is another example. It can be accomplished by
+modifying the computation logic to explicitly check for the timeout at
+intervals.
+
+Talking about C<alarm()> under prefork mpm, POSIX signals seem to
+work, but require Perl 5.8.x+. For example:
+
+  use POSIX qw(SIGALRM);
+  my $mask      = POSIX::SigSet->new( SIGALRM );
+  my $action    = POSIX::SigAction->new(sub { die "alarm" }, $mask);
+  my $oldaction = POSIX::SigAction->new();
+  POSIX::sigaction(SIGALRM, $action, $oldaction );
+  eval {
+      alarm 2;
+      sleep 10 # some real code should be here
+      alarm 0;
+  };
+  POSIX::sigaction(SIGALRM, $oldaction); # restore original
+  warn "got alarm" if $@ and $@ =~ /alarm/;
+
+For more details see:
+http://search.cpan.org/dist/perl/ext/POSIX/POSIX.pod#POSIX::SigAction.
+
+One could use the C<$SIG{ALRM}> technique, working for 5.6.x+, but it
+works B<only> under DSO modperl build. Moreover starting from 5.8.0
+Perl delays signal delivery, making signals safe. This change may
+break previously working code.  For more information please see:
+http://search.cpan.org/dist/perl/pod/perl58delta.pod#Safe_Signals and
+http://search.cpan.org/dist/perl/pod/perlipc.pod#Deferred_Signals_%28Safe_Signals%29.
+
+For example if you had the alarm code:
+
+  eval {
+      local $SIG{ALRM} = sub { die "alarm" };
+      alarm 3;
+      sleep 10; # in reality some real code should be here
+      alarm 0;
+  };
+  die "the operation was aborted" if $@ and $@ =~ /alarm/;
+
+It may not work anymore. Starting from 5.8.1 it's possible to
+circumvent the safeness of signals, by setting:
+
+  $ENV{PERL_SIGNALS} = "unsafe";
+
+as soon as you start your program (e.g. in the case of mod_perl in
+startup.pl).
+
+For more information please refer to:
+http://search.cpan.org/dist/perl/pod/perl581delta.pod#Unsafe_signals_again_available
+and http://search.cpan.org/dist/perl/pod/perlrun.pod#PERL_SIGNALS.
+
+Though if you use perl 5.8.x+ it's preferrable to use the POSIX
+API technique explained earlier in this section.
+
+
+
+
 
 
 
@@ -517,6 +634,9 @@ internally used by registry handlers, can be used to run C<END> blocks
 at arbitrary times.
 
 
+
+
+
 =head2 Request-localized Globals
 
 mod_perl 2.0 provides two types of C<SetHandler> handlers:
@@ -541,6 +661,8 @@ Under:
 nothing is restored, so you should be especially careful to remember
 localize all special Perl variables so the local changes won't affect
 other handlers.
+
+
 
 
 
@@ -576,6 +698,8 @@ deal with this situation.
 
 =head1 C<ModPerl::Registry> Handlers Family
 
+
+
 =head2 A Look Behind the Scenes
 
 If you have a CGI script F<test.pl>:
@@ -609,6 +733,8 @@ only argument to the C<handler()> function.
 Depending on the used registry handler the package is made of the file
 path, the uri or anything else. Check the handler's documentation to
 learn which method is used.
+
+
 
 
 
@@ -658,6 +784,9 @@ C<L<Apache-E<gt>request|docs::2.0::api::Apache::RequestUtil/C_request_>>.
 The following sections discuss threading issues when running mod_perl
 under a threaded MPM.
 
+
+
+
 =head2 Thread-environment Issues
 
 The "only" thing you have to worry about your code is that it's
@@ -689,6 +818,8 @@ For more information refer to the I<perlthrtut>
 (I<http://perldoc.com/perl5.8.0/pod/perlthrtut.html>) manpage.
 
 
+
+
 =head2 Deploying Threads
 
 This is actually quite unrelated to mod_perl 2.0. You don't have to
@@ -708,6 +839,8 @@ and other functions that rely on shared process' datastructures are
 discussed.  I<http://www.perl.com/lpt/a/2002/06/11/threads.html>.
 
 
+
+
 =head2 Shared Variables
 
 Global variables are only global to the interpreter in which they are
@@ -718,6 +851,11 @@ function C<threads::shared::share()>. New variables can be shared by
 using the I<shared> attribute when creating them. This feature is
 documented in the I<threads::shared>
 (I<http://search.cpan.org/search?query=threads%3A%3Ashared>) manpage.
+
+
+
+
+
 
 =head1 Maintainers
 

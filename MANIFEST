@@ -1,5 +1,6 @@
 Apache-Test/CONTRIBUTORS
 Apache-Test/Changes
+Apache-Test/INSTALL
 Apache-Test/LICENSE
 Apache-Test/MANIFEST
 Apache-Test/META.yml
@@ -17,6 +18,7 @@ Apache-Test/lib/Apache/TestCommon.pm
 Apache-Test/lib/Apache/TestCommonPost.pm
 Apache-Test/lib/Apache/TestConfig.pm
 Apache-Test/lib/Apache/TestConfigC.pm
+Apache-Test/lib/Apache/TestConfigPHP.pm
 Apache-Test/lib/Apache/TestConfigParse.pm
 Apache-Test/lib/Apache/TestConfigPerl.pm
 Apache-Test/lib/Apache/TestHandler.pm
@@ -28,6 +30,7 @@ Apache-Test/lib/Apache/TestReport.pm
 Apache-Test/lib/Apache/TestReportPerl.pm
 Apache-Test/lib/Apache/TestRequest.pm
 Apache-Test/lib/Apache/TestRun.pm
+Apache-Test/lib/Apache/TestRunPHP.pm
 Apache-Test/lib/Apache/TestRunPerl.pm
 Apache-Test/lib/Apache/TestSSLCA.pm
 Apache-Test/lib/Apache/TestServer.pm
@@ -39,8 +42,10 @@ Apache-Test/lib/Apache/TestUtil.pm
 Apache-Test/lib/Bundle/ApacheTest.pm
 Apache-Test/t/TEST.PL
 Apache-Test/t/bad_coding.t
+Apache-Test/t/cgi-bin/cookies.pl.PL
 Apache-Test/t/conf/extra.conf.in
 Apache-Test/t/conf/modperl_extra.pl.in
+Apache-Test/t/cookies.t
 Apache-Test/t/more/01testpm.t
 Apache-Test/t/more/02testmore.t
 Apache-Test/t/more/03testpm.t
@@ -114,8 +119,10 @@ ModPerl-Registry/t/perlrun_extload.t
 ModPerl-Registry/t/redirect.t
 ModPerl-Registry/t/special_blocks.t
 README
+README-SVN
 RELEASE
 STATUS
+SVN-MOVE
 bin/mp2bug
 bin/mp2doc
 build/config.pl
@@ -123,7 +130,9 @@ build/make_etags
 build/source_scan.pl
 build/win32_fetch_apxs
 build/xs_generate.pl
+docs/.cvsignore
 docs/TODO
+docs/api/.cvsignore
 docs/api/APR.pod
 docs/api/APR/Base64.pod
 docs/api/APR/Brigade.pod
@@ -163,9 +172,11 @@ docs/api/Apache/Reload.pod
 docs/api/Apache/RequestIO.pod
 docs/api/Apache/RequestRec.pod
 docs/api/Apache/RequestUtil.pod
+docs/api/Apache/Resource.pod
 docs/api/Apache/Response.pod
 docs/api/Apache/ServerRec.pod
 docs/api/Apache/ServerUtil.pod
+docs/api/Apache/SizeLimit.pod
 docs/api/Apache/Status.pod
 docs/api/Apache/SubProcess.pod
 docs/api/Apache/SubRequest.pod
@@ -188,6 +199,7 @@ docs/api/README
 docs/api/config.cfg
 docs/api/index_bot.html
 docs/config.cfg
+docs/devel/.cvsignore
 docs/devel/Changes.pod
 docs/devel/config.cfg
 docs/devel/core/apache_integration.pod
@@ -196,13 +208,19 @@ docs/devel/core/explained.pod
 docs/devel/core/mod_perl_specific.pod
 docs/devel/core/mpms.pod
 docs/devel/debug/c.pod
+docs/devel/debug/code/.debug-inline
+docs/devel/debug/code/.debug-modperl-init
+docs/devel/debug/code/.debug-modperl-register
+docs/devel/debug/code/.debug-modperl-xs
 docs/devel/debug/perl.pod
 docs/devel/help/help.pod
 docs/devel/performance/size_matters.pod
 docs/devel/performance/speed_matters.pod
 docs/devel/porting/porting.pod
 docs/index_top.html
+docs/os/.cvsignore
 docs/os/config.cfg
+docs/os/win32/.cvsignore
 docs/os/win32/Changes.pod
 docs/os/win32/config.cfg
 docs/os/win32/config.pod
@@ -210,6 +228,7 @@ docs/os/win32/distinstall
 docs/os/win32/faq.pod
 docs/os/win32/install.pod
 docs/os/win32/mpinstall
+docs/user/.cvsignore
 docs/user/Changes.pod
 docs/user/coding/coding.pod
 docs/user/coding/cooking.pod
@@ -272,6 +291,8 @@ lib/Apache/ParseSource.pm
 lib/Apache/PerlSections.pm
 lib/Apache/PerlSections/Dump.pm
 lib/Apache/Reload.pm
+lib/Apache/Resource.pm
+lib/Apache/SizeLimit.pm
 lib/Apache/SourceTables.pm
 lib/Apache/Status.pm
 lib/Apache/XSLoader.pm
@@ -413,6 +434,7 @@ t/compat/send_fd.t
 t/conf/extra.conf.in
 t/conf/extra.last.conf.in
 t/conf/modperl_extra.pl
+t/conf/post_config_startup.pl
 t/directive/perl.t
 t/directive/perlloadmodule2.t
 t/directive/perlloadmodule3.t
@@ -425,6 +447,7 @@ t/directive/setupenv.t
 t/error/runtime.t
 t/error/syntax.t
 t/filter/TestFilter/both_str_con_add.pm
+t/filter/TestFilter/both_str_native_remove.pm
 t/filter/TestFilter/both_str_req_add.pm
 t/filter/TestFilter/both_str_req_mix.pm
 t/filter/TestFilter/both_str_req_proxy.pm
@@ -458,6 +481,7 @@ t/filter/TestFilter/out_str_reverse.pm
 t/filter/TestFilter/out_str_subreq_default.pm
 t/filter/TestFilter/out_str_subreq_modperl.pm
 t/filter/both_str_con_add.t
+t/filter/both_str_native_remove.t
 t/filter/both_str_req_add.t
 t/filter/both_str_req_mix.t
 t/filter/both_str_req_proxy.t
@@ -475,6 +499,7 @@ t/filter/in_str_declined.t
 t/filter/in_str_lc.t
 t/filter/in_str_msg.t
 t/filter/in_str_sandwich.t
+t/filter/out_apache.t
 t/filter/out_bbs_ctx.t
 t/filter/out_bbs_filebucket.t
 t/filter/out_init_basic.t
@@ -538,6 +563,9 @@ t/htdocs/perlio/MoonRise.jpeg
 t/htdocs/perlio/redrum.txt
 t/htdocs/protocols/basic-auth
 t/htdocs/vhost/startup.pl
+t/lib/ModPerl/TestFilterDebug.pm
+t/lib/ModPerl/TestMemoryLeak.pm
+t/lib/ModPerl/TestTiePerlSection.pm
 t/lib/TestAPRlib/base64.pm
 t/lib/TestAPRlib/bucket.pm
 t/lib/TestAPRlib/date.pm
@@ -549,7 +577,9 @@ t/lib/TestAPRlib/threadmutex.pm
 t/lib/TestAPRlib/uri.pm
 t/lib/TestAPRlib/util.pm
 t/lib/TestAPRlib/uuid.pm
+t/lib/TestCommon/Handlers.pm
 t/lib/TestCommon/LogDiff.pm
+t/lib/TestCommon/SameInterp.pm
 t/lib/TestCommon/Utils.pm
 t/modperl/cookie.t
 t/modperl/cookie2.t
@@ -567,6 +597,7 @@ t/modperl/request_rec_perlio_api.t
 t/modperl/sameinterp.t
 t/modperl/setupenv.t
 t/modperl/status.t
+t/modules/apache_resource.t
 t/modules/apache_status.t
 t/modules/cgi.t
 t/modules/cgi2.t
@@ -718,6 +749,7 @@ t/response/TestModperl/setupenv.pm
 t/response/TestModperl/status.pm
 t/response/TestModperl/subenv.pm
 t/response/TestModperl/taint.pm
+t/response/TestModperl/util.pm
 t/response/TestModules/cgi.pm
 t/response/TestModules/cgi2.pm
 t/response/TestModules/cgipost.pm
@@ -729,6 +761,7 @@ t/response/TestModules/proxy.pm
 t/response/TestModules/reload.pm
 t/response/TestPerl/api.pm
 t/response/TestPerl/hash_attack.pm
+t/response/TestPerl/signals.pm
 t/response/TestUser/rewrite.pm
 t/response/TestVhost/config.pm
 t/response/TestVhost/log.pm

@@ -393,11 +393,14 @@ int modperl_filter_resolve_init_handler(pTHX_ modperl_handler_t *handler,
         /* eval the code in the parent handler's package's context */
         char *code = apr_pstrcat(p, "package ", package_name, ";",
                                  init_handler_pv_code, NULL);
-        SV *sv = eval_pv(code, TRUE);
-
+        SV *sv;
+        modperl_handler_t *init_handler;
+        
+        ENTER;SAVETMPS;
+        sv = eval_pv(code, TRUE);
         /* fprintf(stderr, "code: %s\n", code); */
-        modperl_handler_t *init_handler =
-            modperl_handler_new_from_sv(aTHX_ p, sv);
+        init_handler = modperl_handler_new_from_sv(aTHX_ p, sv);
+        FREETMPS;LEAVE;
 
         if (init_handler) {
             MP_TRACE_h(MP_FUNC, "found init handler %s\n",
@@ -950,10 +953,28 @@ static int modperl_filter_add_connection(conn_rec *c,
 
             /* process non-mod_perl filter handlers */
             if ((handlers[i]->attrs & MP_FILTER_HTTPD_HANDLER)) {
+
+                /* non-mp2 filters below PROTOCOL level can't be added
+                 * at the connection level, so we need to go through
+                 * the pain of figuring out the type of the filter */
+                ap_filter_rec_t *frec;
+                char *normalized_name = apr_pstrdup(c->pool,
+                                                    handlers[i]->name);
+                ap_str_tolower(normalized_name);
+                frec = idx == MP_INPUT_FILTER_HANDLER
+                    ? ap_get_input_filter_handle(normalized_name)
+                    : ap_get_output_filter_handle(normalized_name);
+                if (frec && frec->ftype < AP_FTYPE_PROTOCOL) {
+                    MP_TRACE_f(MP_FUNC, "a non-mod_perl %s handler %s "
+                               "skipped (not a connection filter)",
+                               type, handlers[i]->name);
+                    continue;
+                }
+
                 addfunc(handlers[i]->name, NULL, NULL, c);
                 MP_TRACE_f(MP_FUNC,
-                           "a non-mod_perl %s handler %s configured (connection)\n",
-                           type, handlers[i]->name);
+                           "a non-mod_perl %s handler %s configured "
+                           "(connection)\n", type, handlers[i]->name);
                 continue;
             }
             

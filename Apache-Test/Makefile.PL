@@ -12,6 +12,7 @@ use constant TOP_LEVEL => !exists $ENV{MOD_PERL_2_BUILD};
 
 use ExtUtils::MakeMaker;
 use Symbol;
+use File::Find qw(finddepth);
 
 use Apache::TestMM qw(test clean); #enable 'make test and make clean'
 use Apache::TestRun;
@@ -26,6 +27,11 @@ sanity_check();
 Apache::TestMM::filter_args();
 
 my @scripts = qw(t/TEST);
+
+finddepth(sub {
+    return unless /(.*?\.pl)\.PL$/;
+    push @scripts, "$File::Find::dir/$1";
+}, '.');
 
 for (@scripts) {
     Apache::TestMM::generate_script($_);
@@ -48,17 +54,61 @@ my @clean_files =
        Makefile.old
       );
 
+my %prereq = (
+    'File::Spec' => '0.8',
+    'Cwd'        => '2.06',
+);
+
 WriteMakefile(
     NAME      => 'Apache::Test',
     VERSION   => $VERSION,
-    PREREQ_PM => { 'File::Spec' => '0.8' },
+    PREREQ_PM => \%prereq,
     dist      => {
-        COMPRESS => 'gzip -9f', SUFFIX=>'gz',
+        COMPRESS => 'gzip -9f', SUFFIX => 'gz',
     },
     clean     => {
         FILES => "@clean_files",
     },
 );
+
+# after CPAN/CPANPLUS had a chance to satisfy the requirements,
+# enforce those (for those who run things manually)
+check_prereqs();
+
+sub check_prereqs {
+    my %fail = ();
+    for (keys %prereq) {
+        unless (chk_version($_, $prereq{$_})) {
+            $fail{$_} = $prereq{$_};
+        }
+    }
+    if (%fail) {
+        error "\nThe following Apache-Test dependencies aren't satisfied:",
+            map { "\t$_: $fail{$_}" } keys %fail;
+        error "Install those from http://search.cpan.org and try again";
+        exit 0;
+    }
+}
+
+sub chk_version {
+    my($pkg, $wanted) = @_;
+
+    no strict 'refs';
+    local $| = 1;
+
+    print "Checking for $pkg...";
+    (my $p = $pkg . ".pm") =~ s#::#/#g;
+    eval { require $p;};
+    print("not ok\n$@"), return if $@;
+
+    my $vstr = ${"${pkg}::VERSION"} ? "found v" . ${"${pkg}::VERSION"}
+        : "not found";
+    my $vnum = ${"${pkg}::VERSION"} || 0;
+
+    print $vnum >= $wanted ? "ok\n" : " " . $vstr . "\n";
+
+    $vnum >= $wanted;
+}
 
 sub set_version {
     $VERSION = $Apache::Test::VERSION;
@@ -90,14 +140,30 @@ sub sanity_check {
     }
 }
 
+if ($ExtUtils::MakeMaker::VERSION < 6.06) {
+    # now that we're using subversion, make sure that
+    # .svn directories are skipped during the build process
+    # for old versions of MakeMaker
+
+    sub MY::libscan {
+        my $self = shift;
+
+        my $path = shift;
+
+        return '' if $path =~ /\B\.svn\b/;
+
+        return $path;
+    }
+}
+
 sub MY::postamble {
     my $self = shift;
 
     my $string = $self->MM::postamble;
 
     $string .= <<'EOF';
-cvs_tag :
-	cvs tag APACHE_TEST_$(VERSION_SYM) .
+tag :
+	svn copy . https://svn.apache.org/repos/asf/httpd/test/tags/APACHE_TEST_$(VERSION_SYM)
 	@echo update lib/Apache/Test.pm VERSION now
 EOF
 

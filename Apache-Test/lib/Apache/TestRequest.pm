@@ -82,6 +82,7 @@ require Exporter;
 @ISA = qw(LWP::UserAgent);
 
 my $UA;
+my $REDIR = $have_lwp ? undef : 1;
 
 sub module {
     my $module = shift;
@@ -106,6 +107,21 @@ sub module2path {
     return $path;
 }
 
+sub module2url {
+    my $module   = shift;
+    my $opt      = shift || {};
+    my $scheme   = $opt->{scheme} || 'http';
+    my $path     = $opt->{path}   || module2path($module);
+
+    module($module);
+
+    my $config   = Apache::Test::config();
+    my $hostport = hostport($config);
+
+    $path =~ s|^/||;
+    return "$scheme://$hostport/$path";
+}
+
 sub user_agent {
     my $args = {@_};
 
@@ -116,13 +132,19 @@ sub user_agent {
     if (exists $args->{requests_redirectable}) {
         my $redir = $args->{requests_redirectable};
         if (ref $redir and (@$redir > 1 or $redir->[0] ne 'POST')) {
-            $RedirectOK = 1;
+            # Set our internal flag if there's no LWP.
+            $REDIR = $have_lwp ? undef : 1;
         } elsif ($redir) {
-            $args->{requests_redirectable} = [ qw/GET HEAD POST/ ]
-                if $have_lwp;
-            $RedirectOK = 1;
+            if ($have_lwp) {
+                $args->{requests_redirectable} = [ qw/GET HEAD POST/ ];
+                $REDIR = undef;
+            } else {
+                # Set our internal flag.
+                $REDIR = 1;
+            }
         } else {
-            $RedirectOK = 0;
+            # Make sure our internal flag is false if there's no LWP.
+            $REDIR = $have_lwp ? undef : 0;
         }
     }
 
@@ -196,12 +218,19 @@ sub wanted_args {
     \%wanted_args;
 }
 
-$RedirectOK = 1;
-
 sub redirect_ok {
-    my($self, $request) = @_;
-    return 0 if $request->method eq 'POST';
-    $RedirectOK;
+    my $self = shift;
+    if ($have_lwp) {
+        # Return user setting or let LWP handle it.
+        return $RedirectOK if defined $RedirectOK;
+        return $self->SUPER::redirect_ok(@_);
+    }
+
+    # No LWP. We don't support redirect on POST.
+    return 0 if $self->method eq 'POST';
+    # Return user setting or our internal calculation.
+    return $RedirectOK if defined $RedirectOK;
+    return $REDIR;
 }
 
 my %credentials;
@@ -326,7 +355,7 @@ sub prepare {
 sub UPLOAD {
     my($url, $pass, $keep) = prepare(@_);
 
-    local $RedirectOK = exists $keep->{redirect_ok} 
+    local $RedirectOK = exists $keep->{redirect_ok}
         ? $keep->{redirect_ok}
         : $RedirectOK;
 
@@ -762,10 +791,32 @@ if there is only one value and that value is not "POST":
   Apache::TestRequest::user_agent(reset => 1,
                                   requests_redirectable => $redir);
 
+But note that redirection will B<not> work with C<POST> unless LWP is
+installed. It's best, therefore, to check C<have_lwp> before running
+tests that rely on a redirection from C<POST>.
+
+Sometimes it is desireable to have C<Apache::TestRequest> remember
+cookies sent by the pages you are testing and send them back to the
+server on subsequent requests. This is especially necessary when
+testing pages whose functionality relies on sessions or the presence
+of preferences stored in cookies.
+
+By default, C<LWP::UserAgent> does B<not> remember cookies between
+requests. You can tell it to remember cookies between request by
+adding:
+
+  Apache::TestRequest::user_agent(cookie_jar => {});
+
+before issuing the requests.
+
+
 =head1 FUNCTIONS
 
 C<Apache::TestRequest> exports a number of functions that will likely
 prove convenient for use in the majority of your request tests.
+
+
+
 
 =head2 Optional Parameters
 
@@ -818,6 +869,11 @@ test server via C<UPLOAD()> and its friends.
 
 Sends a simple GET request to the Apache test server. Returns an
 C<HTTP::Response> object.
+
+You can also supply additional headers to be sent with the request by
+adding their name/value pairs after the C<url> parameter, for example:
+
+  my $res = GET $url, 'Accept-Language' => 'de,en-us,en;q=0.5';
 
 =head3 GET_STR
 
@@ -1034,6 +1090,70 @@ C<GET>, C<HEAD> and C<POST>. This function thus can be useful for
 testing what options the Apache server supports. Consult the HTTPD 1.1
 specification, section 9.2, at
 I<http://www.faqs.org/rfcs/rfc2616.html> for more information.
+
+
+
+
+
+=head2 URL Manipulation Functions
+
+C<Apache::TestRequest> also includes a few helper functions to aid in
+the creation of urls used in the functions above.
+
+
+
+=head3 C<module2path>
+
+  $path = Apache::TestRequest::module2path($module_name);
+
+Convert a module name to a path, safe for use in the various request
+methods above. e.g. C<::> can't be used in URLs on win32. For example:
+
+  $path = Apache::TestRequest::module2path('Foo::Bar');
+
+returns:
+
+  /Foo__Bar
+
+
+
+
+=head3 C<module2url>
+
+  $url = Apache::TestRequest::module2url($module);
+  $url = Apache::TestRequest::module2url($module, \%options);
+
+Convert a module name to a full URL including the current
+configurations C<hostname:port> and sets C<module> accordingly.
+
+  $url = Apache::TestRequest::module2url('Foo::Bar');
+
+returns:
+
+  http://$hostname:$port/Foo__Bar
+
+The default scheme used is C<http>. You can override this by passing
+your preferred scheme into an optional second param. For example:
+
+  $module = 'MyTestModule::TestHandler';
+  $url = Apache::TestRequest::module2uri($module, {scheme => 'https'});
+
+returns:
+
+  https://$hostname:$port/MyTestModule__TestHandler
+
+You may also override the default path with a path of your own:
+
+  $module = 'MyTestModule::TestHandler';
+  $url = Apache::TestRequest::module2uri($module, {path => '/foo'});
+
+returns:
+
+  http://$hostname:$port/foo
+
+
+
+
 
 =head1 ENVIRONMENT VARIABLES
 

@@ -466,7 +466,7 @@ sub b_lexinfo_link {
 
     return unless has($r, "lexinfo");
 
-    my $script = $q->location;
+    my $script = $r->location;
     return qq(\n<a href="$script/$name?noh_b_lexinfo">Lexical Info</a>\n);
 }
 
@@ -724,10 +724,8 @@ sub noh_b_graph {
     }
 
     if (-s $file) {
-        local *FH;
-        open FH, $file or die "Can't open $file: $!";
         $r->content_type("image/gif");
-        $r->send_fd(\*FH);
+        $r->sendfile($file);
     }
     else {
         $r->content_type("text/plain");

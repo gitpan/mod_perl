@@ -41,6 +41,5 @@ sub handler {
 1;
 __END__
 SetHandler perl-script
-<IfDefine PERL_ITHREADS>
-    PerlInterpScope handler
-</IfDefine>
+PerlResponseHandler TestApache::cgihandler
+

@@ -605,6 +605,21 @@ C<$new_filename> argument was passed
 
 =back
 
+Note that if you change the filename after the
+C<L<PerlMapToStorageHandler|docs::2.0::user::handlers::http/PerlMapToStorageHandler>>
+phase was run and expect Apache to serve it, you need to update its
+C<stat> record, like so:
+
+  use Apache::RequestRec ();
+  use APR::Finfo ();
+  use APR::Const -compile => qw(FINFO_NORM);
+  $r->filename($newfile);
+  $r->finfo(APR::Finfo::stat($newfile, APR::FINFO_NORM, $r->pool));
+
+if you don't, Apache will still try to use the previously cached
+information about the previously set value of the filename.
+
+
 
 
 
@@ -665,7 +680,7 @@ phase):
 
   use APR::Finfo ();
   use APR::Const -compile => qw(FINFO_NORM);
-
+  
   my $finfo = APR::Finfo::stat(__FILE__, APR::FINFO_NORM, $r->pool);
   $r->finfo($finfo);
 

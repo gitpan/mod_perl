@@ -21,6 +21,7 @@ int modperl_require_module(pTHX_ const char *pv, int logfailure)
 
     dSP;
     PUSHSTACKi(PERLSI_REQUIRE);
+    ENTER;SAVETMPS;
     PUTBACK;
     sv = sv_newmortal();
     sv_setpv(sv, "require ");
@@ -28,6 +29,7 @@ int modperl_require_module(pTHX_ const char *pv, int logfailure)
     eval_sv(sv, G_DISCARD);
     SPAGAIN;
     POPSTACK;
+    FREETMPS;LEAVE;
 
     if (SvTRUE(ERRSV)) {
         if (logfailure) {
@@ -79,7 +81,9 @@ static SV *modperl_hv_request_find(pTHX_ SV *in, char *classname, CV *cv)
         Perl_croak(aTHX_
                    "method `%s' invoked by a `%s' object with no `r' key!",
                    cv ? GvNAME(CvGV(cv)) : "unknown",
-                   HvNAME(SvSTASH(SvRV(in))));
+                   (SvRV(in) && SvSTASH(SvRV(in)))
+                       ? HvNAME(SvSTASH(SvRV(in)))
+                       : "unknown");
     }
 
     return SvROK(sv) ? SvRV(sv) : sv;
@@ -700,86 +704,6 @@ char *modperl_file2package(apr_pool_t *p, const char *file)
     return package;
 }
 
-char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv)
-{
-    dSP;
-    int count;
-    SV *bdeparse;
-    SV *use;
-    char *text;
-    int tainted_orig;
-    
-    /* B::Deparse >= 0.61 needed for blessed code references.
-     * 0.6 works fine for non-blessed code refs.
-     * notice that B::Deparse is not CPAN-updatable.
-     * 0.61 is available starting from 5.8.0
-     */
-    
-     /*
-      Perl_load_module(aTHX_ PERL_LOADMOD_NOIMPORT,
-                      newSVpvn("B::Deparse", 10),
-                      newSVnv(SvOBJECT((SV*)cv) ? 0.61 : 0.60));   
-     * Perl_load_module() was causing segfaults in the worker MPM.
-     * this is a work around until we can find the problem with
-     * Perl_load_module() 
-     * See: http://marc.theaimsgroup.com/?t=109684579900001&r=1&w=2
-     */ 
-    use = newSVpv("use B::Deparse ", 15);
-    if (SvOBJECT((SV*)cv)) {
-        sv_catpvn(use, "0.61", 3);
-    }
-    sv_catpvn(use, " ();", 4);
-    
-    tainted_orig = PL_tainted;
-    TAINT_NOT;
-    eval_sv(use, G_DISCARD);
-    PL_tainted = tainted_orig;
-    sv_free(use);
-
-    ENTER;
-    SAVETMPS;
-
-    /* create the B::Deparse object */
-    PUSHMARK(sp);
-    XPUSHs(sv_2mortal(newSVpvn("B::Deparse", 10)));
-    PUTBACK;
-    count = call_method("new", G_SCALAR);
-    SPAGAIN;
-    if (count != 1) {
-        Perl_croak(aTHX_ "Unexpected return value from B::Deparse::new\n");
-    }
-    if (SvTRUE(ERRSV)) {
-        Perl_croak(aTHX_ "error: %s", SvPVX(ERRSV));
-    }
-    bdeparse = POPs;
-
-    PUSHMARK(sp);
-    XPUSHs(bdeparse);
-    XPUSHs(sv_2mortal(newRV_inc((SV*)cv)));
-    PUTBACK;
-    count = call_method("coderef2text", G_SCALAR);
-    SPAGAIN;
-    if (count != 1) {
-        Perl_croak(aTHX_ "Unexpected return value from "
-                   "B::Deparse::coderef2text\n");
-    }
-    if (SvTRUE(ERRSV)) {
-        Perl_croak(aTHX_ "error: %s", SvPVX(ERRSV));
-    }
-    
-    {
-        STRLEN n_a;
-        text = apr_pstrcat(p, "sub ", POPpx, NULL);
-    }
-    
-    PUTBACK;
-    
-    FREETMPS;
-    LEAVE;
-
-    return text;
-}
-
 SV *modperl_apr_array_header2avrv(pTHX_ apr_array_header_t *array)
 {
     AV *av = newAV(); 
@@ -827,6 +751,14 @@ static void modperl_package_delete_from_inc(pTHX_ const char *package)
 }
 
 /* Destroy a package's stash */
+#define MP_STASH_SUBSTASH(key, len) ((len >= 2) &&                  \
+                                     (key[len-1] == ':') &&         \
+                                     (key[len-2] == ':'))   
+#define MP_STASH_DEBUGGER(key, len) ((len >= 2) &&                  \
+                                     (key[0] == '_') &&             \
+                                     (key[1] == '<'))
+#define MP_SAFE_STASH(key, len)     (!(MP_STASH_SUBSTASH(key,len)|| \
+                                      (MP_STASH_DEBUGGER(key, len))))
 static void modperl_package_clear_stash(pTHX_ const char *package)
 {
     HV *stash;
@@ -837,9 +769,16 @@ static void modperl_package_clear_stash(pTHX_ const char *package)
         hv_iterinit(stash);
         while ((he = hv_iternext(stash))) {
             key = hv_iterkey(he, &len);
-            /* We skip entries ending with ::, they are sub-stashes */
-            if (len > 2 && key[len] != ':' && key[len-1] != ':') {
-                hv_delete(stash, key, len, G_DISCARD);
+            if (MP_SAFE_STASH(key, len)) {
+                SV *val = hv_iterval(stash, he);
+                char *this_stash = HvNAME(GvSTASH(val));
+                /* The safe thing to do is to skip over stash entries
+                 * that don't come from the package we are trying to
+                 * unload
+                 */
+                if (strcmp(this_stash, package) == 0) {
+                    hv_delete(stash, key, len, G_DISCARD);
+                }
             }
         }
     }
@@ -858,3 +797,36 @@ void modperl_package_unload(pTHX_ const char *package)
     }
     
 }
+
+#define MP_RESTART_COUNT_KEY "mod_perl_restart_count"
+
+/* passing the main server object here, just because we don't have the
+ * modperl_server_pool available yet, later on we can access it
+ * through the modperl_server_pool() call.
+ */
+void modperl_restart_count_inc(server_rec *base_server)
+{
+    void *data;
+    int *counter;
+    apr_pool_t *p = base_server->process->pool;
+    
+    apr_pool_userdata_get(&data, MP_RESTART_COUNT_KEY, p);
+    if (data) {
+        counter = data;
+        (*counter)++;
+    }
+    else {
+        counter = apr_palloc(p, sizeof *counter);
+        *counter = 1;
+        apr_pool_userdata_set(counter, MP_RESTART_COUNT_KEY,
+                              apr_pool_cleanup_null, p);
+    }    
+}
+
+int modperl_restart_count(void)
+{
+    void *data;
+    apr_pool_userdata_get(&data, MP_RESTART_COUNT_KEY,
+                          modperl_global_get_server_rec()->process->pool);
+    return data ? *(int *)data : 0;
+ }

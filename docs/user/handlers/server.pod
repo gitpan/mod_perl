@@ -303,7 +303,7 @@ anything that can be discarded before the requests processing starts.
 
 
 
-=head2 PerlPostConfigHandler
+=head2 C<PerlPostConfigHandler>
 
 The I<post_config> phase happens right after Apache has processed the
 configuration files, before any child processes were spawned (which
@@ -331,7 +331,7 @@ example we used the I<post_config()> handler:
   }
 
 As you can see, its arguments are identical to the
-L<I<open_logs|/C_PerlOpenLogsHandler_>> phase's handler. In this
+I<L<open_logs|/C_PerlOpenLogsHandler_>> phase's handler. In this
 example handler we don't do much, but logging that the configuration
 was completed and returning right away.
 
@@ -356,7 +356,7 @@ includes another useful example.
 
 
 
-=head2 PerlChildInitHandler
+=head2 C<PerlChildInitHandler>
 
 The I<child_init> phase happens immediately after the child process is
 spawned. Each child process (not a thread!) will run the hooks of this
@@ -396,7 +396,7 @@ I<httpd.conf>:
 
 
 
-=head2 PerlChildExitHandler
+=head2 C<PerlChildExitHandler>
 
 Opposite to the I<child_init> phase, the I<child_exit> phase is
 executed before the child process exits. Notice that it happens only
@@ -426,6 +426,71 @@ As you've seen in the example this handler is configured by adding to
 I<httpd.conf>:
 
   PerlChildExitHandler  MyApache::StartupLog::child_exit
+
+
+
+
+
+
+
+=head1 Startup Apache Commands
+
+Some notes on how Apache start/restart Apache commands affect
+mod_perl.
+
+META: not sure this is the best place for this section, but start some
+notes here.
+
+Apache re-parses F<httpd.conf> at least once for B<each> of the
+following commands (and will run any mod_perl code found in it).
+
+
+=over
+
+=item httpd -k start
+
+No special issues here.
+
+Apache start and immediately restarts itself.
+
+
+
+=item httpd -k restart
+
+This will abort any processed requests and restart the server.
+
+All kind of problems could be encountered here, including segfaults
+and other kind of crashes. This is because when the C<SIGTERM> signal
+is sent, things in process will be aborted.
+
+Avoid using this method.
+
+Alternatively C<httpd -k restart> can be executed C<kill -HUP
+HTTPD_PID>.
+
+
+
+=item httpd -k graceful
+
+No issues here. Apache starts and restarts itself just like with
+C<start>, but it waits for the existing requests to finish before
+killing them.
+
+Alternatively C<httpd -k graceful> can be executed C<kill -USR1
+HTTPD_PID>.
+
+
+=item httpd -k stop
+
+Similarly to C<httpd -k restart> you may encounter all kind of issues
+here, due to the C<SIGTERM> signal.
+
+=back
+
+
+
+
+
 
 
 =head1 Maintainers

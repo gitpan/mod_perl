@@ -33,7 +33,7 @@ sub handler {
             $subr = $r->lookup_uri($new_args,
                                    $r->output_filters);
         }
-        if ($args{filter} eq 'second') {
+        elsif ($args{filter} eq 'second') {
             # run all request filters, but the top one
             $subr = $r->lookup_uri($new_args,
                                    $r->output_filters->next);
@@ -48,7 +48,7 @@ sub handler {
                                    $r->proto_output_filters);
         }
         else {
-            # nada
+            die "no filter= argument was received";
         }
 
         $subr->run;

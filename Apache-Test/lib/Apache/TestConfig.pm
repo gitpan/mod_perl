@@ -206,8 +206,18 @@ sub new {
         $args->{$key} = $val;
     }
 
-    my $thaw = {};
+    my $top_dir = fastcwd;
+    $top_dir = pop_dir($top_dir, 't');
+    # untaint as we are going to use it a lot later on in -T sensitive
+    # operations (.e.g @INC)
+    $top_dir = $1 if $top_dir =~ /(.*)/;
 
+    # make sure that t/conf/apache_test_config.pm is found
+    # (unfortunately sometimes we get thrown into / by Apache so we
+    # can't just rely on $top_dir
+    lib->import($top_dir);
+
+    my $thaw = {};
     #thaw current config
     for (qw(conf t/conf)) {
         last if eval {
@@ -218,7 +228,7 @@ sub new {
             #something else, which we can't be sure how to load
             bless $thaw, 'Apache::TestConfig';
         };
-    };
+    }
 
     if ($args->{thaw} and ref($thaw) ne 'HASH') {
         #dont generate any new config
@@ -262,8 +272,7 @@ sub new {
         $self->{$_} = delete $args->{$_};
     }
 
-    $vars->{top_dir} ||= fastcwd;
-    $vars->{top_dir} = pop_dir($vars->{top_dir}, 't');
+    $vars->{top_dir} ||= $top_dir;
 
     $self->add_inc;
 
@@ -340,12 +349,23 @@ sub httpd_config {
     my $vars = $self->{vars};
     unless ($vars->{httpd} or $vars->{apxs}) {
 
-        # mod_perl 2.0 build always knows the right httpd location
-        # (and optionally apxs)
-        if (IS_MOD_PERL_2_BUILD) {
-            # XXX: at the moment not sure what could go wrong, but it
-            # shouldn't enter interactive config, which doesn't work
-            # with mod_perl 2.0 build (by design)
+        # mod_perl 2.0 build (almost) always knows the right httpd
+
+        # location (and optionally apxs). if we get here we can't
+        # continue because the interactive config can't work with
+        # mod_perl 2.0 build (by design)
+        if (IS_MOD_PERL_2_BUILD){
+            my $mp2_build = modperl_build_config();
+            # if mod_perl 2 was built against the httpd source it
+            # doesn't know where to find apxs/httpd, so in this case
+            # fall back to interactive config
+            unless ($mp2_build->{MP_APXS}) {
+                die "mod_perl 2 was built against Apache sources, we " .
+                "don't know where httpd/apxs executables are, therefore " .
+                "skipping the test suite execution"
+            }
+
+            # not sure what else could go wrong but we can't continue
             die "something is wrong, mod_perl 2.0 build should have " .
                 "supplied all the needed information to run the tests. " .
                 "Please post lib/Apache/BuildConfig.pm along with the " .
@@ -1025,11 +1045,10 @@ sub open_cmd {
     my($self, $cmd) = @_;
     # untaint some %ENV fields
     local @ENV{ qw(IFS CDPATH ENV BASH_ENV) };
+    local $ENV{PATH} = untaint_path($ENV{PATH});
 
-    # Temporarly untaint PATH
-    (local $ENV{PATH}) = ( $ENV{PATH} =~ /(.*)/ );
-    # -T disallows relative directories in the PATH
-    $ENV{PATH} = join ':', grep !/^\./, split /:/, $ENV{PATH};
+    # launder for -T
+    $cmd = $1 if $cmd =~ /(.*)/;
 
     my $handle = Symbol::gensym();
     open $handle, "$cmd|" or die "$cmd failed: $!";
@@ -1640,7 +1659,8 @@ sub apxs {
     return unless $self->{APXS};
     my $val;
     unless (exists $self->{_apxs}{$q}) {
-        local @ENV{ qw(PATH IFS CDPATH ENV BASH_ENV) };
+        local @ENV{ qw(IFS CDPATH ENV BASH_ENV) };
+        local $ENV{PATH} = untaint_path($ENV{PATH});
         my $devnull = devnull();
         my $apxs = shell_ready($self->{APXS});
         $val = qx($apxs -q $q 2>$devnull);
@@ -1659,6 +1679,17 @@ sub apxs {
         }
     }
     $self->{_apxs}{$q};
+}
+
+# Temporarily untaint PATH
+sub untaint_path {
+    my $path = shift;
+    ($path) = ( $path =~ /(.*)/ );
+    # win32 uses ';' for a path separator, assume others use ':'
+    my $sep = WIN32 ? ';' : ':';
+    # -T disallows relative directories in the PATH
+    $path = join $sep, grep !/^\./, split /$sep/, $path;
+    return $path;
 }
 
 sub pop_dir {
@@ -1817,6 +1848,8 @@ sub custom_config_path {
     for (@inc) {
         my $candidate = File::Spec->rel2abs(catfile $_, CUSTOM_CONFIG_FILE);
         next unless -e $candidate;
+        # launder for -T
+        ($candidate) = $candidate =~ /^(.*)/;
         return $custom_config_path = $candidate;
     }
 
@@ -2088,6 +2121,11 @@ sub custom_config_first_time {
     my $self = shift;
     my $conf_opts = shift;
 
+    unless (-t STDIN) {
+        error "STDIN is closed, can't run interactive config";
+        Apache::TestRun::skip_test_suite();
+    }
+
     my $vars = $self->{vars};
 
     print qq[
@@ -2234,14 +2272,14 @@ sub _custom_config_prompt_path {
         }
 
         unless (File::Spec->file_name_is_absolute($ans)) {
-            my $cwd = Cwd::cwd();
             warn "The path '$ans' is not an absolute path. " .
                 "Please specify an absolute path\n";
             next;
         }
 
-        warn("'$ans' doesn't exist\n"),     next unless -e $ans;
-        warn("'$ans' is not executable\n"), next unless -x $ans;
+        warn("'$ans' doesn't exist.\n"),     next unless -e $ans;
+        warn("'$ans' is not a file.\n"),     next unless -f _;
+        warn("'$ans' is not executable.\n"), next unless -x _;
 
         return $ans;
     }
@@ -2421,6 +2459,7 @@ HostnameLookups Off
 </Directory>
 
 <IfModule @THREAD_MODULE@>
+    LockFile             @t_logs@/accept.lock
     StartServers         1
     MinSpareThreads      @MinClients@
     MaxSpareThreads      @MinClients@
@@ -2430,6 +2469,7 @@ HostnameLookups Off
 </IfModule>
 
 <IfModule perchild.c>
+    LockFile             @t_logs@/accept.lock
     NumServers           1
     StartThreads         @MinClients@
     MinSpareThreads      @MinClients@
@@ -2439,6 +2479,7 @@ HostnameLookups Off
 </IfModule>
 
 <IfModule prefork.c>
+    LockFile             @t_logs@/accept.lock
     StartServers         @MinClients@
     MinSpareServers      @MinClients@
     MaxSpareServers      @MinClients@
@@ -2447,6 +2488,7 @@ HostnameLookups Off
 </IfModule>
 
 <IfDefine APACHE1>
+    LockFile             @t_logs@/accept.lock
     StartServers         @MinClients@
     MinSpareServers      @MinClients@
     MaxSpareServers      @MinClients@

@@ -541,11 +541,11 @@ MP_CMD_SRV_DECLARE(perldo)
     
     {
         GV *gv = gv_fetchpv("0", TRUE, SVt_PV);
-        ENTER;
+        ENTER;SAVETMPS;
         save_scalar(gv); /* local $0 */
         sv_setpv_mg(GvSV(gv), directive->filename);
         eval_pv(arg, FALSE);
-        LEAVE;
+        FREETMPS;LEAVE;
     }
     
     if (SvTRUE(ERRSV)) {
@@ -630,8 +630,6 @@ MP_CMD_SRV_DECLARE(END)
  */
 MP_CMD_SRV_DECLARE(load_module)
 {
-    apr_pool_t *p = parms->pool;
-    server_rec *s = parms->server;
     const char *errmsg;
 
     MP_TRACE_d(MP_FUNC, "PerlLoadModule %s\n", arg);
@@ -643,7 +641,7 @@ MP_CMD_SRV_DECLARE(load_module)
         return errmsg;
     }
 
-    return modperl_module_add(p, s, arg);
+    return NULL;
 }
 
 /* propogate filters insertion ala SetInputFilter */

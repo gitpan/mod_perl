@@ -34,32 +34,25 @@ my @add_files = qw{
     Apache-Test/META.yml
 };
 
-sub get_cvs_files {
+my @repos = qw(
+    Apache-Test
+    docs
+);
+
+sub get_svn_files {
     my @files;
-
-    my $cwd = Cwd::cwd();
-
-    finddepth({ follow => 1, wanted => sub {
-        return unless $_ eq 'Entries';
-
-        my $dir = dirname $File::Find::dir;
-        $dir =~ s,^$cwd/?,,;
-
-        open my $fh, $_ or die "open $_: $!";
-        while (my $line = <$fh>) {
-            my $file = (split '/', $line)[1];
-            next if !$file or -d "../$file" or $file =~ /^\./;
-
-            push @files, $dir ? "$dir/$file" : $file;
+    foreach my $repos ('', @repos) {
+        foreach my $ent (`svn ls -R $repos`) {
+            chomp($ent);
+            $ent = File::Spec->catfile($repos, $ent) if $repos;
+            push @files, $ent if -f $ent;
         }
-        close $fh;
-    }}, $cwd);
-
+    }
     return @files;
 }
 
 sub mkmanifest {
-    my @files = (@add_files, get_cvs_files());
+    my @files = (@add_files, get_svn_files());
 
     my $matches = maniskip();
     open my $fh, '>', 'MANIFEST' or die "open MANIFEST: $!";
@@ -111,3 +104,4 @@ t/perl/ithreads2.t
 t/response/TestPerl/ithreads.pm
 # incomplete
 t/apr-ext/perlio
+

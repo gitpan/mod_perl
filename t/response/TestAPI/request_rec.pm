@@ -1,7 +1,7 @@
 package TestAPI::request_rec;
 
 use strict;
-use warnings;# FATAL => 'all';
+use warnings FATAL => 'all';
 
 use Apache::Test;
 use Apache::TestUtil;
@@ -23,7 +23,7 @@ use APR::Const    -compile => qw(FINFO_NORM);
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 49;
+    plan $r, tests => 52;
 
     #Apache->request($r); #PerlOptions +GlobalRequest takes care
     my $gr = Apache->request;
@@ -95,7 +95,7 @@ sub handler {
     {
         local $| = 0;
         ok t_cmp $r->print("# buffered\n"), 11, "buffered print";
-        ok t_cmp $r->print(), 0, "buffered print";
+        ok t_cmp $r->print(), "0E0", "buffered print";
 
         local $| = 1;
         my $string = "# not buffered\n";
@@ -177,6 +177,31 @@ sub handler {
         ok t_cmp $@, qr/Not an array reference/,
                 '$r->content_languages(invalid)';
     }
+
+    ### invalid $r
+    {
+        my $r = bless {}, "Apache::RequestRec";
+        my $err = q[method `uri' invoked by a `Apache::RequestRec' ] .
+            q[object with no `r' key!];
+        eval { $r->uri };
+        ok t_cmp $@, qr/$err/, "invalid $r object";
+    }
+    {
+        my $r = bless {}, "NonExisting";
+        my $err = q[method `uri' invoked by a `NonExisting' ] .
+            q[object with no `r' key!];
+        eval { Apache::RequestRec::uri($r) };
+        ok t_cmp $@, qr/$err/, "invalid $r object";
+    }
+    {
+        my $r = {};
+        my $err = q[method `uri' invoked by a `unknown' ] .
+            q[object with no `r' key!];
+        eval { Apache::RequestRec::uri($r) };
+        ok t_cmp $@, qr/$err/, "invalid $r object";
+    }
+
+
     # tested in other tests
     # - input_filters:    TestAPI::in_out_filters
     # - output_filters:   TestAPI::in_out_filters

@@ -60,6 +60,8 @@ use mod_perl ();
 use Symbol ();
 use File::Spec ();
 
+use APR::Const -compile => qw(FINFO_NORM);
+
 BEGIN {
     $INC{'Apache.pm'} = __FILE__;
 
@@ -70,10 +72,35 @@ BEGIN {
     $INC{'Apache/Table.pm'} = __FILE__;
 }
 
+($Apache::Server::Starting, $Apache::Server::ReStarting) =
+    Apache::ServerUtil::restart_count() == 1 ? (1, 0) : (0, 1);
+
 # api => "overriding code"
 # the overriding code, needs to "return" the original CODE reference
 # when eval'ed , so that it can be restored later
 my %overridable_mp2_api = (
+    'Apache::RequestRec::filename' => <<'EOI',
+{
+    require Apache::RequestRec;
+    require APR::Finfo;
+    my $orig_sub = *Apache::RequestRec::filename{CODE};
+    *Apache::RequestRec::filename = sub {
+        my($r, $newfile) = @_;
+        my $old_filename;
+        if (defined $newfile) {
+            $old_filename = $r->$orig_sub($newfile);
+            die "'$newfile' doesn't exist" unless -e $newfile;
+            $r->finfo(APR::Finfo::stat($newfile, APR::FINFO_NORM, $r->pool));
+        }
+        else {
+            $old_filename = $r->$orig_sub();
+        }
+        return $old_filename;
+    };
+    $orig_sub;
+}
+
+EOI
     'Apache::RequestRec::notes' => <<'EOI',
 {
     require Apache::RequestRec;
