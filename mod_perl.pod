@@ -280,7 +280,7 @@ in the body.
 
 =head1 AUTHOR
 
-Doug MacEachern <dougm@osf.org>
+Doug MacEachern E<lt>dougm@osf.orgE<gt>
 
 
 

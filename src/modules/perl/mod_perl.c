@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.46 1997/04/01 04:15:11 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.47 1997/04/02 01:30:38 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -141,7 +141,7 @@ module perl_module = {
     STANDARD_MODULE_STUFF,
     perl_startup,                 /* initializer */
     create_perl_dir_config,    /* create per-directory config structure */
-    NULL,                      /* merge per-directory config structures */
+    perl_merge_dir_config,     /* merge per-directory config structures */
     create_perl_server_config, /* create per-server config structure */
     NULL,                      /* merge per-server config structures */
     perl_cmds,                 /* command table */
@@ -445,6 +445,56 @@ void perl_startup (server_rec *s, pool *p)
 #ifdef PERL_STACKED_HANDLERS
     stacked_handlers = newHV();
 #endif
+}
+
+void *perl_merge_dir_config (pool *p, void *basev, void *addv)
+{
+    perl_dir_config *new = (perl_dir_config *)pcalloc (p, sizeof(perl_dir_config));
+    perl_dir_config *base = (perl_dir_config *)basev;
+    perl_dir_config *add = (perl_dir_config *)addv;
+
+    new->vars = overlay_tables(p, add->vars, base->vars);
+
+    new->PerlHandler = add->PerlHandler ? add->PerlHandler : base->PerlHandler;
+
+#ifdef PERL_ACCESS
+    new->PerlAccessHandler = add->PerlAccessHandler ? 
+        add->PerlAccessHandler : base->PerlAccessHandler;
+#endif
+#ifdef PERL_AUTHEN
+    new->PerlAuthenHandler = add->PerlAuthenHandler ? 
+        add->PerlAuthenHandler : base->PerlAuthenHandler;
+#endif
+#ifdef PERL_AUTHZ
+    new->PerlAuthzHandler = add->PerlAuthzHandler ? 
+        add->PerlAuthzHandler : base->PerlAuthzHandler;
+#endif
+#ifdef PERL_FIXUP
+    new->PerlFixupHandler = add->PerlFixupHandler ? 
+        add->PerlFixupHandler : base->PerlFixupHandler;
+#endif
+#ifdef PERL_CLEANUP
+    new->PerlCleanupHandler = add->PerlCleanupHandler ? 
+        add->PerlCleanupHandler : base->PerlCleanupHandler;
+#endif
+#ifdef PERL_HEADERPARSER
+    new->PerlHeaderParserHandler = add->PerlHeaderParserHandler ? 
+        add->PerlHeaderParserHandler : base->PerlHeaderParserHandler;
+#endif
+#ifdef PERL_INIT
+    new->PerlInitHandler = add->PerlInitHandler ? 
+        add->PerlInitHandler : base->PerlInitHandler;
+#endif
+#ifdef PERL_LOG
+    new->PerlLogHandler = add->PerlLogHandler ? 
+        add->PerlLogHandler : base->PerlLogHandler;
+#endif
+#ifdef PERL_TYPE
+    new->PerlTypeHandler = add->PerlTypeHandler ? 
+        add->PerlTypeHandler : base->PerlTypeHandler;
+#endif
+
+    return new;
 }
 
 void *create_perl_dir_config (pool *p, char *dirname)

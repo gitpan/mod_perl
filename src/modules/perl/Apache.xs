@@ -53,7 +53,7 @@
 #include "mod_perl.h"
 #include "http_conf_globals.h"
 
-/* $Id: Apache.xs,v 1.47 1997/04/01 04:15:11 dougm Exp $ */
+/* $Id: Apache.xs,v 1.48 1997/04/02 01:30:38 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -63,20 +63,40 @@ BOOT:
     CTRACE(stderr, "boot_Apache: items = %d\n", items);
 
 int
-max_requests_per_child(self)
-SV *self
+max_requests_per_child(...)
 
     CODE:
-    RETVAL = SvTRUE(self) ? max_requests_per_child : 0;
+    RETVAL = max_requests_per_child;
+    CTRACE(stderr, "Apache%smax_requests_per_child = %d\n", items ? "->" : "::", RETVAL);
 
     OUTPUT:
     RETVAL
 
+#include "scoreboard.h"
+
 int
 seqno(...)
 
+    PREINIT:
+#ifdef STATUS
+    short_score rec; 
+    int i;
+    pid_t my_pid = getpid();
+#endif
+
     CODE:
+#ifdef STATUS
+    sync_scoreboard_image();
+    for (i = 0; i<HARD_SERVER_LIMIT; ++i) {
+        rec = get_scoreboard_info(i);
+	if(rec.pid != my_pid) continue;
+	RETVAL = rec.my_access_count;
+	break;
+    }
+#else
     RETVAL = mod_perl_seqno();
+#endif
+
     CTRACE(stderr, "Apache%sseqno = %d\n", items ? "->" : "::", RETVAL);
 	   
     OUTPUT:

@@ -16,7 +16,7 @@ sub test {
 %ENV = $r->cgi_env;
 
 test ++$i, $ENV{GATEWAY_INTERFACE};
-test ++$i, $r->seqno;
+test ++$i, defined($r->seqno);
 test ++$i, $r->protocol;
 #hostname
 test ++$i, $r->status;

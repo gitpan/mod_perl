@@ -388,6 +388,7 @@ int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 int perl_handler(request_rec *r);
 void perl_startup (server_rec *s, pool *p);
+void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *create_perl_dir_config (pool *p, char *dirname);
 void *create_perl_server_config (pool *p, server_rec *s);
 int perl_translate(request_rec *r);

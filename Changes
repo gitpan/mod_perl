@@ -16,6 +16,14 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.95_04
+
+dir configs are now merged so <Location> blocks can have Perl*Handlers
+and PerSetVar's without stomping those that are in .htaccess
+
+Apache->seqno will use the scoreboard's my_access_count if the -DSTATUS
+option is enabled (default if mod_status is configured in)
+
 =item 0.95_03
 
 with 1.2b8-dev+, we no longer need a Makefile.tmpl
