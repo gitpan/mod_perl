@@ -6,6 +6,24 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.21 - July 2, 1999
+
+fix refcount bug in %VirtualHost [] values, thanks to Pete Ehlke for
+the spot
+
+get rid of a warning in Apache::test [Joshua Chamas <joshua@chamas.com>]
+
+$r->read will now properly check the return value of
+ap_setup_client_block() and return undef if != OK,
+e.g. if LimitRequestBody is exceeded, thanks to Joshua Chamas for the
+spot and testing
+
+loosen module/cookie tests
+
+fix bug in register_cleanup() [Chip Turner <chip@ZFx.com>]
+
+added StatusLexInfo option to Apache::Status
+
 =item 1.20 - June 11, 1999
 
 turn off warnings in Apache::Status::as_HTML symdump code

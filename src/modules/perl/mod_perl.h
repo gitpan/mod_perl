@@ -256,6 +256,22 @@ if(arg) \
 #define HV_SvTAINTED_on(hv,key,klen) \
     SvTAINTED_on(*hv_fetch(hv, key, klen, 0)) 
 
+#if 0
+
+#define mp_setenv(key, val) \
+mp_magic_setenv(key, val, 1)
+
+#define mp_SetEnv(key, val) \
+mp_magic_setenv(key, val, 0)
+
+#define mp_PassEnv(key) \
+{ \
+    char *val = getenv(key); \
+    mp_magic_setenv(key, val?val:"", 0); \
+}
+
+#else
+
 #define mp_setenv(key, val) \
 { \
     int klen = strlen(key); \
@@ -273,6 +289,8 @@ if(arg) \
     char *val = getenv(key); \
     hv_store(GvHV(envgv), key, strlen(key), newSVpv(val?val:"",0), FALSE); \
 }
+
+#endif
 
 #define mp_debug mod_perl_debug_flags
 
@@ -670,34 +688,6 @@ else { \
 #else
 #define CHAR_P char * 
 #endif
-
-/* bleh */
-#if MODULE_MAGIC_NUMBER >= 19961125 
-#define PERL_READ_SETUP setup_client_block(r, REQUEST_CHUNKED_ERROR); 
-#else
-#define PERL_READ_SETUP
-#endif 
-
-#if MODULE_MAGIC_NUMBER >= 19970622 
-#define PERL_SET_READ_LENGTH  r->read_length = 0
-#else
-#define PERL_SET_READ_LENGTH
-#endif 
-
-#if MODULE_MAGIC_NUMBER >= 19961125 
-#define PERL_READ_CLIENT \
-if(should_client_block(r)) { \
-    nrd = get_client_block(r, buffer, bufsiz); \
-    PERL_SET_READ_LENGTH; \
-} 
-#else 
-#define PERL_READ_CLIENT \
-nrd = read_client_block(r, buffer, bufsiz); 
-#endif       
-
-#define PERL_READ_FROM_CLIENT \
-PERL_READ_SETUP; \
-PERL_READ_CLIENT
 
 #define PUSHelt(key,val,klen) \
 { \
@@ -1120,6 +1110,7 @@ void perl_qrequire_module (char *name);
 int perl_load_startup_script(server_rec *s, pool *p, char *script, I32 my_warn);
 array_header *perl_cgi_env_init(request_rec *r);
 void perl_clear_env(void);
+void mp_magic_setenv(char *key, char *val, int is_tainted);
 void mod_perl_init_ids(void);
 int perl_eval_ok(server_rec *s);
 int perl_sv_is_http_code(SV *sv, int *status);
