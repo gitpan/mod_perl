@@ -5,7 +5,7 @@ use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.21 1996/12/19 04:14:51 dougm Exp $
+#$Id: $
 $VERSION = (qw$Revision: 1.21 $)[1];
 
 $Debug ||= 0;
@@ -15,10 +15,11 @@ $Debug ||= 0;
 
 sub handler {
     my($r) = @_;
+    Apache->request($r);
     my $filename = $r->filename;
 
     if (-r $filename && -s _) {
-	if (!($r->allow_options & OPT_EXECCGI) && (!$r->is_perlaliased)) {
+	if (!($r->allow_options & OPT_EXECCGI)) {
 	    $r->log_reason("Options ExecCGI is off in this directory", 
 			   $filename);
 	    return FORBIDDEN;
@@ -113,11 +114,9 @@ Apache::Registry - Run (mostly) unaltered CGI scripts through mod_perl
  PerlAlias /perl/ /perl/apache/scripts/ #optional
  PerlModule Apache::Registry 
  
- AddHandler perl-script .fpl
- 
- #in access.conf
- <Directory /perl/apache/scripts>
- PerlHandler Apache::Regsistry::handler
+ <Location /perl>
+ SetHandler perl-script
+ PerlHandler Apache::Registry
  ...
  </Directory>
 

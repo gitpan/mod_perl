@@ -3,7 +3,7 @@ package Apache;
 use vars qw($VERSION);
 use Apache::Constants ();
 
-$VERSION = "1.09";
+$VERSION = "1.10";
 
 bootstrap Apache $VERSION;
 
@@ -120,7 +120,7 @@ Apache - Perl interface to the Apache server API
 
 =head1 SYNOPSIS
 
-   require Apache;
+   use Apache ();
 
 =head1 DESCRIPTION
 
@@ -141,10 +141,17 @@ package, it is really a C<request_rec *> in disguise.
 
 =over 4
 
-=item Apache->request
+=item Apache->request([$r])
 
-The Apache->request method will create a request object and return a
-reference to it.  
+The Apache->request method will return a reference to the request object.
+
+B<Perl*Handler>'s can obtain a reference to the request object when it
+is passed to them via C<@_>.  However, scripts that run under 
+L<Apache::Registry>, for example, need a way to access the request object.
+L<Apache::Registry> will make a request object availible to these scripts
+by passing it's object reference to C<Apache->request($r)>.
+If handlers use modules such as C<Apache::CGI> that need to access
+L<Apache->request>, they too should do this (e.g. Apache::Status).
 
 =item $r->main
 
@@ -179,11 +186,20 @@ Each number corresponds to a string representation such as
 "GET", "HEAD" or "POST".
 Passing an argument will set the method_number, mainly used for internal redirects and testing authorization restriction masks.
 
+=item $r->the_request
+
+The request line send by the client, handy for logging, etc.
+
 =item $r->proxyreq
 
 Returns true if the request is proxy http.
 Mainly used during the filename translation stage of the request, 
 which may be handled by a C<PerlTransHandler>.
+
+=item $r->header_only
+
+Returns true if the client is asking for headers only, 
+e.g. if the request method was B<HEAD>.
 
 =item $r->protocol
 
@@ -215,8 +231,8 @@ string>.  When called in a scalar context, the entire string is
 returned.  When called in a list context, a list of parsed I<key> =>
 I<value> pairs are returned, i.e. it can be used like this:
 
-  $query = $req->args;
-  %in    = $req->args;
+  $query = $r->args;
+  %in    = $r->args;
 
 =item $r->headers_in
 
@@ -225,11 +241,13 @@ headers.  This can be used to initialize a perl hash, or one could use
 the $r->header_in() method (described below) to retrieve a specific
 header value directly.
 
-=item $r->header_in( $header_name )
+=item $r->header_in( $header_name, [$value] )
 
 Return the value of a client header.  Can be used like this:
 
-  $ct = $req->header_in("Content-type");
+  $ct = $r->header_in("Content-type");
+
+  $r->header_in($key, $val); #set the value of header '$key'
 
 =item $r->content
 
@@ -284,8 +302,11 @@ $c->user; #Returns the remote username if authenticated.
 
 $c->auth_type; #Returns the authentication scheme used, if any.
 
+$c->aborted; #returns true if the client stopped talking to us
+
 $c->close; #Calling this method will close down the connection to the
 client
+
 
 =back
 
@@ -315,15 +336,14 @@ control, see L<Apache::AuthzAge> for an example.
 
 =item $r->allow_options
 
-=item $r->is_perlaliased
-
-The $r->allow_options and $r->is_perlaliased methods can be used for
+The $r->allow_options method can be used for
 checking if it's ok to run a perl script.  The B<Apache::Options>
 module provide the constants to check against.
 
- if(!($r->allow_options & OPT_EXECCGI) && !$r->is_perlaliased) {
+ if(!($r->allow_options & OPT_EXECCGI)) {
      $r->log_reason("Options ExecCGI is off in this directory", 
 		    $filename);
+ }
 
 =item $s = $r->server
 
@@ -331,13 +351,25 @@ Return a reference to the server info object (blessed into the
 B<Apache::Server> package).  This is really a C<server_rec*> in
 disguise.  The following methods can be used on the server object:
 
-$s->server_admin; Returns the mail address of the person responsible
-for this server.
+=item $s->server_admin
 
-$s->server_hostname; Returns the hostname used by this server.
+Returns the mail address of the person responsible for this server.
 
-$s->port;
+=item $s->server_hostname
+
+Returns the hostname used by this server.
+
+=item $s->port
+
 Returns the port that this servers listens too.
+
+=item $s->is_virtal
+
+Returns true if this is a virtual server.
+
+=item $s->names
+
+Returns the wildcarded names for HostAlias servers. 
 
 =back
 
@@ -346,17 +378,12 @@ Returns the port that this servers listens too.
 The following methods are used to set up and return the response back
 to the client.  This typically involves setting up $r->status(), the
 various content attributes and optionally some additional
-$r->out_headers() before calling $r->send_http_header() which will
+$r->header_out()'s before calling $r->send_http_header() which will
 actually send the headers to the client.  After this a typical
-application will call the $r->write_client() method to send the response
+application will call the $r->print() method to send the response
 content to the client.
 
 =over 4
-
-=item $r->basic_http_header
-
-Send the response line (status) along with I<Server:> and I<Date:>
-headers.
 
 =item $r->send_http_header
 
@@ -422,20 +449,42 @@ Get or set the response status line.  The status line is a string like
 using the $r->status() described above.
 
 
+=item $r->headers_out
+
+The $r->headers_out method will return a %hash of server response
+headers.  This can be used to initialize a perl hash, or one could use
+the $r->header_out() method (described below) to retrieve or set a specific
+header value directly.
+
 =item $r->header_out( $header, $value )
 
 Change the value of a response header, or create a new one.  You
 should not define any "Content-XXX" headers by calling this method,
 because these headers use their own specific methods.  Example of use:
 
-   $req->header_out("WWW-Authenticate" => "Basic");
+   $r->header_out("WWW-Authenticate" => "Basic");
 
-=item $r->err_header_out( $header, $value )
+   $val = $r->header_out($key);
+
+=item $r->err_headers_out
+
+The $r->err_headers_out method will return a %hash of server response
+headers.  This can be used to initialize a perl hash, or one could use
+the $r->err_header_out() method (described below) to retrieve or set a specific
+header value directly.
+
+The difference between headers_out and err_headers_out is that the
+latter are printed even on error, and persist across internal redirects
+(so the headers printed for ErrorDocument handlers will have them).
+
+=item $r->err_header_out( $header, [$value] )
 
 Change the value of an error response header, or create a new one.
 These headers are used if the status indicates an error.
 
-   $req->err_headers_out("Warning" => "Bad luck");
+   $r->err_header_out("Warning" => "Bad luck");
+
+   $val = $r->err_header_out($key);
 
 =item $r->no_cache( $boolean )
 
@@ -530,7 +579,7 @@ type of interface.
 Return a %hash that can be used to set up a standard CGI environment.
 Typical usage would be:
 
-  %ENV = $req->cgi_env
+  %ENV = $r->cgi_env
 
 B<NOTE:> The $ENV{GATEWAY_INTERFACE} is set to C<'CGI-Perl/1.1'> so
 you can say:
@@ -559,7 +608,7 @@ Take action on certain headers including I<Status:>, I<Location:> and
 I<Content-type:> just as mod_cgi does, then calls
 $r->send_http_header().  Example of use:
 
-  $req->send_cgi_header("
+  $r->send_cgi_header("
   Location: /foo/bar
   Content-type: text/html 
   
@@ -594,6 +643,14 @@ Uh, oh.  Write a message to the server's errorlog.
 =item Apache::unescape_url($string)
 
 Handy function for unescapes.
+
+=item Apache::perl_hook($hook)
+
+Test to see if a callback hook is enabled
+
+ for (qw(Access Authen Authz Fixup HeaderParser Log Trans Type)) {
+    print "$_ hook enabled\n" if Apache::perl_hook($_);
+ }  
 
 =back
 

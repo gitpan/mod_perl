@@ -9,8 +9,8 @@ use vars qw($VERSION @ISA);
 
 @ISA = qw(HTML::TreeBuilder);
 
-#$Id: SSI.pm,v 1.12 1996/12/17 04:24:38 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.12 $ =~ /(\d+)\.(\d+)/);
+#$Id: SSI.pm,v 1.13 1997/01/20 05:21:52 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.13 $ =~ /(\d+)\.(\d+)/);
 
 #wherever you choose:
 #AddHandler perl-script .phtml
@@ -22,7 +22,7 @@ $VERSION = sprintf("%d.%02d", q$Revision: 1.12 $ =~ /(\d+)\.(\d+)/);
 #PerlResponse Apache::SSI::handler
 
 sub handler {
-    my $r = Apache->request;
+    my $r = @_;
     %ENV = $r->cgi_env; #for exec
     $r->content_type("text/html"); 
     $r->send_http_header;
@@ -154,18 +154,16 @@ Apache::SSI - Implement Server Side Includes in Perl
 =head1 SYNOPSIS
 
 wherever you choose:
-AddHandler perl-script .phtml
 
-add this to srm.conf:
-PerlScript Apache::SSI
-
-in access.conf or .htaccess say:
-PerlResponse Apache::SSI::handler
+<Files *.phtml>
+SetHandler perl-script
+PerlHandler Apache::SSI
+</Files>
 
 You may wish to subclass Apache::SSI for your own extentions
 
     package MySSI;
-    require Apache::SSI;
+    use Apache::SSI ();
     @ISA = qw(Apache::SSI);
 
     #embedded syntax:
@@ -205,7 +203,7 @@ There is no support for xssi directives.
 
 =head1 SEE ALSO
 
-mod_include, mod_perl_fast, HTML::TreeBuilder(3), perl(1), Apache(3)
+mod_include, mod_perl(3), HTML::TreeBuilder(3), perl(1), Apache(3)
 
 =head1 AUTHOR
 

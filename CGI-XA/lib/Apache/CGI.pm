@@ -10,13 +10,12 @@ if ($@) {
     @ISA = qw(CGI::XA);
 }
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.17 $ =~ /(\d+)\.(\d+)/);
+$VERSION = (qw$Revision: 1.17 $)[1];
 
 sub new {
     my($class) = shift;
-    #tie *STDOUT => 'Apache::TieHandle';
     my($r) = Apache->request;
-    %ENV = $r->cgi_env;
+    %ENV = $r->cgi_env unless $ENV{GATEWAY_INTERFACE}; #PerlSetupEnv On 
     my $self = $class->SUPER::new(@_);
     $self->{'.req'} = $r;
     $self;
@@ -37,23 +36,7 @@ sub print {
 sub read_from_client {
     my($self, $fh, $buff, $len, $offset) = @_;
     my $r = $self->{'.req'} || Apache->request;
-    my($own_buffer,$ret);
-    # A.K.: unfortunately I couldn't find a way without our own buffer
-    $ret = $r->read_client_block($own_buffer, $len);
-#    my $own_len = length($own_buffer);
-    if ($offset) {
-	substr($$buff,$offset) = substr($own_buffer,0,$ret);
-    } else {
-	$$buff = substr($own_buffer,0,$ret);
-    }
-#    my $fulllen = length($$buff);
-#    my $caller = "";#Carp::longmess();
-#    warn qq{ret [$ret] len [$len] offset [$offset] own_len [$own_len] fulllen [$fulllen] caller [$caller]\n};
-#    my $obs = substr($own_buffer,0,15);
-#    my $obe = substr($own_buffer,-15);
-#    for ($obs,$obe){ s/\000/\\000/g }
-#    warn qq{own_buffer [$obs]...[$obe] his buff [$$buff]\n};
-    $ret;
+    return $r->read($$buff, $len, $offset);
 }
 
 sub new_MultipartBuffer {

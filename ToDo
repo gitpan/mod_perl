@@ -1,7 +1,9 @@
 
 in no particular order:
 
-evaluate/address interaction between $r->read* + Apache::CGI->read_from_client
+get rid of basic_http_header usage
+
+figure out why sometimes we need to set $|=1 with sfio
 
 figure out why the heck filehandles used with file upload show up under
 'unknown' in our symbol table dump, and why the heck they are even in the

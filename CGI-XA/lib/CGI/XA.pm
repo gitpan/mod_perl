@@ -25,7 +25,7 @@ use FileHandle ();
 # this package will be. If Lincoln integrates the changes, I'll drop
 # it.
 
-$Revision = q$Id: XA.pm,v 1.13 1996/12/18 22:28:22 dougm Exp $;
+$Revision = q$Id: XA.pm,v 1.13 1996/12/18 22:28:22 dougm Exp dougm $;
 
 # The path separator is a slash, backslash or semicolon, depending
 # on the paltform.
@@ -1427,11 +1427,14 @@ sub _tableize {
     # rearrange into a pretty table
     $result = "<TABLE>";
     my($row,$column);
-    unshift(@$colheaders,'') if @$colheaders && @$rowheaders;
-    $result .= "<TR><TH>" . join ("<TH>",@{$colheaders}) if @{$colheaders};
+    if ($colheaders && $rowheaders) {
+       unshift(@$colheaders,'') if @$colheaders && @$rowheaders;
+    }
+       $result .= "<TR><TH>" . join ("<TH>",@{$colheaders})
+           if $colheaders && @{$colheaders};
     for ($row=0;$row<$rows;$row++) {
 	$result .= "<TR>";
-	$result .= "<TH>$rowheaders->[$row]" if @$rowheaders;
+       $result .= "<TH>$rowheaders->[$row]" if $rowheaders && @$rowheaders;
 	for ($column=0;$column<$columns;$column++) {
 	    $result .= "<TD>" . $elements[$column*$rows + $row];
 	}

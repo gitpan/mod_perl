@@ -15,6 +15,71 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.90_01
+
+depreciation of Apache->request use outside of Apache::CGI and scripts
+that run under Apache::Registry now spits out a warning.  See Apache.pm
+doc update for details.
+
+$r->is_perlaliased has gone away
+
+added api tests
+
+added tests for callback hooks besides PerlHandler
+
+added Apache::perl_hook function
+
+if a callback does not return a status values, we assume OK, 
+fatal errors would have never made it that far anyhow, 
+still log warning to error_log, but carry on
+
+clean up here and there
+
+added PerlHeaderParserHandler callback hook for apache versions >= 1.2b5
+
+added $r->connection->aborted method
+added $r->the_request and $r->header_only methods
+added Apache::Server methods: is_virtual and names
+
+added $r->headers_out and $r->err_header_out methods:
+header*_* methods are now consistent, see Apache.pm docs
+
+should now use $r->err_header_out instead of $r->err_headers_out
+to set the value of an err_header
+
+added 1.1.3 to Makefile.PL version map after hint from Arin Goldberg
+
+src/modules/perl/Makefile now detects modules linked static with
+your perl and links them with httpd
+
+Apache::CGI->read_from_client now calls $r->read instead of 
+$r->read_client_block
+
+applied fix for bug in read_client_block thanks to Milan Votava 
+
+updated Apache::SSI documentation
+
+can now 'make test PORT=xxxx'
+
+can now 'make start_httpd', 'make kill_httpd' for testing
+
+perl Makefile.PL ALL_HOOKS=1 enables all Perl*Handler callbacks
+
+$r->filename will re-stat r->finfo if you change the filename as
+suggested by Rob Hartill
+
+Makefile.PL now copies $APACHE_SRC/Configuration to src/ modifies, 
+then tells apache's Configure to use this copy with -file
+
+applied patch from Pai-Ling Hsiao <pailing@STRAWBERRY.UCC.UCONN.EDU>
+o fix CGI::XA->*_group bugs
+
+t/constants/export.t now tests _all_ of @EXPORT and %EXPORT_TAGS
+
+fixed bugs in Apache::Constants spotted by John Groenveld and Rob Hartill
+
+Apache.xs now uses rwrite() if apache >= 1.2b4
+
 =item 0.90
 
 perl Makefile.PL PERL_TRACE=1 will now enable tracing

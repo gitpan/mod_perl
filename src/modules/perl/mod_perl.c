@@ -50,7 +50,13 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.34 1996/12/31 04:36:58 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.35 1997/01/20 05:21:52 dougm Exp $ */
+
+/* 
+ * And so it was decided the camel should be given magical multi-colored
+ * feathers so it could fly and journey to once unknown worlds.
+ * And so it was done...
+ */
 
 #include "mod_perl.h"
 
@@ -95,8 +101,11 @@ static command_rec perl_cmds[] = {
 #ifdef PERL_FIXUP
   { PERL_FIXUP_CMD_ENTRY },
 #endif
-#ifdef PERL_LOGGER
-  { PERL_LOGGER_CMD_ENTRY },
+#ifdef PERL_LOG
+  { PERL_LOG_CMD_ENTRY },
+#endif
+#ifdef PERL_HEADER_PARSER
+  { PERL_HEADER_PARSER_CMD_ENTRY },
 #endif
   { NULL }
 };
@@ -122,7 +131,10 @@ module perl_module = {
    PERL_ACCESS_HOOK,          /* check access */
    PERL_TYPE_HOOK,            /* type_checker */
    PERL_FIXUP_HOOK,           /* pre-run fixups */
-   PERL_LOGGER_HOOK,          /* logger */
+   PERL_LOG_HOOK,          /* logger */
+#if MODULE_MAGIC_NUMBER >= 19970103
+   PERL_HEADER_PARSER_HOOK,   /* header parser */
+#endif
 };
 
 #ifndef PERL_DO_ALLOC
@@ -144,8 +156,7 @@ void perl_init (server_rec *s, pool *p)
     return;
   }
 
-  cls = get_module_config (s->module_config,
-			    &perl_module);   
+  cls = get_module_config (s->module_config, &perl_module);   
 
   if (perl != NULL) {
     CTRACE(stderr, "destructing and freeing perl interpreter...ok\n");
@@ -215,7 +226,8 @@ void *create_perl_dir_config (pool *p, char *dirname)
   PERL_ACCESS_CREATE(cld);
   PERL_TYPE_CREATE(cld);
   PERL_FIXUP_CREATE(cld);
-  PERL_LOGGER_CREATE(cld);
+  PERL_LOG_CREATE(cld);
+  PERL_HEADER_PARSER_CREATE(cld);
   return (void *)cld;
 }
 
@@ -316,13 +328,23 @@ int PERL_FIXUP_HOOK(request_rec *r)
 }
 #endif
 
-#ifdef PERL_LOGGER
-int PERL_LOGGER_HOOK(request_rec *r)
+#ifdef PERL_LOG
+int PERL_LOG_HOOK(request_rec *r)
 {
   int status = DECLINED;
   perl_dir_config *cld = get_module_config (r->per_dir_config,
 					    &perl_module);   
   PERL_CALLBACK_RETURN("logger", cld->PerlLogHandler);
+}
+#endif
+
+#ifdef PERL_HEADER_PARSER
+int PERL_HEADER_PARSER_HOOK(request_rec *r)
+{
+  int status = DECLINED;
+  perl_dir_config *cld = get_module_config (r->per_dir_config,
+					    &perl_module);   
+  PERL_CALLBACK_RETURN("header_parser", cld->PerlHeaderParserHandler);
 }
 #endif
 
@@ -362,14 +384,17 @@ int perl_call(char *imp, request_rec *r)
 
     if(perl_eval_ok(r->server) != OK) 
         return SERVER_ERROR;
-
+    
     if(count != 1) {
-	log_error("perl_call failed, must return a status arg", r->server);
-        return SERVER_ERROR;
+	log_error("perl_call did not return a status arg, assuming OK",
+		  r->server);
+	status = OK;
     }
-
     status = POPi;
 
+    if((status == 1) || (status == 200) || (status > 600)) 
+      status = OK; 
+      
     PUTBACK;
     FREETMPS;
     LEAVE;

@@ -4,8 +4,10 @@ User nobody
 Group nogroup
 Port 8529
 ServerName localhost
-
+DocumentRoot 
 #mod_perl stuff
+
+PerlScript t/docs/startup.pl
 
 PerlModule Apache Apache::Registry
 
@@ -13,7 +15,7 @@ Alias /perl/ ./t/net/perl/
 
 <Location /perl>
 SetHandler perl-script
-PerlHandler Apache::Registry::handler
+PerlHandler Apache::Registry
 Options ExecCGI
 </Location>
 
@@ -35,7 +37,7 @@ PerlHandler Apache::Status
 ErrorLog /tmp/mod_perl_error_log
 PidFile /tmp/mod_perl_httpd.pid
 AccessConfig /dev/null
-ResourceConfig /dev/null
+ResourceConfig /tmp/mod_perl_srm.conf
 TypesConfig /dev/null
 TransferLog /dev/null
 ScoreBoardFile /dev/null

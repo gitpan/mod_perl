@@ -40,47 +40,21 @@ See the eg/ directory for example scripts.
 
 =head1 mod_perl
 
-To tell Apache you want mod_perl to handle your scripts add to
-your srm.conf:
-
-    AddHandler perl-script .fpl
-
-Now, any file with the extension '.fpl' will be executed by mod_perl.
-However, if your PerlHandler is Apache::Registry::handler, this module
-will check to see if 'ExecCGI' is allowed in that directory before
-executing it.
-See the Apache::Registry module for details.
- 
-You may perl load modules via
-
-    PerlModule Apache::Registry Apache::SSI SomeOther::Module
-
-Optionally:
-
-    PerlScript  /full/path/to/script_to_load_at_startup.pl
-
-This script will be loaded when the server starts. See eg/mpf_eg.pl
-for an example to start with.
-
-In an access.conf <Directory /foo> or .htaccess you need:
-
-    PerlHandler sub_routine_name
-
-This is the name of the subroutine to call to handle each request. 
-e.g. 
-in the PerlScript mpf_eg.pl this is "MyPackage::handler".
-in the PerlModule Apache::Registry this is "Apache::Registry::handler".
-
-The recommended configuration is as follows:
+For using mod_perl as a CGI replacement, the recommended configuration
+is as follows:
 
  Alias /perl/  /real/path/to/perl-scripts/
- PerlModule Apache::Registry
 
  <Location /perl>
- SetHandler perl-script
- PerlHandler Apache::Registry::handler
+ SetHandler  perl-script
+ PerlHandler Apache::Registry
  Options ExecCGI
  </Location>
+
+Now, any file accessed under /perl will be handled by mod_perl and the 
+Apache::Registry module.  The file must exist and be executable, in addition,
+'Options ExecCGI' must be turned on.
+See the Apache::Registry module for details.
 
 By default, mod_perl does not send any headers by itself, however, you
 may wish to change this:
@@ -94,6 +68,26 @@ By default, mod_perl does not setup %ENV, you may wish to change this:
 With the recommended configuration, these options and Perl linked with sfio 
 (see I/O section), scripts running under Apache::Registry will look just like 
 "normal" CGI scripts.  See eg/perlio.pl as an example.
+ 
+You may load additional modules via
+
+    PerlModule Apache::SSI SomeOther::Module
+
+Optionally:
+
+    PerlScript  /full/path/to/script_to_load_at_startup.pl
+
+This script will be loaded when the server starts. See eg/MyPackage.pl
+for an example to start with.
+
+In an access.conf <Directory /foo> or .htaccess you need:
+
+    PerlHandler sub_routine_name
+
+This is the name of the subroutine to call to handle each request. 
+e.g. 
+in the PerlScript MyPackage.pl this is "MyPackage::handler".
+in the PerlModule Apache::Registry this is "Apache::Registry::handler".
 
 There are several stages of a request where the Apache API allows a module
 to step and do something.  The Apache documentation will tell you all about
@@ -101,7 +95,8 @@ those stages and what your modules can do.
 By default, these hooks are disabled at compile time, see the INSTALL
 document for information on enabling these hooks.
 The following configuration directives take one argument, which is the name
-of the subroutine to call. 
+of the subroutine to call.  If the value is not a subroutine name, mod_perl
+assumes it is a class name which implements a 'handler' subroutine.
 
     PerlTransHandler    
     PerlAuthenHandler

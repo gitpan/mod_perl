@@ -15,6 +15,7 @@ extern "C" {
 #include "http_log.h"
 #include "http_main.h"
 #include "http_core.h"
+#include "http_request.h"
 
 #ifdef PERL_TRACE
 #define CTRACE fprintf
@@ -33,11 +34,10 @@ extern "C" {
   if(name != NULL) { \
     status = perl_call(name, r); \
     CTRACE(stderr, "perl_call %s handler '%s' returned: %d\n", h,name,status); \
-  if((status == 1) || (status == 200) || (status > 600)) \
-    status = OK; \
   } \
-  else \
+  else { \
     CTRACE(stderr, "mod_perl: declining to handle %s, no callback defined\n", h); \
+  } \
   return status
 
 #if MODULE_MAGIC_NUMBER >= 19961007
@@ -50,9 +50,7 @@ extern "C" {
 
     /* bleh */
 #if MODULE_MAGIC_NUMBER >= 19961125 
-#define PERL_READ_SETUP \
-       setup_client_block(r, REQUEST_CHUNKED_ERROR); \
-       extra = 0; 
+#define PERL_READ_SETUP setup_client_block(r, REQUEST_CHUNKED_ERROR); 
 #else
 #define PERL_READ_SETUP
 #endif 
@@ -60,32 +58,16 @@ extern "C" {
 #if MODULE_MAGIC_NUMBER >= 19961125 
 #define PERL_READ_CLIENT \
        if(should_client_block(r)) { \
-	   nrd = get_client_block(r, buffer, bufsiz+extra); \
+	   nrd = get_client_block(r, buffer, bufsiz); \
        } 
 #else 
 #define PERL_READ_CLIENT \
-       nrd = read_client_block(r, buffer, bufsiz+extra); 
+       nrd = read_client_block(r, buffer, bufsiz); 
 #endif       
 
 #define PERL_READ_FROM_CLIENT \
        PERL_READ_SETUP; \
        PERL_READ_CLIENT
-
-/* muck with %ENV */
-#define PUSHelt(key,val,klen) \
-    XPUSHs(sv_2mortal((SV*)newSVpv(key, klen))); \
-    XPUSHs(sv_2mortal((SV*)newSVpv(val, 0))) 
-
-#define CGIENVinit \
-       int i; \
-       char *tz; \
-       table_entry *elts; \
-       add_common_vars(r); \
-       add_cgi_vars(r); \
-       elts = (table_entry *)env_arr->elts; \
-       tz = getenv("TZ"); \
-       table_set (env_arr, "PATH", DEFAULT_PATH); \
-       table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1") 
 
 /* on/off switches for callback hooks during request stages */
 
@@ -192,24 +174,39 @@ extern "C" {
 #define PERL_FIXUP_CREATE(s)
 #endif
 
-#ifndef NO_PERL_LOGGER
-#define PERL_LOGGER
+#ifndef NO_PERL_LOG
+#define PERL_LOG
 
-#define PERL_LOGGER_HOOK perl_logger
+#define PERL_LOG_HOOK perl_logger
 
-#define PERL_LOGGER_CMD_ENTRY \
+#define PERL_LOG_CMD_ENTRY \
     "PerlLogHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlLogHandler), \
     OR_ALL, TAKE1, "the Perl Log handler routine name" 
 
-#define PERL_LOGGER_CREATE(s) s->PerlLogHandler = NULL
+#define PERL_LOG_CREATE(s) s->PerlLogHandler = NULL
 #else
-#define PERL_LOGGER_HOOK NULL
-#define PERL_LOGGER_CMD_ENTRY NULL
-#define PERL_LOGGER_CREATE(s) s->PerlLogHandler = NULL
+#define PERL_LOG_HOOK NULL
+#define PERL_LOG_CMD_ENTRY NULL
+#define PERL_LOG_CREATE(s) s->PerlLogHandler = NULL
 #endif
 
+#ifndef NO_PERL_HEADER_PARSER
+#define PERL_HEADER_PARSER
 
+#define PERL_HEADER_PARSER_HOOK perl_header_parser
+
+#define PERL_HEADER_PARSER_CMD_ENTRY \
+    "PerlHeaderParserHandler", set_string_slot, \
+    (void*)XtOffsetOf(perl_dir_config, PerlHeaderParserHandler), \
+    OR_ALL, TAKE1, "the Perl Header Parser handler routine name" 
+
+#define PERL_HEADER_PARSER_CREATE(s) s->PerlHeaderParserHandler = NULL
+#else
+#define PERL_HEADER_PARSER_HOOK NULL
+#define PERL_HEADER_PARSER_CMD_ENTRY NULL
+#define PERL_HEADER_PARSER_CREATE(s) s->PerlHeaderParserHandler = NULL
+#endif
 
 typedef struct {
    char *PerlScript;
@@ -226,6 +223,7 @@ typedef struct {
    char *PerlTypeHandler;
    char *PerlFixupHandler;
    char *PerlLogHandler;
+   char *PerlHeaderParserHandler;
    table *vars;
    int  sendheader;
    int setup_env;

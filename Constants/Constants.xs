@@ -9,11 +9,7 @@ char *name;
     case 'A':
 	if (strEQ(name, "ACCESS_CONFIG_FILE"))
 	if (strEQ(name, "AUTH_REQUIRED"))
-#ifdef AUTH_REQUIRED
-	    return AUTH_REQUIRED;
-#else
-	    goto not_there;
-#endif
+	    return 401;
 	break;
     case 'B':
 	if (strEQ(name, "BAD_GATEWAY"))

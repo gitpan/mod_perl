@@ -9,6 +9,7 @@ my(%status) = (
 
 sub handler {
     my($r) = @_;
+    Apache->request($r);
     require Apache::CGI;
     my $q = new Apache::CGI;
     my $qs = $r->args;

@@ -5,15 +5,33 @@
 
 # Change 1..1 below to 1..last_test_to_print .
 # (It may become useful if the test is moved to ./t subdirectory.)
-
-BEGIN { $| = 1; print "1..10\n"; }
-END {print "not ok 1\n" unless $loaded;}
 use Apache::Constants;
-$loaded = 1;
-print "ok 1\n";
 
-for (2..10) {
-    print &{$Apache::Constants::EXPORT[$_]} ? "ok $_\n" : "not ok $_\n";
+$version = SERVER_VERSION; 
+
+if($version =~ /1\.1\.\d/) {
+    print "1..1\nok 1\n";
+    print "skipping tests against $version\n";
+    exit(0);
+}
+
+while(($key,$val) = each %Apache::Constants::EXPORT_TAGS) {
+    print "importing tag $key\n";
+    Apache::Constants->import(":$key");
+    push @export, @$val;
+}
+
+push @export, @Apache::Constants::EXPORT;
+$tests = (1 + @export); 
+print "1..$tests\n"; 
+#$loaded = 1;
+print "ok 1\n";
+$ix = 2;
+
+for (@export) {
+    $val = &$_;
+    print defined $val ? "ok $ix\n" : "not ok $ix\n";
+    $ix++;
 }
 
 ######################### End of black magic.

@@ -67,12 +67,15 @@ Possible arguments are:
   PERL_ACCESS
   PERL_TYPE
   PERL_FIXUP
-  PERL_LOGGER
+  PERL_LOG
 
 Example to enable PerlAuthenHandler and PerlFixupHandler:
  
   perl Makefile.PL PERL_AUTHEN=1 PERL_FIXUP=1
 
+To enable all callback hooks:
+
+   perl Makefile.PL ALL_HOOKS=1 
 
 To enable tracing set PERL_TRACE=1
 
@@ -87,6 +90,18 @@ To enable tracing set PERL_TRACE=1
 Running 'make test' will start an httpd on port 8529 running under
 the uid and gid of the 'perl Makefile.PL' process, the httpd will 
 be terminated when the tests are finshed.
+
+To change the default port say:
+
+ perl Makefile.PL PORT=xxxx
+
+To simply start the newly build httpd before 'make install' run:
+
+ make start_httpd
+
+To shutdown this httpd run:
+
+ make kill_httpd
 
 See t/README on how to run the mod_perl test suite by hand
 

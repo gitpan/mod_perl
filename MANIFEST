@@ -20,12 +20,11 @@ Makefile.PL
 README
 mod_perl.pod
 eg/cgi-pm.pl
-eg/file_upload.fpl
-eg/mpf_eg.pl
+eg/file_upload.pl
+eg/MyPackage.pl
 eg/perlio.pl
-eg/registry.fpl
+eg/registry.pl
 eg/rgy-cgi-pm.pl
-eg/tiehandle.fpl
 eg/README
 lib/Apache.pm
 lib/Apache/AccessLimitNum.pm
@@ -50,8 +49,10 @@ src/modules/perl/Makefile
 t/README
 t/TEST
 t/conf/httpd.conf-dist
+t/conf/mod_perl_srm.conf
 t/constants/export.t
 t/net/config.pl.dist
+t/net/api.t
 t/net/http-get.t
 t/net/http-post.t
 t/net/perl/test
@@ -60,3 +61,8 @@ t/net/perl/io/perlio.pl
 lib/Apache/Status.pm
 src/Makefile.tmpl-Ben-SSL
 lib/Bundle/Apache.pm
+t/docs/test.html
+t/docs/startup.pl
+t/net/hooks.t
+t/net/perl/hooks.pl
+t/net/perl/api.pl

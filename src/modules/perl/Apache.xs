@@ -60,16 +60,21 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.38 1996/12/17 04:24:38 dougm Exp $ */
+/* $Id: Apache.xs,v 1.34 1996/11/13 15:57:07 dougm Exp dougm $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
 
-/* this was private in http_protocol.c */
+#if MODULE_MAGIC_NUMBER >= 19961211
+#define SENDN_TO_CLIENT rwrite(buffer, n, r) 
 
+#else
+
+/* this was private in http_protocol.c */
 #define SET_BYTES_SENT(r) \
   do { if (r->sent_bodyct) \
 	  bgetopt (r->connection->client, BO_BYTECT, &r->bytes_sent); \
@@ -78,8 +83,7 @@ typedef server_rec  * Apache__Server;
 #define SENDN_TO_CLIENT \
     bwrite(r->connection->client, buffer, n); \
     SET_BYTES_SENT(r)
-
-/* #define SENDN_TO_CLIENT rwrite(buffer, n, r) */
+#endif
 
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
@@ -141,8 +145,8 @@ void perl_clear_env()
 
 void perl_set_pid()
 {
-  GV *tmpgv;
-  if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))  /*" unconfuse emacs */
+  GV *tmpgv = gv_fetchpv("$", TRUE, SVt_PV);  /*" unconfuse emacs */
+  if(tmpgv)
     sv_setiv(GvSV(tmpgv), (I32)getpid());
 }
 
@@ -258,9 +262,81 @@ perl_stdin2client(request_rec *r)
 #endif
 }
 
+static int
+perl_hook(char *name)
+{
+    switch (*name) {
+	case 'A':
+        if (strEQ(name, "Authen")) 
+#ifdef PERL_AUTHEN
+	return 1;
+#else
+	return 0;    
+#endif
+	if (strEQ(name, "Authz"))
+#ifdef PERL_AUTHZ
+	return 1;
+#else
+	return 0;    
+#endif
+	if (strEQ(name, "Access"))
+#ifdef PERL_AUTHZ
+	return 1;
+#else
+	return 0;    
+#endif
+	break;
+	case 'F':
+        if (strEQ(name, "Fixup")) 
+#ifdef PERL_FIXUP
+	return 1;
+#else
+	return 0;    
+#endif
+	break;
+#if MODULE_MAGIC_NUMBER >= 19970103
+	case 'H':
+        if (strEQ(name, "HeaderParser")) 
+#ifdef PERL_HEADER_PARSER
+	return 1;
+#else
+	return 0;    
+#endif
+	break;
+#endif
+	case 'L':
+        if (strEQ(name, "Log")) 
+#ifdef PERL_LOG
+	return 1;
+#else
+	return 0;    
+#endif
+	break;
+	case 'T':
+        if (strEQ(name, "Trans")) 
+#ifdef PERL_TRANS
+	return 1;
+#else
+	return 0;    
+#endif
+        if (strEQ(name, "Type")) 
+#ifdef PERL_TYPE
+	return 1;
+#else
+	return 0;    
+#endif
+	break;
+    }
+    return 0;
+}
+
 MODULE = Apache  PACKAGE = Apache
 
 PROTOTYPES: DISABLE
+
+int
+perl_hook(name)
+char *name
 
 void
 exit(r, ...)
@@ -362,22 +438,6 @@ int
 allow_options(r)
     Apache	r
 
-int
-is_perlaliased(r)
-    Apache	r
-
-    CODE:
-    {
-    char *t;
-
-    t = table_get (r->notes, "alias-forced-type");
-    RETVAL = (t && (!strcmp (t, "perl-script")));
-    }
-
-    OUTPUT:
-    RETVAL
- 
-
 char *
 get_remote_host(r)
     Apache	r
@@ -444,7 +504,7 @@ read_client_block(r, buffer, bufsiz)
        PERL_READ_FROM_CLIENT;
        if ( nrd > 0 ) {
 	 XPUSHs(newSViv((long)nrd));
-	 sv_setpvn((SV*)ST(1), buffer, bufsiz);
+	 sv_setpvn((SV*)ST(1), buffer, nrd);
        } 
        else {
 	 ST(1) = &sv_undef;
@@ -536,11 +596,24 @@ cgi_env(r, ...)
 #struct request_rec {
 
 void
-request(packname = "Apache")
+request(packname = "Apache", ...)
     char * packname
 	
-    CODE:
-    ST(0) = perl_bless_request_rec((request_rec *)perl_apache_request_rec);	   
+    PPCODE: 
+    {
+    SV *sv = perl_get_sv("Apache::Request", TRUE);
+    if(items > 1) {
+	sv_setsv(sv, ST(1));
+    }
+    else {
+	if(!SvTRUE(sv)) {
+	    warn("use of Apache->request outside of Apache::Registry depreciated");
+	    sv = perl_bless_request_rec((request_rec *)perl_apache_request_rec);
+	}
+    }
+    XPUSHs(sv);
+    }
+
 #  pool *pool;
 #  conn_rec *connection;
 #  server_rec *server;
@@ -622,12 +695,32 @@ is_main(r)
     OUTPUT:
     RETVAL
 
+char *
+the_request(r)
+    Apache   r
+
+    CODE:
+    RETVAL = r->the_request;
+
+    OUTPUT:
+    RETVAL
+
 int
 proxyreq(r)
     Apache   r
 
     CODE:
     RETVAL = r->proxyreq;
+
+    OUTPUT:
+    RETVAL
+
+int
+header_only(r)
+    Apache   r
+
+    CODE:
+    RETVAL = r->header_only;
 
     OUTPUT:
     RETVAL
@@ -740,12 +833,15 @@ method_number(r, ...)
 #  int no_cache;
 
 char *
-header_in(r,key)
+header_in(r, key, ...)
     Apache	r
     char *key
 
     CODE:
     RETVAL = table_get(r->headers_in, key);
+
+    if(items > 2) 
+      table_set(r->headers_in, key, SvPV(ST(2), na));
 
     OUTPUT:
     RETVAL
@@ -779,15 +875,57 @@ header_out(r, key, ...)
 
     OUTPUT:
     RETVAL
-    
+
 void
-err_headers_out(r, key, val)
+headers_out(r)
+    Apache	r
+
+    PPCODE:
+    {
+    int i;
+    array_header *hdrs_arr = table_elts (r->headers_out);
+    table_entry  *hdrs = (table_entry *)hdrs_arr->elts;
+
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key) continue;
+	PUSHelt(hdrs[i].key, hdrs[i].val, 0);
+    }
+    }
+    
+char *
+err_header_out(r, key, ...)
     Apache	r
     char *key
-    char *val
 
     CODE:
-    table_set(r->err_headers_out, key, val);
+    RETVAL = table_get(r->err_headers_out, key);
+
+    if(items > 2) 
+      table_set(r->err_headers_out, key, SvPV(ST(2), na));
+
+    OUTPUT:
+    RETVAL
+
+void
+err_headers_out(r, ...)
+    Apache	r
+
+    PPCODE:
+    {
+    int i;
+    array_header *hdrs_arr = table_elts (r->err_headers_out);
+    table_entry  *hdrs = (table_entry *)hdrs_arr->elts;
+
+    if(items == 3) {
+	warn("use $r->err_header_out to set, not err_headers_out");
+	table_set(r->err_headers_out, SvPV(ST(1), na), SvPV(ST(2), na));
+    }
+
+    for (i = 0; i < hdrs_arr->nelts; ++i) {
+	if (!hdrs[i].key) continue;
+	PUSHelt(hdrs[i].key, hdrs[i].val, 0);
+    }
+    }
 
 char *
 content_type(r, ...)
@@ -885,9 +1023,10 @@ filename(r, ...)
     CODE:
     RETVAL = r->filename;
 
-    if(items > 1)
-      r->filename = pstrdup(r->pool, SvPV(ST(1), na));
-
+    if(items > 1) {
+        r->filename = pstrdup(r->pool, SvPV(ST(1), na));
+	stat(r->filename, &r->finfo);
+    }
     OUTPUT:
     RETVAL
 
@@ -982,6 +1121,16 @@ close(conn)
 #                                 * "" if it has and no address was found.
 #                                 * N.B. Only access this though
 #				 * get_remote_host() */
+
+int
+aborted(conn)
+    Apache::Connection	conn
+
+    CODE:
+    RETVAL = conn->aborted;
+
+    OUTPUT:
+    RETVAL
 
 char *
 remote_ip(conn)
@@ -1123,5 +1272,24 @@ port(server)
 #  char *names;			/* Wildcarded names for HostAlias servers */
 #  char *virthost;		/* The name given in <VirtualHost> */
 
+int
+is_virtual(server)
+    Apache::Server	server
+
+    CODE:
+    RETVAL = server->is_virtual;
+
+    OUTPUT:
+    RETVAL
+
+char *
+names(server)
+    Apache::Server	server
+
+    CODE:
+    RETVAL = server->names;
+
+    OUTPUT:
+    RETVAL
 
 
