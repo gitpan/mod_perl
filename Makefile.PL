@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.95_05";
+$VERSION = "0.95_06";
 #
 # Check if Readline is installed
 #
@@ -267,7 +267,12 @@ EOT
 	$dash_make = " -make $PWD/src/$mft_map{$adir} "
 	    if $can_dash_make{$adir} and $mft_map{$adir};
 	#print STDERR "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)\n";
-	system "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)"
+	system "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)";
+	if(-e "$adir/modules/Makefile" and -d "/afs") {
+	    print "getting rid of bizarre afs target in modules/Makefile\n";
+	    system $^X, "-pi~", "-e", 
+	    's/=afs\s+/=/g', "$adir/modules/Makefile";
+	}
     }
 
     open FH, "$APACHE_SRC/Makefile";
@@ -439,7 +444,7 @@ apache_httpd: $(APACHE_SRC)/Configuration
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \
-	     $(TAR) -cf Apache.tar CGI/Switch.pm CGI/XA.pm Apache/ $(ARCHNAME)/auto/Apache; )
+	     $(TAR) -cf Apache.tar Apache.pm Apache/ $(ARCHNAME)/auto/Apache; )
 	$(MV) $(INSTALLSITELIB)/Apache.tar .
 
 offsite-tar:

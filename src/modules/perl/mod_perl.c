@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.48 1997/04/02 03:16:20 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.41 1997/03/16 23:00:41 dougm Exp dougm $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -478,7 +478,7 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
     new->PerlCleanupHandler = add->PerlCleanupHandler ? 
         add->PerlCleanupHandler : base->PerlCleanupHandler;
 #endif
-#ifdef PERL_HEADERPARSER
+#ifdef PERL_HEADER_PARSER
     new->PerlHeaderParserHandler = add->PerlHeaderParserHandler ? 
         add->PerlHeaderParserHandler : base->PerlHeaderParserHandler;
 #endif
@@ -828,7 +828,6 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 
 #define PERL_CMD_PUSH_HANDLERS(hook, cmd) \
 { \
-    if(!PERL_RUNNING) return NULL; \
     if(!cmd) cmd = newAV(); \
     CTRACE(stderr, "perl_cmd_push_handlers: @%s, '%s'\n", hook, arg); \
     mod_perl_push_handlers(&sv_yes, newSVpv(hook,0), newSVpv(arg,0), cmd); \

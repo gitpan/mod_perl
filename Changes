@@ -16,6 +16,10 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.95_06
+
+fixed typo in new merge function that broke PerlHeaderParserHandler
+
 =item 0.95_05
 
 make sure merge of configs accounts for sendheader and setup_env too!
