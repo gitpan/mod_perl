@@ -1,23 +1,43 @@
+package Apache::TestDirectives;
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
 
 BEGIN {
-    use lib qw{../../blib/lib ../../blib/arch ../../lib};
+    use lib qw{../../lib};
 }
 
 use strict;
 use Apache::src ();
-use Apache::ExtUtils ();
+use Apache::ExtUtils qw(command_table);
 
-my $class = 'Apache::TestDirectives';
+my $class = __PACKAGE__;
 
-my @directives = qw(TestCmd);
-my $fh = IO::File->new(">TestDirectives.xs") or die $!;
-my $xs = Apache::ExtUtils->xs_cmd_table($class, \@directives);  
-print $fh $xs;
+my @directives = (
+   [Port => "A TCP port number"], #we'll decline this one
+   [TestCmd => "Two TestCmd args"],
+   [AnotherCmd => "Stuff for another command"],
+   [CmdIterate => "No limit here"],
+   ["<Container" => "whatever"],
+   ["</Container>" => "end whatever"],
+   {
+       name => "YAC",
+       func => "another_cmd",
+       cmd_data => "info for YAC",
+       errmsg => "Yet another comand",
+       args_how => "TAKE2",
+       req_override => "RSRC_CONF",
+   },
+);
 
-close $fh;
+my $proto_perl2c = Apache::ExtUtils->proto_perl2c;
+
+while(my($pp,$cp) = each %$proto_perl2c) {
+    next unless $pp;
+    push @directives, [$cp, "Test for $cp"];
+}
+
+command_table \@directives;
 
 WriteMakefile(
     'NAME'	=> $class,

@@ -53,11 +53,213 @@
 #define CORE_PRIVATE
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.8 1998/03/24 04:19:53 dougm Exp $ */
-
 extern listen_rec *listeners;
 extern int mod_perl_socketexitoption;
 extern int mod_perl_weareaforkedchild;   
+
+#if defined(PERL_STACKED_HANDLERS) && defined(PERL_GET_SET_HANDLERS)
+
+#define PER_DIR_CONFIG 1
+#define PER_SRV_CONFIG 2
+
+typedef struct {
+    int type;
+    char *name;
+    void *offset;
+    void (*set_func) (void *, void *, SV *);
+} perl_handler_table;
+
+typedef struct {
+    I32 fill;
+    AV *av;
+    AV **ptr;
+} perl_save_av;
+
+static void set_handler_dir (perl_handler_table *tab, request_rec *r, SV *sv);
+static void set_handler_srv (perl_handler_table *tab, request_rec *r, SV *sv);
+
+#define HandlerDirEntry(name,member) \
+PER_DIR_CONFIG, name, (void*)XtOffsetOf(perl_dir_config,member), \
+(void(*)(void *, void *, SV *)) set_handler_dir
+
+#define HandlerSrvEntry(name,member) \
+PER_SRV_CONFIG, name, (void*)XtOffsetOf(perl_server_config,member), \
+(void(*)(void *, void *, SV *)) set_handler_srv
+
+static perl_handler_table handler_table[] = {
+    {HandlerSrvEntry("PerlPostReadRequestHandler", PerlPostReadRequestHandler)},
+    {HandlerSrvEntry("PerlTransHandler", PerlTransHandler)},
+    {HandlerDirEntry("PerlHeaderParserHandler", PerlHeaderParserHandler)},
+    {HandlerDirEntry("PerlAccessHandler", PerlAccessHandler)},
+    {HandlerDirEntry("PerlAuthenHandler", PerlAuthenHandler)},
+    {HandlerDirEntry("PerlAuthzHandler", PerlAuthzHandler)},
+    {HandlerDirEntry("PerlTypeHandler", PerlTypeHandler)},
+    {HandlerDirEntry("PerlFixupHandler", PerlFixupHandler)},
+    {HandlerDirEntry("PerlHandler", PerlHandler)},
+    {HandlerDirEntry("PerlLogHandler", PerlLogHandler)},
+    { FALSE, NULL }
+};
+
+static void perl_restore_av(void *data)
+{
+    perl_save_av *save_av = (perl_save_av *)data;
+
+    if(save_av->fill != DONE) {
+	AvFILLp(*save_av->ptr) = save_av->fill;
+    }
+    else if(save_av->av != Nullav) {
+	*save_av->ptr = save_av->av;
+    }
+}
+
+static void perl_handler_merge_avs(char *hook, AV **dest)
+{
+    int i = 0;
+    HV *hv = perl_get_hv("Apache::PerlStackedHandlers", FALSE);
+    SV **svp = hv_fetch(hv, hook, strlen(hook), FALSE);
+    AV *base;
+    
+    if(!(svp && SvROK(*svp)))
+	return;
+
+    base = (AV*)SvRV(*svp);
+    for(i=0; i<=AvFILL(base); i++) { 
+	SV *sv = *av_fetch(base, i, FALSE);
+	av_push(*dest, sv);
+    }
+}
+
+static void set_handler_base(void *ptr, perl_handler_table *tab, pool *p, SV *sv) 
+{
+    AV **av = (AV **)((char *)ptr + (int)(long)tab->offset);
+
+    perl_save_av *save_av = 
+	(perl_save_av *)palloc(p, sizeof(perl_save_av));
+
+    save_av->fill = DONE;
+    save_av->av = Nullav;
+    
+    if((sv == &sv_undef) || (SvIOK(sv) && SvIV(sv) == DONE)) {
+	if(AvTRUE(*av)) {
+	    save_av->fill = AvFILL(*av);
+	    AvFILLp(*av) = -1;
+	}
+    }
+    else if(SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV) {
+	if(AvTRUE(*av))
+	    save_av->av = av_copy_array(*av);
+	*av = (AV*)SvRV(sv);
+	++SvREFCNT(*av);
+    }
+    else {
+	croak("Can't set_handler with that value");
+    }
+    save_av->ptr = av;
+    register_cleanup(p, save_av, perl_restore_av, mod_perl_noop);
+}
+
+static void set_handler_dir(perl_handler_table *tab, request_rec *r, SV *sv)
+{
+    dPPDIR; 
+    set_handler_base((void*)cld, tab, r->pool, sv);
+}
+
+static void set_handler_srv(perl_handler_table *tab, request_rec *r, SV *sv)
+{
+    dPSRV(r->server); 
+    set_handler_base((void*)cls, tab, r->pool, sv);
+}
+
+static perl_handler_table *perl_handler_lookup(char *name)
+{
+    int i;
+    for (i=0; handler_table[i].name; i++) {
+	perl_handler_table *tab = &handler_table[i];
+        if(strEQ(name, tab->name))
+	    return tab;
+    }
+    return NULL;
+}
+
+
+static SV *get_handlers(request_rec *r, char *hook)
+{
+    AV *avcopy;
+    AV **av;
+    dPPDIR;
+    dPSRV(r->server);
+    void *ptr;
+    perl_handler_table *tab = perl_handler_lookup(hook);
+
+    if(!tab) return Nullsv;
+
+    if(tab->type == PER_DIR_CONFIG)
+	ptr = (void*)cld;
+    else
+	ptr = (void*)cls;
+
+    av = (AV **)((char *)ptr + (int)(long)tab->offset);
+
+    if(*av) 
+	avcopy = av_copy_array(*av);
+    else
+	avcopy = newAV();
+
+    perl_handler_merge_avs(hook, &avcopy);
+
+    return newRV_noinc((SV*)avcopy);
+}
+
+static void set_handlers(request_rec *r, SV *hook, SV *sv)
+{
+    perl_handler_table *tab = perl_handler_lookup(SvPV(hook,na));
+    if(tab && tab->set_func) 
+        (*tab->set_func)(tab, r, sv);
+
+    (void)hv_delete_ent(perl_get_hv("Apache::PerlStackedHandlers", FALSE),
+			hook, G_DISCARD, FALSE);
+}
+#endif
+
+static char *r_keys[] = { "_r", "r", NULL };
+
+request_rec *sv2request_rec(SV *in, char *class, CV *cv)
+{
+    request_rec *r = NULL;
+    SV *sv = Nullsv;
+
+    if(in == &sv_undef) return NULL;
+
+    if(SvROK(in) && (SvTYPE(SvRV(in)) == SVt_PVHV)) {
+	int i;
+	for (i=0; r_keys[i]; i++) {
+	    int klen = strlen(r_keys[i]);
+	    if(hv_exists((HV*)SvRV(in), r_keys[i], klen) &&
+	       (sv = *hv_fetch((HV*)SvRV(in), 
+			       r_keys[i], klen, FALSE)))
+		break;
+	}
+	if(!sv)
+	    croak("method `%s' invoked by a `%s' object with no `r' key!",
+		  GvNAME(CvGV(cv)), HvNAME(SvSTASH(SvRV(in))));
+    }
+
+    if(!sv) sv = in;
+    if(SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG)) {
+	if(sv_derived_from(sv, class))
+	    r = (request_rec *) SvIV((SV*)SvRV(sv));
+	else
+	    return NULL;
+    }
+    else if((r = perl_request_rec(NULL))) {
+	/*ok*/
+    } 
+    else {
+	croak("Apache->%s called without setting Apache->request!",
+	      GvNAME(CvGV(cv)));
+    }
+    return r;
+}
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -70,12 +272,18 @@ child_terminate(request_rec *r)
 }
 #endif
 
-#ifndef DONE
-#define DONE -2
-#endif
-
 #if MODULE_MAGIC_NUMBER < 19980317
 int basic_http_header(request_rec *r);
+#endif
+
+#if MODULE_MAGIC_NUMBER < 19980201
+unsigned get_server_port(const request_rec *r)
+{
+    unsigned port = r->server->port ? r->server->port : 80;
+
+    return r->hostname ? ntohs(r->connection->local_addr.sin_port)
+	: port;
+}
 #endif
 
 pool *perl_get_startup_pool(void)
@@ -99,7 +307,11 @@ server_rec *perl_get_startup_server(void)
 }
 
 #define TABLE_GET_SET(table, do_taint) \
-{ \
+if(key == NULL) { \
+    ST(0) = mod_perl_tie_table(table); \
+    XSRETURN(1); \
+} \
+else { \
     char *val; \
     if(table && (val = table_get(table, key))) \
 	RETVAL = newSVpv(val, 0); \
@@ -163,6 +375,30 @@ int
 perl_hook(name)
     char *name
 
+#if defined(PERL_GET_SET_HANDLERS)
+SV *
+get_handlers(r, hook)
+    Apache     r
+    char *hook
+
+    CODE:
+#ifdef get_handlers
+    get_handlers(r,hook);
+#else
+    RETVAL = get_handlers(r,hook);
+#endif
+   
+    OUTPUT:
+    RETVAL
+
+void    
+set_handlers(r, hook, sv)
+    Apache     r
+    SV *hook
+    SV *sv
+
+#endif
+
 int
 mod_perl_push_handlers(self, hook, cv)
     SV *self
@@ -190,8 +426,10 @@ mod_perl_register_cleanup(r, sv)
     PREINIT:
     ix = ix; /* avoid -Wall warning */
     
+#define APACHE_REGISTRY_CURSTASH perl_get_sv("Apache::Registry::curstash", TRUE)
+
 void
-mod_perl_clear_rgy_endav(r, sv)
+mod_perl_clear_rgy_endav(r, sv=APACHE_REGISTRY_CURSTASH)
     Apache     r
     SV *sv
 
@@ -251,14 +489,12 @@ exit(...)
 
     CODE:
     /* $r->exit */
-    if((items > 1) && sv_isa(ST(0), "Apache")) {
-	IV tmp = SvIV((SV*)SvRV(ST(0)));
-	r = (Apache) tmp;
+    r = sv2request_rec(ST(0), "Apache", cv);
+
+    if(items > 1) {
         sts = (int)SvIV(ST(1));
     }
     else { /* Apache::exit() */
-	if(!sv_isa(ST(0), "Apache"))
-	    r = perl_request_rec(NULL);
 	if(SvTRUE(ST(0)) && SvIOK(ST(0)))
 	    sts = (int)SvIV(ST(0));
     }
@@ -353,6 +589,18 @@ DESTROY(r=Nullsv)
 
 #httpd.h
      
+void
+chdir_file(r, file=r->filename)
+    Apache r
+    const char *file
+
+    CODE:
+    chdir_file(file);
+
+SV *
+mod_perl_gensym(pack="Apache::Symbol")
+    char *pack
+
 char *
 unescape_url(string)
 char *string
@@ -530,6 +778,10 @@ int
 allow_options(r)
     Apache	r
 
+unsigned
+get_server_port(r)
+    Apache	r
+
 char *
 get_remote_host(r, type=REMOTE_NAME)
     Apache	r
@@ -566,11 +818,11 @@ server_root_relative(rsv, name="")
 
     PREINIT:
     pool *p;
+    request_rec *r;
 
     CODE:
-    if (SvROK(rsv) && sv_derived_from(rsv, "Apache")) {
-	IV tmp = SvIV((SV*)SvRV(rsv));
-	p = ((Apache)tmp)->pool;
+    if (SvROK(rsv) && (r = sv2request_rec(rsv, "Apache", cv))) {
+	p = r->pool;
     }
     else {
 	if(!(p = perl_get_startup_pool()))
@@ -661,6 +913,36 @@ read_client_block(r, buffer, bufsiz)
     PPCODE:
     buffer = (char*)palloc(r->pool, bufsiz);
     PERL_READ_FROM_CLIENT;
+    if ( nrd > 0 ) {
+	XPUSHs(sv_2mortal(newSViv((long)nrd)));
+	sv_setpvn((SV*)ST(1), buffer, nrd);
+	SvTAINTED_on((SV*)ST(1));
+    } 
+    else {
+	ST(1) = &sv_undef;
+    }
+
+int
+setup_client_block(r, policy=REQUEST_CHUNKED_ERROR)
+    Apache	r
+    int policy
+
+int
+should_client_block(r)
+    Apache	r
+
+void
+get_client_block(r, buffer, bufsiz)
+    Apache	r
+    char    *buffer
+    int      bufsiz
+
+    PREINIT:
+    long nrd = 0;
+
+    PPCODE:
+    buffer = (char*)palloc(r->pool, bufsiz);
+    nrd = get_client_block(r, buffer, bufsiz);
     if ( nrd > 0 ) {
 	XPUSHs(sv_2mortal(newSViv((long)nrd)));
 	sv_setpvn((SV*)ST(1), buffer, nrd);
@@ -784,10 +1066,8 @@ log_error(...)
     SV *sv = Nullsv;
 
     CODE:
-
-    if((items > 1) && sv_derived_from(ST(0), "Apache")) {
-	IV tmp = SvIV((SV*)SvRV(ST(0)));
-	s = ((Apache) tmp)->server;
+    if((items > 1) && (r = sv2request_rec(ST(0), "Apache", cv))) {
+	s = r->server;
 	i=1;
     }
     else if((items > 1) && sv_derived_from(ST(0), "Apache::Server")) {
@@ -802,8 +1082,6 @@ log_error(...)
 	}
     }
     else { 
-	if(!sv_isa(ST(0), "Apache"))
-	    r = perl_request_rec(NULL);
 	if(r) 
 	    s = r->server;
 	else
@@ -815,10 +1093,10 @@ log_error(...)
     if(items > 1+i) {
 	sv = newSV(0);
         do_join(sv, &sv_no, MARK+i, SP); /* $sv = join '', @_[1..$#_] */
-        errstr = SvPVX(sv);
+        errstr = SvPV(sv,na);
     }
     else
-        errstr = SvPVX(ST(i));
+        errstr = SvPV(ST(i),na);
 
     switch((ix = XSANY.any_i32)) {
 	case 0:
@@ -845,23 +1123,25 @@ cgi_env(r, ...)
 
     PREINIT:
     char *key = NULL;
+    I32 gimme = GIMME_V;
 
     PPCODE:
     if(items > 1) {
-	key = SvPVX(ST(1));
+	key = SvPV(ST(1),na);
 	if(items > 2) 
-	    table_set(r->subprocess_env, key, SvPVX(ST(2)));
+	    table_set(r->subprocess_env, key, SvPV(ST(2),na));
     }
 
-    if(GIMME == G_ARRAY) {
+    if((gimme == G_ARRAY) || (gimme == G_VOID)) {
         int i;
         array_header *arr  = perl_cgi_env_init(r);
         table_entry *elts = (table_entry *)arr->elts;
-
-	for (i = 0; i < arr->nelts; ++i) {
-	    if (!elts[i].key) continue;
-	    PUSHelt(elts[i].key, elts[i].val, 0);
-	}
+        if(gimme == G_ARRAY) {
+	    for (i = 0; i < arr->nelts; ++i) {
+	        if (!elts[i].key) continue;
+	        PUSHelt(elts[i].key, elts[i].val, 0);
+	    }
+        }
     }
     else if(key) {
 	char *value = table_get(r->subprocess_env, key);
@@ -872,11 +1152,18 @@ cgi_env(r, ...)
    
 
 SV *
-subprocess_env(r, key, ...)
+subprocess_env(r, key=NULL, ...)
     Apache    r
     char *key
 
+    PREINIT:
+    I32 gimme = GIMME_V;
+ 
     CODE:
+    if(gimme == G_VOID) {
+        (void)perl_cgi_env_init(r);
+        XSRETURN_UNDEF;
+    }
     TABLE_GET_SET(r->subprocess_env, FALSE);
 
     OUTPUT:
@@ -918,11 +1205,11 @@ server(rsv)
     PREINIT:
     char *packname = "Apache::Server";
     server_rec *s;
+    request_rec *r;
 
     CODE:
-    if (SvROK(rsv) && sv_derived_from(rsv, "Apache")) {
-	IV tmp = SvIV((SV*)SvRV(rsv));
-	s = ((Apache)tmp)->server;
+    if (SvROK(rsv) && (r = sv2request_rec(rsv, "Apache", cv))) {
+	s = r->server;
     }
     else {
 	if(!(s = perl_get_startup_server()))
@@ -989,6 +1276,17 @@ next(r)
  	ST(0) = perl_bless_request_rec((request_rec *)r->next);
     else
         ST(0) = &sv_undef;
+
+Apache
+last(r)
+    Apache   r
+
+    CODE:
+    for(RETVAL=r; RETVAL->next; RETVAL=RETVAL->next)
+        continue;
+
+    OUTPUT:
+    RETVAL
 
 int
 is_initial_req(r)
@@ -1071,6 +1369,16 @@ status(r, ...)
     OUTPUT:
     RETVAL
 
+time_t
+request_time(r)
+    Apache	r
+
+    CODE:
+    RETVAL = r->request_time;
+
+    OUTPUT:
+    RETVAL
+
 char *
 status_line(r, ...)
     Apache	r
@@ -1079,7 +1387,7 @@ status_line(r, ...)
     RETVAL = (char *)r->status_line;
 
     if(items > 1)
-        r->status_line = pstrdup(r->pool, (char *)SvPVX(ST(1)));
+        r->status_line = pstrdup(r->pool, (char *)SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1102,7 +1410,7 @@ method(r, ...)
     RETVAL = r->method;
 
     if(items > 1)
-        r->method = pstrdup(r->pool, (char *)SvPVX(ST(1)));
+        r->method = pstrdup(r->pool, (char *)SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1141,17 +1449,14 @@ bytes_sent(r, ...)
     RETVAL
 
 long
-read_length(r, ...)
+read_length(r, len=-1)
     Apache	r
+    long len
 
     CODE:
-    {
-#if MODULE_MAGIC_NUMBER >= 19970622
     RETVAL = r->read_length;
-    if(items > 1)
-        r->read_length = (long)SvIV(ST(1));
-#endif
-    }
+    if(len > -1)
+        r->read_length = len;
 
 #    /* MIME header environments, in and out.  Also, an array containing
 #   * environment variables to be passed to subprocesses, so people can
@@ -1195,11 +1500,16 @@ headers_in(r)
     Apache	r
 
     PREINIT:
+    
     int i;
     array_header *hdrs_arr;
     table_entry  *hdrs;
 
     PPCODE:
+    if(GIMME == G_SCALAR) {
+	ST(0) = mod_perl_tie_table(r->headers_in); 
+	XSRETURN(1); 	
+    }
     hdrs_arr = table_elts (r->headers_in);
     hdrs = (table_entry *)hdrs_arr->elts;
 
@@ -1237,7 +1547,7 @@ cgi_header_out(r, key, ...)
 
     if(items > 2) {
 	int status = 302;
-	val = SvPVX(ST(2));
+	val = SvPV(ST(2),na);
         if(!strncasecmp(key, "Content-type", 12)) {
 	    r->content_type = pstrdup (r->pool, val);
 	}
@@ -1293,9 +1603,12 @@ headers_out(r)
     table_entry  *hdrs;
 
     PPCODE:
+    if(GIMME == G_SCALAR) {
+	ST(0) = mod_perl_tie_table(r->headers_out); 
+	XSRETURN(1); 	
+    }
     hdrs_arr = table_elts (r->headers_out);
     hdrs = (table_entry *)hdrs_arr->elts;
-
     for (i = 0; i < hdrs_arr->nelts; ++i) {
 	if (!hdrs[i].key) continue;
 	PUSHelt(hdrs[i].key, hdrs[i].val, 0);
@@ -1322,6 +1635,10 @@ err_headers_out(r, ...)
     table_entry  *hdrs;
 
     PPCODE:
+    if(GIMME == G_SCALAR) {
+	ST(0) = mod_perl_tie_table(r->headers_out); 
+	XSRETURN(1); 	
+    }
     hdrs_arr = table_elts (r->err_headers_out);
     hdrs = (table_entry *)hdrs_arr->elts;
 
@@ -1331,7 +1648,7 @@ err_headers_out(r, ...)
     }
 
 SV *
-notes(r, key, ...)
+notes(r, key=NULL, ...)
     Apache    r
     char *key
 
@@ -1362,7 +1679,7 @@ handler(r, ...)
     RETVAL = r->handler;
 
     if(items > 1)
-        r->handler = pstrdup(r->pool, SvPVX(ST(1)));
+        r->handler = pstrdup(r->pool, SvPV(ST(1),na));
   
     OUTPUT:
     RETVAL
@@ -1375,7 +1692,7 @@ content_encoding(r, ...)
     RETVAL = r->content_encoding;
 
     if(items > 1)
-      r->content_encoding = pstrdup(r->pool, SvPVX(ST(1)));
+      r->content_encoding = pstrdup(r->pool, SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1388,7 +1705,7 @@ content_language(r, ...)
     RETVAL = r->content_language;
 
     if(items > 1)
-        r->content_language = pstrdup(r->pool, SvPVX(ST(1)));
+        r->content_language = pstrdup(r->pool, SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1440,7 +1757,7 @@ uri(r, ...)
     RETVAL = r->uri;
 
     if(items > 1)
-        r->uri = pstrdup(r->pool, SvPVX(ST(1)));
+        r->uri = pstrdup(r->pool, SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1453,7 +1770,7 @@ filename(r, ...)
     RETVAL = r->filename;
 
     if(items > 1) {
-        r->filename = pstrdup(r->pool, SvPVX(ST(1)));
+        r->filename = pstrdup(r->pool, SvPV(ST(1),na));
 #ifndef WIN32
 	stat(r->filename, &r->finfo);
 #endif
@@ -1469,7 +1786,7 @@ path_info(r, ...)
     RETVAL = r->path_info;
 
     if(items > 1)
-        r->path_info = pstrdup(r->pool, SvPVX(ST(1)));
+        r->path_info = pstrdup(r->pool, SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1488,7 +1805,7 @@ query_string(r, ...)
     XPUSHs(sv);
 
     if(items > 1)
-        r->args = pstrdup(r->pool, (char *)SvPVX(ST(1)));
+        r->args = pstrdup(r->pool, (char *)SvPV(ST(1),na));
 
 #  /* Various other config info which may change with .htaccess files
 #   * These are config vectors, with one void* pointer for each module
@@ -1497,8 +1814,22 @@ query_string(r, ...)
   
 #  void *per_dir_config;		/* Options set in config files, etc. */
 
+char *
+location(r)
+    Apache  r
+
+    CODE:
+    if(r->per_dir_config) {				   
+	dPPDIR;
+        RETVAL = cld->location;
+    }
+    else XSRETURN_UNDEF;
+
+    OUTPUT:
+    RETVAL
+
 SV *
-dir_config(r, key, ...)
+dir_config(r, key=NULL, ...)
     Apache  r
     char *key
 
@@ -1506,9 +1837,12 @@ dir_config(r, key, ...)
     perl_dir_config *c;
 
     CODE:
-    c = get_module_config(r->per_dir_config, &perl_module);
-    TABLE_GET_SET(c->vars, FALSE);
-
+    if(r->per_dir_config) {				   
+        c = get_module_config(r->per_dir_config, &perl_module);
+        TABLE_GET_SET(c->vars, FALSE);
+    }
+    else XSRETURN_UNDEF;
+ 
     OUTPUT:
     RETVAL
    
@@ -1602,7 +1936,7 @@ aborted(conn)
     Apache::Connection	conn
 
     CODE:
-    RETVAL = conn->aborted;
+    RETVAL = conn->aborted || (conn->client && (conn->client->fd < 0));
 
     OUTPUT:
     RETVAL
@@ -1676,7 +2010,7 @@ user(conn, ...)
     RETVAL = conn->user;
 
     if(items > 1)
-        conn->user = pstrdup(conn->pool, (char *)SvPVX(ST(1)));
+        conn->user = pstrdup(conn->pool, (char *)SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL
@@ -1689,7 +2023,7 @@ auth_type(conn, ...)
     RETVAL = conn->auth_type;
 
     if(items > 1)
-        conn->auth_type = pstrdup(conn->pool, (char *)SvPVX(ST(1)));
+        conn->auth_type = pstrdup(conn->pool, (char *)SvPV(ST(1),na));
 
     OUTPUT:
     RETVAL

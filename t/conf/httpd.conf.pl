@@ -32,7 +32,37 @@ if($ENV{TEST_PERL_DIRECTIVES}) {
     #t/TestDirectives/TestDirectives.pm
     push @INC, map { "t/TestDirectives/blib/$_" } qw(arch lib);
     require Apache::TestDirectives;
-    $TestCmd = 'one two three';
+    require Apache::ExtUtils;
+ 
+    my $proto_perl2c = Apache::ExtUtils->proto_perl2c;
+
+    $PerlConfig .= "YAC yet another\n";
+
+    $PerlConfig .= "<Location /perl>\n";
+    while(my($pp,$cp) = each %$proto_perl2c) {
+	my $arg = "A";
+	$pp =~ s/^\$\$//;
+	1 while $pp =~ s/(\$|\@)/$arg++ . " "/ge;
+	$PerlConfig .= "$cp $pp\n";
+    }
+
+    $PerlConfig .= <<EOF;
+TestCmd one two
+AnotherCmd
+CmdIterate A B C D E F
+</Location>
+<Container /for/whatever>
+
+it's  
+  miller
+time
+#make that a scotch
+</Container>
+
+<Location /perl/io>
+TestCmd PerlIO IsStdio
+</Location>
+EOF
 }
 
 $My::config_is_perl = 1;
@@ -74,7 +104,7 @@ $ServerName = "localhost";
 
 push @AddType, ["text/x-server-parsed-html" => ".shtml"];
  
-for (qw(/perl /cgi-bin)) {
+for (qw(/perl /cgi-bin /dirty-perl)) {
     push @Alias, [$_ => "$dir/net/perl/"];
 }
 
@@ -84,10 +114,22 @@ my @mod_perl = (
     Options     => "ExecCGI",
 );
 
+$Location{"/dirty-perl"} = { 
+    SetHandler => "perl-script",
+    PerlHandler => "Apache::PerlRun",
+    Options => "+ExecCGI ",
+    PerlSendHeader => "On",
+};
+
 $Location{"/perl"} = { 
     @mod_perl,
     PerlSetEnv => [KeyForPerlSetEnv => "OK"],
 #    PerlSetVar => [KeyForPerlSetVar => "OK"],
+};
+
+$Location{"/noenv"} = { 
+    @mod_perl,
+    PerlSetupEnv => "Off",
 };
 
 $Location{"/cgi-bin"} = {
@@ -152,3 +194,4 @@ $Location{"/chain"} = {
 };
 
 </Perl>
+

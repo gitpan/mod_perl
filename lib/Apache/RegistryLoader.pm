@@ -5,7 +5,7 @@ use strict;
 use Apache::Registry ();
 use Apache::Constants qw(OPT_EXECCGI);
 @Apache::RegistryLoader::ISA = qw(Apache::Registry);
-$Apache::RegistryLoader::VERSION = (qw$Revision: 1.6 $)[1];
+$Apache::RegistryLoader::VERSION = (qw$Revision: 1.7 $)[1];
 
 sub new { 
     my $class = shift;
@@ -50,6 +50,11 @@ sub seqno {0}
 sub server { shift }
 sub is_virtual {0}
 sub header_out {""}
+sub chdir_file {
+    my($r, $file) = @_;
+    $file ||= $r->filename;
+    Apache::chdir_file(undef, $file);
+}
 
 1;
 

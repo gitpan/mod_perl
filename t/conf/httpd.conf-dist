@@ -11,6 +11,13 @@ umm, we use this to test mod_perl
 
 =cut
 
+#we do this to test that `PerlSendHeader Off' will work
+<Files ~ "\.pl$">
+   PerlHandler          Apache::Registry
+   PerlSendHeader       On
+   Options              ExecCGI
+</Files>
+
 #make sure all regex stuff works
 #BrowserMatch Mozilla/2 nokeepalive
 
@@ -44,6 +51,8 @@ PerlScript docs/stacked.pl
 
 Alias /perl/ ./t/net/perl/
 
+Alias /dirty-perl/ ./t/net/perl/
+
 Alias /cgi-bin/ ./t/net/perl/
 
 <Location /perl>
@@ -51,6 +60,22 @@ ErrorDocument 500 /perl/server_error.pl
 SetHandler perl-script
 PerlHandler Apache::Registry::handler
 Options +ExecCGI
+PerlSendHeader       Off
+</Location>
+
+<Location /dirty-perl>
+Options +ExecCGI
+SetHandler perl-script
+PerlHandler Apache::PerlRun
+PerlSendHeader On
+</Location>
+
+<Location /perl/noenv>
+SetHandler perl-script
+PerlHandler Apache::Registry::handler
+Options +ExecCGI
+PerlSendHeader       Off
+PerlSetupEnv Off
 </Location>
 
 <Location /cgi-bin>

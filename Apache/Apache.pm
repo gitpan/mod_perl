@@ -4,7 +4,7 @@ use Exporter ();
 use Apache::Constants qw(OK DECLINED);
 use Apache::SIG ();
 
-@Apache::EXPORT_OK = qw(exit warn fork forkoption);
+@Apache::EXPORT_OK = qw(system exit warn fork forkoption);
 $Apache::VERSION = "1.22";
 
 *import = \&Exporter::import;
@@ -48,7 +48,7 @@ sub parse_args {
 
 sub content {
     my($r) = @_;
-    my $ct = $r->header_in("Content-type");
+    my $ct = $r->header_in("Content-type") || "";
     return unless $ct eq "application/x-www-form-urlencoded";
     my $buff;
     $r->read($buff, $r->header_in("Content-length"));
@@ -67,7 +67,8 @@ sub cgi_var {
     return $val;
 }
 
-*READ = \&read;
+*READ = \&read unless defined &READ;
+
 sub read {
     my($r, $bufsiz) = @_[0,2];
     my($nrd, $buf, $total);
@@ -97,7 +98,53 @@ sub read {
     return $total;
 }
 
-sub GETC { my $c; shift->read($c,1); $c; }
+sub new_read {
+    my($r, $bufsiz) = @_[0,2];
+    my($nrd, $buf, $total);
+    $nrd = $total = 0;
+    $buf = "";
+    $_[1] ||= "";
+
+    if(my $rv = $r->setup_client_block) {
+	$r->log_error("Apache->read: setup_client_block returned $rv");
+	die $rv;
+    }
+
+    #XXX: must set r->read_length to 0 here,
+    #since this read() method may be called in loop
+    #in which case, the second time in, should_client_block() 
+    #thinks we've already read the request body and returns 0
+    $r->read_length(0); 
+
+    unless($r->should_client_block) {
+	my $rl = $r->read_length;
+	$r->log_error("Apache->read: should_client_block returned 0 (rl=$rl)");
+	return 0;
+    }
+
+    $r->hard_timeout("Apache->read");
+    
+    while($bufsiz) {
+	$nrd = $r->get_client_block($buf, $bufsiz) || 0;
+	if(defined $nrd and $nrd > 0) {
+	    $bufsiz -= $nrd;
+	    $_[1] .= $buf;
+ 	    #substr($_[1], $total, $nrd) = $buf;
+	    $total += $nrd;
+	    $r->reset_timeout;
+	    next if $bufsiz;
+	    last;
+	}
+	else {
+	    $_[1] = undef;
+	    last;
+	}
+    }
+    $r->kill_timeout;
+    return $total;
+}
+
+sub GETC { my $c; shift->READ($c,1); $c; }
 
 #shouldn't use <STDIN> anyhow, but we'll be nice
 sub READLINE { 
@@ -117,6 +164,10 @@ sub WRITE {
     my($r, $buff, $length, $offset) = @_;
     my $send = substr($buff, $offset, $length);
     $r->print($send);
+}
+
+sub system {
+    print `@_`;
 }
 
 sub send_cgi_header {
@@ -167,7 +218,7 @@ sub as_string {
 	    push @retval, "$k: $v";
 	}
     }    
-    join "\n", @retval, "";
+    join "\n", grep { defined $_ } @retval, "";
 }
 
 sub TIEHANDLE {
@@ -238,6 +289,11 @@ structure or C<undef> if there is no previous request.
 
 This method returns a blessed reference to the next (internal) request
 structure or C<undef> if there is no next request.
+
+=item $r->last
+
+This method returns a blessed reference to the last (internal) request
+structure.  Handy for logging modules.
 
 =item $r->is_main
 
@@ -386,15 +442,9 @@ returned.  When called in a list context, a list of parsed I<key> =>
 I<value> pairs are returned.  *NOTE*: you can only ask for this once,
 as the entire body is read from the client.
 
-=item $r->read_client_block($buf, $bytes_to_read)
-
-Read from the entity body sent by the client.  Example of use:
-
-   $r->read_client_block($buf, $r->header_in('Content-length'));
-
 =item $r->read($buf, $bytes_to_read)
 
-This method uses read_client_block() to read data from the client, 
+This method is used to read data from the client, 
 looping until it gets all of C<$bytes_to_read> or a timeout happens.
 
 In addition, this method sets a timeout before reading with
@@ -578,6 +628,10 @@ module provides the constants to check against.
        $r->log_reason("Options ExecCGI is off in this directory", 
 		      $filename);
    }
+
+=item $r->get_server_port
+
+Returns the port number on which the server is listening.
 
 =item $s = $r->server
 
@@ -867,6 +921,8 @@ kill_timeout() will disarm either variety of timeout.
 
 reset_timeout() resets the timeout in progress.
 
+=item $r->post_connection($code_ref)
+
 =item $r->register_cleanup($code_ref)
 
 Register a cleanup function which is called just before $r->pool is
@@ -876,6 +932,10 @@ destroyed.
        my $r = shift;
        warn "registered cleanup called for ", $r->uri, "\n";
    });
+
+The I<post_connection> method is simply an alias for I<register_cleanup>, 
+as this method may be used to run code after the client connection is closed,
+which may not be a I<cleanup>.
 
 =back
 
@@ -995,7 +1055,7 @@ Apache C API notes at C<http://www.apache.org/docs/>
 
 Perl interface to the Apache C API written by Doug MacEachern
 with contributions from Gisle Aas, Andreas Koenig, Eric Bartley, 
-Rob Hartill, Gerald Richter, Salvador Garcia and others. 
+Rob Hartill, Gerald Richter, Salvador Ortiz and others. 
 
 =cut
 

@@ -43,7 +43,8 @@ sub reset_scalar {
 $r->post_connection(sub {
     my $r = shift;
     unless(Apache::test::WIN32()) { #XXX
-	$r->uri =~ /test/i or die "post_connection can't see \$r->uri!\n";
+	my $loc = $r->uri;
+	$loc =~ /test/i or die "post_connection can't see \$r->uri! ($loc)\n";
     }
     #$r->warn("post connection handler called for ", $r->uri);
     return 0;
@@ -104,10 +105,23 @@ if ($ENV{CONTENT_LENGTH}) {
     $r->print("\nContent\n-------\n$content");
 }
 
+print "\n";
+if(defined &Apache::system and \&system == \&Apache::system) {
+    system qq{$Config::Config{perlpath} -le 'print "Apache::system ok"'};
+}
+
 #even though we exit() here, END block below is still called
 test_exit(); # unless $ENV{CONTENT_LENGTH};
 
 sub test_exit {
+    if ($USE_THREAD) {
+	warn "XXX: need to fix exit in t/net/header.t w/ threads\n";
+    }
+    else {
+	exit;
+	die "shouldn't get this far!\n";
+    }
+
     exit;
     die "shouldn't get this far!\n";
 }

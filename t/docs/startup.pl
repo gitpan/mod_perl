@@ -31,11 +31,14 @@ $Apache::ERRSV_CAN_BE_HTTP  = 1;
 #warn "ServerReStarting=$Apache::ServerReStarting\n";
 
 #use Apache::Debug level => 4;
-
 use mod_perl 1.03_01;
 
 if(defined &main::subversion) {
     die "mod_perl.pm is broken\n";
+}
+
+if($ENV{PERL_TEST_NEW_READ}) {
+    *Apache::READ = \&Apache::new_read;
 }
 
 $ENV{KeyForPerlSetEnv} eq "OK" or warn "PerlSetEnv is broken\n";
@@ -81,16 +84,27 @@ sub PerlTransHandler::handler {-1}
 #for testing PERL_HANDLER_METHODS
 #see httpd.conf and t/docs/LoadClass.pm
 
+use LoadClass ();
 sub MyClass::method ($$) {
     my($class, $r) = @_;  
-    warn "$class->method called\n";
+    #warn "$class->method called\n";
+    0;
 }
 
 sub BaseClass::handler ($$) {
     my($class, $r) = @_;  
-    warn "$class->handler called\n";
+    #warn "$class->handler called\n";
+    0;
 }
 
+{
+    package BaseClass;
+    #so 5.005-tobe doesn't complain:
+    #No such package "BaseClass" in @ISA assignment at ...
+}
+
+
+$MyClass::Object = bless {}, "MyClass";
 @MyClass::ISA = qw(BaseClass);
 
 #testing child init/exit hooks
@@ -134,6 +148,25 @@ sub Apache::AuthenTest::handler {
     return OK;                       
 }
 
+sub My::ProxyTest::handler {
+    my $r = shift;
+    unless ($r->proxyreq and $r->uri =~ /proxytest/) {
+	warn sprintf "ProxyTest: proxyreq=%d, uri=%s\n",
+	$r->proxyreq, $r->uri;
+    }
+    return -1 unless $r->proxyreq;
+    return -1 unless $r->uri =~ /proxytest/;
+    $r->handler("perl-script");
+    $r->push_handlers(PerlHandler => sub {
+	my $r = shift;
+	$r->send_http_header("text/plain");
+	$r->print("1..1\n");
+	$r->print("ok 1\n");
+	$r->print("URI=`", $r->uri, "'\n");
+    });
+    return 0;
+}
+
 if(Apache->can_stack_handlers) {
     Apache->push_handlers(PerlChildExitHandler => sub {
 	warn "[notice] push'd PerlChildExitHandler called, pid=$$\n";
@@ -154,18 +187,5 @@ sub DESTROY {
 
 #prior to 1.3b1 (and the child_exit hook), this object's DESTROY method would not be invoked
 $global_object = Destruction->new;
-
-package This::Class;
-
-$My::Obj = bless {};
-
-sub method ($$) {
-    my($self, $r) = @_;
-    $r->send_http_header("text/plain");
-    print "$self isa ", ref($self), "\n";
-    $self->{called}++;
-    print map { "$_ = $self->{$_}\n" } keys %$self;
-    0;
-}
 
 1;

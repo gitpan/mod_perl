@@ -4,8 +4,12 @@
 #include "dirent.h"
 #endif
 
+#ifndef IS_MODULE
 #define IS_MODULE
+#endif
+#ifndef SHARED_MODULE
 #define SHARED_MODULE
+#endif
 
 #ifdef PERL_THREADS
 #define _INCLUDE_APACHE_FIRST
@@ -75,6 +79,10 @@
 #define ERRHV GvHV(errgv)
 #endif
 
+#ifndef AvFILLp
+#define AvFILLp(av)	((XPVAV*)  SvANY(av))->xav_fill
+#endif
+
 #define MP_EXISTS_ERROR(k) \
 ERRHV && hv_exists(ERRHV, k, strlen(k))
 
@@ -114,14 +122,16 @@ hv_store(ERRHV, k, strlen(k), v, FALSE)
    mod_perl_mark_where(w,s)
 #define UNMARK_WHERE LEAVE
 #else
-#define MARK_WHERE(w,s)
-#define UNMARK_WHERE
+#define MARK_WHERE(w,s) mod_perl_noop(NULL)
+#define UNMARK_WHERE mod_perl_noop(NULL)
 #endif
 
 typedef request_rec * Apache;
 typedef request_rec * Apache__SubRequest;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
+typedef cmd_parms   * Apache__CmdParms;
+typedef table       * Apache__Table;
 
 #define GvHV_init(name) gv_fetchpv(name, GV_ADDMULTI, SVt_PVHV)
 #define GvSV_init(name) gv_fetchpv(name, GV_ADDMULTI, SVt_PV)
@@ -191,7 +201,9 @@ extern U32	mp_debug;
 #endif
 
 /* cut down on some noise in source */
-#define dSTATUS int status = DECLINED
+#define dSTATUS \
+int dstatus = DECLINED; \
+int status = dstatus
 
 #define dPPDIR \
    perl_dir_config *cld = get_module_config(r->per_dir_config, &perl_module)   
@@ -200,6 +212,10 @@ extern U32	mp_debug;
    perl_server_config *cls = get_module_config (srv->module_config, &perl_module)
 
 /* per-directory flags */
+
+#define MPf_On   1
+#define MPf_Off -1
+#define MPf_None 0
 
 #define MPf_INCPUSH	0x00000100 /* use lib split ":", $ENV{PERL5LIB} */
 #define MPf_SENDHDR	0x00000200 /* is PerlSendHeader On? */
@@ -218,17 +234,29 @@ if((add->flags & f) || (base->flags & f)) \
 #define MP_INCPUSH_on(d)  (d->flags |= MPf_INCPUSH)
 #define MP_INCPUSH_off(d)  (d->flags  &= ~MPf_INCPUSH)
 
+#if 0
 #define MP_SENDHDR(d)    (d->flags & MPf_SENDHDR)
 #define MP_SENDHDR_on(d)  (d->flags |= MPf_SENDHDR)
 #define MP_SENDHDR_off(d)  (d->flags  &= ~MPf_SENDHDR)
+#endif
+
+#define MP_SENDHDR(d)     (d->SendHeader == MPf_On)
+#define MP_SENDHDR_on(d)  (d->SendHeader = MPf_On)
+#define MP_SENDHDR_off(d) (d->SendHeader = MPf_Off)
 
 #define MP_SENTHDR(d)    (d->flags & MPf_SENTHDR)
 #define MP_SENTHDR_on(d)  (d->flags |= MPf_SENTHDR)
 #define MP_SENTHDR_off(d)  (d->flags  &= ~MPf_SENTHDR)
 
+#if 0
 #define MP_ENV(d)       (d->flags & MPf_ENV)
 #define MP_ENV_on(d)     (d->flags |= MPf_ENV)
 #define MP_ENV_off(d)    (d->flags  &= ~MPf_ENV)
+#endif
+
+#define MP_ENV(d)       (d->SetupEnv == MPf_On)
+#define MP_ENV_on(d)    (d->SetupEnv = MPf_On)
+#define MP_ENV_off(d)   (d->SetupEnv = MPf_Off)
 
 #define MP_HASENV(d)    (d->flags & MPf_HASENV)
 #define MP_HASENV_on(d)  (d->flags |= MPf_HASENV)
@@ -251,6 +279,9 @@ if((add->flags & f) || (base->flags & f)) \
 #define PERL_APACHE_SSI_TYPE "text/x-perl-server-parsed-html"
 /* PerlSetVar */
 
+#ifndef NO_PERL_DIRECTIVE_HANDLERS
+#define PERL_DIRECTIVE_HANDLERS
+#endif
 #ifndef NO_PERL_STACKED_HANDLERS
 #define PERL_STACKED_HANDLERS
 #endif
@@ -273,6 +304,20 @@ if((add->flags & f) || (base->flags & f)) \
 
 /* some 1.2.x/1.3.x compat stuff */
 /* once 1.3.0 is here, we can toss most of this junk */
+
+#if MODULE_MAGIC_NUMBER > 19970912 
+#define cmd_infile   parms->config_file
+#define cmd_filename parms->config_file->name
+#define cmd_linenum  parms->config_file->line_number
+#else
+#define cmd_infile   parms->infile
+#define cmd_filename parms->config_file
+#define cmd_linenum  parms->config_line
+#endif
+
+#ifndef DONE
+#define DONE -2
+#endif
 
 #if MODULE_MAGIC_NUMBER >= 19980413
 #include "compat.h"
@@ -383,15 +428,20 @@ char *ap_cpystrn(char *dst, const char *src, size_t dst_size);
 #define perl_init_ids mod_perl_init_ids()
 #endif
 
+#define NO_HANDLERS -666
+
 #define PERL_CALLBACK(h,name) \
 PERL_SET_CUR_HOOK(h); \
 (void)acquire_mutex(mod_perl_mutex); \
-status = perl_run_stacked_handlers(h, r, Nullav); \
-if((status != OK) && (status != DECLINED)) { \
-    MP_TRACE_h(fprintf(stderr, "%s handlers returned %d\n", h, status)); \
-} \
-else if(AvTRUE(name)) { \
+if(AvTRUE(name)) { \
     status = perl_run_stacked_handlers(h, r, name); \
+} \
+if((status != OK) && (status != DECLINED)) { \
+   MP_TRACE_h(fprintf(stderr, "%s handlers returned %d\n", h, status)); \
+} \
+else { \
+   dstatus = perl_run_stacked_handlers(h, r, Nullav); \
+   if(dstatus != NO_HANDLERS) status = dstatus; \
 } \
 (void)release_mutex(mod_perl_mutex); \
 MP_TRACE_h(fprintf(stderr, "%s handlers returned %d\n", h, status))
@@ -412,7 +462,7 @@ if(name != NULL) { \
     (void)acquire_mutex(mod_perl_mutex); \
     sv = newSVpv(name,0); \
     MARK_WHERE(h, sv); \
-    status = perl_call_handler(sv, r, Nullav); \
+    dstatus = status = perl_call_handler(sv, r, Nullav); \
     UNMARK_WHERE; \
     SvREFCNT_dec(sv); \
     (void)release_mutex(mod_perl_mutex); \
@@ -535,6 +585,10 @@ PERL_READ_CLIENT
 #endif
 
 /* on/off switches for callback hooks during request stages */
+
+#if !defined(NO_PERL_TRANS) && (MODULE_MAGIC_NUMBER > 19980207)
+#undef NO_PERL_POST_READ_REQUEST
+#endif
 
 #ifndef NO_PERL_POST_READ_REQUEST
 #define PERL_POST_READ_REQUEST
@@ -754,6 +808,9 @@ typedef struct {
     table *env;
     table *vars;
     U32 flags;
+    int SendHeader;
+    int SetupEnv;
+    char *location;
 } perl_dir_config;
 
 typedef struct {
@@ -763,6 +820,16 @@ typedef struct {
     SV *class;
     char *method;
 } mod_perl_handler;
+
+typedef struct {
+    SV *obj;
+    char *class;
+} mod_perl_perl_dir_config;
+
+typedef struct {
+    char *subname;
+    char *info;
+} mod_perl_cmd_info;
 
 extern module MODULE_VAR_EXPORT perl_module;
 
@@ -824,7 +891,11 @@ void mod_perl_destroy_handler(void *data);
 
 SV *array_header2avrv(array_header *arr);
 array_header *avrv2array_header(SV *avrv, pool *p);
-void perl_tie_hash(HV *hv, char *class);
+table *hvrv2table(SV *rv);
+SV *mod_perl_gensym (char *pack);
+SV *mod_perl_tie_table(table *t);
+SV *perl_hvrv_magic_obj(SV *rv);
+void perl_tie_hash(HV *hv, char *class, SV *sv);
 void perl_util_cleanup(void);
 void mod_perl_clear_rgy_endav(request_rec *r, SV *sv);
 void perl_run_rgy_endav(char *s);
@@ -835,6 +906,7 @@ void perl_reload_inc(void);
 I32 perl_module_is_loaded(char *name);
 SV *perl_module2file(char *name);
 int perl_require_module(char *module, server_rec *s);
+void perl_qrequire_module (char *name);
 int perl_load_startup_script(server_rec *s, pool *p, char *script, I32 my_warn);
 array_header *perl_cgi_env_init(request_rec *r);
 void perl_clear_env(void);
@@ -864,6 +936,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, CHAR_P arg);
 CHAR_P perl_end_section (cmd_parms *cmd, void *dummy);
 CHAR_P perl_pod_section (cmd_parms *cmd, void *dummy, CHAR_P arg);
 CHAR_P perl_pod_end_section (cmd_parms *cmd, void *dummy);
+CHAR_P perl_cmd_autoload (cmd_parms *parms, void *dummy, const char *arg);
 CHAR_P perl_config_END (cmd_parms *cmd, void *dummy, CHAR_P arg);
 CHAR_P perl_limit_section(cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_urlsection (cmd_parms *cmd, void *dummy, HV *hv);
@@ -901,8 +974,18 @@ CHAR_P perl_cmd_type_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg
 CHAR_P perl_cmd_fixup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_handler_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_log_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
-CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, void *dummy,
-				  char *one, char *two, char *three);
+CHAR_P perl_cmd_perl_TAKE1(cmd_parms *cmd, mod_perl_perl_dir_config *d, char *one);
+CHAR_P perl_cmd_perl_TAKE2(cmd_parms *cmd, mod_perl_perl_dir_config *d, char *one, char *two);
+CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *d,
+			     char *one, char *two, char *three);
+
+#define perl_cmd_perl_RAW_ARGS perl_cmd_perl_TAKE1
+#define perl_cmd_perl_NO_ARGS perl_cmd_perl_TAKE1
+#define perl_cmd_perl_ITERATE perl_cmd_perl_TAKE1
+#define perl_cmd_perl_ITERATE2 perl_cmd_perl_TAKE2
+#define perl_cmd_perl_TAKE12 perl_cmd_perl_TAKE2
+#define perl_cmd_perl_TAKE23 perl_cmd_perl_TAKE123
+#define perl_cmd_perl_TAKE3 perl_cmd_perl_TAKE123
 
 void mod_perl_dir_env(perl_dir_config *cld);
 void mod_perl_pass_env(pool *p, perl_server_config *cls);
@@ -911,3 +994,4 @@ void mod_perl_pass_env(pool *p, perl_server_config *cls);
 
 pool *perl_get_startup_pool(void);
 server_rec *perl_get_startup_server(void);
+request_rec *sv2request_rec(SV *in, char *class, CV *cv);

@@ -1,6 +1,14 @@
 #define CORE_PRIVATE
 #include "mod_perl.h"
 
+#ifndef SERVER_BUILT
+#define SERVER_BUILT "unknown"
+#endif
+
+#ifndef MOD_PERL_STRING_VERSION
+#define MOD_PERL_STRING_VERSION "mod_perl/x.xx"
+#endif
+
 static CV *no_warn = Nullcv;
 
 CV *empty_anon_sub(void)
@@ -794,21 +802,24 @@ __AUTOLOAD()
     else 
         newCONSTSUB(stash, name, newSViv(val));
 
-char *
+const char *
 SERVER_VERSION()
    CODE: 
+#if MODULE_MAGIC_NUMBER >= 19980413
+   RETVAL = ap_get_server_version();
+#else
    RETVAL = SERVER_VERSION;
-
+#endif
    OUTPUT:
    RETVAL
 
 char *
 SERVER_BUILT()
    CODE: 
-#if (MODULE_MAGIC_NUMBER >= 19970912) && !defined(WIN32)
-   RETVAL = (char *)SERVER_BUILT;
+#if MODULE_MAGIC_NUMBER >= 19980413
+   RETVAL = (char *)ap_get_server_built();
 #else
-   RETVAL = "unknown";
+   RETVAL = SERVER_BUILT;
 #endif
 
    OUTPUT:
@@ -820,8 +831,18 @@ SERVER_SUBVERSION()
 #ifdef SERVER_SUBVERSION
     RETVAL = SERVER_SUBVERSION;
 #else
-    RETVAL = "mod_perl/x.xx";
+    RETVAL = MOD_PERL_STRING_VERSION;
 #endif
    OUTPUT:
    RETVAL
 
+char *
+DECLINE_CMD()
+   CODE:
+#ifdef DECLINE_CMD
+    RETVAL = DECLINE_CMD;
+#else
+    RETVAL = "\a\b";
+#endif
+   OUTPUT:
+   RETVAL

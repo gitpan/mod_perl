@@ -344,6 +344,44 @@ void perl_restart(server_rec *s, pool *p)
 
 U32 mp_debug = 0;
 
+static void mod_perl_set_cwd(void)
+{
+    char *name = "Apache::Server::CWD";
+    GV *gv = gv_fetchpv(name, GV_ADDMULTI, SVt_PV);
+    SV *cwd = perl_eval_pv("require Cwd; Cwd::fastcwd()", TRUE);
+    sv_setsv(GvSV(gv), cwd);
+}
+
+#ifdef PERL_TIE_SCRIPTNAME
+static I32 scriptname_val(IV ix, SV* sv)
+{ 
+    request_rec *r = perl_request_rec(NULL);
+    if(r) 
+	sv_setpv(sv, r->filename);
+    else if(strNE(SvPVX(GvSV(curcop->cop_filegv)), "-e"))
+	sv_setsv(sv, GvSV(curcop->cop_filegv));
+    else {
+	SV *file = perl_eval_pv("(caller())[1]",TRUE);
+	sv_setsv(sv, file);
+    }
+    MP_TRACE_g(fprintf(stderr, "FETCH $0 => %s\n", SvPV(sv,na)));
+    return TRUE;
+}
+
+static void mod_perl_tie_scriptname(void)
+{
+    SV *sv = perl_get_sv("0",TRUE);
+    struct ufuncs umg;
+    umg.uf_val = scriptname_val;
+    umg.uf_set = NULL;
+    umg.uf_index = (IV)0;
+    sv_unmagic(sv, 'U');
+    sv_magic(sv, Nullsv, 'U', (char*) &umg, sizeof(umg));
+}
+#else
+#define mod_perl_tie_scriptname()
+#endif
+
 void perl_startup (server_rec *s, pool *p)
 {
     char *argv[] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
@@ -354,6 +392,13 @@ void perl_startup (server_rec *s, pool *p)
     dPSRV(s);
     SV *pool_rv, *server_rv;
     GV *gv, *shgv;
+
+#if MODULE_MAGIC_NUMBER >= 19980507
+#ifndef MOD_PERL_STRING_VERSION
+#include "mod_perl_version.h"
+#endif
+    ap_add_version_component(MOD_PERL_STRING_VERSION);
+#endif
 
 #ifndef WIN32
     argv[0] = server_argv0;
@@ -454,7 +499,8 @@ void perl_startup (server_rec *s, pool *p)
 
     perl_clear_env();
     mod_perl_pass_env(p, cls);
-
+    mod_perl_set_cwd();
+    mod_perl_tie_scriptname();
     MP_TRACE_g(fprintf(stderr, "running perl interpreter..."));
 
     ENTER;
@@ -494,6 +540,7 @@ void perl_startup (server_rec *s, pool *p)
     status = perl_run(perl);
 
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,""),0));
+    av_push(GvAV(incgv), newSVpv(server_root_relative(p,"lib/perl"),0));
 
     list = (char **)cls->PerlRequire->elts;
     for(i = 0; i < cls->PerlRequire->nelts; i++) {
@@ -651,6 +698,12 @@ int PERL_POST_READ_REQUEST_HOOK(request_rec *r)
 {
     dSTATUS;
     dPSRV(r->server);
+#if MODULE_MAGIC_NUMBER > 19980270
+    if(r->parsed_uri.scheme && r->parsed_uri.hostname) {
+	r->proxyreq = 1;
+	r->uri = r->unparsed_uri;
+    }
+#endif
     PERL_CALLBACK("PerlPostReadRequestHandler", cls->PerlPostReadRequestHandler);
     return status;
 }
@@ -748,7 +801,6 @@ int PERL_LOG_HOOK(request_rec *r)
 
 void mod_perl_end_cleanup(void *data)
 {
-    (void)acquire_mutex(mod_perl_mutex); 
     MP_TRACE_g(fprintf(stderr, "perl_end_cleanup..."));
 
     /* clear %ENV */
@@ -924,7 +976,7 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 	}
 	else {
 	    MP_TRACE_h(fprintf(stderr, "`%s' push_handlers() stack is empty\n", hook));
-	    return DECLINED;
+	    return NO_HANDLERS;
 	}
 	do_clear = TRUE;
 	MP_TRACE_h(fprintf(stderr, 
@@ -946,7 +998,8 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 			 (int)AvFILL(handlers)+1, r->uri)); 
     }
     for(i=0; i<=AvFILL(handlers); i++) {
-	MP_TRACE_h(fprintf(stderr, "calling &{%s->[%d]}\n", hook, (int)i));
+	MP_TRACE_h(fprintf(stderr, "calling &{%s->[%d]} (%d total)\n", 
+			   hook, (int)i, (int)AvFILL(handlers)+1));
 
 	if(!(sub = *av_fetch(handlers, i, FALSE))) {
 	    MP_TRACE_h(fprintf(stderr, "sub not defined!\n"));
@@ -960,7 +1013,8 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 	    MARK_WHERE(hook, sub);
 	    status = perl_call_handler(sub, r, Nullav);
 	    UNMARK_WHERE;
-
+	    MP_TRACE_h(fprintf(stderr, "&{%s->[%d]} returned status=%d\n",
+			       hook, (int)i, status));
 	    if((status != OK) && (status != DECLINED)) {
 		if(do_clear)
 		    av_clear(handlers);	
@@ -1007,8 +1061,15 @@ void perl_per_request_init(request_rec *r)
 	dPSRV(r->server);
 	mod_perl_pass_env(r->pool, cls);
     }
-
+    mod_perl_tie_scriptname();
+    /* will be released in mod_perl_end_cleanup */
+    (void)acquire_mutex(mod_perl_mutex); 
     register_cleanup(r->pool, NULL, mod_perl_end_cleanup, mod_perl_noop);
+
+#ifdef WIN32
+    sv_setpvf(perl_get_sv("Apache::CurrentThreadId", TRUE), "0x%lx",
+	      (unsigned long)GetCurrentThreadId());
+#endif
 
     /* hookup stderr to error_log */
 #ifndef PERL_TRACE
@@ -1084,7 +1145,6 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 	    }
 	}
 
-#ifdef PERL_OBJECT_HANDLERS
 	if(*SvPVX(class) == '$') {
 	    SV *obj = perl_eval_pv(SvPVX(class), TRUE);
 	    if(SvROK(obj) && sv_isobject(obj)) {
@@ -1096,7 +1156,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 		stash = SvSTASH((SV*)SvRV(class));
 	    }
 	}
-#endif
+
 	if(class && !stash) stash = gv_stashpv(SvPV(class,na),FALSE);
 	   
 #if 0

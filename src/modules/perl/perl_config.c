@@ -55,16 +55,6 @@
 
 extern API_VAR_EXPORT module *top_module;
 
-#if MODULE_MAGIC_NUMBER > 19970912 
-#define cmd_infile   parms->config_file
-#define cmd_filename parms->config_file->name
-#define cmd_linenum  parms->config_file->line_number
-#else
-#define cmd_infile   parms->infile
-#define cmd_filename parms->config_file
-#define cmd_linenum  parms->config_line
-#endif
-
 #ifdef PERL_SECTIONS
 static int perl_sections_self_boot = 0;
 static const char *perl_sections_boot_module = NULL;
@@ -219,6 +209,9 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
 
     array_header *vars = (array_header *)base->vars;
 
+    new->location = add->location ? 
+        add->location : base->location;
+
     /* XXX: what triggers such a condition ?*/
     if(vars && (vars->nelts > 100000)) {
 	fprintf(stderr, "[warning] PerlSetVar->nelts = %d\n", vars->nelts);
@@ -230,11 +223,17 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
     new->vars = overlay_tables(p, add->vars, base->vars);
     new->env = overlay_tables(p, add->env, base->env);
 
+    new->SendHeader = (add->SendHeader != MPf_None) ?
+	add->SendHeader : base->SendHeader;
+
+    new->SetupEnv = (add->SetupEnv != MPf_None) ?
+	add->SetupEnv : base->SetupEnv;
+
     /* merge flags */
     MP_FMERGE(new,add,base,MPf_INCPUSH);
     MP_FMERGE(new,add,base,MPf_HASENV);
-    MP_FMERGE(new,add,base,MPf_ENV);
-    MP_FMERGE(new,add,base,MPf_SENDHDR);
+    /*MP_FMERGE(new,add,base,MPf_ENV);*/
+    /*MP_FMERGE(new,add,base,MPf_SENDHDR);*/
     MP_FMERGE(new,add,base,MPf_SENTHDR);
     MP_FMERGE(new,add,base,MPf_CLEANUP);
     MP_FMERGE(new,add,base,MPf_RCLEANUP);
@@ -291,9 +290,12 @@ void *perl_create_dir_config (pool *p, char *dirname)
     perl_dir_config *cld =
 	(perl_dir_config *)palloc(p, sizeof (perl_dir_config));
 
+    cld->location = pstrdup(p, dirname);
     cld->vars = make_table(p, 5); 
     cld->env  = make_table(p, 5); 
     cld->flags = MPf_ENV;
+    cld->SendHeader = MPf_None;
+    cld->SetupEnv = MPf_On;
     cld->PerlHandler = PERL_CMD_INIT;
     PERL_DISPATCH_CREATE(cld);
     PERL_AUTHEN_CREATE(cld);
@@ -611,25 +613,110 @@ CHAR_P perl_pod_end_section (cmd_parms *cmd, void *dummy) {
     return perl_pod_end_magic;
 }
 
-CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, void *dummy,
+#ifdef PERL_DIRECTIVE_HANDLERS
+
+CHAR_P perl_cmd_perl_TAKE1(cmd_parms *cmd, mod_perl_perl_dir_config *data, char *one)
+{
+    return perl_cmd_perl_TAKE123(cmd, data, one, NULL, NULL);
+}
+
+CHAR_P perl_cmd_perl_TAKE2(cmd_parms *cmd, mod_perl_perl_dir_config *data, char *one, char *two)
+{
+    return perl_cmd_perl_TAKE123(cmd, data, one, two, NULL);
+}
+
+
+static SV *perl_bless_cmd_parms(cmd_parms *parms)
+{
+    SV *sv = sv_newmortal();
+    sv_setref_pv(sv, "Apache::CmdParms", (void*)parms);
+    MP_TRACE_g(fprintf(stderr, "blessing cmd_parms=(0x%lx)\n",
+		     (unsigned long)parms));
+    return sv;
+}
+
+static SV *perl_perl_create_dir_config(SV **sv, HV *class, cmd_parms *parms)
+{
+    GV *gv; 
+
+    if(*sv && SvTRUE(*sv) && SvROK(*sv) && sv_isobject(*sv))
+	return *sv;
+
+    /* return $class->new if $class->can("new") */
+    if((gv = gv_fetchmethod_autoload(class, "new", FALSE)) && isGV(gv)) {
+	int count;
+	dSP;
+
+	ENTER;SAVETMPS;
+	PUSHMARK(sp);
+	XPUSHs(sv_2mortal(newSVpv(HvNAME(class),0)));
+	XPUSHs(perl_bless_cmd_parms(parms));
+	PUTBACK;
+	count = perl_call_sv((SV*)GvCV(gv), G_EVAL | G_SCALAR);
+	SPAGAIN;
+	if((perl_eval_ok(parms->server) == OK) && (count == 1)) {
+	    *sv = POPs;
+	    ++SvREFCNT(*sv);
+	}
+	FREETMPS;LEAVE;
+
+	return *sv;
+    }
+    else {
+	/* return bless {}, $class */
+	if(!SvTRUE(*sv)) {
+	    *sv = newRV_noinc((SV*)newHV());
+	    return sv_bless(*sv, class);
+	}
+	else
+	    return *sv;
+    }
+}
+
+CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *data,
 				  char *one, char *two, char *three)
 {
     dSP;
-    char *subname = (char *)cmd->info;
+    mod_perl_cmd_info *info = (mod_perl_cmd_info *)cmd->info;
+    char *subname = info->subname;
+    int count = 0;
+    CV *cv = perl_get_cv(subname, TRUE);
+    SV *obj;
+    bool has_empty_proto = (SvPOK(cv) && (SvLEN(cv) == 1));
+
+    obj = perl_perl_create_dir_config(&data->obj, CvSTASH(cv), cmd);
 
     ENTER;SAVETMPS;
     PUSHMARK(sp);
-    PUSHif(one);PUSHif(two);PUSHif(three);
+    if(!has_empty_proto) {
+	SV *cmd_obj = perl_bless_cmd_parms(cmd);
+	XPUSHs(cmd_obj);
+	XPUSHs(obj);
+	if(cmd->cmd->args_how != NO_ARGS) {
+	    PUSHif(one);PUSHif(two);PUSHif(three);
+	}
+	if(SvPOK(cv) && (*(SvEND((SV*)cv)-1) == '*')) {
+	    SV *gp = mod_perl_gensym("Apache::CmdParms");
+	    sv_magic((SV*)SvRV(gp), cmd_obj, 'q', Nullch, 0); 
+	    XPUSHs(gp);
+	}
+    }
     PUTBACK;
-    (void)perl_call_pv(subname, G_EVAL | G_SCALAR);
+    count = perl_call_sv((SV*)cv, G_EVAL | G_SCALAR);
     SPAGAIN;
-    LEAVE;FREETMPS;
+    if(count == 1) {
+	char *retval = POPp;
+	if(strEQ(retval, DECLINE_CMD))
+	    return DECLINE_CMD;
+    }
+    FREETMPS;LEAVE;
 
-    if(perl_eval_ok(cmd->server) != OK) 
+    if(SvTRUE(ERRSV))
 	return SvPVX(ERRSV);
     else
 	return NULL;
 }
+#endif /* PERL_DIRECTIVE_HANDLERS */
 
 #ifdef PERL_SECTIONS
 
@@ -994,10 +1081,9 @@ void perl_handle_command(cmd_parms *cmd, void *dummy, char *line)
 
     if(perl_handle_self_command(cmd, dummy, line))
 	return;
-
+    MP_TRACE_s(fprintf(stderr, "handle_command (%s): ", line));
     errmsg = handle_command(cmd, dummy, line);
-    MP_TRACE_s(fprintf(stderr, "handle_command (%s): %s\n", line, 
-		     (errmsg ? errmsg : "OK")));
+    MP_TRACE_s(fprintf(stderr, "%s\n", errmsg ? errmsg : "OK"));
 }
 
 void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *dummy)
@@ -1095,7 +1181,7 @@ void perl_section_hash_init(char *name, I32 dotie)
     curstash = gv_stashpv(PERL_SECTIONS_PACKAGE, GV_ADDWARN);
     gv = GvHV_init(name);
     if(dotie && !perl_sections_self_boot)
-	perl_tie_hash(GvHV(gv), "Tie::IxHash");
+	perl_tie_hash(GvHV(gv), "Tie::IxHash", Nullsv);
     LEAVE;
 }
 
@@ -1122,7 +1208,7 @@ void perl_section_self_boot(cmd_parms *parms, void *dummy, const char *arg)
 
     /* make sure this module is re-loaded for the second config read */
     if(PERL_RUNNING() == 1) {
-	SV *file;
+	SV *file = Nullsv;
 	if(arg) {
 	    if(strrchr(arg, '/') || strrchr(arg, '.'))
 		file = newSVpv((char *)arg,0);

@@ -2,12 +2,9 @@ package Apache::Registry;
 use Apache ();
 #use strict; #eval'd scripts will inherit hints
 use Apache::Constants qw(:common &OPT_EXECCGI &REDIRECT);
-use FileHandle ();
-use File::Basename ();
-use Cwd ();
 
-#$Id: Registry.pm,v 1.7 1998/04/20 09:43:48 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.7 $)[1];
+#$Id: Registry.pm,v 1.9 1998/06/11 08:42:42 rse Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.9 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -84,9 +81,7 @@ sub handler {
 	$r->log_error("Apache::Registry::handler package $package")
 	   if $Debug && $Debug & 4;
 
-
-	my $cwd = Cwd::fastcwd();
-	chdir File::Basename::dirname($r->filename);
+	$r->chdir_file;
 
 	if (
 	    exists $Apache::Registry->{$package}{'mtime'}
@@ -99,7 +94,8 @@ sub handler {
 		if $Debug && $Debug & 4;
 	    my($sub);
 	    {
-		my $fh = FileHandle->new($filename);
+		my $fh = Apache::gensym(__PACKAGE__);
+		open $fh, $filename;
 		local $/;
 		$sub = <$fh>;
 		$sub = parse_cmdline($sub);
@@ -137,10 +133,7 @@ sub handler {
 
 	my $cv = \&{"$package\::handler"};
 	eval { &{$cv}($r, @_) } if $r->seqno;
-	{
-	    local $^W = 0; #shutup Cwd.pm
-	    chdir $cwd;
-	}
+	chdir $Apache::Server::CWD;
 	$^W = $oldwarn;
 
 	my $errsv = "";
@@ -156,14 +149,12 @@ sub handler {
 	    return Apache::Debug::dump($r, SERVER_ERROR);
 	}
 
-=pod
-	#XXX
-	if(my $loc = $r->header_out("Location")) {
-	    if($r->status == 200 and substr($loc, 0, 1) ne "/") {
-		return REDIRECT;
-	    }
-	}
-=cut
+#	#XXX
+#	if(my $loc = $r->header_out("Location")) {
+#	    if($r->status == 200 and substr($loc, 0, 1) ne "/") {
+#		return REDIRECT;
+#	    }
+#	}
 	return $r->status;
     } else {
 	return NOT_FOUND unless $Debug && $Debug & 2;

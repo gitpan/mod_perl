@@ -93,8 +93,50 @@ array_header *avrv2array_header(SV *avrv, pool *p)
     return arr;
 }
 
-#ifdef PERL_SECTIONS
-void perl_tie_hash(HV *hv, char *class)
+table *hvrv2table(SV *rv)
+{
+    if(SvROK(rv) && SvTYPE(SvRV(rv)) == SVt_PVHV) {
+	SV *sv = perl_hvrv_magic_obj(rv);
+	if(!sv) croak("HV is not magic!");
+	return (table *)SvIV((SV*)SvRV(sv));
+    }
+    return (table *)SvIV((SV*)SvRV(rv));
+}
+
+/* same as Symbol::gensym() */
+SV *mod_perl_gensym (char *pack)
+{
+    GV *gv = newGVgen(pack);
+    SV *rv = newRV((SV*)gv);
+    (void)hv_delete(gv_stashpv(pack, TRUE), 
+		    GvNAME(gv), GvNAMELEN(gv), G_DISCARD);
+    return rv;
+}
+
+SV *mod_perl_tie_table(table *t)
+{
+    HV *hv;
+    SV *sv = sv_newmortal();
+    iniHV(hv);
+    sv_setref_pv(sv, "Apache::Table", (void*)t);
+    perl_qrequire_module("Apache::Tie");
+    perl_tie_hash(hv, "Apache::TieHashTable", sv);
+    return sv_bless(newRV_noinc((SV*)hv), 
+		    gv_stashpv("Apache::TieHashTable", TRUE));
+}
+
+SV *perl_hvrv_magic_obj(SV *rv)
+{
+    HV *hv = (HV*)SvRV(rv); 
+    MAGIC *mg;
+    if(SvMAGICAL(hv) && (mg = mg_find((SV*)hv, 'P'))) 
+        return mg->mg_obj;
+    else
+	return Nullsv;
+}
+
+
+void perl_tie_hash(HV *hv, char *class, SV *sv)
 {
     dSP;
     SV *obj, *varsv = (SV*)hv;
@@ -104,8 +146,11 @@ void perl_tie_hash(HV *hv, char *class)
     SAVETMPS;
     PUSHMARK(sp);
     XPUSHs(sv_2mortal(newSVpv(class,0)));
+    if(sv) XPUSHs(sv);
     PUTBACK;
     perl_call_method(methname, G_EVAL | G_SCALAR);
+    if(SvTRUE(ERRSV)) warn("perl_tie_hash: %s", SvPV(ERRSV,na));
+
     SPAGAIN;
 
     obj = POPs;
@@ -116,7 +161,6 @@ void perl_tie_hash(HV *hv, char *class)
     FREETMPS;
     LEAVE; 
 }
-#endif
 
 /* execute END blocks */
 
@@ -343,6 +387,20 @@ int perl_require_module(char *mod, server_rec *s)
     return 0;
 }
 
+/* faster than require_module, 
+ * used when we're already in an eval context
+ */
+void perl_qrequire_module(char *name) 
+{
+    OP *mod;
+    SV *key = perl_module2file(name);
+    if((key && hv_exists_ent(GvHV(incgv), key, FALSE)))
+	return;
+    mod = newSVOP(OP_CONST, 0, key);
+    /*mod->op_private |= OPpCONST_BARE;*/
+    utilize(TRUE, start_subparse(FALSE, 0), Nullop, mod, Nullop);
+}
+
 void perl_do_file(char *pv)
 {
     SV* sv = sv_newmortal();
@@ -404,6 +462,8 @@ void perl_clear_env(void)
 	    continue;
 	else if((*key == 'T') && strnEQ(key, "TZ", 2))
 	    continue;
+	else if((*key == 'P') && strnEQ(key, "PATH", 4))
+	    continue;
 	(void)hv_delete(hv, key, klen, G_DISCARD);
     }
     sv_magic((SV*)hv, (SV*)envgv, 'E', Nullch, 0);
@@ -441,6 +501,7 @@ int perl_sv_is_http_code(SV *errsv, int *status)
     int i=0, http_code=0, retval = FALSE;
     char *errpv;
     char cpcode[4];
+    dTHR;
 
     if(!SvTRUE(errsv) || !ERRSV_CAN_BE_HTTP)
 	return FALSE;

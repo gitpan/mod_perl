@@ -1,7 +1,7 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.6 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.7 $)[1];
 
 my %is_installed = ();
 
@@ -454,7 +454,9 @@ Other modules can "plugin" a menu item like so:
     }
  ) if Apache->module("Apache::Status"); #only if Apache::Status is loaded
 
-
+B<WARNING>: Apache::Status must be loaded before these modules via the 
+PerlModule or PerlRequire directives.
+  
 =head1 OPTIONS
 
 =over 4
