@@ -1,5 +1,8 @@
 #!/usr/local/bin/perl
 
+$|++;
+use Config;
+
 # First we check if we already are within the "t" directory
 if (-d "t") {
     # try to move into test directory
@@ -32,7 +35,7 @@ if (@ARGV) {
     #shutdown httpd before make aborts
     $SIG{'__DIE__'} = sub {
 	return unless $_[0] =~ /^Failed/i; 
-	my $el = "../t/logs/mod_perl_httpd.pid";
+	my $el = "../t/logs/httpd.pid";
 	if(-e $el) {
 	    system "kill `cat $el`";
 	}
@@ -57,10 +60,39 @@ Must skip important tests without LWP...
 
 EOM
 	sleep(2);
+        exit;
     }
     else {
        push(@tests, <modules/*.t>, <internal/*.t>);
     }
+}
+
+unshift @INC, '.';
+require Apache::test;
+Apache::test->import('simple_fetch');
+use subs 'simple_fetch';
+
+unless (simple_fetch "/") {
+    if ($^O eq "solaris" and $Config{myhostname} eq "ramona") {
+        print "go hang in the chill room $ENV{USER}, ramona is doggin...";
+    }  
+    else {
+        print "still waiting for server to warm up...";
+    }
+    for (1..3) {
+        sleep 1;
+        if (simple_fetch "/") {
+            print "ok\n";
+        }
+        else {
+            print "...";
+        }
+    }
+}
+
+unless (simple_fetch "/") {
+    print "not ok\n"; 
+    die "server failed to start!";
 }
 
 runtests @tests;

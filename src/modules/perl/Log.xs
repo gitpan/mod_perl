@@ -14,6 +14,7 @@ static void perl_cv_alias(char *to, char *from)
 
 static void ApacheLog(int level, SV *sv, SV *msg)
 {
+ dTHR;
     char *file = NULL;
     int line   = 0;
     char *str;
@@ -60,11 +61,11 @@ static void ApacheLog(int level, SV *sv, SV *msg)
 
     if(r && HAVE_LOG_RERROR) {
 #if HAVE_LOG_RERROR > 0
-	ap_log_rerror(file, line, APLOG_NOERRNO|level, r, str);
+	ap_log_rerror(file, line, APLOG_NOERRNO|level, r, "%s", str);
 #endif
     }
     else {
-	ap_log_error(file, line, APLOG_NOERRNO|level, s, str);
+	ap_log_error(file, line, APLOG_NOERRNO|level, s, "%s", str);
     }
 
     SvREFCNT_dec(msg);

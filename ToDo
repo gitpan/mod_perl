@@ -3,6 +3,14 @@ SHORT TERM STUFF (this section should always be empty in a release version!)
                  (well, close to it anyhow)
 ---------------------------------------------------------------------------
 
+- make PERL_STARTUP_DONE_CHECK=1 default for win32?
+
+- @PerlSetVar core dumps outside of %Location (Ask)
+
+- turn of strip of httpd in Apache's install.sh
+
+- at .../perl/Apache/SIG.pm line 30 (Mark Downing, Ron Hawkins)
+
 ---------------------------------------------------------------------------
 DOCUMENTATION (areas that *really* need some more or don't have any)
 ---------------------------------------------------------------------------
@@ -217,6 +225,8 @@ KNOWN MODULE BUGS
 NEW MODULE STUFF
 ---------------------------------------------------------------------------
 
+- Apache::Status extensions (ix)
+
 - StatINC doesn't reimport the imported symbols?
   Stas Bekman <sbekman@iil.intel.com>, 
   Message-Id: <Pine.A41.3.96.981007170413.44288Q-100000@ilx374.iil.intel.com>
@@ -282,6 +292,8 @@ use 5.005's newCONSTSUB in Constants.xs
 ---------------------------------------------------------------------------
 OPTIMIZATIONS
 ---------------------------------------------------------------------------
+
+- avoid write_client symtab lookup in print()
 
 - preloading of method cache
 

@@ -6,6 +6,94 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.18 - January 27, 1999
+
+if -DAPACHE_PERL5LIB is defined, feed the paths to @INC at startup
+
+prevent double mod_perl/x.xx in Server header under DSO
+[Jan Wedekind <jan.wedekind@de.uu.net>]
+
+Apache::Status HTML cosmetics + prefer Apache::Request over CGI.pm
+[Andreas J. Koenig <andreas.koenig@anima.de>]
+
+ensure Apache.pm is loaded (at least attempted) before checking $VERSION
+
+do not undef subroutines when flushing Apache::PerlRun::handler
+namespace unless subroutine lives in that namespace, i.e. not imported
+(no undef happens unless `B' module is loaded)
+
+untaint Apache::File->tmpfile (if $ENV{TMPDIR,TEMP} are used)
+
+'make test' fixups:
+
+ -for when other modules (e.g. auth, dirindex, type)
+  come before mod_perl in the module list
+ -exit graceful if LWP is still not installed
+ -skip module.t unless mod_{include,access} are configured
+
+loose @ISA 'DynaLoader' to avoid inheriting AutoLoader::AUTOLOAD
+
+added $r->server->timeout method
+
+skip tests that use xs/ap_ code if installed MMN is not equal to
+target MMN, since Apache releases may break binary compat
+
+Makefile.PL will look for --target=(\S+) in APACI_ARGS, if found use
+instead of the default `httpd' for 'make test'
+
+make sure ap_config_auto.h is picked up when PREP_HTTPD=1 (for
+non-distribution modules that use Apache::src to build)
+
+Fixed "broken" $VERSION's so CPAN won't be confused
+[ Ask Bjoern Hansen <ask@netcetera.dk> ]
+
+add some insurance so HTTP_* env variables should always be wiped
+
+fixed $r->finfo bug (properly set PL_laststatval)
+
+PerlRequire/PerlModule will not let the server start if there is an
+error (bug introduced in 1.16_xx), thanks to Brian Moseley for the spot
+
+5.005_54+usethreads port [Brian P Millett <bpm@ec-group.com>]
+
+fix -w command line logic for Apache::Registry
+[Honza Pazdziora <adelton@informatics.muni.cz>]
+
+$r->connection->aborted now returns the flag as-is (no c->fd test)
+
+fix bug in Apache::ModuleConfig->get($r) when $r isa subclass of Apache
+
+=item 1.17 - January 6, 1999
+
+change silly "Client hit STOP or Netscrape bit it!" message to a more
+reasonable message: "[modperl] caught SIGPIPE in process $$"
+
+don't register cleanups with the server-pool if we are a dso
+
+updated CREDITS
+
+internal $Apache::__T variable now properly set again, thanks to Stas
+Bekman for the spot
+
+fix so "top-level" Perl{Set,Pass}Env works if Perl is started early
+
+new $r->pnotes method
+
+$ENV{MOD_PERL} is not inherited by subprocesses
+
+no longer use -e with perl_parse()
+
+Apache::ExtUtils will complain if it can't determine the
+directive handler prototype (args_how), rather than fail during 'make'
+
+t/TEST =~ s/mod_perl_httpd.pid/httpd.pid 
+[Bruce W. Hoylman <bhoylma@advtech.uswest.com>]
+
+use a "%s" format for ap_log_{r}error, so %'s in the log message
+string are not treated as format strings
+
+INSTALL updates [Tom Hukins <tom@eborcom.com>]
+
 =item 1.16_02 - November 30, 1998
 
 removed PERLV define, just use patchlevel.h's defines
@@ -342,7 +430,8 @@ Apache.xs cleanups:
  -move Apache::Server code from Apache.xs to Server.xs
  -remove Apache::fork stuff
  -remove max_request_per_client method (use Apache::Globals instead)
-
+ -make sure server is up before runtests()
+ 
 =item 1.15 - July 24, 1998
 
 new experimental XS implementation of Apache::PerlRun/Apache::Registry

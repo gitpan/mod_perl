@@ -8,7 +8,7 @@
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@pobox.com">Doug MacEachern</a>,
-<br><i> $Revision: 1.49 $ $Date: 1998/11/24 16:51:54 $</i>
+<br><i> $Revision: 1.53 $ $Date: 1999/01/25 22:39:48 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -68,6 +68,7 @@ PAUSE user id and directory.
 Apache::
 
 * PerlHandler's
+AutoIndex	Rdcf	Lists directory content			GOZER
 Archive		i	List archive contents			PETERSON
 ASP		bdpO	Implement Active Server Pages		CHAMAS
 BBS		cdpO 	BBS like System for Apache		MKOSS
@@ -86,7 +87,7 @@ IDC_HTX		i						PTI
 JavaScript	cdpf	Generate JavaScript code		ABH
 Layer		bdpf	Layer content tree over one or more	SAM
 Magick		bdpf	Image conversion on-the-fly		MPB
-Mason		bdpO	HTML::Mason handler for mod_perl	JSWARTZ
+Mason		bdpO	Build sites w/ modular Perl/HTML blocks	JSWARTZ
 ModuleDoc	bdpf	Self documentation for Apache C modules	DOUGM
 NavBar		bdpO	Navigation bar generator		MPB
 OutputChain     bmpO	Chain output of stacked handlers	JANPAZ
@@ -213,6 +214,7 @@ Log		SmcO	ap_log_error interface			APML
 LogFile		bmcO	Interface to Apache's piped logs, etc.	APML
 Module		bmcO	Interface to Apache module struct	APML
 Server		SmcO	Interface to Apache server_rec struct	APML
+SubProcess	cmcO	Interface to Apache subprocess API	APML
 Table		SmcO	Interface to Apache table struct + API 	APML
 URI		SmcO	URI component parsing and unparsing	APML
 Util		Smcf	Interface to Apache's util*.c functions	APML
@@ -220,6 +222,7 @@ Util		Smcf	Interface to Apache's util*.c functions	APML
 * HTTP Method handlers
 PATCH		bdpf	HTTP PATCH method handler		MPB
 PUT		cdpf	HTTP PUT method handler 		SORTIZ
+Roaming		bdpO	PUT/GET/MOVE/DELETE (Netscape Roaming)	JWEID
 
 * Development and Debug tools
 Debug		Rmpf	mod_perl debugging utilities		APML
@@ -238,18 +241,20 @@ test		Smpf	Handy routines for 'make test' scripts	APML
 
 * Misc
 Byterun		i	Run Perl bytecode modules		DOUGM
-Icon		idcO	Access to AddIcon* configuration	DOUGM
+Cookie		amcO	C version of CGI::Cookie		APML
+Icon		bdcO	Access to AddIcon* configuration	DOUGM
 Include		Smpf	mod_include + Apache::Registry handler	APML
 Mmap		bdcf	Share data via Mmap module		FLETCH
 ParseLog	bdpO	OO interface to Apache log files	AKIRA
 RegistryLoader	SmpO	Apache::Registry startup script loader 	APML
-Request		bmpO    CGI.pm functionality using API methods	LDS
+Request		amcO    CGI.pm functionality using API methods	APML
 Safe		ampO	Adaptation of "safecgiperl"		APML
 Session		bmpO	Maintain client &lt;-&gt; httpd session/state	JBAKER
 Servlet		ampO	Interface to the Java Servlet engine	IKLUFT
 SIG		SmpO	Signal handlers for mod_perl		APML
 State		i	Powerful state engine			RSE
 TempFile	bdpf	Manage temporary files			TOMHUGHES
+Upload		amcO	File upload class			APML
 
 </pre>
 <h3><a name="where">Where Are The Modules Kept?</a></h3>
@@ -285,6 +290,7 @@ DOUGM	  Doug MacEachern &lt;dougm@pobox.com&gt;
 EBARTLEY  Eric Bartley  &lt;bartley@osd.cc.purdue.edu&gt;
 FLETCH    Mike Fletcher &lt;lemur1@mindspring.com&gt;
 GKNOPS	  Gerd Knops &lt;gerti@BITart.com&gt;
+GOZER	  Philippe M. Chiasson &lt;gozer@ectoplasm.dyndns.com&gt;
 GRICHTER  Gerald Richter &lt;richter@ecos.de&gt;
 GUNTHER   Gunther Birznieks &lt;gunther@nhgri.nih.gov&gt;
 HMUELLER  Hanno Mueller &lt;hmueller@mail.kabel.de&gt;
@@ -296,6 +302,7 @@ JGROV	  John D Groenveld &lt;jdg117@elvis.arl.psu.edu&gt;
 JEFFH	  Jeffrey Hulten &lt;jeffh@premier1.net&gt;
 JROWE	  Jeff Rowe &lt;beowulf@lava.net&gt;
 JSWARTZ	  Jonathan Swartz &lt;swartz@transbay.net&gt;
+JWEID	  Jochen Wiedmann &lt;joe@ispsoft.de&gt;
 KWILLIAM  Ken Williams  &lt;ken@forum.swarthmore.edu&gt;
 LDS	  Lincoln D. Stein &lt;lstein@genome.wi.mit.edu&gt;
 MARKC	  Mark Constable &lt;markc@goldcoast.org&gt;

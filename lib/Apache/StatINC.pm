@@ -14,6 +14,8 @@ sub handler {
     while(my($key,$file) = each %INC) {
 	local $^W = 0;
 	my $mtime = (stat $file)[9];
+	  # warn and skip the files with relative paths which can't be locate by applying @INC;
+	warn "Apache::StatINC: Can't locate $file\n",next unless defined $mtime and $mtime;
 	unless(defined $Stat{$file}) { 
 	    $Stat{$file} = $^T;
 	}
@@ -69,6 +71,19 @@ script called 'start_httpd' to start apache, and include a line like this:
 
         PERL5LIB=/usr/local/foo/myperllibs; export PERL5LIB
 
+When you have problems with modules not being reloaded, please refer
+to the following lines in 'perlmodlib':
+
+"Always use B<-w>. Try to C<use strict;> (or C<use strict qw(...);>). 
+Remember that you can add C<no strict qw(...);> to individual blocks 
+of code that need less strictness. Always use B<-w>. Always use B<-w>! 
+Follow the guidelines in the perlstyle(1) manual." 
+
+Warnings when running under mod_perl is enabled with 'PerlWarn On' in
+your httpd.conf.
+
+It will most likely help you to find the problem. Really.
+
 =head1 OPTIONS
 
 =over 4
@@ -99,6 +114,7 @@ mod_perl(3)
 
 =head1 AUTHOR
 
-Doug MacEachern
+Currently maintained by Ask Bjoern Hansen.
+Written by Doug MacEachern.
 
 

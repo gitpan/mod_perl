@@ -1,15 +1,25 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.11 $)[1];
+$Apache::Status::VERSION = '2.01';
 
 my %is_installed = ();
-
+my $Is_Win32 = ($^O eq "MSWin32");
 {
     local $SIG{__DIE__};
     %is_installed = map {
 	$_, (eval("require $_") || 0);
-    } qw (Data::Dumper Devel::Symdump CGI B Apache::Peek Apache::Symbol);
+    } qw (Data::Dumper Devel::Symdump B Apache::Request Apache::Peek Apache::Symbol);
+}
+
+use vars qw($newQ);
+
+if ($is_installed{"Apache::Request"}) {
+    $newQ ||= sub { Apache::Request->new(@_) };
+}
+else {
+    $is_installed{"CGI"} = eval("require CGI") || 0;
+    $newQ ||= sub { CGI->new; };
 }
 
 my $CPAN_base = "http://www.perl.com/CPAN/modules/by-module";
@@ -26,6 +36,8 @@ my(%status) = (
    myconfig => "Perl Configuration",	       
    hooks => "Enabled mod_perl Hooks",
 );
+
+delete $status{'sig'} if $Is_Win32;
 
 if($Apache::Server::SaveConfig) {
     $status{"section_config"} = "Perl Section Configuration";
@@ -52,7 +64,7 @@ sub handler {
 
     header($r);
     if(defined &$sub) {
-	$r->print(@{ &{$sub}($r,CGI->new) });
+	$r->print(@{ &{$sub}($r, $newQ->($r)) });
     }
     elsif ($qs and defined %{$qs."::"}) {
 	$r->print(symdump($r, $qs));
@@ -116,7 +128,7 @@ sub status_hooks {
     for my $hook (sort @list) {
 	my $on_off = 
 	  mod_perl::hook($hook) ? "<b>Enabled</b>" : "<i>Disabled</i>";
-	push @retval, "<tr><td>$hook</td><td>$on_off</td></tr>";
+	push @retval, "<tr><td>$hook</td><td>$on_off</td></tr>\n";
     }
     push @retval, qw(</table>);
     \@retval;
@@ -130,7 +142,7 @@ sub status_inc {
     push @retval, 
     "<tr>", 
     (map "<td><b>$_</b></td>", qw(Package Version Modified File)),
-    "</tr>";
+    "</tr>\n";
 
     foreach $file (sort keys %INC) {
 	local $^W = 0;
@@ -146,9 +158,9 @@ sub status_inc {
         (map "<td>$_</td>", 
 	 qq(<a href="$uri?$module">$module</a>),
 	 $v, scalar localtime((stat $INC{$file})[9]), $INC{$file}),
-        "</tr>";
+        "</tr>\n";
     }
-    push @retval, "</table>";
+    push @retval, "</table>\n";
     push @retval, "<p><b>\@INC</b> = <br>", join "<br>\n", @INC, "";
     \@retval;
 }
@@ -157,11 +169,11 @@ sub status_script {
     my($r,$q) = @_;
     my(@retval, $file);
     push @retval, "<table border=1>";
-    push @retval, "<tr><td><b>PerlRequire</b></td><td><b>Location</b></td></tr>";
+    push @retval, "<tr><td><b>PerlRequire</b></td><td><b>Location</b></td></tr>\n";
     foreach $file (sort keys %INC) {
 	next if $file =~ m:\.(pm|al|ix)$:;
 	push @retval, 
-	qq(<tr><td>$file</td><td>$INC{$file}</td></tr>);
+	qq(<tr><td>$file</td><td>$INC{$file}</td></tr>\n);
     }
     push @retval, "</table>";
     \@retval;
@@ -411,7 +423,7 @@ sub as_HTML {
 		push @line, $_;
 	    }
 	} 
-	push @m, "<TD>" . join(", ", @line) . "</TD></TR>";
+	push @m, "<TD>" . join(", ", @line) . "</TD></TR>\n";
     }
     push @m, "</TABLE>";
     return join "\n", @m;

@@ -1,17 +1,9 @@
 package Apache::Log;
 
-use strict;
 use Apache ();
-use vars qw($VERSION @ISA);
-
-use DynaLoader ();
-@ISA = qw(DynaLoader);
 
 $VERSION = '1.01';
-
-if($ENV{MOD_PERL}) {
-    bootstrap Apache::Log $VERSION;
-}
+__PACKAGE__->mod_perl::boot($VERSION);
 
 1;
 __END__
@@ -27,7 +19,7 @@ Apache::Log - Interface to Apache logging
   $rlog->debug("You only see this if `LogLevel' is set to `debug'");
 
   my $slog = $r->server->log;
- 
+
 =head1 DESCRIPTION
 
 The Apache::Log module provides an interface to Apache's I<ap_log_error>

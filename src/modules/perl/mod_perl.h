@@ -44,6 +44,12 @@
 #endif
 #include "XSUB.h"
 
+#ifndef MOD_PERL_STRING_VERSION
+#include "mod_perl_version.h"
+#endif
+#ifndef MOD_PERL_VERSION
+#define MOD_PERL_VERSION "TRUE"
+#endif
 
 /* patchlevel.h causes a -Wall warning, 
  * plus chance that another patchlevel.h might be in -I paths
@@ -79,10 +85,6 @@
   host->PerlDestroy()
 
 #define perl_free(host)
-#endif
-
-#ifndef MOD_PERL_VERSION
-#define MOD_PERL_VERSION "TRUE"
 #endif
 
 /* perl hides it's symbols in libperl when these macros are 
@@ -262,6 +264,16 @@ if(arg) \
     my_setenv(key, val); \
 }
 
+#define mp_SetEnv(key, val) \
+    hv_store(GvHV(envgv), key, strlen(key), newSVpv(val,0), FALSE); \
+    my_setenv(key, val)
+
+#define mp_PassEnv(key) \
+{ \
+    char *val = getenv(key); \
+    hv_store(GvHV(envgv), key, strlen(key), newSVpv(val?val:"",0), FALSE); \
+}
+
 #define mp_debug mod_perl_debug_flags
 
 extern U32	mp_debug;
@@ -299,9 +311,14 @@ extern U32	mp_debug;
 #endif
 
 /* cut down on some noise in source */
+#define PERL_IS_DSO perl_module.dynamic_load_handle
+
 #define dSTATUS \
 int dstatus = DECLINED; \
 int status = dstatus
+
+#define dPPREQ \
+   perl_request_config *cfg = get_module_config(r->request_config, &perl_module)
 
 #define dPPDIR \
    perl_dir_config *cld = get_module_config(r->per_dir_config, &perl_module)   
@@ -408,6 +425,9 @@ if((add->flags & f) || (base->flags & f)) \
 #define PERL_STARTUP_DONE_CHECK getenv("PERL_STARTUP_DONE_CHECK")
 #endif
 
+#define PERL_STARTUP_IS_DONE \
+(!PERL_STARTUP_DONE_CHECK || strEQ(getenv("PERL_STARTUP_DONE"), "2"))
+
 #ifndef PERL_DSO_UNLOAD
 #define PERL_DSO_UNLOAD getenv("PERL_DSO_UNLOAD")
 #endif
@@ -437,6 +457,11 @@ if((add->flags & f) || (base->flags & f)) \
 #define HAVE_APACHE_V_130
 #endif
 #define APACHE_SSL_12X (defined(APACHE_SSL) && (MODULE_MAGIC_NUMBER < MMN_130))
+
+#if MODULE_MAGIC_NUMBER < MMN_130
+#undef PERL_IS_DSO
+#define PERL_IS_DSO 0
+#endif
 
 #if MODULE_MAGIC_NUMBER >= 19980627
 #define MP_CONST_CHAR const char
@@ -469,16 +494,16 @@ if((add->flags & f) || (base->flags & f)) \
 #if MODULE_MAGIC_NUMBER > 19970909
 
 #define mod_perl_warn(s,msg) \
-    aplog_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, s, msg)
+    aplog_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, s, "%s", msg)
 
 #define mod_perl_error(s,msg) \
-    aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, s, msg)
+    aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, s, "%s", msg)
 
 #define mod_perl_notice(s,msg) \
-    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, s, msg)
+    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, s, "%s", msg)
 
 #define mod_perl_debug(s,msg) \
-    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, s, msg)
+    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, s, "%s", msg)
 
 #define mod_perl_log_reason(msg, file, r) \
     aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, r->server, \
@@ -968,6 +993,11 @@ typedef struct {
 } perl_dir_config;
 
 typedef struct {
+    HV *pnotes;
+    int setup_env;
+} perl_request_config;
+
+typedef struct {
     int is_method;
     int is_anon;
     int in_perl;
@@ -1096,6 +1126,7 @@ module *perl_get_module_ptr(char *name, int len);
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *perl_create_dir_config(pool *p, char *dirname);
 void *perl_create_server_config(pool *p, server_rec *s);
+perl_request_config *perl_create_request_config(pool *p, server_rec *s);
 void perl_perl_cmd_cleanup(void *data);
 
 void perl_section_self_boot(cmd_parms *parms, void *dummy, const char *arg);
@@ -1114,6 +1145,7 @@ void perl_handle_command(cmd_parms *cmd, void *dummy, char *line);
 void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *dummy);
 void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *dummy);
 
+void perl_tainting_set(server_rec *s, int arg);
 CHAR_P perl_cmd_require (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_var(cmd_parms *cmd, perl_dir_config *rec, char *key, char *val);

@@ -149,13 +149,14 @@ $PERL_STATIC_EXTS = "";
 $PERL_EXTRA_CFLAGS = "";
 $SSLCacheServerPort = 8539;
 $SSL_BASE = ""; 
-$Port = 8529;
+$Port = $ENV{HTTP_PORT} || 8529;
 #so Doug can 'make test' different-builds@sametime/samebox
 if(!$Is_Win32 and $ENV{RANDOM_PORT} and $$ > 8000 and $$ < 30000) {
     $PORT ||= $$;
     print "I'll use Port $PORT\n";
 }
 $PORT ||= $Port;
+$TARGET = "";
 $DO_HTTPD = $ENV{DO_HTTPD} || 0;
 $NO_HTTPD = $ENV{NO_HTTPD} || 0;
 $PREP_HTTPD = 0;
@@ -200,7 +201,8 @@ PERL_ORALL_OPMASK
 my %PassEnv = map { $_,1 } qw(SSL_BASE);
 
 my @mp_args = (keys %PassEnv,
-    qw(EXPERIMENTAL EVERYTHING DO_HTTPD NO_HTTPD CONFIG ADD_MODULE APACHE_PREFIX
+    qw(EXPERIMENTAL EVERYTHING DO_HTTPD NO_HTTPD CONFIG ADD_MODULE 
+       APACHE_PREFIX
        USE_APACI USE_DSO USE_APXS WITH_APXS APACI_ARGS PREP_HTTPD
        ALL_HOOKS ADD_VERSION STATIC DYNAMIC PORT XS_IMPORT));
 
@@ -412,7 +414,7 @@ unless (@adirs) {
 	    last;
 	}
 	else {
-	    print "Can't stat $src_dir\n";
+	    print "Can't stat `$src_dir'\n";
 	}
     }
 }
@@ -880,8 +882,10 @@ sub init_tests_and_config {
 	if($PERL_EXTRA_CFLAGS) {
 	    $cmd .= qq(CFLAGS="$PERL_EXTRA_CFLAGS" );
 	}    
+	
 	$cmd .= "./configure " .
 		  "--activate-module=src/modules/perl/libperl.a";
+
 	if($USE_DSO) {
 	    $cmd .= " --enable-shared=perl";
 	}
@@ -891,6 +895,9 @@ sub init_tests_and_config {
 	if($APACHE_PREFIX and $APACI_ARGS !~ /--prefix=/)  {
 	    $cmd .= " --prefix=$APACHE_PREFIX";
 	}
+	if ($APACI_ARGS =~ /--target=(\S+)/) {
+	    $TARGET = $1;
+	} 
 	if($ADD_MODULE) {
 	    for (split ",", $ADD_MODULE) {
 		if(/([a-zA-Z0-9][a-zA-Z0-9_]*)/) {
@@ -1083,6 +1090,8 @@ if($ENV{TEST_PERL_DIRECTIVES}) {
     }
 }
 
+$TARGET ||= (is_ssl() ? "httpsd" : "httpd");
+
 WriteMakefile(
     #DIR => \@DIR,
     NAME    => "mod_perl",
@@ -1095,7 +1104,7 @@ WriteMakefile(
         APACHE_ROOT => $APACHE_ROOT,
         APACHE_SRC => $APACHE_SRC,
 	ARCHNAME => $Config{archname},
-	HTTPD => (is_ssl() ? "httpsd" : "httpd"),
+	HTTPD => $TARGET,
 	PORT => $PORT,
 	PWD => $PWD,
 	SHRPENV => $Config{shrpenv},
@@ -1319,7 +1328,7 @@ sub MY::subdirs {
 }
 
 sub wanted {
-    return unless /\.h$/;
+    return unless /\.h$/ or /os-inline\.c$/;
     (my $d = $File::Find::dir) =~ s:^\Q$APACHE_SRC::;
     $d =~ s:^/::;
 
@@ -1340,6 +1349,18 @@ sub MY::post_initialize {
 
     finddepth(\&wanted, $APACHE_SRC);
     $self->{PM}{"Apache/typemap"} = '$(INST_ARCHLIB)/' . "auto/Apache/typemap";
+
+    my $v = httpd_version($APACHE_SRC, 1);
+    return '' unless $v >= 133;
+    for (qw(ap_config_auto.h)) {
+	my $from = "$APACHE_SRC/include/$_";
+	my $to = '$(INST_ARCHLIB)/' . "auto/Apache/include/$_";
+	unless ($self->{PM}->{$from}) {
+	    $self->{PM}->{$from} = $to;
+	    system "$Config{touch} $from";
+	}
+    }
+
     '';
 }
 
@@ -1740,10 +1761,12 @@ EOF
 sub write_version_h {
     my $d = shift;
     unlink "$d/mod_perl_version.h";
+    my $pv = perl_version();
     local *FH;
     open FH, ">$d/mod_perl_version.h" or die "can't write $d/mod_perl_version.h $!";
     print FH <<EOF;
 #define MOD_PERL_STRING_VERSION "mod_perl/$VERSION"
+#define PERLV $pv
 EOF
     close FH;
 }
@@ -1812,9 +1835,10 @@ sub add_static_ar {
 	last if -d ($ar_dir = "$APACHE_SRC/modules/perl/$_");
 	$ar_dir = "";
     }
+    return unless -d $ar_dir;
 
     finddepth(sub {
-	return unless /\.a$/;
+	return unless /^[A-Z]\w+\.a$/;
 	(my $rel = $File::Find::dir) =~ s:$APACHE_SRC/?::;
 	(my $mod = $rel) =~ s:.*auto/::;
 	$mod =~ s,/,::,;

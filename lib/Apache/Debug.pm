@@ -2,7 +2,7 @@ package Apache::Debug;
 use Cwd 'fastcwd';
 
 use vars qw($VERSION);
-$VERSION = (qw$Revision: 1.6 $)[1];
+$VERSION = "1.61";
 
 sub import {
     local $^W = 0;
@@ -73,7 +73,7 @@ sub dump {
     $r->content_type("text/html");
     $r->content_language("en");
     $r->no_cache(1);
-    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.6 1998/03/19 23:08:44 dougm Exp $);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.7 1999/01/18 04:31:13 ask Exp $);
     $r->send_http_header;
     
     return 0 if $r->header_only;   # should not generate a body

@@ -196,8 +196,7 @@ void mod_perl_pass_env(pool *p, perl_server_config *cls)
 
         if(val != NULL) {
 	    MP_TRACE_d(fprintf(stderr, "PerlPassEnv: `%s'=`%s'\n", key, val));
-	    hv_store(GvHV(envgv), key, strlen(key), newSVpv(val,0), FALSE);
-	    my_setenv(key, val);
+	    mp_SetEnv(key,val);
         }
     }
 }    
@@ -313,7 +312,6 @@ void *perl_create_dir_config (pool *p, char *dirname)
 
 void *perl_create_server_config (pool *p, server_rec *s)
 {
-    char **new;
     perl_server_config *cls =
 	(perl_server_config *)palloc(p, sizeof (perl_server_config));
 
@@ -334,17 +332,14 @@ void *perl_create_server_config (pool *p, server_rec *s)
     return (void *)cls;
 }
 
-#if 0
-static int is_2lns(const char *name)
+perl_request_config *perl_create_request_config(pool *p, server_rec *s)
 {
-    register int x, n;
-
-    for (x = 0, n = 0; name[x]; x++)
-        if (name[x] == ':')
-            n++;
-    return n == 2;
+    perl_request_config *cfg = 
+	(perl_request_config *)pcalloc(p, sizeof(perl_request_config));
+    cfg->pnotes = Nullhv;
+    cfg->setup_env = 0;
+    return cfg;
 }
-#endif
 
 #ifdef WIN32
 #define mp_preload_module(name)
@@ -388,7 +383,7 @@ CHAR_P perl_cmd_push_handlers(char *hook, PERL_CMD_TYPE **cmd, char *arg, pool *
 if(!PERL_RUNNING()) { \
     perl_startup(parms->server, parms->pool); \
     require_Apache(parms->server); \
-    MP_TRACE_g(fprintf(stderr, "mod_perl: %s calling perl_startup()\n", __FUNCTION__)); \
+    MP_TRACE_g(fprintf(stderr, "mod_perl: calling perl_startup()\n")); \
 } \
 return perl_cmd_push_handlers(hook,&cmd,arg,parms->pool)
 
@@ -510,8 +505,17 @@ CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg)
     dPSRV(parms->server);
     if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
     require_Apache(parms->server);
-    if(PERL_RUNNING()) 
-	perl_require_module(arg, parms->server);
+    if(PERL_RUNNING()) {
+	if (PERL_STARTUP_IS_DONE) {
+	    if (perl_require_module(arg, NULL) != OK) {
+		dTHR;
+		return SvPV(ERRSV,na);
+	    }
+	}
+	else {
+	    return NULL;
+	}
+    }
     else {
 	char **new;
 	MP_TRACE_d(fprintf(stderr, "push_perl_modules: arg='%s'\n", arg));
@@ -532,8 +536,17 @@ CHAR_P perl_cmd_require (cmd_parms *parms, void *dummy, char *arg)
     dPSRV(parms->server);
     if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
     MP_TRACE_d(fprintf(stderr, "perl_cmd_require: %s\n", arg));
-    if(PERL_RUNNING()) 
-	perl_load_startup_script(parms->server, parms->pool, arg, TRUE);
+    if(PERL_RUNNING()) {
+	if (PERL_STARTUP_IS_DONE) {
+	    if (perl_load_startup_script(NULL, parms->pool, arg, TRUE) != OK) {
+		dTHR;
+		return SvPV(ERRSV,na);
+	    }
+	    else {
+		return NULL;
+	    }
+	}
+    }
     else {
 	char **new;
 	new = (char **)push_array(cls->PerlRequire);
@@ -562,14 +575,27 @@ CHAR_P perl_cmd_opmask (cmd_parms *parms, void *dummy, char *arg)
 }
 #endif
 
+void perl_tainting_set(server_rec *s, int arg)
+{
+    dPSRV(s);
+    GV *gv;
+
+    cls->PerlTaintCheck = arg;
+    if(PERL_RUNNING()) {
+	gv = GvSV_init("Apache::__T");
+	if(arg) {
+	    SvREADONLY_off(GvSV(gv));
+	    GvSV_setiv(gv, TRUE);
+	    SvREADONLY_on(GvSV(gv));
+	    tainting = TRUE;
+	}
+    }
+}
+
 CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg)
 {
-    dPSRV(parms->server);
     MP_TRACE_d(fprintf(stderr, "perl_cmd_tainting: %d\n", arg));
-    cls->PerlTaintCheck = arg;
-#ifdef PERL_SECTIONS
-    if(arg && PERL_RUNNING()) tainting = TRUE;
-#endif
+    perl_tainting_set(parms->server, arg);
     return NULL;
 }
 
@@ -604,9 +630,14 @@ CHAR_P perl_cmd_sendheader (cmd_parms *cmd,  perl_dir_config *rec, int arg) {
 CHAR_P perl_cmd_pass_env (cmd_parms *parms, void *dummy, char *arg)
 {
     dPSRV(parms->server);
-    char **new;
-    new = (char **)push_array(cls->PerlPassEnv);
-    *new = pstrdup(parms->pool, arg);
+    if(PERL_RUNNING()) {
+	mp_PassEnv(arg);
+    }
+    else {
+	char **new;
+	new = (char **)push_array(cls->PerlPassEnv);
+	*new = pstrdup(parms->pool, arg);
+    }
     MP_TRACE_d(fprintf(stderr, "perl_cmd_pass_env: arg=`%s'\n", arg));
     arg = NULL;
     return NULL;
@@ -632,10 +663,15 @@ CHAR_P perl_cmd_setenv(cmd_parms *cmd, perl_dir_config *rec, char *key, char *va
     MP_HASENV_on(rec);
     MP_TRACE_d(fprintf(stderr, "perl_cmd_setenv: '%s' = '%s'\n", key, val));
     if(cmd->path == NULL) {
-	char **new;
-	dPSRV(cmd->server);
-	new = (char **)push_array(cls->PerlPassEnv);
-	*new = pstrcat(cmd->pool, key, ":", val, NULL);
+	if(PERL_RUNNING()) { 
+	    mp_SetEnv(key,val);
+	} 
+	else { 
+           char **new; 
+           dPSRV(cmd->server); 
+           new = (char **)push_array(cls->PerlPassEnv); 
+           *new = pstrcat(cmd->pool, key, ":", val, NULL); 
+	} 
     }
     return NULL;
 }
@@ -996,6 +1032,7 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
 
 void perl_section_hash_walk(cmd_parms *cmd, void *cfg, HV *hv)
 {
+ dTHR;
     CHAR_P errmsg;
     char *tmpkey; 
     I32 tmpklen; 
@@ -1496,6 +1533,7 @@ static void clear_symtab(HV *symtab)
 	SV *sv;
 	HV *hv;
 	AV *av;
+	dTHR;
 
 	if((SvTYPE(val) != SVt_PVGV) || GvIMPORTED((GV*)val))
 	    continue;

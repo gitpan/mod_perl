@@ -442,17 +442,20 @@ static void mp_server_notstarting(void *data)
 
 #define Apache__ServerStarting_on() \
     Apache__ServerStarting(PERL_RUNNING()); \
-    register_cleanup(p, NULL, mp_server_notstarting, mod_perl_noop) 
+    if(!PERL_IS_DSO) \
+        register_cleanup(p, NULL, mp_server_notstarting, mod_perl_noop) 
 
-#define MP_APACHE_VERSION 1.25
+#define MP_APACHE_VERSION 1.26
 
 void mp_check_version(void)
 {
     I32 i;
     SV *namesv;
-    SV *version = perl_get_sv("Apache::VERSION", FALSE);
+    SV *version;
 
-    if(!version)
+    require_Apache(NULL);
+
+    if(!(version = perl_get_sv("Apache::VERSION", FALSE)))
 	croak("Apache.pm failed to load!"); /*should never happen*/
     if(SvNV(version) >= MP_APACHE_VERSION) /*no worries*/
 	return;
@@ -486,20 +489,17 @@ void perl_startup (server_rec *s, pool *p)
     char *argv[] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
     char **list, *dstr;
     int status, i, argc=1;
-    char *dash_e = "BEGIN { $ENV{MOD_PERL} = 1; $ENV{GATEWAY_INTERFACE} = 'CGI-Perl/1.1'; }";
-    char *line_info = "#line 1 mod_perl";
     dPSRV(s);
     SV *pool_rv, *server_rv;
     GV *gv, *shgv;
 
 #if MODULE_MAGIC_NUMBER >= 19980507
-#ifndef MOD_PERL_STRING_VERSION
-#include "mod_perl_version.h"
-#endif
-    ap_add_version_component(MOD_PERL_STRING_VERSION);
-    if(PERL_RUNNING()) {
-	if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
-	    ap_add_version_component(form("Perl/%s", patchlevel));
+    if (!strstr(ap_get_server_version(), MOD_PERL_STRING_VERSION)) {
+	ap_add_version_component(MOD_PERL_STRING_VERSION);
+	if(PERL_RUNNING()) {
+	    if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
+		ap_add_version_component(form("Perl/%s", patchlevel));
+	    }
 	}
     }
 #endif
@@ -529,7 +529,7 @@ void perl_startup (server_rec *s, pool *p)
     dstr = NULL;
 #endif
 
-    if(PERL_RUNNING()) {
+    if(PERL_RUNNING() && PERL_STARTUP_IS_DONE) {
 	saveINC;
 	mp_check_version();
     }
@@ -566,15 +566,11 @@ void perl_startup (server_rec *s, pool *p)
     if(cls->PerlWarn)
 	argv[argc++] = "-w";
 
-#ifdef PERL_MARK_WHERE
-    argv[argc++] = "-e";
-    argv[argc++] = line_info;
+#ifdef WIN32
+    argv[argc++] = "nul";
 #else
-    line_info = NULL; 
+    argv[argc++] = "/dev/null";
 #endif
-
-    argv[argc++] = "-e";
-    argv[argc++] = dash_e;
 
     MP_TRACE_g(fprintf(stderr, "perl_parse args: "));
     for(i=1; i<argc; i++)
@@ -624,14 +620,9 @@ void perl_startup (server_rec *s, pool *p)
     GvSV_setiv(gv, TRUE);
 #endif
 
-    gv = GvSV_init("Apache::__T");
-    if(cls->PerlTaintCheck) 
-	GvSV_setiv(gv, TRUE);
-    SvREADONLY_on(GvSV(gv));
-
+    perl_tainting_set(s, cls->PerlTaintCheck);
     (void)GvSV_init("Apache::__SendHeader");
     (void)GvSV_init("Apache::__CurrentCallback");
-    (void)GvHV_init("mod_perl::UNIMPORT");
 
     Apache__ServerReStarting(FALSE); /* just for -w */
     Apache__ServerStarting_on();
@@ -659,8 +650,12 @@ void perl_startup (server_rec *s, pool *p)
 	TAINT_NOT; /* At this time all is safe */
     }
 
+#ifdef APACHE_PERL5LIB
+    perl_incpush(APACHE_PERL5LIB);
+#else
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,""),0));
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,"lib/perl"),0));
+#endif
 
     /* *CORE::GLOBAL::exit = \&Apache::exit */
     if(gv_stashpv("CORE::GLOBAL", FALSE)) {
@@ -669,12 +664,20 @@ void perl_startup (server_rec *s, pool *p)
 	GvIMPORTED_CV_on(exitgp);
     }
 
-    if(PERL_STARTUP_DONE_CHECK && !getenv("PERL_STARTUP_DONE")) {
-	MP_TRACE_g(fprintf(stderr, 
-			   "mod_perl: PerlModule,PerlRequire postponed\n"));
-	my_setenv("PERL_STARTUP_DONE", "1");
-	saveINC;
-	return;
+    if(PERL_STARTUP_DONE_CHECK)	{
+ 	char *psd = getenv("PERL_STARTUP_DONE");
+ 	if (!psd) {
+ 	    MP_TRACE_g(fprintf(stderr, 
+ 			       "mod_perl: PerlModule,PerlRequire postponed\n"));
+ 	    my_setenv("PERL_STARTUP_DONE", "1");
+ 	    saveINC;
+	    return;
+	}
+ 	else { 
+ 	    MP_TRACE_g(fprintf(stderr, 
+ 			       "mod_perl: postponed PerlModule,PerlRequire enabled\n"));
+ 	    my_setenv("PERL_STARTUP_DONE", "2");
+	}
     }
 
     ENTER_SAFE(s,p);
@@ -732,6 +735,7 @@ int perl_handler(request_rec *r)
 {
     dSTATUS;
     dPPDIR;
+    dPPREQ;
     dTHR;
     SV *nwvh = Nullsv;
 
@@ -747,8 +751,6 @@ int perl_handler(request_rec *r)
 
     if(MP_SENDHDR(cld)) 
 	MP_SENTHDR_off(cld);
-
-    table_set(r->subprocess_env, "MOD_PERL", MOD_PERL_VERSION);
 
     (void)perl_request_rec(r); 
 
@@ -773,10 +775,14 @@ int perl_handler(request_rec *r)
     perl_stdout2client(r);
     perl_stdin2client(r);
 
-    if(MP_ENV(cld)) 
-	perl_setup_env(r);
+    if(!cfg) {
+        cfg = perl_create_request_config(r->pool, r->server);
+        set_module_config(r->request_config, &perl_module, cfg);
+    }
 
+    cfg->setup_env = 1;
     PERL_CALLBACK("PerlHandler", cld->PerlHandler);
+    cfg->setup_env = 0;
 
     FREETMPS;
     LEAVE;
@@ -943,6 +949,20 @@ int PERL_LOG_HOOK(request_rec *r)
 #define CleanupHandler cld->PerlCleanupHandler
 #endif
 
+static void per_request_cleanup(request_rec *r)
+{
+    dPPREQ;
+
+    if(!cfg) {
+	return;
+    }
+    if(cfg->pnotes) {
+	hv_clear(cfg->pnotes);
+	SvREFCNT_dec(cfg->pnotes);
+	cfg->pnotes = Nullhv;
+    }
+}
+
 void mod_perl_end_cleanup(void *data)
 {
     request_rec *r = (request_rec *)data;
@@ -955,6 +975,7 @@ void mod_perl_end_cleanup(void *data)
 
     MP_TRACE_g(fprintf(stderr, "perl_end_cleanup..."));
     perl_run_rgy_endav(r->uri);
+    per_request_cleanup(r);
 
     /* clear %ENV */
     perl_clear_env();
@@ -1143,7 +1164,12 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
       /* XXX: bizarre, 
 	 I only see this with httpd.conf.pl and PerlAccessHandler */
 	if(SvTYPE((SV*)handlers) != SVt_PVAV) {
-	    fprintf(stderr, "[warning] %s stack is not an ARRAY!\n", hook);
+#if MODULE_MAGIC_NUMBER > 19970909 
+	    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, r->server,
+#else
+	    fprintf(stderr, 
+#endif
+		    "[warning] %s stack is not an ARRAY!\n", hook);
 	    sv_dump((SV*)handlers);
 	    return DECLINED;
 	}
@@ -1188,7 +1214,8 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 void perl_per_request_init(request_rec *r)
 {
     dPPDIR;
-
+    dPPREQ;
+    
     /* PerlSetEnv */
     mod_perl_dir_env(cld);
 
@@ -1208,6 +1235,14 @@ void perl_per_request_init(request_rec *r)
 	    perl_incpush(path);
 	    MP_INCPUSH_on(cld);
 	}
+    }
+
+    if(!cfg) {
+	cfg = perl_create_request_config(r->pool, r->server);
+	set_module_config(r->request_config, &perl_module, cfg);
+    }
+    else if (cfg->setup_env && MP_ENV(cld)) { 
+	perl_setup_env(r);
     }
 
     if(callbacks_this_request++ > 0) return;

@@ -16,7 +16,7 @@ else {
 
 my $is_xs = ($r->uri =~ /_xs/);
 
-my $tests = 51;
+my $tests = 65;
 my $is_win32 = WIN32;
 $tests += 2 unless $is_win32;
 my $test_get_set = Apache->can('set_handlers') && ($tests += 4);
@@ -30,6 +30,9 @@ $r->content_languages([qw(en)]);
 $r->send_http_header;
 
 $r->print("1..$tests\n");
+
+test ++$i, $ENV{MOD_PERL};
+print "ENV{MOD_PERL} = $ENV{MOD_PERL}\n";
 
 #backward compat
 %ENV = $r->cgi_env;
@@ -105,6 +108,20 @@ test ++$i, keys %err_headers_out;
 $r->err_header_out('X-Die' => "uhoh"); 
 test ++$i, $r->err_header_out("X-Die") eq "uhoh";
 
+for (1..3)  {
+    test ++$i, not $r->pnotes("NO_CHANCE");
+    $r->pnotes(KEY => [qw(one two)]);
+    my $val = $r->pnotes('KEY');
+    test ++$i, $val && (ref($val) eq 'ARRAY');
+    $val = $r->pnotes;
+    test ++$i, $val && (ref($val) eq 'HASH');
+    while(my($kk,$vv) = each %$val) {
+	test ++$i, $kk && $vv;
+    }
+#    use Data::Dumper;
+#    print Dumper $val;
+}
+
 $r->notes("FOO", 1); 
 $r->notes("ANoteKey", "TRUE");
 test ++$i, $r->notes("ANoteKey");
@@ -148,6 +165,7 @@ test ++$i, $s;
 test ++$i, $s->server_admin;
 test ++$i, $s->server_hostname;
 test ++$i, $s->port;
+test ++$i, $s->timeout;
 
 for (my $srv = $r->server; $srv; $srv = $srv->next) {
     my $name = $srv->server_hostname;

@@ -1,7 +1,7 @@
 package Apache::SIG;
 
 use strict;
-$Apache::SIG::VERSION = (qw$Revision: 1.7 $)[1];
+$Apache::SIG::VERSION = '1.91';
 
 $Apache::SIG::PipeKey ||= 'SIGPIPE';
 
@@ -24,8 +24,9 @@ sub PIPE {
     if (my $r = Apache->request) {
         $r->subprocess_env($Apache::SIG::PipeKey => '1');
     } else {
-        warn "Client hit STOP or Netscrape bit it!\n";
-        warn "Process $$ going to Apache::exit with status=$s\n";
+        warn "[modperl] caught SIGPIPE in process $$\n";
+        warn "\thint: may be a client (browser) hit STOP?\n";
+        warn "[modperl] process $$ going to Apache::exit with status=$s\n";
     }
     Apache::exit($s);
 }

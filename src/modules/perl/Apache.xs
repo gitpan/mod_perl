@@ -209,6 +209,7 @@ static SV *get_handlers(request_rec *r, char *hook)
 
 static void set_handlers(request_rec *r, SV *hook, SV *sv)
 {
+    dTHR;
     perl_handler_table *tab = perl_handler_lookup(SvPV(hook,na));
     if(tab && tab->set_func) 
         (*tab->set_func)(tab, r, sv);
@@ -309,6 +310,7 @@ static int sv_str_header(void *arg, const char *k, const char *v)
 /*
  * ap_scan_script_header_err_core(r, buffer, getsfunc_SV, sv)
  */
+#if 0
 static int getsfunc_SV(char *buf, int bufsiz, void *param)
 {
     SV *sv = (SV*)param;
@@ -335,6 +337,7 @@ static int getsfunc_SV(char *buf, int bufsiz, void *param)
     }
     return 1;
 }
+#endif /*0*/
 #endif /*MODULE_MAGIC_NUMBER*/
 
 static void rwrite_neg_trace(request_rec *r)
@@ -1597,6 +1600,40 @@ notes(r, key=NULL, ...)
     OUTPUT:
     RETVAL
 
+void
+pnotes(r, k=Nullsv, val=Nullsv)
+    Apache r
+    SV *k
+    SV *val
+
+    PREINIT:
+    perl_request_config *cfg;
+    char *key = NULL;
+    STRLEN len;
+
+    CODE:
+    if(k) {
+	key = SvPV(k,len);
+    }
+    cfg = get_module_config(r->request_config, &perl_module);
+    if(!cfg->pnotes) cfg->pnotes = newHV();
+    if(key) {
+	if(hv_exists(cfg->pnotes, key, len)) {
+	    ST(0) = SvREFCNT_inc(*hv_fetch(cfg->pnotes, key, len, FALSE));
+	    sv_2mortal(ST(0));
+	}
+	else {
+	    ST(0) = &sv_undef;
+	}
+	if(val) {
+	    hv_store(cfg->pnotes, key, len, SvREFCNT_inc(val), FALSE);
+	}
+    }
+    else {
+	ST(0) = newRV_inc((SV*)cfg->pnotes);
+	sv_2mortal(ST(0));
+    }
+
 char *
 content_type(r, ...)
     Apache	r
@@ -1679,6 +1716,12 @@ finfo(r)
 
     CODE:
     statcache = r->finfo;
+    if (r->finfo.st_mode) {
+	laststatval = 0;
+    }
+    else {
+	laststatval = -1;
+    }
     if(GIMME_V == G_VOID) XSRETURN_UNDEF;
     RETVAL = newRV_noinc((SV*)gv_fetchpv("_", TRUE, SVt_PVIO));
 

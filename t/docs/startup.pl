@@ -1,4 +1,9 @@
 #! /usr/local/bin/perl
+
+unless (defined $ENV{MOD_PERL}) {
+    die "\$ENV{MOD_PERL} not set!";
+}
+
 BEGIN {
     #./blib/lib:./blib/arch
     use ExtUtils::testlib;
@@ -10,6 +15,12 @@ BEGIN {
 	warn "GV alias broken\n";
     \$Apache::Server::ReStarting == \$Apache::ServerReStarting or 
 	warn "GV alias broken\n";
+}
+
+if (-e "t/docs/local.pl") {
+    eval {
+	require "local.pl"; 
+    }; $@='' if $@;
 }
 
 # BSD/OS 3.1 gets confused with some dynamically loaded code inside evals,
@@ -25,8 +36,6 @@ unless ($INC{'Apache.pm'} =~ /blib/) {
 }
 
 Apache::Constants->export(qw(HTTP_MULTIPLE_CHOICES));
-
-#no mod_perl qw(Connection Server);
 
 eval {
     require Apache::PerlRunXS;
@@ -90,6 +99,8 @@ sub main::pid { print $$ }
 sub main::access { print ++$Access::Cnt }
 
 $ENV{GATEWAY_INTERFACE} =~ /^CGI-Perl/ or die "GATEWAY_INTERFACE not set!";
+
+sub Outside::imported {4}
 
 #will be redef'd during tests
 sub PerlTransHandler::handler {-1}
@@ -156,7 +167,7 @@ sub Apache::AuthenTest::handler {
 
     my $user = lc $r->connection->user;
     $r->notes("DoAuthenTest", 1);
-
+    
     unless($user eq "dougm" and $sent_pwd eq "mod_perl") {
         $r->note_basic_auth_failure;
         return AUTH_REQUIRED;
