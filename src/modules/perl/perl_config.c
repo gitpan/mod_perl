@@ -650,14 +650,16 @@ static SV *perl_perl_create_dir_config(SV **sv, HV *class, cmd_parms *parms)
 	ENTER;SAVETMPS;
 	PUSHMARK(sp);
 	XPUSHs(sv_2mortal(newSVpv(HvNAME(class),0)));
-	XPUSHs(perl_bless_cmd_parms(parms));
+	if(parms)
+	    XPUSHs(perl_bless_cmd_parms(parms));
 	PUTBACK;
 	count = perl_call_sv((SV*)GvCV(gv), G_EVAL | G_SCALAR);
 	SPAGAIN;
-	if((perl_eval_ok(parms->server) == OK) && (count == 1)) {
+	if((perl_eval_ok(parms ? parms->server : NULL) == OK) && (count == 1)) {
 	    *sv = POPs;
 	    ++SvREFCNT(*sv);
 	}
+	PUTBACK;
 	FREETMPS;LEAVE;
 
 	return *sv;
@@ -673,12 +675,71 @@ static SV *perl_perl_create_dir_config(SV **sv, HV *class, cmd_parms *parms)
     }
 }
 
+#define DIR_MERGE "dir_merge"
+
+void *perl_perl_merge_dir_config(pool *p, void *basev, void *addv)
+{
+    GV *gv;
+    mod_perl_perl_dir_config *new = NULL,
+	*basevp = (mod_perl_perl_dir_config *)basev,
+	*addvp  = (mod_perl_perl_dir_config *)addv;
+    SV *sv, *basesv = basevp->obj, *addsv = addvp->obj;
+
+    if(!sv_isobject(basesv))
+	return basesv;
+
+    MP_TRACE_c(fprintf(stderr, "looking for method %s in package `%s'\n", 
+		       DIR_MERGE, SvCLASS(basesv)));
+
+    if((gv = gv_fetchmethod_autoload(SvSTASH(SvRV(basesv)), DIR_MERGE, FALSE)) && isGV(gv)) {
+	int count;
+	dSP;
+	new = (mod_perl_perl_dir_config *)
+	    palloc(p, sizeof(mod_perl_perl_dir_config));
+
+	MP_TRACE_c(fprintf(stderr, "calling %s->%s\n", 
+			   SvCLASS(basesv), DIR_MERGE));
+
+	ENTER;SAVETMPS;
+	PUSHMARK(sp);
+	XPUSHs(basesv);XPUSHs(addsv);
+	PUTBACK;
+	count = perl_call_sv((SV*)GvCV(gv), G_EVAL | G_SCALAR);
+	SPAGAIN;
+	if((perl_eval_ok(NULL) == OK) && (count == 1)) {
+	    sv = POPs;
+	    ++SvREFCNT(sv);
+	    new->obj = sv;
+	    new->class = SvCLASS(sv);
+	}
+	PUTBACK;
+	FREETMPS;LEAVE;
+    }
+    else {
+	new->obj = newSVsv(basesv);
+	new->class = basevp->class;
+    }
+    return (void *)new;
+}
+
+void perl_perl_cmd_cleanup(void *data)
+{
+    mod_perl_perl_dir_config *cld = (mod_perl_perl_dir_config *)data;
+
+    if(cld->obj) {
+	MP_TRACE_c(fprintf(stderr, 
+			   "cmd_cleanup: SvREFCNT($%s::$obj) == %d\n",
+			   cld->class, (int)SvREFCNT(cld->obj)));
+	SvREFCNT_dec(cld->obj);
+    }
+}
+
 CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *data,
 				  char *one, char *two, char *three)
 {
     dSP;
     mod_perl_cmd_info *info = (mod_perl_cmd_info *)cmd->info;
-    char *subname = info->subname;
+    char *subname = info->subname, *retval = NULL;
     int count = 0;
     CV *cv = perl_get_cv(subname, TRUE);
     SV *obj;
@@ -705,16 +766,16 @@ CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *data,
     count = perl_call_sv((SV*)cv, G_EVAL | G_SCALAR);
     SPAGAIN;
     if(count == 1) {
-	char *retval = POPp;
-	if(strEQ(retval, DECLINE_CMD))
-	    return DECLINE_CMD;
+	if(strEQ(POPp, DECLINE_CMD))
+	    retval = DECLINE_CMD;
+	PUTBACK;
     }
     FREETMPS;LEAVE;
 
     if(SvTRUE(ERRSV))
-	return SvPVX(ERRSV);
-    else
-	return NULL;
+	retval = SvPVX(ERRSV);
+
+    return retval;
 }
 #endif /* PERL_DIRECTIVE_HANDLERS */
 
@@ -1227,7 +1288,7 @@ void perl_section_self_boot(cmd_parms *parms, void *dummy, const char *arg)
     }   
 }
 
-CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
+CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
 {
     CHAR_P errmsg;
     SV *code, *val;
@@ -1236,13 +1297,13 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
     I32 klen, dotie=FALSE;
     char line[MAX_STRING_LEN];
 
-    if(!PERL_RUNNING()) perl_startup(cmd->server, cmd->pool); 
+    if(!PERL_RUNNING()) perl_startup(parms->server, parms->pool); 
 
     if(PERL_RUNNING()) {
 	code = newSV(0);
 	sv_setpv(code, "");
 	if(arg) 
-	    errmsg = perl_srm_command_loop(cmd, code);
+	    errmsg = perl_srm_command_loop(parms, code);
     }
     else {
 	MP_TRACE_s(fprintf(stderr, 
@@ -1258,6 +1319,8 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
     perl_section_hash_init("Directory", dotie);
     perl_section_hash_init("Files", dotie);
     perl_section_hash_init("Limit", dotie);
+
+    sv_setpv(perl_get_sv("0", TRUE), cmd_filename);
 
     perl_eval_sv(code, G_DISCARD);
 
@@ -1282,19 +1345,19 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	if((sv = GvSV((GV*)val))) {
 	    if(SvTRUE(sv)) {
 		if(STRING_MEAL(key)) {
-		    perl_eat_config_string(cmd, dummy, sv);
+		    perl_eat_config_string(parms, dummy, sv);
 		}
 		else {
 		    MP_TRACE_s(fprintf(stderr, "SVt_PV: $%s = `%s'\n", 
 				     key, SvPV(sv,na)));
 		    sprintf(line, "%s %s", key, SvPV(sv,na));
-		    perl_handle_command(cmd, dummy, line);
+		    perl_handle_command(parms, dummy, line);
 		}
 	    }
 	}
 
 	if((hv = GvHV((GV*)val))) {
-	    perl_handle_command_hv(hv, key, cmd, dummy);
+	    perl_handle_command_hv(hv, key, parms, dummy);
 	}
 	else if((av = GvAV((GV*)val))) {	
 	    module *mod = top_module;
@@ -1304,7 +1367,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	    if(STRING_MEAL(key)) {
 		SV *tmpsv;
 		while((tmpsv = av_shift(av)) != &sv_undef)
-		    perl_eat_config_string(cmd, dummy, tmpsv);
+		    perl_eat_config_string(parms, dummy, tmpsv);
 		continue;
 	    }
 
@@ -1335,7 +1398,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 		break;
 	    }
 	    if(shift > alen) shift = 1; /* elements are refs */ 
-	    perl_handle_command_av(av, shift, key, cmd, dummy);
+	    perl_handle_command_av(av, shift, key, parms, dummy);
 	}
     }
     SvREFCNT_dec(code);

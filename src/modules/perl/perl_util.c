@@ -103,6 +103,16 @@ table *hvrv2table(SV *rv)
     return (table *)SvIV((SV*)SvRV(rv));
 }
 
+void mod_perl_untaint(SV *sv)
+{
+    if(!tainting) return;
+    if (SvTYPE(sv) >= SVt_PVMG && SvMAGIC(sv)) {
+	MAGIC *mg = mg_find(sv, 't');
+	if (mg)
+	    mg->mg_len &= ~1;
+    }
+}
+
 /* same as Symbol::gensym() */
 SV *mod_perl_gensym (char *pack)
 {
@@ -215,17 +225,19 @@ void mod_perl_clear_rgy_endav(request_rec *r, SV *sv)
     }
 }
 
-void perl_run_rgy_endav(char *s) 
+void perl_stash_rgy_endav(char *s, SV *rgystash)
 {
-    SV *rgystash = perl_get_sv("Apache::Registry::curstash", FALSE);
     AV *rgyendav = Nullav;
     STRLEN klen;
     char *key;
     dTHR;
 
+    if(!rgystash) 
+	rgystash = perl_get_sv("Apache::Registry::curstash", FALSE);
+
     if(!rgystash || !SvTRUE(rgystash)) {
 	MP_TRACE_g(fprintf(stderr, 
-        "Apache::Registry::curstash not set, can't run END blocks for %s\n",
+        "Apache::Registry::curstash not set, can't stash END blocks for %s\n",
 			 s));
 	return;
     }
@@ -256,13 +268,40 @@ void perl_run_rgy_endav(char *s)
 	}
     }
 
-    MP_TRACE_g(fprintf(stderr, 
-	     "running %d END blocks for %s\n", rgyendav ? (int)AvFILL(rgyendav)+1 : 0, s));
-    if((endav = rgyendav)) 
-	perl_run_blocks(scopestack_ix, endav);
     if(rgyendav)
 	hv_store(mod_perl_endhv, key, klen, (SV*)newRV((SV*)rgyendav), FALSE);
-    
+}
+
+void perl_run_rgy_endav(char *s) 
+{
+    SV *rgystash = perl_get_sv("Apache::Registry::curstash", FALSE);
+    AV *rgyendav = Nullav;
+    STRLEN klen;
+    char *key;
+    dTHR;
+
+    if(!rgystash || !SvTRUE(rgystash)) {
+	MP_TRACE_g(fprintf(stderr, 
+        "Apache::Registry::curstash not set, can't run END blocks for %s\n",
+			 s));
+	return;
+    }
+
+    key = SvPV(rgystash,klen);
+
+    if(hv_exists(mod_perl_endhv, key, klen)) {
+	SV *entry = *hv_fetch(mod_perl_endhv, key, klen, FALSE);
+	if(SvTRUE(entry) && SvROK(entry)) 
+	    rgyendav = (AV*)SvRV(entry);
+    }
+
+    MP_TRACE_g(fprintf(stderr, 
+	     "running %d END blocks for %s\n", rgyendav ? (int)AvFILL(rgyendav)+1 : 0, s));
+    ENTER;
+    save_aptr(&endav); 
+    if((endav = rgyendav)) 
+	perl_run_blocks(scopestack_ix, endav);
+    LEAVE;
     sv_setpv(rgystash,"");
 }
 
@@ -462,7 +501,7 @@ void perl_clear_env(void)
 	    continue;
 	else if((*key == 'T') && strnEQ(key, "TZ", 2))
 	    continue;
-	else if((*key == 'P') && strnEQ(key, "PATH", 4))
+	else if((*key == 'P') && strEQ(key, "PATH"))
 	    continue;
 	(void)hv_delete(hv, key, klen, G_DISCARD);
     }

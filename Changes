@@ -6,6 +6,68 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.13 - July 13, 1998
+
+fix Makefile.PL setting of numeric $User/$Group for 'make test'
+[Michael K. Sanders <msanders@confusion.net>]
+
+giving PERL_STASH_POST_DATA=1 to Makefile.PL will save 
+read(STDIN, ...)/$r->read data in $r->subprocess_env for logging 
+
+added Apache::Log module (enable with PERL_LOG_API=1 or EVERYTHING=1)
+
+add mod_perl.pm_version so CPAN.pm can 'install mod_perl' again
+
+ensure Apache::Server::CWD is untainted
+
+add support to compile with -DPERL_OBJECT (win32 + 5.004_73+)
+
+add dir_merge support for directive handlers
+
+$r->print/print will dereference \$scalar refs to strings so scripts
+can avoid string copies when sending data to the client, 
+e.g. print \$large_string 
+
+set $0 to .conf file name when inside <Perl> sections
+
+fixed $r->subprocess_env bug introduced in 1.12, spotted by Ken Williams
+
+'*CORE::GLOBAL::exit = \&Apache::exit' for 5.005-tobe+ Perls 
+
+perl_startup will now call perl_init_i18nl10n(1), for 'use locale' 
+
+Makefile.PL will now set CFLAGS="$PERL_EXTRA_CFLAGS" with USE_APACI=1
+thanks to help from Vivek Khera
+
+improve support for Makefile.PL USE_APXS=... to generate modperl.config
+
+add PERL_TIE_TABLES and PERL_DIRECTIVE_HANDLERS to EVERYTHING=1 group
+
+add some casts to avoid warnings from const char changes in 1.3.1-dev
+
+write_client will break out of it's loop if rwrite returns a -1 error 
+condition, which could cause spinning httpds otherwise
+[Eric Eisenhart <eric@sonic.net>]
+
+properly default $Apache::Registry::NameWithVirtualHost=1, 
+thanks to spot by Ryan A. Whelan
+
+fix tied $r->err_headers_out cut-n-pasto [Peter Kaas <Peter.Kaas@lunatech.com>]
+
+Apache::read_client_block will now use safemalloc/safefree, rather
+than palloc, so memory is released after each read(), rather than at
+the end of a request.  (e.g. so file uploads don't cause too much growth)
+
+Added mod_perl_method_handlers.pod file, a little article about using
+perl objects with modperl. [ ask@netcetera.dk ]
+
+Apache::Registry will now save END blocks just after the script is compiled,
+instead of after the subroutine call.  otherwise, if the client breaks the
+connection, the hard_timeout will jump out of perl_handler(), and the save 
+will never happen.  Thanks to Robert Nice and Ben Laurie for spotting this.
+
+bug fix so PATH_INFO is properly reset, thanks to David Sklar for the spot
+
 =item 1.12 - June 14, 1998
 
 added a long overdue CREDITS file

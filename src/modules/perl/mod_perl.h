@@ -29,7 +29,31 @@
 
 #include "EXTERN.h"
 #include "perl.h"
+#ifdef PERL_OBJECT
+#define NO_XSLOCKS
+#endif
 #include "XSUB.h"
+
+#ifdef PERL_OBJECT
+#include <perlhost.h>
+#include "win32iop.h"
+#include <fcntl.h>
+
+#define PerlInterpreter CPerlHost
+
+#define perl_alloc() perl->PerlCreate() ? perl : NULL
+
+#define perl_parse(host, xsi, argc, argv, env) \
+  host->PerlParse(xsi, argc, argv, env);
+
+#define perl_run(host) \
+  host->PerlRun()
+
+#define perl_destruct(host) \
+  host->PerlDestroy()
+
+#define perl_free(host)
+#endif
 
 #ifndef MOD_PERL_VERSION
 #define MOD_PERL_VERSION "TRUE"
@@ -56,6 +80,9 @@
 #undef __attribute__
 
 #ifndef _INCLUDE_APACHE_FIRST
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "httpd.h" 
 #include "http_config.h" 
 #include "http_protocol.h" 
@@ -65,6 +92,9 @@
 #include "http_request.h" 
 #include "util_script.h" 
 #include "http_conf_globals.h"
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 #ifndef dTHR
@@ -133,6 +163,8 @@ typedef server_rec  * Apache__Server;
 typedef cmd_parms   * Apache__CmdParms;
 typedef table       * Apache__Table;
 
+#define SvCLASS(o) HvNAME(SvSTASH(SvRV(o)))
+
 #define GvHV_init(name) gv_fetchpv(name, GV_ADDMULTI, SVt_PVHV)
 #define GvSV_init(name) gv_fetchpv(name, GV_ADDMULTI, SVt_PV)
 
@@ -187,17 +219,19 @@ if(arg) \
 extern U32	mp_debug;
 
 #ifdef PERL_TRACE
-#define MP_TRACE(a)   if (mp_debug)	a
-#define MP_TRACE_d(a) if (mp_debug & 1)	a /* directives */
-#define MP_TRACE_s(a) if (mp_debug & 2)	a /* perl sections */
-#define MP_TRACE_h(a) if (mp_debug & 4)	a /* handlers */
-#define MP_TRACE_g(a) if (mp_debug & 8)	a /* globals and allocation */
+#define MP_TRACE(a)   if (mp_debug)	 a
+#define MP_TRACE_d(a) if (mp_debug & 1)	 a /* directives */
+#define MP_TRACE_s(a) if (mp_debug & 2)	 a /* perl sections */
+#define MP_TRACE_h(a) if (mp_debug & 4)	 a /* handlers */
+#define MP_TRACE_g(a) if (mp_debug & 8)	 a /* globals and allocation */
+#define MP_TRACE_c(a) if (mp_debug & 16) a /* directive handlers */
 #else
 #define MP_TRACE(a)
 #define MP_TRACE_d(a) 
 #define MP_TRACE_s(a) 
 #define MP_TRACE_h(a) 
 #define MP_TRACE_g(a) 
+#define MP_TRACE_c(a)
 #endif
 
 /* cut down on some noise in source */
@@ -305,6 +339,14 @@ if((add->flags & f) || (base->flags & f)) \
 /* some 1.2.x/1.3.x compat stuff */
 /* once 1.3.0 is here, we can toss most of this junk */
 
+#if MODULE_MAGIC_NUMBER >= 19980627
+#define MP_CONST_CHAR const char
+#define MP_CONST_ARRAY_HEADER const array_header
+#else
+#define MP_CONST_CHAR char
+#define MP_CONST_ARRAY_HEADER array_header
+#endif
+
 #if MODULE_MAGIC_NUMBER > 19970912 
 #define cmd_infile   parms->config_file
 #define cmd_filename parms->config_file->name
@@ -319,7 +361,9 @@ if((add->flags & f) || (base->flags & f)) \
 #define DONE -2
 #endif
 
-#if MODULE_MAGIC_NUMBER >= 19980413
+#if MODULE_MAGIC_NUMBER >= 19980713
+#include "ap_compat.h"
+#elif MODULE_MAGIC_NUMBER >= 19980413
 #include "compat.h"
 #endif
  
@@ -892,12 +936,14 @@ void mod_perl_destroy_handler(void *data);
 SV *array_header2avrv(array_header *arr);
 array_header *avrv2array_header(SV *avrv, pool *p);
 table *hvrv2table(SV *rv);
+void mod_perl_untaint(SV *sv);
 SV *mod_perl_gensym (char *pack);
 SV *mod_perl_tie_table(table *t);
 SV *perl_hvrv_magic_obj(SV *rv);
 void perl_tie_hash(HV *hv, char *class, SV *sv);
 void perl_util_cleanup(void);
 void mod_perl_clear_rgy_endav(request_rec *r, SV *sv);
+void perl_stash_rgy_endav(char *s, SV *rgystash);
 void perl_run_rgy_endav(char *s);
 void perl_run_endav(char *s);
 void perl_call_halt(int status);
@@ -930,6 +976,7 @@ char *mod_perl_auth_name(request_rec *r, char *val);
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *perl_create_dir_config(pool *p, char *dirname);
 void *perl_create_server_config(pool *p, server_rec *s);
+void perl_perl_cmd_cleanup(void *data);
 
 void perl_section_self_boot(cmd_parms *parms, void *dummy, const char *arg);
 CHAR_P perl_section (cmd_parms *cmd, void *dummy, CHAR_P arg);
@@ -986,6 +1033,7 @@ CHAR_P perl_cmd_perl_TAKE123(cmd_parms *cmd, mod_perl_perl_dir_config *d,
 #define perl_cmd_perl_TAKE12 perl_cmd_perl_TAKE2
 #define perl_cmd_perl_TAKE23 perl_cmd_perl_TAKE123
 #define perl_cmd_perl_TAKE3 perl_cmd_perl_TAKE123
+void *perl_perl_merge_dir_config(pool *p, void *basev, void *addv);
 
 void mod_perl_dir_env(perl_dir_config *cld);
 void mod_perl_pass_env(pool *p, perl_server_config *cls);

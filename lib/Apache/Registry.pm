@@ -3,8 +3,8 @@ use Apache ();
 #use strict; #eval'd scripts will inherit hints
 use Apache::Constants qw(:common &OPT_EXECCGI &REDIRECT);
 
-#$Id: Registry.pm,v 1.9 1998/06/11 08:42:42 rse Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.9 $)[1];
+#$Id: Registry.pm,v 1.12 1998/07/08 23:00:41 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.12 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -14,8 +14,11 @@ Apache->module('Apache::Debug') if $Apache::Registry::Debug;
 
 my $Is_Win32 = $^O eq "MSWin32";
 
-unless ($Apache::Registry::{NameWithVirtualHost}) {
+unless (defined $Apache::Registry::NameWithVirtualHost) {
     $Apache::Registry::NameWithVirtualHost = 1;
+}
+unless (defined $Apache::Registry::MarkLine) {
+    $Apache::Registry::MarkLine = 1;
 }
 
 sub handler {
@@ -109,17 +112,21 @@ sub handler {
 	    }
 	    $r->clear_rgy_endav($script_name);
 
+	    my $line = $Apache::Registry::MarkLine ?
+		"\n#line 1 $filename\n" : "";
+ 
 	    my $eval = join(
 			    '',
 			    'package ',
 			    $package,
  			    ';use Apache qw(exit);',
  			    'sub handler {',
- 			    "\n#line 1 $filename\n",
+			    $line,
 			    $sub,
 			    "\n}", # last line comment without newline?
 			   );
 	    compile($eval);
+	    $r->stash_rgy_endav($script_name);
 	    if ($@) {
 		$r->log_error($@);
 		$@{$r->uri} = $@;

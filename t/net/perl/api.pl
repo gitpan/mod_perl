@@ -16,7 +16,7 @@ else {
 %ENV = $r->cgi_env;
 $r->subprocess_env; #test void context
 
-my $tests = 45;
+my $tests = 46;
 my $test_get_set = Apache->can('set_handlers') && ($tests += 4);
 my $test_custom_response = (MODULE_MAGIC_NUMBER >= 19980324) && $tests++;
 my $test_dir_config = $INC{'Apache/TestDirectives.pm'} && ($tests += 7);
@@ -41,7 +41,6 @@ test ++$i, $r->get_remote_host;
 test ++$i, $r->get_server_port;
 
 test ++$i, SERVER_VERSION =~ /mod_perl/;
-test ++$i, SERVER_SUBVERSION =~ /mod_perl/;
 
 test ++$i, $r->last;
 test ++$i, $ENV{GATEWAY_INTERFACE};
@@ -53,6 +52,8 @@ test ++$i, $r->status_line;
 test ++$i, $r->method eq "GET";
 #test ++$i, $r->method_number
 
+$r->subprocess_env(SetKey => 'value');
+test ++$i, $r->subprocess_env('SetKey') eq 'value';
 my(%headers_in) = $r->headers_in;
 test ++$i, keys %headers_in;
 test ++$i, $r->header_in('UserAgent') || $r->header_in('User-Agent');
@@ -113,6 +114,10 @@ test ++$i, $s;
 test ++$i, $s->server_admin;
 test ++$i, $s->server_hostname;
 test ++$i, $s->port;
+
+++$i;
+my $str = "ok $i\n";
+$r->print(\$str);
 
 test ++$i, $r->module("Apache");
 test ++$i, not Apache->module("Not::A::Chance");

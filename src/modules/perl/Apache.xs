@@ -313,7 +313,7 @@ if(key == NULL) { \
 } \
 else { \
     char *val; \
-    if(table && (val = table_get(table, key))) \
+    if(table && (val = (char *)table_get(table, key))) \
 	RETVAL = newSVpv(val, 0); \
     else \
         RETVAL = newSV(0); \
@@ -433,6 +433,14 @@ mod_perl_clear_rgy_endav(r, sv=APACHE_REGISTRY_CURSTASH)
     Apache     r
     SV *sv
 
+void
+mod_perl_stash_rgy_endav(r, sv=APACHE_REGISTRY_CURSTASH)
+    Apache     r
+    SV *sv
+
+    CODE:
+    perl_stash_rgy_endav(r->uri, sv);
+
 I32
 module(sv, name)
     SV *sv
@@ -452,13 +460,8 @@ untaint(...)
 
     CODE:
     if(!tainting) XSRETURN_EMPTY;
-    for(i=1; i<items; i++) {
-	if (SvTYPE(ST(i)) >= SVt_PVMG && SvMAGIC(ST(i))) {
-	    MAGIC *mg = mg_find(ST(i), 't');
-	    if (mg)
-		mg->mg_len &= ~1;
-	}
-    }
+    for(i=1; i<items; i++) 
+        mod_perl_untaint(ST(i));
 
 void
 taint(...)
@@ -748,7 +751,7 @@ requires(r)
     register int x;
     int m;
     char *t;
-    array_header *reqs_arr;
+    MP_CONST_ARRAY_HEADER *reqs_arr;
     require_line *reqs;
 
     CODE:
@@ -803,11 +806,11 @@ mod_perl_auth_name(r, val=NULL)
     Apache    r
     char *val
 
-char *
+const char *
 auth_type(r)
     Apache    r
 
-char *
+const char *
 document_root(r)
     Apache    r
 
@@ -845,14 +848,14 @@ get_basic_auth_pw(r)
     Apache r
 
     PREINIT:
-    char *sent_pw = NULL;
+    MP_CONST_CHAR *sent_pw = NULL;
     int ret;
 
     PPCODE:
     ret = get_basic_auth_pw(r, &sent_pw);
     XPUSHs(sv_2mortal((SV*)newSViv(ret)));
     if(ret == OK)
-	XPUSHs(sv_2mortal((SV*)newSVpv(sent_pw, 0)));
+	XPUSHs(sv_2mortal((SV*)newSVpv((char *)sent_pw, 0)));
     else
 	XPUSHs(&sv_undef);
 
@@ -911,11 +914,15 @@ read_client_block(r, buffer, bufsiz)
     long nrd = 0;
 
     PPCODE:
-    buffer = (char*)palloc(r->pool, bufsiz);
+    buffer = (char*)safemalloc(bufsiz);
     PERL_READ_FROM_CLIENT;
     if ( nrd > 0 ) {
 	XPUSHs(sv_2mortal(newSViv((long)nrd)));
 	sv_setpvn((SV*)ST(1), buffer, nrd);
+#ifdef PERL_STASH_POST_DATA
+        table_set(r->subprocess_env, "POST_DATA", buffer);
+#endif
+        safefree(buffer);
 	SvTAINTED_on((SV*)ST(1));
     } 
     else {
@@ -1009,10 +1016,13 @@ write_client(r, ...)
     RETVAL = 0;
 
     for(i = 1; i <= items - 1; i++) {
-	buffer = SvPV(ST(i), len);
+	int sent = 0;
+        SV *sv = SvROK(ST(i)) && (SvTYPE(SvRV(ST(i))) == SVt_PV) ?
+                 (SV*)SvRV(ST(i)) : ST(i);
+	buffer = SvPV(sv, len);
 #ifdef APACHE_SSL
         while(len > 0) {
-            int sent = 0;
+            sent = 0;
 	    if(len < HUGE_STRING_LEN) {
 	        sent = rwrite(buffer, len, r);
 	    }
@@ -1020,11 +1030,19 @@ write_client(r, ...)
 	        sent = rwrite(buffer, HUGE_STRING_LEN, r);
 	        buffer += HUGE_STRING_LEN;
 	    }
+	    if(sent < 0) {
+	        mod_perl_warn(r->server, "mod_perl: rwrite returned -1");
+	        break;
+	    }
 	    len -= sent;
 	    RETVAL += sent;
         }
 #else
-        RETVAL += rwrite(buffer, len, r);
+        if((sent = rwrite(buffer, len, r)) < 0) {
+	    mod_perl_warn(r->server, "mod_perl: rwrite returned -1");
+	    break;
+        }
+        RETVAL += sent;
 #endif
     }
 
@@ -1144,7 +1162,7 @@ cgi_env(r, ...)
         }
     }
     else if(key) {
-	char *value = table_get(r->subprocess_env, key);
+	char *value = (char *)table_get(r->subprocess_env, key);
 	XPUSHs(value ? sv_2mortal((SV*)newSVpv(value, 0)) : &sv_undef);
     }
     else
@@ -1160,7 +1178,7 @@ subprocess_env(r, key=NULL, ...)
     I32 gimme = GIMME_V;
  
     CODE:
-    if(gimme == G_VOID) {
+    if((items == 1) && (gimme == G_VOID)) {
         (void)perl_cgi_env_init(r);
         XSRETURN_UNDEF;
     }
@@ -1351,7 +1369,7 @@ hostname(r)
     Apache	r
 
     CODE:
-    RETVAL = r->hostname;
+    RETVAL = (char *)r->hostname;
 
     OUTPUT:
     RETVAL
@@ -1538,7 +1556,7 @@ cgi_header_out(r, key, ...)
     char *val;
 
     CODE:
-    if((val = table_get(r->headers_out, key))) 
+    if((val = (char *)table_get(r->headers_out, key))) 
 	RETVAL = newSVpv(val, 0);
     else
         RETVAL = newSV(0);
@@ -1636,7 +1654,7 @@ err_headers_out(r, ...)
 
     PPCODE:
     if(GIMME == G_SCALAR) {
-	ST(0) = mod_perl_tie_table(r->headers_out); 
+	ST(0) = mod_perl_tie_table(r->err_headers_out); 
 	XSRETURN(1); 	
     }
     hdrs_arr = table_elts (r->err_headers_out);
@@ -1663,7 +1681,7 @@ content_type(r, ...)
     Apache	r
 
     CODE:
-    RETVAL = r->content_type;
+    RETVAL = (char *)r->content_type;
 
     if(items > 1)
         r->content_type = pstrdup(r->pool, SvPV(ST(1), na));
@@ -1676,10 +1694,11 @@ handler(r, ...)
     Apache	r
 
     CODE:
-    RETVAL = r->handler;
+    RETVAL = (char *)r->handler;
 
     if(items > 1)
-        r->handler = pstrdup(r->pool, SvPV(ST(1),na));
+        r->handler = (ST(1) == &sv_undef) ? 
+	NULL : pstrdup(r->pool, SvPV(ST(1),na));
   
     OUTPUT:
     RETVAL
@@ -1689,7 +1708,7 @@ content_encoding(r, ...)
     Apache	r
 
     CODE:
-    RETVAL = r->content_encoding;
+    RETVAL = (char *)r->content_encoding;
 
     if(items > 1)
       r->content_encoding = pstrdup(r->pool, SvPV(ST(1),na));
@@ -1702,7 +1721,7 @@ content_language(r, ...)
     Apache	r
 
     CODE:
-    RETVAL = r->content_language;
+    RETVAL = (char *)r->content_language;
 
     if(items > 1)
         r->content_language = pstrdup(r->pool, SvPV(ST(1),na));

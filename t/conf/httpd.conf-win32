@@ -263,12 +263,16 @@ AddType text/html .ehtml
 
 #HTML::Embperl
 
-<Files *.ehtml>
+<Files ~ "\.ehtml$">
+SetHandler perl-script
+PerlHandler HTML::Embperl
+Options +ExecCGI
+</Files>  
 
-    SetHandler perl-script
-
-    PerlHandler HTML::Embperl
-
-    Options ExecCGI
-
-</Files>
+<Location /perl/noenv>
+SetHandler perl-script
+PerlHandler Apache::Registry::handler
+Options +ExecCGI
+PerlSendHeader       Off
+PerlSetupEnv Off
+</Location> 

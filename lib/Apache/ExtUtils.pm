@@ -28,7 +28,7 @@ sub command_table {
 	require lib;
 	my $lib = "lib";#hmm, lib->import + -w == Unquoted string "lib" ...
 	$lib->import('./lib');
-	require $class;
+	eval { require $class };
     }
     unless (-e "$file.xs.orig") {
         File::Copy::cp("$file.xs", "$file.xs.orig");
@@ -85,8 +85,8 @@ sub xs_cmd_table {
 	}
 	elsif(ref($cmd) eq "HASH") {
 	    $name = $cmd->{name};
-	    $sub = $cmd->{func};
-	    $sub = join '::', $class, $cmd->{func} unless defined &$sub;
+	    $sub = $cmd->{func} || $cmd->{name};
+	    $sub = join '::', $class, $sub unless defined &$sub;
 	    $cmd_data = $cmd->{cmd_data};
 	    $req_override = $cmd->{req_override};
 	    $desc = $cmd->{errmsg};
@@ -127,6 +127,9 @@ sub xs_cmd_table {
 EOF
     }
 
+    my $dir_merger = $class->can('dir_merge') ?
+	"perl_perl_merge_dir_config" : "NULL";
+
     return <<EOF;
 #include "modules/perl/mod_perl.h"
 
@@ -137,6 +140,7 @@ static mod_perl_perl_dir_config *newPerlConfig(pool *p)
 	    palloc(p, sizeof (mod_perl_perl_dir_config));
     cld->obj = Nullsv;
     cld->class = "$class";
+    register_cleanup(p, cld, perl_perl_cmd_cleanup, null_cleanup);
     return cld;
 }
 
@@ -169,7 +173,7 @@ module MODULE_VAR_EXPORT XS_${modname} = {
     STANDARD_MODULE_STUFF,
     NULL,               /* module initializer */
     create_dir_config_sv,  /* per-directory config creator */
-    NULL,   /* dir config merger */
+    $dir_merger,   /* dir config merger */
     create_srv_config_sv,       /* server config creator */
     NULL,        /* server config merger */
     mod_cmds,               /* command table */

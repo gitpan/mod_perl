@@ -78,6 +78,10 @@ static AV *cleanup_av = Nullav;
 static HV *stacked_handlers = Nullhv;
 #endif
 
+#ifdef PERL_OBJECT
+CPerlObj *pPerl;
+#endif
+
 static command_rec perl_cmds[] = {
 #ifdef PERL_SECTIONS
     { "<Perl>", perl_section, NULL, OR_ALL, RAW_ARGS, "Perl code" },
@@ -227,7 +231,7 @@ static void seqno_check_max(request_rec *r, int seqno)
     }
     else {
       if(cld->vars)
-	  max = table_get(cld->vars, "MaxModPerlRequestsPerChild");
+	  max = (char *)table_get(cld->vars, "MaxModPerlRequestsPerChild");
     }
 
 #if (MODULE_MAGIC_NUMBER >= 19970912) && !defined(WIN32)
@@ -348,8 +352,15 @@ static void mod_perl_set_cwd(void)
 {
     char *name = "Apache::Server::CWD";
     GV *gv = gv_fetchpv(name, GV_ADDMULTI, SVt_PV);
-    SV *cwd = perl_eval_pv("require Cwd; Cwd::fastcwd()", TRUE);
-    sv_setsv(GvSV(gv), cwd);
+    char *pwd = getenv("PWD");
+
+    if(pwd) 
+	sv_setpv(GvSV(gv), pwd);
+    else 
+	sv_setsv(GvSV(gv), 
+		 perl_eval_pv("require Cwd; Cwd::getcwd()", TRUE));
+
+    mod_perl_untaint(GvSV(gv));
 }
 
 #ifdef PERL_TIE_SCRIPTNAME
@@ -410,7 +421,7 @@ void perl_startup (server_rec *s, pool *p)
 	    mp_debug = 0xffffffff;
 	}
 	else if (isALPHA(dstr[0])) {
-	    static char debopts[] = "dshg";
+	    static char debopts[] = "dshgc";
 	    char *d;
 
 	    for (; *dstr && (d = strchr(debopts,*dstr)); dstr++) 
@@ -477,6 +488,8 @@ void perl_startup (server_rec *s, pool *p)
 # endif
 #endif
 
+    perl_init_i18nl10n(1);
+
     MP_TRACE_g(fprintf(stderr, "allocating perl interpreter..."));
     if((perl = perl_alloc()) == NULL) {
 	MP_TRACE_g(fprintf(stderr, "not ok\n"));
@@ -541,6 +554,13 @@ void perl_startup (server_rec *s, pool *p)
 
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,""),0));
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,"lib/perl"),0));
+
+    /* *CORE::GLOBAL::exit = \&Apache::exit */
+    if(gv_stashpv("CORE::GLOBAL", FALSE)) {
+	GV *exitgp = gv_fetchpv("CORE::GLOBAL::exit", TRUE, SVt_PVCV);
+	GvCV(exitgp) = perl_get_cv("Apache::exit", TRUE);
+	GvIMPORTED_CV_on(exitgp);
+    }
 
     list = (char **)cls->PerlRequire->elts;
     for(i = 0; i < cls->PerlRequire->nelts; i++) {
@@ -636,8 +656,6 @@ int perl_handler(request_rec *r)
 	perl_setup_env(r);
 
     PERL_CALLBACK("PerlHandler", cld->PerlHandler);
-
-    perl_run_rgy_endav(r->uri);
 
     FREETMPS;
     LEAVE;
@@ -801,7 +819,10 @@ int PERL_LOG_HOOK(request_rec *r)
 
 void mod_perl_end_cleanup(void *data)
 {
+    request_rec *r = (request_rec *)data;
     MP_TRACE_g(fprintf(stderr, "perl_end_cleanup..."));
+
+    perl_run_rgy_endav(r->uri);
 
     /* clear %ENV */
     perl_clear_env();
@@ -942,10 +963,11 @@ int mod_perl_push_handlers(SV *self, char *hook, SV *sub, AV *handlers)
 		MP_TRACE_h(fprintf(stderr, 
 				   "pushing `%s' into `%s' handlers\n", 
 				   SvPV(sub,na), hook));
-	    else
+	    else {
 		MP_TRACE_d(fprintf(stderr, 
 				   "pushing `%s' into `%s' handlers\n", 
 				   SvPV(sub,na), hook));
+	    }
 	}
 	else {
 	    warn("mod_perl_push_handlers: Not a subroutine name or CODE reference!");
@@ -1048,7 +1070,7 @@ void perl_per_request_init(request_rec *r)
 
     /* SetEnv PERL5LIB */
     if(!MP_INCPUSH(cld)) {
-	char *path = table_get(r->subprocess_env, "PERL5LIB");
+	char *path = (char *)table_get(r->subprocess_env, "PERL5LIB");
 	if(path) {
 	    perl_incpush(path);
 	    MP_INCPUSH_on(cld);
@@ -1064,7 +1086,7 @@ void perl_per_request_init(request_rec *r)
     mod_perl_tie_scriptname();
     /* will be released in mod_perl_end_cleanup */
     (void)acquire_mutex(mod_perl_mutex); 
-    register_cleanup(r->pool, NULL, mod_perl_end_cleanup, mod_perl_noop);
+    register_cleanup(r->pool, (void*)r, mod_perl_end_cleanup, mod_perl_noop);
 
 #ifdef WIN32
     sv_setpvf(perl_get_sv("Apache::CurrentThreadId", TRUE), "0x%lx",
