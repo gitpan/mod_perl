@@ -53,7 +53,7 @@
 #define CORE_PRIVATE
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.75 1998/03/17 11:17:19 dougm Exp $ */
+/* $Id: Apache.xs,v 1.7 1998/03/21 04:00:53 dougm Exp $ */
 
 extern listen_rec *listeners;
 extern int mod_perl_socketexitoption;
@@ -407,7 +407,9 @@ hard_timeout(r, string)
     char       *string
 
     CODE:
+#ifndef USE_THREADS
     hard_timeout(string, r);
+#endif
 
 void
 soft_timeout(r, string)
@@ -420,6 +422,11 @@ soft_timeout(r, string)
 void
 kill_timeout(r)
     Apache     r
+
+    CODE:
+#ifndef USE_THREADS
+    kill_timeout(r);
+#endif
 
 void
 reset_timeout(r)

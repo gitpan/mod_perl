@@ -5,7 +5,7 @@ use strict;
 use Apache::Registry ();
 use Apache::Constants qw(OPT_EXECCGI);
 @Apache::RegistryLoader::ISA = qw(Apache::Registry);
-$Apache::RegistryLoader::VERSION = (qw$Revision: 1.13 $)[1];
+$Apache::RegistryLoader::VERSION = (qw$Revision: 1.6 $)[1];
 
 sub new { 
     my $class = shift;

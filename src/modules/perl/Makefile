@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.35 1998/03/19 06:02:22 dougm Exp $
+# $Id: Makefile,v 1.6 1998/03/19 23:08:53 dougm Exp $
 #
 
 #__ORIGINAL__

@@ -5,7 +5,7 @@ use vars qw($Debug);
 use BSD::Resource qw(setrlimit getrlimit get_rlimits);
 
 $Debug ||= 0;
-$Apache::Resource::VERSION = (qw$Revision: 1.15 $)[1];
+$Apache::Resource::VERSION = (qw$Revision: 1.6 $)[1];
 
 sub MB ($) { 
     my $num = shift;

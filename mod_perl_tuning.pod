@@ -373,5 +373,5 @@ modperl@LISTPROC.ITRIBE.NET first.  There are lots of people there
 that can help.  Also, check the web pages http://perl.apache.org/ and
 http://www.apache.org/ for explanations of the configuration options.
 
-$Revision: 1.15 $
-$Date: 1998/02/20 01:36:17 $
+$Revision: 1.6 $
+$Date: 1998/03/19 23:08:22 $

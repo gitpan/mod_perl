@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.47 1998/03/17 05:51:46 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.47 $)[1];
+#$Id: Registry.pm,v 1.6 1998/03/19 23:08:45 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.6 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog

@@ -802,7 +802,7 @@ from:
 
 =head1 REVISION
 
-$Id: mod_perl.pod,v 1.28 1998/02/20 01:36:17 dougm Exp $
+$Id: mod_perl.pod,v 1.5 1998/03/19 23:08:21 dougm Exp $
 
 =head1 AUTHOR
 

@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1998/02/10 08:58:18 $)
+Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1998/03/19 23:08:37 $)
 
 =head1 DESCRIPTION
 

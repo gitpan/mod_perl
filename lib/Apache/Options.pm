@@ -2,7 +2,7 @@ package Apache::Options;
 use Apache::Constants ();
 @ISA = qw(Apache::Constants);
 *EXPORT = $Apache::Constants::EXPORT_TAGS{options};
-$VERSION = (qw$Revision: 1.16 $)[1];
+$VERSION = (qw$Revision: 1.6 $)[1];
 
 1;
 

@@ -1,7 +1,7 @@
 package Apache::SIG;
 
 use strict;
-$Apache::SIG::VERSION = (qw$Revision: 1.14 $)[1];
+$Apache::SIG::VERSION = (qw$Revision: 1.6 $)[1];
 
 sub handler {
     $SIG{PIPE} = \&PIPE;
