@@ -1,6 +1,10 @@
 
 in no particular order:
 
+overload %ENV magic so it's not setup unless asked for
+
+"save stack" mechanism so we can go back to caching CV lookups
+
 win32:
 - Apache and Apache::Constants should be built as dlls
 - look at providing ASP (Active Server Plugin) support for NT users

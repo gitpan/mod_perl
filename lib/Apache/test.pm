@@ -8,11 +8,23 @@ use Exporter ();
 
 @EXPORT = qw(test fetch simple_fetch have_module skip_test); 
 
-BEGIN { require "net/config.pl"; }
+BEGIN { 
+    if(not $ENV{MOD_PERL}) {
+	require "net/config.pl";
+    } 
+}
 
 my $UA = LWP::UserAgent->new;
 
-sub test { print $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n" }
+sub test { 
+    my $s = $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n";
+    if($ENV{MOD_PERL}) {
+	Apache->request->print($s);
+    }
+    else {
+	print $s;
+    }
+}
 
 sub fetch {
     my($ua, $url);
@@ -39,13 +51,27 @@ sub simple_fetch {
 
 sub have_module {
     my $mod = shift;
+    my $v = shift;
     {# surpress "can't boostrap" warnings
 	 local $SIG{__WARN__} = sub {};
 	 require Apache;
 	 require Apache::Constants;
      }  
     eval "require $mod";
+    if($v) {
+	eval { 
+	    local $SIG{__WARN__} = sub {};
+	    $mod->UNIVERSAL::VERSION($v);
+	};
+	if($@) {
+	    warn $@;
+	    return 0;
+	}
+    }
     if($@ && ($@ =~ /Can.t locate/)) {
+	return 0;
+    }
+    elsif($@ && ($@ =~ /Can.t find loadable object for module/)) {
 	return 0;
     }
     elsif($@) {

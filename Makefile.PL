@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.04";
+$VERSION = "1.05";
 
 use subs qw(_prompt iedit asrc);
 
@@ -130,6 +130,7 @@ sub is_mp_arg {
 
 #callback hooks
 @callback_hooks = qw{
+   PERL_DISPATCH
    PERL_CHILD_INIT PERL_CHILD_EXIT
    PERL_POST_READ_REQUEST PERL_TRANS PERL_HEADER_PARSER
    PERL_ACCESS PERL_AUTHEN PERL_AUTHZ 
@@ -864,12 +865,16 @@ sub conf_fixup {
     my $sro = 1 if $mmn >= 19970825;
     my $inc;
     my $ccopts = ccopts();
-    $inc = qq{-DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\" } if $ADD_VERSION;
-    $inc .= " $ccopts -I. -I../.. -DUSE_PERL_SSI" if $PERL_SSI; 
+    my $dssv = "-DSERVER_SUBVERSION";
+    my $ssv = qq{$dssv=\\"mod_perl/$VERSION\\" };
+    $inc = " $ccopts -I. -I../.. -DUSE_PERL_SSI" if $PERL_SSI;
+#    $inc = qq{$dssv=\\"mod_perl/$VERSION\\" } if $ADD_VERSION;
+#    $inc .= " $ccopts -I. -I../.. -DUSE_PERL_SSI" if $PERL_SSI; 
     $inc .= " -DAPACHE_SSL" if is_ssl() and $PERL_SSI;
     iedit $cfg,
     q{next unless /EXTRA_CFLAGS\s*=/;}.
 	q{next if /mod_perl/; chomp; }.
+           ($ADD_VERSION ? qq{if (/${dssv}=/) { s^${dssv}=\\\\"(.*?)\\\\"^${dssv}="\\\\"\\1 mod_perl/$VERSION\\\\""^; } else { \$_ .= q| $ssv|;}} : "") .
 	    qq{\$_ .= q| $inc\n|;};
 
     my $ldopts = "`$^X $PWD/src/modules/perl/ldopts $PERL_STATIC_EXTS`";

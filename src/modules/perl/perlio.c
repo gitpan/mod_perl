@@ -52,6 +52,41 @@
 
 #include "mod_perl.h"
 
+#define dHANDLE(name) GV *handle = gv_fetchpv(name, TRUE, SVt_PVIO)
+
+#define TIEHANDLE(name,obj) \
+{ \
+      dHANDLE(name); \
+      sv_unmagic((SV*)handle, 'q'); \
+      sv_magic((SV*)handle, obj, 'q', Nullch, 0); \
+}
+
+#if 0
+#define TIED tied_handle
+
+static int tied_handle(char *name)
+{
+    dHANDLE(name);
+
+/* XXX so Perl*Handler's can re-tie before PerlHandler is run? 
+ * then they'd also be reponsible for re-tie'ing to `Apache'
+ * after all PerlHandlers are run, hmm must think.
+ */
+
+    MAGIC *mg;
+    if (SvMAGICAL(handle) && (mg = mg_find((SV*)handle, 'q'))) {
+	char *package = HvNAME(SvSTASH((SV*)SvRV(mg->mg_obj)));
+	if(!strEQ(package, "Apache")) {
+	    fprintf(stderr, "%s tied to %s\n", GvNAME(handle), package);
+	    return TRUE;
+	}
+    }
+    return FALSE;
+}
+#else
+#define TIED(name) 0
+#endif
+
 #ifdef USE_SFIO
 
 typedef struct {
@@ -109,34 +144,36 @@ Sfdisc_t * sfdcnewapache(request_rec *r)
 }
 #endif
 
+void perl_soak_script_output(request_rec *r)
+{
+    SV *sv = sv_newmortal();
+    sv_setref_pv(sv, "Apache::FakeRequest", (void*)r);
+
+    if(!perl_get_cv("Apache::FakeRequest::PRINT", FALSE)) 
+	(void)perl_eval_pv("package Apache::FakeRequest; sub PRINT {}; sub PRINTF {}", TRUE);
+
+#ifdef USE_SFIO
+    sfdisc(PerlIO_stdout(), SF_POPDISC);
+#endif
+
+    TIEHANDLE("STDOUT", sv);
+
+    /* we're most likely in the middle of send_cgi_header(), 
+       * flick this switch so send_http_header() isn't called
+       */
+    mod_perl_sent_header(r, TRUE);
+}
+
 API_EXPORT(void) perl_stdout2client(request_rec *r)
 {
 #ifdef USE_SFIO
     sfdisc(PerlIO_stdout(), SF_POPDISC);
     sfdisc(PerlIO_stdout(), sfdcnewapache(r));
 #else
-    GV *handle = gv_fetchpv("STDOUT", TRUE, SVt_PVIO);  
 
-#if 0 
-/* XXX so Perl*Handler's can re-tie before PerlHandler is run? 
- * then they'd also be reponsible for re-tie'ing to `Apache'
- * after all PerlHandlers are run, hmm must think.
- */
-    MAGIC *mg;
-    if (SvMAGICAL(handle) && (mg = mg_find((SV*)handle, 'q'))) {
-	char *package = HvNAME(SvSTASH((SV*)SvRV(mg->mg_obj)));
-	if(!strEQ(package, "Apache")) {
-	    fprintf(stderr, "%s tied to %s\n", GvNAME(handle), package);
-	    return;
-	}
-    }
-#endif
-
+    if(TIED("STDOUT")) return; 
     MP_TRACE(fprintf(stderr, "tie *STDOUT => Apache\n"));
-    sv_unmagic((SV*)handle, 'q');
-    sv_magic((SV *)handle, 
-	     (SV *)perl_bless_request_rec(r),
-	     'q', Nullch, 0);
+    TIEHANDLE("STDOUT", perl_bless_request_rec(r));
 #endif
 }
 
@@ -147,11 +184,8 @@ void perl_stdin2client(request_rec *r)
     sfdisc(PerlIO_stdin(), sfdcnewapache(r));
     sfsetbuf(PerlIO_stdin(), NULL, 0);
 #else
-    GV *handle = gv_fetchpv("STDIN", TRUE, SVt_PVIO);  
+    if(TIED("STDIN")) return; 
     MP_TRACE(fprintf(stderr, "tie *STDIN => Apache\n"));
-    sv_unmagic((SV*)handle, 'q');
-    sv_magic((SV *)handle,
-	     (SV *)perl_bless_request_rec(r),
-	     'q', Nullch, 0);
+    TIEHANDLE("STDIN", perl_bless_request_rec(r));
 #endif
 }

@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern, 22-Oct-1997 -->
+<!-- Changed by: Doug MacEachern,  5-Nov-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.34 $ $Date: 1997/10/24 03:33:02 $</i>
+<br><i> $Revision: 1.35 $ $Date: 1997/11/07 03:47:14 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -123,11 +123,13 @@ Timeit		bmpf	Benchmark PerlHandlers			APML
 
 * PerlLogHandler's
 DumpHeaders	bdpf	Watch HTTP transaction via headers	DOUGM
+WatchDog	c	Look for problematic URIs		DOUGM
 
 * Server Configuration
 ConfigLDAP	i	Config via LDAP and &lt;Perl&gt;		MARKK
 ConfigDBI	i	Config via DBI and &lt;Perl&gt;		MARKIM
 ModuleConfig	cmcO	Interface to configuration API		DOUGM
+PerlSections	bmpO	Utilities for &lt;Perl&gt; sections		APML
 
 * Database
 DBI		bmpO	Persistent DBI connection mgmt.		MERGL
@@ -140,17 +142,19 @@ Include		Rmpf	mod_include + Apache::Registry handler	APML
 Mime		bmcf	Interface to mod_mime functionality	MDORMAN
 Options		Rmpf	Import Apache::Constants 'options'	APML
 Scoreboard	cmcO	Interface to scoreboard API		DOUGM
-Servlet		c	Interface to the Java Servlet engine	IKLUFT
+Servlet		ampO	Interface to the Java Servlet engine	IKLUFT
 Sfio		cmcO	Interface to r->connection->client->sf* DOUGM
 
 * Misc
 Byterun		i	Run Perl bytecode modules		DOUGM
 Debug		Rmpf	mod_perl debugging utilities		APML
+ErrorLog	c	error_log interfaces			FLETCH
+FakeRequest	ampO	Implement Apache methods off-line	APML
 Mmap		bdcf	Share data via Mmap module		FLETCH
 OutputChain     bmpO	Chain output of stacked handlers	HONZAP
 PUT		cdpf	HTTP PUT method handler module		PLISTER
 RegistryLoader	bmpf	Apache::Registry startup script loader 	APML
-Safe		cmpO	Adaptation of "safecgiperl"		APML
+Safe		ampO	Adaptation of "safecgiperl"		APML
 Session		cmpf	Maintain client <-> httpd session/state	APML
 StatINC		bmpf	Reload require'd files when updated	APML
 State		i	Powerful state engine			RSE
@@ -197,7 +201,7 @@ PMKANE	 Patrick Michael Kane &lt;modus@enews.com&gt;
 RMANGI   Rick Mangi &lt;rmangi@tgix.com&gt;
 ROBH	 Rob Hartill &lt;robh@imdb.com&gt;
 RSE      Ralf S. Engelschall &lt;rse@engelschall.com&gt;
-SKANE    Stephen E Kane &lt;sek112@ELVIS.ARL.PSU.EDU&gt;
+SKANE    Stephen E Kane &lt;sek112@elvis.arl.psu.edu&gt;
 </pre>
 
 <a name="info">

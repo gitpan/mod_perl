@@ -2,18 +2,11 @@ package Apache::StatINC;
 
 use strict;
 
-$Apache::StatINC::VERSION = "1.01";
+$Apache::StatINC::VERSION = "1.02";
 
-my %Stat = ();
+my %Stat = ($INC{"Apache/StatINC.pm"} => time);
 
 sub handler {
-    my $r = shift;
-
-    if($r and my $pat = $r->dir_config("DeleteINC")) {
-	for my $file (delete @INC{ grep /$pat/, keys %INC }) {
-	    require $file;
-	}
-    }
 
     while(my($key,$file) = each %INC) {
 	local $^W = 0;
@@ -43,7 +36,7 @@ Apache::StatINC - Reload %INC files when updated on disk
 =head1 SYNOPSIS
 
   #httpd.conf or some such
-   #can be any Perl*Handler
+  #can be any Perl*Handler
   PerlInitHandler Apache::StatINC
 
 =head1 DESCRIPTION

@@ -283,19 +283,17 @@ int perl_load_startup_script(server_rec *s, pool *p, I32 my_warn)
 {
     dPSRV(s);
     char *script;
+    I32 old_warn = dowarn;
     if(!cls->PerlScript) {
 	MP_TRACE(fprintf(stderr, "no PerlScript to load\n"));
 	return OK;
     }
     script = server_root_relative(p, cls->PerlScript);
     MP_TRACE(fprintf(stderr, "attempting to load `%s'\n", script));
-    ENTER;
-    save_hptr(&curstash);
-    curstash = defstash;
-    SAVEI32(dowarn);
     dowarn = my_warn;
+    curstash = defstash;
     perl_do_file(script);
-    LEAVE;
+    dowarn = old_warn;
     return perl_eval_ok(s);
 } 
 

@@ -203,6 +203,15 @@ typedef void mutex;
 
 #endif
 
+#define PERL_SET_CUR_HOOK(h) \
+{ \
+   perl_dir_config *cld; \
+   if(r->per_dir_config) { \
+       cld = get_module_config(r->per_dir_config, &perl_module); \
+       table_set(cld->vars, "PERL_CALLBACK", h); \
+   } \
+}
+
 #ifdef PERL_STACKED_HANDLERS
 #define PERL_TAKE ITERATE
 #define PERL_CMD_INIT  Nullav
@@ -226,6 +235,7 @@ typedef void mutex;
 #endif
 
 #define PERL_CALLBACK(h,name) \
+PERL_SET_CUR_HOOK(h); \
 (void)acquire_mutex(mod_perl_mutex); \
 status = perl_run_stacked_handlers(h, r, Nullav); \
 if((status != OK) && (status != DECLINED)) { \
@@ -247,6 +257,7 @@ MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status))
 #define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 0)
 
 #define PERL_CALLBACK(h,name) \
+PERL_SET_CUR_HOOK(h); \
 if(name != NULL) { \
     SV *sv; \
     (void)acquire_mutex(mod_perl_mutex); \
@@ -334,6 +345,23 @@ PERL_READ_CLIENT
        }
 
 /* on/off switches for callback hooks during server startup/shutdown */
+
+#ifndef NO_PERL_DISPATCH
+#define PERL_DISPATCH
+
+#define PERL_DISPATCH_HOOK perl_dispatch
+
+#define PERL_DISPATCH_CMD_ENTRY \
+"PerlDispatchHandler", perl_cmd_dispatch_handlers, \
+    NULL, \
+    OR_ALL, TAKE1, "the Perl Dispatch handler routine name"
+
+#define PERL_DISPATCH_CREATE(s) s->PerlDispatchHandler = NULL
+#else
+#define PERL_DISPATCH_HOOK NULL
+#define PERL_DISPATCH_CMD_ENTRY NULL
+#define PERL_DISPATCH_CREATE(s)
+#endif
 
 #ifndef NO_PERL_CHILD_INIT
 #define PERL_CHILD_INIT
@@ -574,6 +602,7 @@ typedef struct {
 } perl_server_config;
 
 typedef struct {
+    char *PerlDispatchHandler;
     PERL_CMD_TYPE *PerlHandler;
     PERL_CMD_TYPE *PerlAuthenHandler;
     PERL_CMD_TYPE *PerlAuthzHandler;
@@ -588,6 +617,14 @@ typedef struct {
     table *vars;
     U32 flags;
 } perl_dir_config;
+
+typedef struct {
+    int is_method;
+    int is_anon;
+    int in_perl;
+    SV *class;
+    char *method;
+} mod_perl_handler;
 
 extern module MODULE_VAR_EXPORT perl_module;
 
@@ -641,6 +678,10 @@ void perl_set_request_rec(request_rec *);
 void mod_perl_cleanup_handler(void *data);
 void mod_perl_end_cleanup(void *data);
 void mod_perl_register_cleanup(request_rec *r, SV *sv);
+void mod_perl_noop(void *data);
+SV *mod_perl_resolve_handler(request_rec *r, SV *sv, mod_perl_handler *h); 
+mod_perl_handler *mod_perl_new_handler(request_rec *r, SV *sv);
+void mod_perl_destroy_handler(void *data);
 
 /* perl_util.c */
 
@@ -662,6 +703,7 @@ void perl_incpush(char *s);
 
 /* perlio.c */
 
+void perl_soak_script_output(request_rec *r);
 void perl_stdin2client(request_rec *);
 API_EXPORT(void) perl_stdout2client(request_rec *); 
 
@@ -694,6 +736,7 @@ CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_fresh_restart (cmd_parms *parms, void *dummy, int arg);
 
+CHAR_P perl_cmd_dispatch_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_header_parser_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);

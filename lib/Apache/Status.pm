@@ -1,7 +1,7 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.15 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.16 $)[1];
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -82,7 +82,7 @@ sub status_inc {
     push @retval, "<table border=1>";
     push @retval, "<tr><td><b>Package</b></td><td><b>Version</b><td><b>File</b></td></tr>";
     foreach $file (sort keys %INC) {
-	next if $file =~ m:^/::;
+	next if $file =~ m:^/:;
 	next unless $INC{$file}; #e.g. fake Apache/TieHandle.pm
 	no strict 'refs';
 	($module = $file) =~ s,/,::,g;

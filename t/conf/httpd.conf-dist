@@ -69,6 +69,21 @@ AddType text/html .html
 AddType text/perl-module .pm
 Action text/perl-module /perl/action.pl
 
+#PerlModule Apache::Registry
+#PerlModule Apache::Safe
+
+#<Location /perl>
+#Options ExecCGI
+#SetHandler perl-script
+#PerlHandler Apache::Registry::handler
+#PerlDispatchHandler Apache::Safe::handler
+#</Location>
+
+#protect mod_include #perl's 
+#<Files *.shtml>
+#PerlDispatchHandler Apache::Safe::handler
+#</Files>
+
 #test some other modules if available
 <Location /subr>
 SetHandler perl-script
@@ -105,3 +120,19 @@ PerlHandler Apache::Stage
 Options ExecCGI
 
 </Location>
+
+#Apache::ePerl
+<Files ~ ".+\.iphtml$">
+    Options     +ExecCGI
+    SetHandler  perl-script
+    PerlHandler Apache::ePerl
+</Files>
+
+AddType text/html .ehtml
+#HTML::Embperl
+<Files *.ehtml>
+    SetHandler perl-script
+    PerlHandler HTML::Embperl
+    Options ExecCGI  
+</Files>
+

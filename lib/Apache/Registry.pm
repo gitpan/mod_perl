@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.40 1997/10/31 03:25:20 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.40 $)[1];
+#$Id: Registry.pm,v 1.41 1997/11/07 03:47:14 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.41 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -19,7 +19,13 @@ my $Is_Win32 = $^O eq "MSWin32";
 
 sub handler {
     my $r = shift;
-    $r->request($r);
+    if(ref $r) {
+	$r->request($r);
+    }
+    else {
+	#warn "Registry args are: ($r, @_)\n";
+	$r = Apache->request;
+    }
     my $filename = $r->filename;
     #local $0 = $filename; #this core dumps!?
     *0 = \$filename;
@@ -52,9 +58,11 @@ sub handler {
 	    substr($r->uri, 0, length($r->uri)-length($r->path_info)) :
 		$r->uri;
 
-	my $srv = $r->server;
-	$script_name = join "", $srv->server_hostname, $script_name
-	    if $srv->is_virtual;
+	if($Apache::Registry::NameWithVirtualHost) {
+	    my $srv = $r->server;
+	    $script_name = join "", $srv->server_hostname, $script_name
+		if $srv->is_virtual;
+	}
 
 	# Escape everything into valid perl identifiers
 	$script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;

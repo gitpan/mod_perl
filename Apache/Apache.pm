@@ -109,27 +109,21 @@ sub PRINTF {
 sub send_cgi_header {
     my($r, $headers) = @_;
     my $dlm = "\015?\012"; #a bit borrowed from LWP::UserAgent
-    my(@headerlines) = split /$dlm/, $headers;
     my($key, $val);
-
-    foreach (@headerlines) {
-	if (/^(\S+?):\s*(.*)$/) {
+    while(($_, $headers) = split /$dlm/, $headers, 2) {
+	#warn "hunk=`$_'\n";
+	#warn "rest=`$headers'\n";
+	if ($_ && /^(\S+?):\s*(.*)$/) {
 	    ($key, $val) = ($1, $2);
 	    last unless $key;
 	    $r->cgi_header_out($key, $val);
 	}
 	else {
-	    #we didn't find the header terminator, punt away
-	    if(!$r->sent_header()) {
-		$r->send_http_header;
-	    }
-	    $r->print($_);
+	    #warn "mod_perl: found header terminator\n";
+	    $r->send_http_header if not $r->sent_header;
+	    $r->print($headers); #send rest of buffer, without stripping newlines!!!
+	    last;
 	}
-    }
-    if($headers =~ /${dlm}${dlm}$/ or
-       $headers =~ /^(${dlm}){1,2}$/) 
-    {
-        $r->send_http_header;
     }
 }
 

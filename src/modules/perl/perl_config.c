@@ -107,6 +107,10 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
     MP_FMERGE(new,add,base,MPf_CLEANUP);
     MP_FMERGE(new,add,base,MPf_RCLEANUP);
 
+#ifdef PERL_DISPATCH
+    new->PerlDispatchHandler = add->PerlDispatchHandler ? 
+        add->PerlDispatchHandler : base->PerlDispatchHandler;
+#endif
 #ifdef PERL_INIT
     new->PerlInitHandler = add->PerlInitHandler ? 
         add->PerlInitHandler : base->PerlInitHandler;
@@ -159,6 +163,7 @@ void *perl_create_dir_config (pool *p, char *dirname)
     cld->env  = make_table(p, MAX_PERL_CONF_VARS); 
     cld->flags = MPf_ENV;
     cld->PerlHandler = PERL_CMD_INIT;
+    PERL_DISPATCH_CREATE(cld);
     PERL_AUTHEN_CREATE(cld);
     PERL_AUTHZ_CREATE(cld);
     PERL_ACCESS_CREATE(cld);
@@ -229,6 +234,13 @@ int mod_perl_push_handlers(SV *self, char *hook, SV *sub, AV *handlers)
 }
 
 #endif
+
+CHAR_P perl_cmd_dispatch_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg)
+{
+    rec->PerlDispatchHandler = pstrdup(parms->pool, arg);
+    MP_TRACE(fprintf(stderr, "perl_cmd: PerlDispatchHandler=`%s'\n", arg));
+    return NULL;
+}
 
 CHAR_P perl_cmd_child_init_handlers (cmd_parms *parms, void *dummy, char *arg)
 {

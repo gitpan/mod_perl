@@ -16,6 +16,70 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.05 - 11/06/97
+
+no longer include $r->server->server_name as part of the
+Apache::Registry uri->package name translation by default.  if you
+*really* need this to happen set this in PerlScript:
+ $Apache::Registry::NameWithVirtualHost = 1;
+and, please tell me why you need it, we'll figure out a better way
+
+yanked DeleteINC thingy from StatINC
+
+applied patch from Randal Schwartz so StatINC doesn't loop when it has
+to reload itself
+
+disable CV cache of stacked handlers for now, they stick around too 
+long, e.g. Apache::StatINC won't work, thanks to Randal Schwartz for
+spotting this
+
+applied patch from Ben Reser so $r->send_fd returns the length (as it
+should have been doing)  
+
+added current_callback() method handy for PerlDispatchHandler's
+
+added suggestion from Andreas for a PerlDispatchHandler hook
+
+re-worked code in perl_load_startup_script() that was causing IRIX 6.x
+to choke when saving dowarn, thanks to Lasse Petersen for tracking
+this down
+
+fixed newline eating bug spotted by Eckard Brauer when headers and
+body are sent in the same print() statement
+
+renamed 'core' test directory to 'internal'
+
+remove t/TEST's search for obsolete directories, which caused trouble
+on IRIX 6, spotted by Lasse Petersen 
+
+for internal redirects (spotted by $r->cgi_header_out), don't
+perl_call_halt(), instead, tie STDOUT to the Apache::FakeRequest class
+which just soaks up print() output.
+
+suggestion from Salvador Ortiz Garcia, for table methods, if value is
+undef, call table_unset underneath, these methods are subprocess_env, 
+header_in, header_out, err_header_out, notes and dir_config. e.g.:
+
+ $r->header_out("Content-length" => undef);
+
+ensure constant subroutine re-definition warnings are surpressed
+during restart (when PerlFreshRestart On), spotted by Vivek Khera
+
+added Apache::FakeRequest module
+
+added tests for embperl and eperl
+
+applied patch from Lupe Christoph so Makefile.PL will not throw out
+-DSERVER_SUBVERSION if present in apache_x.x.x/src/Configuration
+
+fixed bug in Apache->send_cgi_header that was sending headers twice
+with "here" docs, spotted by Leonard Megliola
+
+Apache->server->log_error will return undef if logs are not open yet
+as suggested by Mike Fletcher
+
+fixed typo bug in Apache::Status spotted by Brian Tiemann
+
 =item 1.04 - 10/30/97
 
 PerlScript and -Mmod_perl are no longer handed to perl_parse(),

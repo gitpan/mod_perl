@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.67 1997/10/31 03:25:20 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.68 1997/11/07 03:47:14 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -151,6 +151,9 @@ static command_rec perl_cmds[] = {
 #endif
 #ifdef PERL_POST_READ_REQUEST
     { PERL_POST_READ_REQUEST_CMD_ENTRY },
+#endif
+#ifdef PERL_DISPATCH
+    { PERL_DISPATCH_CMD_ENTRY },
 #endif
     { NULL }
 };
@@ -260,6 +263,11 @@ void perl_restart(server_rec *s, pool *p)
     SV *rgy_cache = perl_get_sv("Apache::Registry", FALSE);
     HV *rgy_symtab = (HV*)gv_stashpv("Apache::ROOT", FALSE);
 
+    ENTER;
+
+    SAVESPTR(warnhook);
+    warnhook = perl_eval_pv("sub {}", TRUE);
+
     /* the file-stat cache */
     if(rgy_cache)
 	sv_setsv(rgy_cache, &sv_undef);
@@ -271,6 +279,8 @@ void perl_restart(server_rec *s, pool *p)
     /* reload modules and PerlScript */
     perl_reload_inc();
     perl_load_startup_script(s, p, FALSE);
+
+    LEAVE;
 
     mod_perl_notice(s, "mod_perl restarted"); 
     MP_TRACE(fprintf(stderr, "perl_restart: ok\n"));
@@ -836,16 +846,22 @@ API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 {
     int count, status, is_method=0;
     dSP;
+    dPPDIR;
     HV *stash = Nullhv;
     SV *class = newSVsv(sv);
     CV *cv = Nullcv;
     char *method = "handler";
     int defined_sub = 0, anon = 0;
-      
+    char *dispatcher = NULL;
+
+#ifdef PERL_DISPATCH
+    dispatcher = cld->PerlDispatchHandler;
+#endif
+
     if(r->per_dir_config)
 	perl_per_request_init(r);
 
-    if(SvTYPE(sv) == SVt_PV) {
+    if(!dispatcher && (SvTYPE(sv) == SVt_PV)) {
 	char *imp = pstrdup(r->pool, (char *)SvPV(class,na));
 
 	if((anon = strnEQ(imp,"sub ",4))) {
@@ -931,7 +947,8 @@ API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 			     "perl_call: defaulting to %s::handler\n", imp));
 	    sv_catpv(sv, "::handler");
 	}
-#ifdef PERL_STACKED_HANDLERS
+	
+#if 0 /* XXX: CV lookup cache disabled for now */
  	if(!is_method && defined_sub) { /* cache it */
 	    MP_TRACE(fprintf(stderr, 
 			     "perl_call: caching CV pointer to `%s'\n", 
@@ -942,7 +959,8 @@ API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 #endif
     }
     else {
-	MP_TRACE(fprintf(stderr, "perl_call: handler is a cached CV\n"));
+	MP_TRACE(fprintf(stderr, "perl_call: handler is a %s\n", 
+			 dispatcher ? "dispatcher" : "cached CV"));
     }
 
 callback:
@@ -959,9 +977,20 @@ callback:
 #endif
 
     XPUSHs((SV*)perl_bless_request_rec(r)); 
+
+    if(dispatcher) {
+	MP_TRACE(fprintf(stderr, "mod_perl: handing off to PerlDispatchHandler `%s'\n", dispatcher));
+	/*XPUSHs(sv_mortalcopy(sv));*/
+	XPUSHs(sv);
+	sv = (SV*)perl_get_cv(dispatcher, FALSE);
+	if(!sv) {
+	    fprintf(stderr, "mod_perl: unable to fetch PerlDispatchHandler `%s'\n", dispatcher); 
+	}
+    }
+
     {
 	I32 i, len = (args ? AvFILL(args) : 0);
-	
+
 	if(args) {
 	    EXTEND(sp, len);
 	    for(i=0; i<=len; i++)

@@ -8,9 +8,13 @@ if($] < 5.003_02) {
     
 $ua = new LWP::UserAgent;    # create a useragent to test
 $s = "http://$net::httpserver$net::perldir/io/perlio.pl";
-print "1..2\n";
+print "1..5\n";
+my $i = 0;
 
-for (1..2) {
+for (1..4) {
     test $_, fetch($ua, "$s?$_") == $_;
 }
 
+my $str = join "\n", ("A".."D"), "";
+
+test 5, fetch($ua, "$s?5") eq $str;

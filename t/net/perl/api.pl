@@ -1,7 +1,7 @@
 use Apache ();
 use strict;
 
-my $tests = 24;
+my $tests = 26;
 my $i;
 my $r = Apache->request;
 $r->content_type("text/plain");
@@ -46,6 +46,12 @@ test ++$i, $r->err_header_out("X-Die") eq "uhoh";
 
 test ++$i, $r->content_type;
 test ++$i, $r->handler;
+
+$r->header_out(ByeBye => "TRUE");
+test ++$i, $r->header_out("ByeBye");
+$r->header_out(ByeBye => undef);
+test ++$i, not $r->header_out("ByeBye");
+
 #content_encoding
 #content_language
 #no_cache

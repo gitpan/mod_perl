@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.64 1997/10/31 03:25:20 dougm Exp $ */
+/* $Id: Apache.xs,v 1.65 1997/11/07 03:47:14 dougm Exp $ */
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -89,6 +89,22 @@ static server_rec *perl_get_startup_server(void)
     return NULL;
 }
 
+#define TABLE_GET_SET(table, do_taint) \
+{ \
+    char *val; \
+    if((val = table_get(table, key))) \
+	RETVAL = newSVpv(val, 0); \
+    else \
+        RETVAL = newSV(0); \
+    if(do_taint) SvTAINTED_on(RETVAL); \
+    if(items > 2) { \
+	if(ST(2) == &sv_undef) \
+	    table_unset(table, key); \
+	else \
+	    table_set(table, key, SvPVX(ST(2))); \
+    } \
+}
+
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
 PROTOTYPES: DISABLE
@@ -106,6 +122,19 @@ max_requests_per_child(...)
 #else
     RETVAL = max_requests_per_child;
 #endif
+    OUTPUT:
+    RETVAL
+
+char *
+current_callback(r)
+    Apache     r
+
+    CODE:
+    {
+	dPPDIR;
+	RETVAL = table_get(cld->vars, "PERL_CALLBACK");
+    }
+
     OUTPUT:
     RETVAL
 
@@ -456,6 +485,9 @@ send_fd(r, f)
     CODE:
     RETVAL = send_fd(f, r);
 
+    OUTPUT:
+    RETVAL
+
 int
 rflush(r)
     Apache     r
@@ -592,7 +624,7 @@ log_error(...)
 	/* if below is true, delay log_error */
 	if(PERL_RUNNING() < PERL_DONE_STARTUP) {
 	    MP_TRACE(fprintf(stderr, "error_log not open yet\n"));
-	    XSRETURN(1);
+	    XSRETURN_UNDEF;
 	}
     }
     else { 
@@ -665,17 +697,8 @@ subprocess_env(r, key, ...)
     Apache    r
     char *key
 
-    PREINIT:
-    char *val;
-
     CODE:
-    if((val = table_get(r->subprocess_env, key)))
-      RETVAL = newSVpv(val, 0);
-    else
-      RETVAL = newSV(0);
-
-    if(items > 2)
-        table_set(r->subprocess_env, key, SvPVX(ST(2)));
+    TABLE_GET_SET(r->subprocess_env, FALSE);
 
     OUTPUT:
     RETVAL
@@ -979,19 +1002,8 @@ header_in(r, key, ...)
     Apache	r
     char *key
 
-    PREINIT:
-    char *val;
-
     CODE:
-    if((val = table_get(r->headers_in, key))) 
-	RETVAL = newSVpv(val, 0);
-    else
-        RETVAL = newSV(0);
-
-    SvTAINTED_on(RETVAL);
-
-    if(items > 2) 
-        table_set(r->headers_in, key, SvPVX(ST(2)));
+    TABLE_GET_SET(r->headers_in, TRUE);
 
     OUTPUT:
     RETVAL
@@ -1019,19 +1031,8 @@ header_out(r, key, ...)
     Apache	r
     char *key
 
-    PREINIT:
-    char *val;
-
     CODE:
-    if((val = table_get(r->headers_out, key))) 
-	RETVAL = newSVpv(val, 0);
-    else
-        RETVAL = newSV(0);
-
-    SvTAINTED_on(RETVAL);
-
-    if(items > 2) 
-        table_set(r->headers_out, key, SvPVX(ST(2)));
+    TABLE_GET_SET(r->headers_out, TRUE);
 
     OUTPUT:
     RETVAL
@@ -1053,6 +1054,7 @@ cgi_header_out(r, key, ...)
     SvTAINTED_on(RETVAL);
 
     if(items > 2) {
+	int status = 302;
 	val = SvPVX(ST(2));
         if(!strncasecmp(key, "Content-type", 12)) {
 	    r->content_type = pstrdup (r->pool, val);
@@ -1071,14 +1073,13 @@ cgi_header_out(r, key, ...)
 
 		    table_unset(r->headers_in, "Content-Length");
 
+		    status = 200;
+		    perl_soak_script_output(r);
 		    internal_redirect_handler(val, r);
-#ifndef USE_SFIO
-		    perl_call_halt();
-#endif
 		}
 	    }
 	    table_set (r->headers_out, key, val);
-	    r->status = 302;
+	    r->status = status;
         }   
         else if(!strncasecmp(key, "Content-Length", 14)) {
 	    table_set (r->headers_out, key, val);
@@ -1123,19 +1124,8 @@ err_header_out(r, key, ...)
     Apache	r
     char *key
 
-    PREINIT:
-    char *val;
-
     CODE:
-    if((val = table_get(r->err_headers_out, key))) 
-	RETVAL = newSVpv(val, 0);
-    else
-        RETVAL = newSV(0);
-
-    SvTAINTED_on(RETVAL);
-
-    if(items > 2) 
-        table_set(r->err_headers_out, key, SvPVX(ST(2)));
+    TABLE_GET_SET(r->err_headers_out, TRUE);
 
     OUTPUT:
     RETVAL
@@ -1168,17 +1158,8 @@ notes(r, key, ...)
     Apache    r
     char *key
 
-    PREINIT:
-    char *val;
-
     CODE:
-    if((val = table_get(r->notes, key)))
-      RETVAL = newSVpv(val, 0);
-    else
-      RETVAL = newSV(0);
-
-    if(items > 2)
-        table_set(r->notes, key, SvPVX(ST(2)));
+    TABLE_GET_SET(r->notes, FALSE);
 
     OUTPUT:
     RETVAL
@@ -1322,8 +1303,8 @@ query_string(r, ...)
   
 #  void *per_dir_config;		/* Options set in config files, etc. */
 
-char *
-dir_config(r, key)
+SV *
+dir_config(r, key, ...)
     Apache  r
     char *key
 
@@ -1332,7 +1313,7 @@ dir_config(r, key)
 
     CODE:
     c = get_module_config(r->per_dir_config, &perl_module);
-    RETVAL = table_get(c->vars, key);
+    TABLE_GET_SET(c->vars, FALSE);
 
     OUTPUT:
     RETVAL

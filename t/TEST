@@ -39,7 +39,6 @@ if (@ARGV) {
 	warn "httpd terminated\n";
     };
 
-    @tests = (<constants/*.t>);
     eval { require LWP::UserAgent; };
     if ($@) {
 	print <<"EOM";
@@ -57,7 +56,7 @@ EOM
 	sleep(2);
     }
     else {
-       push(@tests, <modules/*.t>, <core/*.t>, <net/*.t>);
+       push(@tests, <modules/*.t>, <internal/*.t>);
     }
 }
 

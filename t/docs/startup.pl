@@ -8,13 +8,19 @@ BEGIN {
 }
 
 {
-    my $s = Apache->server;
+    last;
+   my $s = Apache->server;
 
     my($host,$port) = map { $s->$_() } qw(server_hostname port);
     $s->log_error("starting server $host on port $port");
 
     my $admin = $s->server_admin;
     $s->warn("report any problems to server_admin $admin");
+
+#    if(my $fh = $s->error_log) {
+#	print $fh "Apache->server->error_log ok\n";
+#	print "FH=`$fh'\n";
+#    }
 }
 
 #$Apache::TestSIG = 1;

@@ -11,7 +11,7 @@ sub handler {
     $r->translate_name; 
     $r->Apache::Registry::handler(@_);
     $r->uri($ouri); $r->filename($fname); #reset
-    return OK;
+    return 0;
 
 # hmm, this should work, but alloc.c:chk_on_blk_list()
 # will fprintf (stderr, "Ouch!  Freeing free block\n"); exit(1);

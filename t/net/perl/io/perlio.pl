@@ -73,4 +73,30 @@ sub test_3 {
     print "\r\n";
     print "3";
 }
- 
+
+sub test_4 {
+    my $h = {
+	"Content-type" => "text/plain",
+	"X-sub" => "test_4",
+    };
+    for (keys %$h) {
+	print "$_", ": ", $h->{$_}, "\r\n";
+#	print "$_", ": ", $h->{$_};
+#	print "\r\n";
+    }
+    print "\r\n4";
+}
+
+sub test_5 {
+    print <<EOF;
+X-Message: parsethis
+Content-type: text/html
+
+A
+B
+C
+D
+EOF
+
+}
+
