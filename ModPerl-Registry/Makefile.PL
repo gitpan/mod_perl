@@ -4,7 +4,8 @@ no warnings 'redefine';
 
 use lib map {($_, "../$_") } qw(lib Apache-Test/lib);
 
-use ModPerl::MM ();
+use ModPerl::BuildMM ();
+use Apache::TestSmokePerl ();
 
 # enable 'make test|clean'
 use Apache::TestMM qw(test clean);
@@ -20,7 +21,10 @@ my @scripts = qw(t/TEST);
 Apache::TestMM::filter_args();
 Apache::TestMM::generate_script('t/TEST');
 
-ModPerl::MM::WriteMakefile(
+# t/SMOKE
+Apache::TestSmokePerl->generate_script;
+
+ModPerl::BuildMM::WriteMakefile(
     NAME         => 'ModPerl::Registry',
     VERSION_FROM => 'lib/ModPerl/RegistryCooker.pm',
     PREREQ_PM    => \%require,

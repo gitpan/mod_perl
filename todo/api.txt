@@ -2,9 +2,13 @@ important parts of the api that are missing
 in no particular order
 ------------------------------------------
 
+missing apr_buckets api:
+destroy, delete
+
 tied filehandle interface:
- -CLOSE, OPEN, EOF, TELL, SEEK, FILENO
+ -EOF, TELL, SEEK
  -READLINE - proper implementation (see comment in Apache::compat)
+ need to attempt to fix that interface so it'll work with IPC::Open* family  
 
 $r->finfo:
 need apr_finfo_t <-> struct stat conversion (might already be there,
@@ -26,6 +30,9 @@ should be simple, see modperl_log.h
 Apache->server_root_relative:
 needs to default to current pool (pconf at startup, r->pool at request
 time)
+
+APR::URI
+missing $uri->rpath
 
 Apache::Util::*
 escape_path() - (was escape_uri) can be changed in apache not to require a
@@ -59,9 +66,6 @@ require mutex lock for writing
 Apache->import:
 not yet implemented, required for exit/warn overridding
 
-$r->current_callback:
-not yet implemented
-
 $r->{get,set,push}_handlers:
 need to deal properly with modification of the current handler phase
 we're running.
@@ -79,10 +83,6 @@ Apache::compat)
 
 Apache->unescape_url{_info}:
 not yet implemented.  should be moved to Apache::Util
-
-Apache::perl_hook:
-should have this or something check if PerlOptions allows the given
-handler/feature to be used.
 
 mod_perl::import():
 not yet implemented

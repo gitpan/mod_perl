@@ -1,0 +1,113 @@
+=head1 NAME
+
+Apache::RequestRec -- A Perl API for Apache request object
+
+=head1 SYNOPSIS
+
+  use Apache::RequestRec;
+  sub handler{
+      my $r = shift;
+      
+      my $s = $r->server;
+      my $dir_config = $r->dir_config;
+      ...
+  }
+
+=head1 DESCRIPTION
+
+C<Apache::RequestRec> provides the Perl API for Apache request object.
+
+=head1 API
+
+Function arguments (if any) and return values are shown in the
+function's synopsis.
+
+=head2 server()
+
+  $s = $r->server;
+
+Gets the C<Apache::Server> object for the server the request C<$r> is
+running under.
+
+=head2 dir_config()
+
+dir_config() provides an interface for the per-directory variable
+specified by the C<PerlSetVar> and C<PerlAddVar> directives, and also
+can be manipulated via the C<L<APR::Table|docs::2.0::api::APR::Table>>
+methods.
+
+The keys are case-insensitive.
+
+  $apr_table = $r->dir_config();
+
+dir_config() called in a scalar context without the C<$key> argument
+returns a I<HASH> reference blessed into the
+C<L<APR::Table|docs::2.0::api::APR::Table>> class. This object can be
+manipulated via the C<L<APR::Table|docs::2.0::api::APR::Table>>
+methods. For available methods see
+the C<L<APR::Table|docs::2.0::api::APR::Table>> manpage.
+
+  @values = $r->dir_config($key);
+
+If the C<$key> argument is passed in the list context a list of all
+matching values will be returned. This method is ineffective for big
+tables, as it does a linear search of the table. Thefore avoid using
+this way of calling dir_config() unless you know that there could be
+more than one value for the wanted key and all the values are wanted.
+
+  $value = $r->dir_config($key);
+
+If the C<$key> argument is passed in the scalar context only a single
+value will be returned. Since the table preserves the insertion order,
+if there is more than one value for the same key, the oldest value
+assosiated with the desired key is returned. Calling in the scalar
+context is also much faster, as it'll stop searching the table as soon
+as the first match happens.
+
+  $r->dir_config($key => $val);
+
+If the C<$key> and the C<$val> arguments are used, the set() operation
+will happen: all existing values associated with the key C<$key> (and
+the key itself) will be deleted and C<$value> will be placed instead.
+
+  $r->dir_config($key => undef);
+
+If C<$val> is I<undef> the unset() operation will happen: all existing
+values associated with the key C<$key> (and the key itself) will be
+deleted.
+
+=head2 ap_auth_type()
+
+C<$r-E<gt>ap_auth_type> gets or sets the I<ap_auth_type> slot in the
+request record.
+
+  $r->ap_auth_type('Basic');
+
+or
+
+  my $auth_type = $r->ap_auth_type;
+
+I<ap_auth_type> holds the authentication type that has been negotiated
+between the client and server during the actual request.  Generally,
+I<ap_auth_type> is populated automatically when you call 
+C<$r-E<gt>get_basic_auth_pw> so you don't really need to worry
+too much about it,  but if you want to roll your own authentication
+mechanism then you will have to populate I<ap_auth_type> yourself.
+
+Note that C<$r-E<gt>ap_auth_type> was C<$r-E<gt>connection-E<gt>auth_type>
+in the mod_perl 1.0 API.
+
+=head2 main()
+
+  $main_r = $r->main;
+
+If the current request is a sub-request, this method returns a blessed
+reference to the main request structure. If the current request is the
+main request, then this method returns undef.
+
+To figure out whether you are inside a main request or a
+sub-request/internal redirect, use
+C<L<$r-E<gt>is_initial_req|docs::2.0::api::Apache::RequestUtil/is_initial_req__>>.
+
+
+=cut

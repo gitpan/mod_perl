@@ -32,7 +32,20 @@ can be filtered by connection input filters. The generated response
 can be also filtered though connection output filters. Filters are
 usually used for modifying the data flowing though them, but can be
 used for other purposes as well (e.g., logging interesting
-information).
+information). For example the following diagram shows the connection
+cycle mapped to the time scale:
+
+=for html
+<img src="connection_cycle_time.gif" width="599" height="300"
+ align="center" valign="middle" alt="connection cycle timing"><br><br>
+
+The arrows show the program control. In addition, the black-headed
+arrows also show the data flow. This diagram matches an interactive
+protocol, where a client send something to the server, the server
+filters the input, processes it and send it out through output
+filters. This cycle is repeated till the client or the server don't
+tell each other to go away or abort the connection. Before the cycle
+starts any registered pre_connection handlers are run.
 
 Now let's discuss each of the C<PerlPreConnectionHandler> and
 C<PerlProcessConnectionHandler> handlers in detail.
@@ -72,9 +85,6 @@ C<L<RUN_ALL|docs::2.0::user::handlers::intro/item_RUN_ALL>>.
 The handler's configuration scope is
 C<L<SRV|docs::2.0::user::config::config/item_SRV>>, because it's not
 known yet which resource the request will be mapped to.
-
-XXX: As of this moment C<PerlPreConnectionHandler> is not being
-executed by mod_perl. Stay tuned.
 
 Example:
 
@@ -119,8 +129,9 @@ connection record object.
 
 Now let's look at the following two examples of connection
 handlers. The first using the connection socket to read and write the
-data and the second using bucket brigades to accomplish the same and
-allow for connection filters to do their work.
+data and the second using L<bucket
+brigades|docs::2.0::user::handlers::intro/Bucket_Brigades> to
+accomplish the same and allow for connection filters to do their work.
 
 =head3 Socket-based Protocol Module
 

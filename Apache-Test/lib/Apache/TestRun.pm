@@ -20,6 +20,7 @@ use constant STARTUP_TIMEOUT => 300; # secs (good for extreme debug cases)
 use subs qw(exit_shell exit_perl);
 
 my %core_files  = ();
+my %original_t_perms = ();
 
 my @std_run      = qw(start-httpd run-tests stop-httpd);
 my @others       = qw(verbose configure clean help ssl http11);
@@ -40,7 +41,7 @@ my %usage = (
    'times=N'         => 'repeat the tests N times',
    'order=mode'      => 'run the tests in one of the modes: (repeat|rotate|random|SEED)',
    'stop-httpd'      => 'stop the test server',
-   'verbose'         => 'verbose output',
+   'verbose[=1]'     => 'verbose output',
    'configure'       => 'force regeneration of httpd.conf (tests will not be run)',
    'clean'           => 'remove all generated test files',
    'help'            => 'display this message',
@@ -157,6 +158,12 @@ sub getopts {
 
     local *ARGV = $argv;
     my(%opts, %vopts, %conf_opts);
+
+    # a workaround to support -verbose and -verbose=0|1
+    # $Getopt::Long::VERSION > 2.26 can use the "verbose:1" rule
+    # but we have to support older versions as well
+    @ARGV = grep defined, 
+        map {/-verbose=(\d)/ ? ($1 ? '-verbose' : undef) : $_ } @ARGV;
 
     # permute      : optional values can come before the options
     # pass_through : all unknown things are to be left in @ARGV
@@ -431,7 +438,8 @@ sub start {
         error "no test server configured, please specify an httpd or ".
               ($test_config->{APXS} ?
                "an apxs other than $test_config->{APXS}" : "apxs").
-               " or put either in your PATH";
+               " or put either in your PATH. For example:\n" .
+               "$0 -httpd /path/to/bin/httpd";
         exit_perl 0;
     }
 
@@ -450,6 +458,8 @@ sub start {
             unlink $file;
         }
     }
+
+    $self->adjust_t_perms();
 
     if ($opts->{'start-httpd'}) {
         exit_perl 0 unless $server->start;
@@ -488,6 +498,8 @@ sub run_tests {
 
 sub stop {
     my $self = shift;
+
+    $self->restore_t_perms;
 
     return $self->{server}->stop if $self->{opts}->{'stop-httpd'};
 }
@@ -548,6 +560,8 @@ sub run {
     Apache::TestHarness->chdir_t;
 
     $self->getopts(\@argv);
+
+    $self->pre_configure() if $self->can('pre_configure');
 
     $self->{test_config} = $self->new_test_config;
 
@@ -612,7 +626,7 @@ sub scan_core {
     finddepth(sub {
         return unless -f $_;
         return unless /$core_pat/o;
-        my $core = "$File::Find::dir/$_";
+        my $core = $File::Find::name;
         if (exists $core_files{$core} && $core_files{$core} == -M $core) {
             # we have seen this core file before the start of the test
             info "an old core file has been found: $core";
@@ -643,6 +657,52 @@ sub warn_core {
         # old core file at the end of the run and not complain then
         $core_files{$core} = -M $core;
     }, $vars->{top_dir});
+}
+
+# this function handles the cases when the test suite is run under
+# 'root':
+#
+# 1. When user 'bar' is chosen to run Apache with, files and dirs
+#    created by 'root' might be not writable/readable by 'bar'
+#
+# 2. when the source is extracted as user 'foo', and the chosen user
+#    to run Apache under is 'bar', in which case normally 'bar' won't
+#    have the right permissions to write into the fs created by 'foo'.
+#
+# We solve that by 'chown -R bar.bar t/' in a portable way.
+sub adjust_t_perms {
+    my $self = shift;
+
+    return if Apache::TestConfig::WINFU;
+
+    %original_t_perms = (); # reset global
+
+    my $user = getpwuid($>) || '';
+    if ($user eq 'root') {
+        my $vars = $self->{test_config}->{vars};
+        my $user = $vars->{user};
+        my($uid, $gid) = (getpwnam($user))[2..3]
+            or die "Can't find out uid/gid of '$user'";
+        warning "root mode: changing the fs ownership to '$user' ($uid:$gid)";
+        finddepth(sub {
+            $original_t_perms{$File::Find::name} = [(stat $_)[4..5]];
+            chown $uid, $gid, $_;
+        }, $vars->{t_dir});
+    }
+}
+
+sub restore_t_perms {
+    my $self = shift;
+
+    return if Apache::TestConfig::WINFU;
+
+    if (%original_t_perms) {
+        my $vars = $self->{test_config}->{vars};
+        while (my($file, $ids) = each %original_t_perms) {
+            next unless -e $file; # files could be deleted
+            chown @$ids, $file;
+        }
+    }
 }
 
 sub run_request {
@@ -778,17 +838,18 @@ sub generate_script {
 
     $file ||= catfile 't', 'TEST';
 
-    my $content = '';
+    my $body = Apache::TestConfig->modperl_2_inc_fixup;
+
     if (@Apache::TestMM::Argv) {
-        $content = "\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
+        $body .= "\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
     }
 
     my $header = Apache::TestConfig->perlscript_header;
 
-    $content .= join "\n",
-      $header, "use $class ();", "$class->new->run(\@ARGV);";
+    $body .= join "\n",
+        $header, "use $class ();", "$class->new->run(\@ARGV);";
 
-    Apache::Test::config()->write_perlscript($file, $content);
+    Apache::Test::config()->write_perlscript($file, $body);
 }
 
 # in idiomatic perl functions return 1 on success 0 on

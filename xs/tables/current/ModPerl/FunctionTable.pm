@@ -282,6 +282,112 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'void',
+    'name' => 'modperl_filter_runtime_add',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'perl'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      },
+      {
+        'type' => 'conn_rec *',
+        'name' => 'c'
+      },
+      {
+        'type' => 'const char *',
+        'name' => 'name'
+      },
+      {
+        'type' => 'modperl_filter_add_t',
+        'name' => 'addfunc'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'callback'
+      },
+      {
+        'type' => 'const char *',
+        'name' => 'type'
+      },
+    ]
+  },
+  {
+    'return_type' => 'void',
+    'name' => 'mpxs_Apache__RequestRec_add_input_filter',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'perl'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'callback'
+      },
+    ]
+  },
+  {
+    'return_type' => 'void',
+    'name' => 'mpxs_Apache__RequestRec_add_output_filter',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'perl'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'callback'
+      },
+    ]
+  },
+  {
+    'return_type' => 'void',
+    'name' => 'mpxs_Apache__Connection_add_input_filter',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'perl'
+      },
+      {
+        'type' => 'conn_rec *',
+        'name' => 'c'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'callback'
+      },
+    ]
+  },
+   {
+    'return_type' => 'void',
+    'name' => 'mpxs_Apache__Connection_add_output_filter',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'perl'
+      },
+      {
+        'type' => 'conn_rec *',
+        'name' => 'c'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'callback'
+      },
+    ]
+  },
+ {
     'return_type' => 'int',
     'name' => 'modperl_cgi_header_parse',
     'attr' => [
@@ -1388,6 +1494,20 @@ $ModPerl::FunctionTable = [
     'args' => []
   },
   {
+    'return_type' => 'request_rec *',
+    'name' => 'modperl_global_request',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'svr'
+      }
+    ]
+  },
+  {
     'return_type' => 'SV *',
     'name' => 'modperl_dir_config',
     'attr' => [
@@ -1590,6 +1710,18 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'modperl_filter_mode_e',
         'name' => 'mode'
+      },
+      {
+        'type' => 'ap_input_mode_t',
+        'name' => 'input_mode'
+      },
+      {
+        'type' => 'apr_read_type_e',
+        'name' => 'block'
+      },
+      {
+        'type' => 'apr_off_t',
+        'name' => 'readbytes'
       }
     ]
   },
@@ -2308,7 +2440,7 @@ $ModPerl::FunctionTable = [
       },
       {
         'type' => 'ap_input_mode_t',
-        'name' => 'mode'
+        'name' => 'input_mode'
       },
       {
         'type' => 'apr_read_type_e',
@@ -2322,7 +2454,7 @@ $ModPerl::FunctionTable = [
   },
   {
     'return_type' => 'void',
-    'name' => 'modperl_input_filter_register_connection',
+    'name' => 'modperl_input_filter_add_connection',
     'args' => [
       {
         'type' => 'conn_rec *',
@@ -2332,7 +2464,7 @@ $ModPerl::FunctionTable = [
   },
   {
     'return_type' => 'void',
-    'name' => 'modperl_input_filter_register_request',
+    'name' => 'modperl_input_filter_add_request',
     'args' => [
       {
         'type' => 'request_rec *',
@@ -3138,6 +3270,19 @@ $ModPerl::FunctionTable = [
   },
   {
     'return_type' => 'apr_status_t',
+    'name' => 'modperl_input_filter_flush',
+    'attr' => [
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'modperl_filter_t *',
+        'name' => 'filter'
+      }
+    ]
+  },
+  {
+    'return_type' => 'apr_status_t',
     'name' => 'modperl_output_filter_handler',
     'args' => [
       {
@@ -3176,8 +3321,45 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'apr_size_t',
+    'name' => 'modperl_input_filter_read',
+    'attr' => [
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'modperl_filter_t *',
+        'name' => 'filter'
+      },
+      {
+        'type' => 'ap_input_mode_t',
+        'name' => 'mode'
+      },
+      {
+        'type' => 'apr_read_type_e',
+        'name' => 'block'
+      },
+      {
+        'type' => 'apr_off_t',
+        'name' => 'readbytes'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'buffer'
+      },
+      {
+        'type' => 'apr_size_t',
+        'name' => 'wanted'
+      }
+    ]
+  },
+  {
     'return_type' => 'void',
-    'name' => 'modperl_output_filter_register_connection',
+    'name' => 'modperl_output_filter_add_connection',
     'args' => [
       {
         'type' => 'conn_rec *',
@@ -3187,7 +3369,7 @@ $ModPerl::FunctionTable = [
   },
   {
     'return_type' => 'void',
-    'name' => 'modperl_output_filter_register_request',
+    'name' => 'modperl_output_filter_add_request',
     'args' => [
       {
         'type' => 'request_rec *',
@@ -3202,6 +3384,35 @@ $ModPerl::FunctionTable = [
       '__inline__'
     ],
     'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'modperl_filter_t *',
+        'name' => 'filter'
+      },
+      {
+        'type' => 'const char *',
+        'name' => 'buf'
+      },
+      {
+        'type' => 'apr_size_t *',
+        'name' => 'len'
+      }
+    ]
+  },
+  {
+    'return_type' => 'apr_status_t',
+    'name' => 'modperl_input_filter_write',
+    'attr' => [
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
       {
         'type' => 'modperl_filter_t *',
         'name' => 'filter'
@@ -3423,6 +3634,20 @@ $ModPerl::FunctionTable = [
         'name' => 'r'
       }
     ]
+  },
+    {
+    'return_type' => 'void',
+    'name' => 'modperl_clear_symtab',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'HV *',
+        'name' => 'symtab'
+      },
+    ],
   },
   {
     'return_type' => 'HE *',
@@ -3661,7 +3886,7 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
-    'return_type' => 'void',
+    'return_type' => 'apr_status_t',
     'name' => 'modperl_response_finish',
     'args' => [
       {
@@ -3704,14 +3929,6 @@ $ModPerl::FunctionTable = [
     'return_type' => 'int',
     'name' => 'modperl_run',
     'args' => [
-      {
-        'type' => 'apr_pool_t *',
-        'name' => 'p'
-      },
-      {
-        'type' => 'server_rec *',
-        'name' => 's'
-      }
     ]
   },
   {
@@ -3722,18 +3939,6 @@ $ModPerl::FunctionTable = [
         'type' => 'modperl_filter_t *',
         'name' => 'filter'
       },
-      {
-        'type' => 'ap_input_mode_t',
-        'name' => 'mode'
-      },
-      {
-        'type' => 'apr_read_type_e',
-        'name' => 'block'
-      },
-      {
-        'type' => 'apr_off_t',
-        'name' => 'readbytes'
-      }
     ]
   },
   {
@@ -3804,6 +4009,19 @@ $ModPerl::FunctionTable = [
         'type' => 'apr_file_t **',
         'name' => 'script_err'
       }
+    ]
+  },
+  {
+    'return_type' => 'int',
+    'name' => 'Apache__Directive_lookup',
+    'attr' => [
+      'static'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
     ]
   },
   {
@@ -4365,6 +4583,10 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'modperl_wbucket_t *',
         'name' => 'b'
+      },
+      {
+        'type' => 'int',
+        'name' => 'add_flush_bucket'
       }
     ]
   },
@@ -4386,6 +4608,10 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'apr_size_t',
         'name' => 'len'
+      },
+      {
+        'type' => 'int',
+        'name' => 'add_flush_bucket'
       }
     ]
   },
@@ -4396,6 +4622,10 @@ $ModPerl::FunctionTable = [
       '__inline__'
     ],
     'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
       {
         'type' => 'modperl_wbucket_t *',
         'name' => 'b'
@@ -4818,6 +5048,24 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'SV *',
+    'name' => 'mpxs_Apache__Directive_as_hash',
+    'attr' => [
+      'static',
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'ap_directive_t *',
+        'name' => 'self'
+      }
+    ]
+  },
+  {
     'return_type' => 'apr_size_t',
     'name' => 'mpxs_Apache__Filter_print',
     'attr' => [
@@ -4846,6 +5094,80 @@ $ModPerl::FunctionTable = [
   {
     'return_type' => 'apr_size_t',
     'name' => 'mpxs_Apache__Filter_read',
+    'attr' => [
+      'static',
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'I32',
+        'name' => 'items'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'mark'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'sp'
+      }
+    ]
+  },
+  {
+    'return_type' => 'SV *',
+    'name' => 'mpxs_Apache__Filter_ctx',
+    'attr' => [
+      'static',
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'ap_filter_t *',
+        'name' => 'filter'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'data'
+      },
+    ]
+  },
+  {
+    'return_type' => 'SV *',
+    'name' => 'mpxs_Apache__Filter_seen_eos',
+    'attr' => [
+      'static',
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'I32',
+        'name' => 'items'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'mark'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'sp'
+      }
+    ]
+  },
+  {
+    'return_type' => 'void',
+    'name' => 'mpxs_Apache__Filter_remove',
     'attr' => [
       'static',
       '__inline__'
@@ -5177,7 +5499,29 @@ $ModPerl::FunctionTable = [
       }
     ]
   },
-  {
+   {
+    'return_type' => 'int',
+    'name' => 'mpxs_Apache__RequestRec_rflush',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'I32',
+        'name' => 'items'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'mark'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'sp'
+      }
+    ]
+  },
+ {
     'return_type' => 'int',
     'name' => 'mpxs_Apache__RequestRec_proxyreq',
     'args' => [
@@ -5247,17 +5591,39 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
-    'return_type' => '',
-    'name' => 'mpxs_Apache__RequestRec_send_http_header',
+    'return_type' => 'int',
+    'name' => 'mpxs_Apache__RequestRec_OPEN',
     'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'self'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'arg1'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'arg2'
+      },
+    ]
+  },
+  {
+    'return_type' => 'int',
+    'name' => 'mpxs_Apache__RequestRec_FILENO',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
       {
         'type' => 'request_rec *',
         'name' => 'r'
       },
-      {
-        'type' => 'const char *',
-        'name' => 'type'
-      }
     ]
   },
   {
@@ -5809,28 +6175,6 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
-    'return_type' => 'void',
-    'name' => 'mpxs_apr_generate_random_bytes',
-    'attr' => [
-      'static',
-      '__inline__'
-    ],
-    'args' => [
-      {
-        'type' => 'PerlInterpreter *',
-        'name' => 'my_perl'
-      },
-      {
-        'type' => 'SV *',
-        'name' => 'sv'
-      },
-      {
-        'type' => 'SV *',
-        'name' => 'arg'
-      }
-    ]
-  },
-  {
     'return_type' => 'apr_ipsubnet_t *',
     'name' => 'mpxs_apr_ipsubnet_create',
     'args' => [
@@ -5985,6 +6329,28 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'SV *',
         'name' => 'sv_len'
+      }
+    ]
+  },
+  {
+    'return_type' => 'apr_interval_time_t',
+    'name' => 'mpxs_apr_socket_timeout_get',
+    'attr' => [
+      'static',
+      '__inline__'
+    ],
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'mark'
+      },
+      {
+        'type' => 'SV **',
+        'name' => 'sp'
       }
     ]
   },

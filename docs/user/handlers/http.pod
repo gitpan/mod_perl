@@ -54,7 +54,9 @@ From the diagram it can be seen that an HTTP request is processes by
 =back
 
 It's possible that the cycle will not be completed if any of the
-phases terminates it, usually when an error happens.
+phases terminates it, usually when an error happens. In that case
+Apache skips to the logging phase (mod_perl executes all registered
+C<PerlLogHandler> handlers) and finally the cleanup phase happens.
 
 Notice that when the response handler is reading the input data it can
 be filtered through request input filters, which are preceded by
@@ -62,6 +64,14 @@ connection input filters if any. Similarly the generated response is
 first run through request output filters and eventually through
 connection output filters before it's sent to the client. We will talk
 about filters in detail later in this chapter.
+
+Before discussing each handler in detail remember that if you use
+stacked handlers feature (META: add link to where it's discussed [go
+read 1.0 docs for now, as it works the same]) all handlers in the
+chain will be run as long as they return C<Apache::OK> or
+C<Apache::DECLINED>. Because stacked handlers is a special case. So
+don't be surprised if you've returned C<Apache::OK> and the next
+handler was still executed. This is a feature, not a bug.
 
 Now let's discuss each of the mentioned handlers in detail.
 
@@ -466,9 +476,9 @@ This phase is of type
 C<L<RUN_ALL|docs::2.0::user::handlers::intro/item_RUN_ALL>>.
 
 The best example here would be to use
-C<L<Apache::Reload|docs::2.0::api::mod_perl-2.0::Apache::Reload>>
+C<L<Apache::Reload|docs::2.0::api::Apache::Reload>>
 which takes the benefit of this directive. Usually
-C<L<Apache::Reload|docs::2.0::api::mod_perl-2.0::Apache::Reload>> is
+C<L<Apache::Reload|docs::2.0::api::Apache::Reload>> is
 configured as:
 
   PerlInitHandler Apache::Reload
@@ -489,7 +499,7 @@ C<E<lt>LocationE<gt>> container:
       Options +ExecCGI
   </Location>
 
-C<L<Apache::Reload|docs::2.0::api::mod_perl-2.0::Apache::Reload>> will
+C<L<Apache::Reload|docs::2.0::api::Apache::Reload>> will
 reload the modified modules, only when a request to the I</devel>
 namespace is issued, because C<L<PerlInitHandler|/PerlInitHandler>>
 plays the role of
@@ -635,6 +645,24 @@ when the user has supplied the username and the password
 credentials. If the status is different, we just let Apache handle
 this situation for us, which will usually challenge the client so
 it'll supply the credentials.
+
+Note that C<get_basic_auth_pw()> does a few things behind the scenes,
+which are important to understand if you plan on implementing your own
+authentication mechanism that does not use C<get_basic_auth_pw()>.
+First, is checks the value of the configured C<AuthType> for the
+request, making sure it is C<Basic>.  Then it makes sure that the
+Authorization (or Proxy-Authorization) header is formatted for
+C<Basic> authentication.  Finally, after isolating the user and
+password from the header, it populates the I<ap_auth_type> slot in the
+request record with C<Basic>.  For the first and last parts of this
+process, mod_perl offers an API. C<$r-E<gt>auth_type> returns the
+configured authentication type for the current request - whatever was
+set via the C<AuthType> configuration directive.
+C<$r-E<gt>ap_auth_type> populates the I<ap_auth_type> slot in the
+request record, which should be done after it has been confirmed that
+the request is indeed using C<Basic> authentication.  (Note:
+C<$r-E<gt>ap_auth_type> was C<$r-E<gt>connection-E<gt>auth_type> in
+the mod_perl 1.0 API.)
 
 Once we know that we have the username and the password supplied by
 the client, we can proceed with the authentication. Our authentication
@@ -1174,13 +1202,30 @@ logging handlers will be called as well.
 
 =head2 PerlCleanupHandler
 
-META: not implemented yet
+The cleanup stage is used to execute some code when the request has
+been served.
 
-This phase is of type C<XXX>.
+This phase is of type
+C<L<RUN_ALL|docs::2.0::user::handlers::intro/item_RUN_ALL>>.
 
-The handler's configuration scope is C<XXX>.
+The handler's configuration scope is
+C<L<DIR|docs::2.0::user::config::config/item_DIR>>.
 
+META: examples are needed (for now mod_perl 1.0 docs apply)
 
+=head1 Handling HEAD Requests
+
+In order to avoid the overhead of sending the data to the client when
+the request is of type HEAD in mod_perl 1.0 we L<used to return
+early|docs::1.0::guide::porting/Generating_correct_HTTP_Headers> from
+the handler:
+
+  return OK if $r->header_only;
+
+This logic is no longer needed in mod_perl 2.0, because Apache 2.0
+automatically discards the response body for HEAD requests. (You can
+also read the comment in for C<ap_http_header_filter()> in
+I<modules/http/http_protocol.c> in the Apache 2.0 source.)
 
 =head1 Extending HTTP Protocol
 

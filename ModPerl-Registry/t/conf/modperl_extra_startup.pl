@@ -2,14 +2,14 @@ use strict;
 use warnings FATAL => 'all';
 
 use ModPerl::RegistryLoader ();
+use Apache::Server ();
 use Apache::ServerUtil ();
-use APR::Pool ();
+use Apache::Process ();
 
 use DirHandle ();
 
-my $pool = APR::Pool->new();
+my $pool = Apache->server->process->pool;
 my $base_dir = Apache::server_root_relative($pool, "cgi-bin");
-
 
 # test the scripts pre-loading by explicitly specifying uri => filename
 my $rl = ModPerl::RegistryLoader->new(package => "ModPerl::Registry");
@@ -34,18 +34,10 @@ for my $file (qw(basic.pl env.pl)) {
         trans   => \&trans,
     );
 
-    my %skip = map {$_=>1} qw(lib.pl perlrun_require.pl);
-    my $dh = DirHandle->new($base_dir) or die $!;
-    for my $file ($dh->read) {
-        next unless $file =~ /\.pl$/;
-        next if exists $skip{$file};
+    my @preload = qw(basic.pl env.pl require.pl special_blocks.pl
+        redirect.pl 206.pl content_type.pl);
 
-        # skip these as they are knowlingly generate warnings
-        next if $file =~ /^(closure.pl|not_executable.pl)$/;
-
-        # these files shouldn't be preloaded
-        next if $file =~ /^(local-conf.pl)$/;
-
+    for my $file (@preload) {
         $rl->handler("/registry_bb/$file");
     }
 }

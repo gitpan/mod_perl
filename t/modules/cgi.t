@@ -4,11 +4,14 @@ use warnings FATAL => 'all';
 use Apache::Test;
 use Apache::TestRequest;
 use Apache::TestUtil;
+use Apache::Build ();
 
-plan tests => 5, \&have_lwp;
+my $build = Apache::Build->build_config;
+plan tests => 5, have 'LWP',
+    {"MP_COMPAT_1X is disabled" => $build->{MP_COMPAT_1X}};
 
 my $module = 'TestModules::cgi';
-my $location = "/$module";
+my $location = '/' . Apache::TestRequest::module2path($module);
 
 my($res, $str);
 

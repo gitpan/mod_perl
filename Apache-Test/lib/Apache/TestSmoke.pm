@@ -460,10 +460,11 @@ sub generate_script {
 
     $file ||= catfile 't', 'SMOKE';
 
-    my $header = Apache::TestConfig->perlscript_header;
-
     my $content = join "\n",
-      $header, "use $class ();", "$class->new(\@ARGV)->run;";
+        Apache::TestConfig->modperl_2_inc_fixup,
+        Apache::TestConfig->perlscript_header,
+        "use $class;",
+        "$class->new(\@ARGV)->run;";
 
     Apache::Test::config()->write_perlscript($file, $content);
 }
@@ -516,12 +517,12 @@ fail when run twice or three times in a sequence.
 
 =head2 The Solution
 
-To reduce the possibility of such dependency errors, it's important to
+To reduce the possibility of such dependency errors, it's helpful to
 run random testing repeated many times with many different srand
 seeds. Of course if no failures get spotted that doesn't mean that
 there are no tests inter-dependencies, which may cause a failure in
 production. But random testing definitely helps to spot many problems
-and gives better test coverage.
+and can give better test coverage.
 
 =head2 Resolving Sequence Problems
 

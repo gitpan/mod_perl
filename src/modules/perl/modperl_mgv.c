@@ -181,12 +181,19 @@ MP_INLINE GV *modperl_mgv_lookup_autoload(pTHX_ modperl_mgv_t *symbol,
 }
 #endif
 
+/* currently used for complex filters attributes parsing */
+/* XXX: may want to generalize it for any handlers */
+#define MODPERL_MGV_DEEP_RESOLVE(handler, p) \
+    if (handler->attrs & MP_FILTER_HAS_INIT_HANDLER) { \
+        modperl_filter_resolve_init_handler(aTHX_ handler, p); \
+    }
+
 int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
                         apr_pool_t *p, const char *name, int logfailure)
 {
     CV *cv;
     GV *gv;
-    HV *stash=Nullhv;
+    HV *stash = Nullhv;
     char *handler_name = "handler";
     char *tmp;
 
@@ -247,6 +254,7 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
                 modperl_mgv_compile(aTHX_ p, HvNAME(GvSTASH(CvGV(cv))));
             modperl_mgv_append(aTHX_ p, handler->mgv_cv, GvNAME(CvGV(cv)));
             MpHandlerPARSED_On(handler);
+            MODPERL_MGV_DEEP_RESOLVE(handler, p);
             return 1;
         }
     }
@@ -265,52 +273,8 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
             }
         }
         else {
-            I32 errlen = 0;
-            char *errpv;
-            int ix = ap_rind(name, ':');
-            stash = Nullhv;
-
-            /* last guess: Perl*Handler is a fully qualified subroutine name
-             * but its module was not loaded
-             * XXX: This guess may incorrectly pick the wrong module,
-             * e.g. if Apache::Foo is not found, Apache will be picked
-             */ 
-            if (ix != -1) {
-                /* split Foo::Bar::baz into Foo::Bar, baz */
-                char *try_package = apr_pstrndup(p, name, ix-1);
-                handler_name = apr_pstrdup(p, name + ix + 1);
-
-                /* if this fails we want to log $@ from failure above */
-                errlen = SvCUR(ERRSV);
-                errpv  = apr_pstrndup(p, SvPVX(ERRSV), errlen);
-
-                if (modperl_require_module(aTHX_ try_package, FALSE)) {
-                    MP_TRACE_h(MP_FUNC, "loaded %s package\n", try_package);
-                    stash = gv_stashpv(try_package, FALSE);
-                }
-                else {
-                    /* however, if require has failed and the error
-                     * wasn't "Can't locate ...", we did find the
-                     * package, and there is a problem with it
-                     */
-                    if (strnNE(SvPVX(ERRSV), "Can't locate", 12)) {
-                        errlen = SvCUR(ERRSV);
-                        errpv  = apr_pstrndup(p, SvPVX(ERRSV), errlen);
-                    }
-                }
-            }
-
-            if (!stash) {
-                if (errlen) {
-                    sv_setpvn(ERRSV, errpv, errlen);
-                }
-                if (logfailure) {
-                    (void)modperl_errsv(aTHX_ HTTP_INTERNAL_SERVER_ERROR,
-                                        NULL, NULL);
-                }
-                MP_TRACE_h(MP_FUNC, "failed to load %s package\n", name);
-                return 0;
-            }
+            MP_TRACE_h(MP_FUNC, "failed to load %s package\n", name);
+            return 0;
         }
     }
 
@@ -332,6 +296,7 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
         MP_TRACE_h(MP_FUNC, "found `%s' in class `%s' as a %s\n",
                    handler_name, HvNAME(stash),
                    MpHandlerMETHOD(handler) ? "method" : "function");
+        MODPERL_MGV_DEEP_RESOLVE(handler, p);
         return 1;
     }
 

@@ -103,7 +103,6 @@ MODULE=Apache::RequestIO   PACKAGE=Apache::RequestRec
  ap_get_client_block   | mpxs_ | r, SV *:buffer, bufsiz
  ap_setup_client_block |       | r, read_policy=REQUEST_CHUNKED_ERROR
  ap_should_client_block
- ap_rflush
 PREFIX=ap_r
 ~ap_rwrite
  ap_rprintf | mpxs_ | ...
@@ -211,13 +210,7 @@ MODULE=Apache::Directive
  ap_walk_config
 >ap_process_config_tree
 
-MODULE=Apache::Filter PACKAGE=Apache::RequestRec
-ap_filter_t *:DEFINE_add_output_filter | | \
-              request_rec *:r, const char *:name, void *:ctx
-ap_filter_t *:DEFINE_add_input_filter | | \
-              request_rec *:r, const char *:name, void *:ctx
-
-PACKAGE=guess
+MODULE=Apache::Filter PACKAGE=guess
 ~ap_add_output_filter
 ~ap_add_input_filter
 -ap_add_input_filter_handle

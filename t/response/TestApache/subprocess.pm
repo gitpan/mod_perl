@@ -12,7 +12,7 @@ use IO::Select ();
 use Apache::Const -compile => 'OK';
 
 use Config;
-use constant PERLIO_IS_ENABLED => $Config{useperlio};
+use constant PERLIO_5_8_IS_ENABLED => $Config{useperlio} && $] >= 5.007;
 
 my %scripts = (
      argv   => 'print STDOUT "@ARGV";',
@@ -41,8 +41,6 @@ sub handler {
     my $vars = $cfg->{vars};
 
     plan $r, tests => 4, have qw(APR::PerlIO Apache::SubProcess);
-
-    eval { require Apache::SubProcess };
 
     my $target_dir = catfile $vars->{documentroot}, "util";
 
@@ -146,7 +144,10 @@ sub read_data {
     # so we use the following wrapper: if we are under perlio we just
     # go ahead and read the data, if we are under non-perlio we first
     # select for a few secs. (XXX: is 10 secs enough?)
-    if (PERLIO_IS_ENABLED || $sel->can_read(10)) {
+    #
+    # btw: we use perlIO only for perl 5.7+
+    #
+    if (APR::PerlIO::PERLIO_LAYERS_ARE_ENABLED() || $sel->can_read(10)) {
         @data = wantarray ? (<$fh>) : <$fh>;
     }
 

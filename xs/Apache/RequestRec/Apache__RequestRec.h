@@ -5,9 +5,11 @@ const char *mpxs_Apache__RequestRec_content_type(pTHX_ request_rec *r,
     const char *retval = r->content_type;
 
     if (type) {
+        MP_dRCFG;
         STRLEN len;
         const char *val = SvPV(type, len);
         ap_set_content_type(r, apr_pmemdup(r->pool, val, len+1));
+        MP_CGI_HEADER_PARSER_OFF(rcfg);
     }
 
     return retval;

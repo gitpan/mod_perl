@@ -7,6 +7,7 @@ use warnings FATAL => 'all';
 use File::Spec::Functions qw(catfile splitdir abs2rel);
 use File::Find qw(finddepth);
 use Apache::TestTrace;
+use Apache::TestRequest;
 use Config;
 
 my %libmodperl  = (1 => 'libperl.so', 2 => 'mod_perl.so');
@@ -16,20 +17,41 @@ sub configure_libmodperl {
 
     my $server = $self->{server};
     my $libname = $server->version_of(\%libmodperl);
-
-    if ($server->{rev} >= 2) {
-        if (my $build_config = $self->modperl_build_config()) {
-            $libname = $build_config->{MODPERL_LIB_SHARED}
-        }
-    }
-
     my $vars = $self->{vars};
 
-    $vars->{libmodperl} ||= $self->find_apache_module($libname);
+    # XXX: $server->{rev} could be set to 2 as a fallback, even when
+    # the wanted version is 1. So check that we use mod_perl 2
+    if ($server->{rev} >= 2 && IS_MOD_PERL_2) {
+        if (my $build_config = $self->modperl_build_config()) {
+            $libname = $build_config->{MODPERL_LIB_SHARED};
+            $vars->{libmodperl} ||= $self->find_apache_module($libname);
+            # XXX: we have a problem with several perl trees pointing
+            # to the same httpd tree. So it's possible that we
+            # configure the test suite to run with mod_perl.so built
+            # against perl which it wasn't built with. Should we use
+            # something like ldd to check the match?
+        }
+        else {
+            # XXX: can we test whether mod_perl was linked statically
+            # so we don't need to preload it
+            # if (!linked statically) {
+            #     die "can't find mod_perl built for perl version $]"
+            # }
+            error "can't find mod_perl.so built for perl version $]";
+        }
+        # don't use find_apache_module or we may end up with the wrong
+        # shared object, built against different perl
+    }
+    else {
+        # mod_perl 1.0
+        $vars->{libmodperl} ||= $self->find_apache_module($libname);
+        # XXX: how do we find out whether we have a static or dynamic
+        # mod_perl build? die if its dynamic and can't find the module
+    }
 
     my $cfg = '';
 
-    if (-e $vars->{libmodperl}) {
+    if ($vars->{libmodperl} && -e $vars->{libmodperl}) {
         if (Apache::TestConfig::WIN32) {
             my $lib = "$Config{installbin}\\$Config{libperl}";
             $lib =~ s/lib$/dll/;
@@ -38,7 +60,7 @@ sub configure_libmodperl {
         $cfg .= 'LoadModule ' . qq(perl_module "$vars->{libmodperl}"\n);
     }
     else {
-        my $msg = "unable to locate $libname\n";
+        my $msg = "unable to locate $libname (could be a static build)\n";
         $cfg = "#$msg";
         debug $msg;
     }
@@ -73,7 +95,7 @@ sub configure_inc {
 }
 
 sub write_pm_test {
-    my($self, $pm, $base, $sub) = @_;
+    my($self, $module, $base, $sub) = @_;
 
     my $dir = catfile $self->{vars}->{t_dir}, $base;
     my $t = catfile $dir, "$sub.t";
@@ -82,9 +104,11 @@ sub write_pm_test {
     $self->gendir($dir);
     my $fh = $self->genfile($t);
 
+    my $path = Apache::TestRequest::module2path($module);
+
     print $fh <<EOF;
-use Apache::TestRequest 'GET_BODY';
-print GET_BODY "/$pm";
+use Apache::TestRequest 'GET_BODY_ASSERT';
+print GET_BODY_ASSERT "/$path";
 EOF
 
     close $fh or die "close $t: $!";
@@ -167,7 +191,8 @@ my %container_config = (
 
 sub location_container {
     my($self, $module) = @_;
-    Location => "/$module";
+    my $path = Apache::TestRequest::module2path($module);
+    Location => "/$path";
 }
 
 sub vhost_container {
@@ -197,6 +222,8 @@ PerlChildInitHandler PerlTransHandler PerlPostReadRequestHandler
 PerlSwitches PerlRequire PerlModule
 };
 
+my %strip_tags = map { $_ => 1} qw(base noautoconfig);
+
 #test .pm's can have configuration after the __DATA__ token
 sub add_module_config {
     my($self, $module, $args) = @_;
@@ -221,43 +248,24 @@ sub add_module_config {
             next;
         }
         my($directive, $rest) = split /\s+/, $_, 2;
-        $directives{$directive}++;
+        $directives{$directive}++ unless $directive =~ /^</;
         $rest = '' unless defined $rest;
+
         if ($outside_container{$directive}) {
             $self->postamble($directive => $rest);
-        }
-        elsif ($directive eq '<Base>') {
-            # <Base> and </Base> are removed
-            my $end = "</Base>";
-            while (<$fh>) {
-                chomp;
-                last if m:^\Q$end:;
-                $self->replace;
-                s/^\s*//; # align for base
-                $self->postamble($_);
-            }
         }
         elsif ($directive =~ /IfModule/) {
             $self->postamble($_);
         }
         elsif ($directive =~ m/^<(\w+)/) {
-            my $cfg;
-            if ($directive eq '<VirtualHost') {
-                if ($cfg = $self->parse_vhost($_)) {
-                    my $port = $cfg->{port};
-                    $rest = "_default_:$port>";
-                    $cfg->{out_postamble}->();
-                }
-            }
-            $self->postamble($directive => $rest);
-            $cfg->{in_postamble}->() if $cfg;
-            my $end = "</$1>";
-            while (<$fh>) {
-                chomp;
-                $self->replace;
-                $self->postamble($_);
-                last if m:^\s*\Q$end:;
-            }
+            # strip special container directives like <Base> and </Base>
+            my $strip_container = exists $strip_tags{lc $1} ? 1 : 0;
+
+            $directives{noautoconfig}++ if lc($1) eq 'noautoconfig';
+
+            my $indent = '';
+            $self->process_container($_, $fh, lc($1),
+                                     $strip_container, $indent);
         }
         else {
             push @$args, $directive, $rest;
@@ -265,6 +273,76 @@ sub add_module_config {
     }
 
     \%directives;
+}
+
+
+# recursively process the directives including nested containers,
+# re-indent 4 and ucfirst the closing tags letter
+sub process_container {
+    my($self, $first_line, $fh, $directive, $strip_container, $indent) = @_;
+
+    my $new_indent = $indent;
+
+    unless ($strip_container) {
+        $new_indent .= "    ";
+
+        local $_ = $first_line;
+        s/^\s*//;
+        $self->replace;
+
+        if (/<VirtualHost/) {
+            $self->process_vhost_open_tag($_, $indent);
+        }
+        else {
+            $self->postamble($indent . $_);
+        }
+    }
+
+    $self->process_container_remainder($fh, $directive, $new_indent);
+
+    unless ($strip_container) {
+        $self->postamble($indent . "</\u$directive>");
+    }
+
+}
+
+
+# processes the body of the container without the last line, including
+# the end tag
+sub process_container_remainder {
+    my($self, $fh, $directive, $indent) = @_;
+
+    my $end_tag = "</$directive>";
+
+    while (<$fh>) {
+        chomp;
+        last if m|^\s*\Q$end_tag|i;
+        s/^\s*//;
+        $self->replace;
+
+        if (m/^\s*<(\w+)/) {
+            $self->process_container($_, $fh, $1, 0, $indent);
+        }
+        else {
+            $self->postamble($indent . $_);
+        }
+    }
+}
+
+# does the necessary processing to create a vhost container header
+sub process_vhost_open_tag {
+    my($self, $line, $indent) = @_;
+
+    my $cfg = $self->parse_vhost($line);
+
+    if ($cfg) {
+        my $port = $cfg->{port};
+        $cfg->{out_postamble}->();
+        $self->postamble("$indent<VirtualHost _default_:$port>");
+        $cfg->{in_postamble}->();
+    } else {
+        $self->postamble("$indent$line");
+    }
 }
 
 #the idea for each group:
@@ -383,31 +461,35 @@ sub configure_pm_tests {
 
         debug "configuring $module";
 
-        if (my $cv = $add_hook_config{$hook}) {
-            $self->$cv($module, \@args);
+        if ($directives->{noautoconfig}) {
+            $self->postamble(""); # which adds "\n"
         }
-
-        my $container = $container_config{$hook} || \&location_container;
-
-        #unless the .pm test already configured the Perl*Handler
-        unless ($directives->{$handler}) {
-            my @handler_cfg = ($handler => $module);
-
-            if ($outside_container{$handler}) {
-                $self->postamble(@handler_cfg);
-            } else {
-                push @args, @handler_cfg;
+        else {
+            if (my $cv = $add_hook_config{$hook}) {
+                $self->$cv($module, \@args);
             }
-        }
 
-        my $args_hash = list_to_hash_of_lists(\@args);
-        $self->postamble($self->$container($module),
-                         $args_hash) if @args;
+            my $container = $container_config{$hook} || \&location_container;
+
+            #unless the .pm test already configured the Perl*Handler
+            unless ($directives->{$handler}) {
+                my @handler_cfg = ($handler => $module);
+
+                if ($outside_container{$handler}) {
+                    $self->postamble(@handler_cfg);
+                } else {
+                    push @args, @handler_cfg;
+                }
+            }
+
+            my $args_hash = list_to_hash_of_lists(\@args);
+            $self->postamble($self->$container($module),
+                $args_hash) if @args;
+        }
 
         $self->write_pm_test($module, lc $base, lc $sub);
     }
 }
-
 
 # turn a balanced (key=>val) list with potentially multiple indentical
 # keys into a hash of lists.

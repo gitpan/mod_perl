@@ -1,5 +1,5 @@
 mod_perl 2.0 STATUS:                                       -*-text-*-
-   Last modified at [$Date: 2003/01/11 04:14:55 $]
+   Last modified at [$Date: 2003/04/22 06:12:47 $]
 
 Release:
 --------
@@ -49,6 +49,106 @@ Available Patches:
 
 Needs Patch or Further Investigation:
 -------------------------------------
+
+* perl Makefile.PL PREFIX=/foo/bar works fine, however Makefile.PL'll
+  still refuse to build unless MP_INST_APACHE2=1 is passed. It should
+  refuse to do so only if it finds mod_perl 1.0 installed under that
+  PREFIX, which can be a tricky check, since the exact logic to figure
+  out the paths is deep inside EU::MM. Probably it's better to run
+  'File::Find' and search for 'mod_perl.pm' under PREFIX, if found
+  check its version and assert only if it's 1.xx
+
+* apr/perlio.t t7 fails with blead perl w/o ithreads
+  http://archive.develooper.com/perl5-porters@perl.org/msg93164.html
+
+* we have shared lib loading problems on the following platforms:
+
+    OpenBSD - needs investigation
+
+    AIX - works only for some versions with -berok to ignore linking
+    errors (symbol resolution).  Should replace -berok with a proper
+    symbol resolution at linking time, but I had not much success with
+    using this approach (dlopen fails).
+
+    win32 and aix have a problem with PerlIOBase_noop_fail symbol not
+    being exported by libperl.so, used in apr_perlio.c (both platforms
+    need symbol export files. So currently win32 simply can't use
+    APR::PerlIO and should be fixed. Notice that perl doesn't export
+    any of the PerlIOBase_* symbols. If that's the intention of not
+    exposing the internal API, we need to find a way not to use the
+    PerlIOBase_* symbols in apr_perlio.c
+
+* we have a dependency check problem when xs/*/*.h use code from
+  xs/modperl_xs*.h, when the latter change 'make' won't rebuild the
+  dependant files
+
+* most of the xs wrappers print no "Usage: " when wrong args/wrong
+  number of args are passed, would be nice to add the usage message
+  whenever incorrect arguments error is logged. e.g., when
+  APR::URI->parse() gets the wrong first arg (non-pool) it prints:
+
+    p is not of type APR::Pool at ...
+
+  whereas it's not so obvious that the function expected the pool
+  object, neither it specifies which ("arg number") of the arguments
+  is wrong.
+
+  possible solution: add a new field to the map files, which will be
+  used as a usage message whenever an argument error occurs.
+
+* we should stop generating xs/apache_*, at least for a reason that
+  it's incomplete and will be never complete as we don't keep up with
+  changes with ap_/apr_ namespace. Also we don't have the logic to
+  handle cases where functions aren't available on certain
+  platforms. Importing these unavailable functions may cause loading
+  problems on some platforms (aix?). If developers need to import
+  symbols from ap_/apr_ namespace they should use .exp files installed
+  by httpd/apr/aprutil.
+
+* this is probably a documenation issue. Several phases are of type VOID
+  and docs say:
+
+    Handlers of the type C<VOID> will be I<all> executed in the order they
+    have been registered disregarding their return values. Though in
+    mod_perl they are expected to return C<Apache::OK>.
+
+  may be we shouldn't mark them as VOID then, but RUN_ALL? this is in
+  user/handlers/intro.pod
+
+* Looks like there is an issue with filter configuration, I've noticed that:
+
+   PerlInputFilterHandler MyApache::InputFilterGET2HEAD
+
+  silently ignores the filter, whereas:
+
+   PerlInputFilterHandler +MyApache::InputFilterGET2HEAD
+
+  calls the filter. figure out:
+
+  - why the loading doesn't happen
+  - why the error doesn't happen (probably both connected)
+
+* 'SetHandler modperl' doesn't reset $|, so if anything turns it on
+  anywhere, it's going to stay that way. Meaning excessive flushing
+  probably causing a performance hit. I've tried to add the code to
+  reset it, but this requires getting a perl interpreter at the early
+  stage and it breaks several filter tests, which has relied before on
+  the coincidence that both the response handler and the filter were
+  run by the same interpreter (in particular this breaks the code
+  where push_handlers() uses a string as a handler, rather a CODE
+  reference, see t/filter/TestFilter/both_str_rec_add.pm, to
+  reproduce the problem, simply s/modperl/perl-script/)
+
+* child processes never run END blocks. a good example is
+  Apache::TestUtil, which doesn't cleanup files and dirs it has
+  created, because the END block is not run.
+
+* Currently modperl_filter_add_{connection|request} check the filter
+  handler function attrs before accepting the filter. If the module
+  wasn't preloaded the check fails and filter handler is skipped. We
+  could have this issue documented (which is OK, but might raise too
+  many questions), but we could also always preload the filter
+  handlers. To test see TestFilter::input_msg
 
 * we still have a problem with mod_perl starting from a
   vhost. consider the following config:
@@ -102,7 +202,12 @@ Needs Patch or Further Investigation:
 * Quite a few people reported problems with TestHooks during 'make test'
   - http://marc.theaimsgroup.com/?t=102985405500008&r=1&w=2
 
-
+* the issue with crypt_r: in 5.8.0's each perl clone allocates 128K
+  for crypt_data. This fixed in 5.8.1 and 5.9.0 (#19119 (maint) and 
+  #19122 (blead)), however this could be quite a waste for those using
+  5.8.0. perhaps adding a note to performance chapter will do. For
+  more info see the thread:
+  http://archive.develooper.com/perl5-porters@perl.org/msg93846.html
 
 Open Issues or Core Enhancements:
 ---------------------------------
@@ -141,9 +246,7 @@ Open Issues or Core Enhancements:
 ----
 
 * Apache::PerlSections missing features for backwards compatibility:
- - $Apache::Server::SaveConfig
  - $Apache::ReadConfig::DocumentRoot
- - $Apache::Server::StrictPerlSections
  - Apache::PerlSections->store(filename)
 
   Report: Philippe M. Chiasson <gozer@cpan.org>
@@ -160,7 +263,8 @@ Open Issues or Core Enhancements:
 
 * 
   Report: 
-  Status: 
+  Status:
+
 ----
 
 

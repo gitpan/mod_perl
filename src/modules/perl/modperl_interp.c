@@ -63,7 +63,8 @@ modperl_interp_t *modperl_interp_new(modperl_interp_pool_t *mip,
 
         interp->perl = perl_clone(perl, clone_flags);
 
-#if defined(USE_REENTRANT_API) && defined(HAS_CRYPT_R) && defined(__GLIBC__)
+#if PERL_REVISION == 5 && PERL_VERSION == 8 && PERL_SUBVERSION == 0 && \
+    defined(USE_REENTRANT_API) && defined(HAS_CRYPT_R) && defined(__GLIBC__)
         {
             dTHXa(interp->perl);
             /* workaround 5.8.0 bug */
@@ -168,9 +169,11 @@ apr_status_t modperl_interp_pool_destroy(void *data)
 {
     modperl_interp_pool_t *mip = (modperl_interp_pool_t *)data;
 
-    modperl_tipool_destroy(mip->tipool);
-    mip->tipool = NULL;
-
+    if (mip->tipool) {
+        modperl_tipool_destroy(mip->tipool);
+        mip->tipool = NULL;
+    }
+    
     if (MpInterpBASE(mip->parent)) {
         /* multiple mips might share the same parent
          * make sure its only destroyed once
@@ -223,16 +226,18 @@ void modperl_interp_init(server_rec *s, apr_pool_t *p,
     apr_pool_t *server_pool = modperl_server_pool();
     pTHX;
     MP_dSCFG(s);
-
     modperl_interp_pool_t *mip = 
         (modperl_interp_pool_t *)apr_pcalloc(p, sizeof(*mip));
 
-    modperl_tipool_t *tipool = 
-        modperl_tipool_new(p, scfg->interp_pool_cfg,
-                           &interp_pool_func, mip);
-
-    mip->tipool = tipool;
-    mip->server  = s;
+    MP_TRACE_i(MP_FUNC, "modperl_interp_init() server=%s\n",
+               modperl_server_desc(s, p));
+    
+    if (scfg->threaded_mpm) {
+        mip->tipool = modperl_tipool_new(p, scfg->interp_pool_cfg,
+                                         &interp_pool_func, mip);
+    }
+    
+    mip->server = s;
     mip->parent = modperl_interp_new(mip, NULL);
     aTHX = mip->parent->perl = perl;
     
@@ -496,7 +501,7 @@ void modperl_interp_mip_walk(PerlInterpreter *current_perl,
                              modperl_interp_mip_walker_t walker,
                              void *data)
 {
-    modperl_list_t *head = mip->tipool->idle;
+    modperl_list_t *head = mip->tipool ? mip->tipool->idle : NULL;
 
     if (!current_perl) {
         current_perl = PERL_GET_CONTEXT;

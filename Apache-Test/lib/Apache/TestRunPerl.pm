@@ -4,12 +4,20 @@ use strict;
 use warnings FATAL => 'all';
 
 use Apache::TestRun ();
+use Apache::TestConfigParse ();
 
 use File::Spec::Functions qw(catfile);
 
 #subclass of Apache::TestRun that configures mod_perlish things
 use vars qw(@ISA);
 @ISA = qw(Apache::TestRun);
+
+sub pre_configure {
+    my $self = shift;
+
+    # Apache::TestConfigPerl already configures mod_perl.so
+    Apache::TestConfig::autoconfig_skip_module_add('mod_perl.c');
+}
 
 sub configure_modperl {
     my $self = shift;

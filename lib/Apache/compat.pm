@@ -2,6 +2,7 @@ package Apache::compat;
 
 use strict;
 use warnings FATAL => 'all';
+no warnings 'redefine';
 
 #1.xx compat layer
 #some of this will stay as-is
@@ -118,9 +119,26 @@ sub log_error {
 
 sub httpd_conf {
     shift;
-    my $err = (Apache->request || Apache->server)->
-      add_config([split /\n/, join '', @_]);
+    my $obj;
+    eval { $obj = Apache->request };
+    $obj = Apache->server if $@;
+    my $err = $obj->add_config([split /\n/, join '', @_]);
     die $err if $err;
+}
+
+sub push_handlers {
+    shift;
+    Apache->server->push_handlers(@_);
+}
+
+sub set_handlers {
+    shift;
+    Apache->server->set_handlers(@_);
+}
+
+sub get_handlers {
+    shift;
+    Apache->server->get_handlers(@_);
 }
 
 package Apache::Constants;
@@ -147,6 +165,21 @@ sub soft_timeout {}
 sub hard_timeout {}
 sub kill_timeout {}
 sub reset_timeout {}
+
+sub current_callback {
+    return Apache::current_callback();
+}
+
+sub send_http_header {
+    my ($r, $type) = @_;
+
+    # since send_http_header() in mp1 was telling mod_perl not to
+    # parse headers and in mp2 one must call $r->content_type($type) to
+    # perform the same, we make sure that this happens
+    $type = $r->content_type || 'text/html' unless defined $type;
+
+    $r->content_type($type);
+}
 
 #to support $r->server_root_relative
 *server_root_relative = \&Apache::server_root_relative;
@@ -206,6 +239,15 @@ sub err_header_out {
         : scalar($r->table_get_set(scalar($r->err_headers_out), @_));
 }
 
+{
+    my $notes_sub = *Apache::RequestRec::notes{CODE};
+    *Apache::RequestRec::notes = sub {
+        my $r = shift;
+        return wantarray()
+            ?       ($r->table_get_set(scalar($r->$notes_sub), @_))
+            : scalar($r->table_get_set(scalar($r->$notes_sub), @_));
+    }
+}
 
 sub register_cleanup {
     shift->pool->cleanup_register(@_);
@@ -386,17 +428,17 @@ sub open {
     # cannot forward @_ to open() because of its prototype
     if (@_ > 1) {
         my ($mode, $file) = @_;
-        open $self, $mode, $file;
+        CORE::open $self, $mode, $file;
     }
     else {
         my $file = shift;
-        open $self, $file;
+        CORE::open $self, $file;
     }
 }
 
 sub close {
     my($self) = shift;
-    close $self;
+    CORE::close $self;
 }
 
 my $TMPNAM = 'aaaaaa';
@@ -511,6 +553,22 @@ sub Apache::URI::parse {
     APR::URI->parse($r->pool, $uri);
 }
 
+{
+    my $sub = *APR::URI::unparse{CODE};
+    *APR::URI::unparse = sub {
+        my($uri, $flags) = @_;
+
+        if (defined $uri->hostname && !defined $uri->scheme) {
+            # we do this only for back compat, the new APR::URI is
+            # protocol-agnostic and doesn't fallback to 'http' when the
+            # scheme is not provided
+            $uri->scheme('http');
+        }
+
+        $sub->(@_);
+    };
+}
+
 package Apache::Table;
 
 sub new {
@@ -527,6 +585,13 @@ sub handler {
     # don't set the SIGPIPE
     return Apache::DECLINED;
 }
+
+package Apache::Connection;
+
+# auth_type and user records don't exist in 2.0 conn_rec struct
+# 'PerlOptions +GlobalRequest' is required
+sub auth_type { shift; Apache->request->ap_auth_type(@_) }
+sub user      { shift; Apache->request->user(@_)      }
 
 1;
 __END__

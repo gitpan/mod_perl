@@ -45,8 +45,9 @@ it, it B<must> be I<ithreads> and not I<5005threads>! If you have:
   use5005threads='define';
 
 you must rebuild Perl without threads enabled or with
-C<-Dusethreads>. Remember that threads support slows things down, so
-don't enable it unless you really need it.
+C<-Dusethreads>. Remember that threads-support slows things down and
+on some platforms it's unstable (e.g., FreeBSD), so don't enable it
+unless you really need it.
 
 =item threaded MPMs
 
@@ -159,13 +160,21 @@ If you don't have the prerequisites installed yet, install them now.
 =item Perl
 
   % cd perl-5.8.x
+  % ./Configure -des
+
+If you L<need the threads
+support|docs::2.0::user::install::install/Prerequisites>, run:
+
   % ./Configure -des -Dusethreads
-  % make && make test && make install
 
 If you want to debug mod_perl segmentation faults, add the
 following I<./Configure> options:
 
   -Doptimize='-g' -Dusedevel
+
+Now build it:
+
+  % make && make test && make install
 
 
 =item Apache
@@ -224,6 +233,9 @@ The password is "anoncvs".
 
 
 =head2 Configuring mod_perl
+
+Before you proceed make sure that Apache 2.0 has been built and
+installed. mod_perl B<cannot> be built before that.
 
   % cd modperl-2.0
   % perl Makefile.PL MP_AP_PREFIX=$HOME/httpd/prefork \
@@ -294,6 +306,72 @@ Build C<Apache::*.xs> as static extensions.
 
 Link with I<libgtop> and enable I<libgtop> reporting.
 
+=head2 MP_COMPAT_1X
+
+C<MP_COMPAT_1X=1> or a lack of it enables several mod_perl 1.0
+back-compatibility features, which are deprecated in mod_perl
+2.0. It's enabled by default, but can be disabled with
+C<MP_COMPAT_1X=0> during the build process.
+
+When this option is disabled, the following things will happen:
+
+=over
+
+=item *
+
+Environment variable C<GATEWAY_INTERFACE> will be enabled only if
+C<PerlOptions +SetupEnv> is enabled and its value would be the
+default:
+
+  CGI/1.1
+
+and not:
+
+  CGI-Perl/1.1
+
+The use of C<$ENV{GATEWAY_INTERFACE}> is deprecated and the existance
+of C<$ENV{MOD_PERL}> should be checked instead.
+
+=item *
+
+Deprecated special variable, C<$Apache::__T> won't be available. Use
+C<${^TAINT}> instead.
+
+=item *
+
+I<$ServerRoot> and I<$ServerRoot/lib/perl> won't be appended to
+C<@INC>. Instead use:
+
+  PerlSwitches -I/path/to/server -I/path/to/server/lib/perl
+
+in I<httpd.conf> or:
+
+  use Apache::Server ();
+  use Apache::ServerUtil ();
+  use Apache::Process ();
+  my $pool = Apache->server->process->pool;
+  push @INC, Apache::server_root_relative($pool, "");
+  push @INC, Apache::server_root_relative($pool, "lib/perl");
+
+in I<startup.pl>.
+
+=item *
+
+The following deprecated configuration directives won't be recognized
+by Apache:
+
+  PerlSendHeader
+  PerlSetupEnv
+  PerlHandler
+  PerlTaintCheck
+  PerlWarn
+
+Use L<their 2.0
+equivalents|docs::2.0::user::porting::compat/Configuration_Files_Porting>
+instead.
+
+=back
+
 =head4 MP_DEBUG
 
 Turn on debugging (C<-g -lperld>) and tracing.
@@ -356,6 +434,12 @@ or
 
   % t/TEST -httpd /home/stas/httpd/prefork/bin/httpd
 
+=head4 MP_APR_CONFIG
+
+If APR wasn't installed under the same file tree as httpd, you may
+need to tell the build process where it can find the executable
+C<apr-config>, which can then be used to figure out where the apr
+I<include/> and I<lib> directories can be found.
 
 =head4 MP_CCOPTS
 

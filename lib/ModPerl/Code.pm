@@ -13,13 +13,13 @@ our $VERSION = '0.01';
 our @ISA = qw(Apache::Build);
 
 my %handlers = (
-    Process    => [qw(ChildInit)], #ChildExit Restart PreConfig
+    Process    => [qw(ChildInit ChildExit)], #Restart PreConfig
     Files      => [qw(OpenLogs PostConfig)],
-    PerSrv     => [qw(PostReadRequest Trans)], #Init
+    PerSrv     => [qw(PostReadRequest Trans)],
     PerDir     => [qw(HeaderParser
                       Access Authen Authz
-                      Type Fixup Response Log
-                      InputFilter OutputFilter)], #Init Cleanup
+                      Type Fixup Response Log Cleanup
+                      InputFilter OutputFilter)],
     Connection => [qw(ProcessConnection)],
     PreConnection => [qw(PreConnection)],
 );
@@ -27,7 +27,8 @@ my %handlers = (
 my %hooks = map { $_, canon_lc($_) }
     map { @{ $handlers{$_} } } keys %handlers;
 
-my %not_ap_hook = map { $_, 1 } qw(response output_filter input_filter);
+my %not_ap_hook = map { $_, 1 } qw(child_exit response cleanup
+                                   output_filter input_filter);
 
 my %hook_proto = (
     Process    => {
@@ -62,7 +63,7 @@ $hook_proto{PerDir} = $hook_proto{PerSrv};
 my $scfg_get = 'MP_dSCFG(parms->server)';
 
 my $dcfg_get = "$scfg_get;\n" .
-  'modperl_config_dir_t *dcfg = (modperl_config_dir_t *)dummy';
+  '    modperl_config_dir_t *dcfg = (modperl_config_dir_t *)dummy';
 
 my %directive_proto = (
     PerSrv     => {
@@ -104,7 +105,8 @@ my %flags = (
     Srv => ['NONE', @ithread_opts, qw(ENABLE AUTOLOAD MERGE_HANDLERS),
             @hook_flags, 'UNSET'],
     Dir => [qw(NONE PARSE_HEADERS SETUP_ENV MERGE_HANDLERS GLOBAL_REQUEST UNSET)],
-    Req => [qw(NONE SET_GLOBAL_REQUEST SETUP_ENV CLEANUP_REGISTERED)],
+    Req => [qw(NONE SET_GLOBAL_REQUEST PARSE_HEADERS SETUP_ENV 
+               CLEANUP_REGISTERED)],
     Interp => [qw(NONE IN_USE PUTBACK CLONED BASE)],
     Handler => [qw(NONE PARSED METHOD OBJECT ANON AUTOLOAD DYNAMIC)],
 );
@@ -354,6 +356,7 @@ sub generate_flags {
     while (my($class, $opts) = each %{ $self->{flags} }) {
         my $i = 0;
         my @lookup = ();
+        my %lookup = ();
         my $lookup_proto = "";
         my @dumper;
         if ($flags_options{$class}) {
@@ -371,16 +374,14 @@ sub generate_flags {
         print $h_fh "\n#define ${class}Type $n\n";
         $n++;
 
+        my $max_len = 0;
         for my $f (@$opts) {
             my $x = sprintf "0x%08x", $i;
             my $flag = "${class}_f_$f";
             my $cmd  = $class . $f;
             my $name = canon_name($f);
-
-            if (@lookup) {
-                push @lookup, qq(   if (strEQ(str, "$name")) return $flag;);
-            }
-
+            $lookup{$name} = $flag;
+            $max_len = length $name if $max_len < length $name;
             print $h_fh <<EOF;
 
 /* $f */
@@ -397,7 +398,25 @@ EOF
             $i += $i || 1;
         }
         if (@lookup) {
-            print $c_fh join "\n", @lookup, "   return 0;\n}\n";
+            my $indent1 = " " x 4;
+            my $indent2 = " " x 8;
+            my %switch = ();
+            for (keys %lookup) {
+                if (/^(\w)/) {
+                    my $gap = " " x ($max_len - length $_);
+                    push @{ $switch{$1} }, 
+                        qq{if (strEQ(str, "$_"))$gap return $lookup{$_};};
+                }
+            }
+
+            push @lookup, '', $indent1 . "switch (*str) {";
+            for (keys %switch) {
+                push @lookup, $indent1 . "  case '$_':";
+                push @lookup, map { $indent2 . $_ } @{ $switch{$_} };
+            }
+            push @lookup, map { $indent1 . $_ } ("}\n", "return 0;\n}\n\n");
+
+            print $c_fh join "\n", @lookup;
             print $h_fh "$lookup_proto;\n";
         }
 
@@ -494,6 +513,7 @@ sub generate_largefiles {
     return unless $flags;
 
     for my $flag (split /\s+/, $flags) {
+        next if $flag =~ /^-/; # skip -foo flags
         my($name, $val) = split '=', $flag;
         $val ||= '';
         $name =~ s/^-D//;
@@ -569,15 +589,17 @@ my %sources = (
 my @c_src_names = qw(interp tipool log config cmd options callback handler
                      gtop util io filter bucket mgv pcw global env cgi
                      perl perl_global perl_pp sys module svptr_table
-                     const constants);
+                     const constants apache_compat);
+my @h_src_names = qw(perl_unembed);
 my @g_c_names = map { "modperl_$_" } qw(hooks directives flags xsinit);
 my @c_names   = ('mod_perl', (map "modperl_$_", @c_src_names));
 sub c_files { [map { "$_.c" } @c_names, @g_c_names] }
 sub o_files { [map { "$_.o" } @c_names, @g_c_names] }
 sub o_pic_files { [map { "$_.lo" } @c_names, @g_c_names] }
 
-my @g_h_names = map { "modperl_$_" } qw(hooks directives flags trace);
-my @h_names = (@c_names, map { "modperl_$_" }
+my @g_h_names = map { "modperl_$_" } qw(hooks directives flags trace
+                                        largefiles);
+my @h_names = (@c_names, map { "modperl_$_" } @h_src_names,
                qw(types time apache_includes perl_includes));
 sub h_files { [map { "$_.h" } @h_names, @g_h_names] }
 

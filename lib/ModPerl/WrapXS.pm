@@ -19,6 +19,11 @@ our $VERSION = '0.01';
 my(@xs_includes) = ('mod_perl.h',
                     map "modperl_xs_$_.h", qw(sv_convert util typedefs));
 
+my @global_structs = qw(perl_module);
+
+my $build = Apache::Build->build_config;
+push @global_structs, 'MP_debug_level' unless Apache::Build::WIN32;
+
 sub new {
     my $class = shift;
 
@@ -307,9 +312,9 @@ sub write_makefilepl {
 $noedit_warning
 
 use lib qw(../../../lib); #for Apache::BuildConfig
-use ModPerl::MM ();
+use ModPerl::BuildMM ();
 
-ModPerl::MM::WriteMakefile(
+ModPerl::BuildMM::WriteMakefile(
     'NAME'    => '$class',
     'VERSION' => '0.01',
     'depend'  => $deps,
@@ -533,18 +538,24 @@ sub write_typemap {
     my $fh = $self->open_class_file('ModPerl::WrapXS', 'typemap');
     print $fh $self->ModPerl::Code::noedit_warning_hash(), "\n";
 
+    my %entries = ();
+    my $max_key_len = 0;
     while (my($type, $class) = each %$map) {
         $class ||= $type;
         next if $seen{$type}++ || $typemap->special($class);
 
         if ($class =~ /::/) {
-            my $typemap = $typemap{$class} || 'T_PTROBJ';
-            print $fh "$class\t$typemap\n";
+            $entries{$class} = $typemap{$class} || 'T_PTROBJ';
+            $max_key_len = length $class if length $class > $max_key_len;
         }
         else {
-            my $typemap = $typemap{$type} || "T_$class";
-            print $fh "$type\t$typemap\n";
+            $entries{$type} = $typemap{$type} || "T_$class";
+            $max_key_len = length $type if length $type > $max_key_len;
         }
+    }
+
+    for (sort keys %entries) {
+        printf $fh "%-${max_key_len}s %s\n", $_, $entries{$_};
     }
 
     close $fh;
@@ -560,6 +571,253 @@ sub write_typemap_h_file {
     open my $fh, '>', $file or die "open $file: $!";
     print $fh $self->ModPerl::Code::noedit_warning_c(), "\n";
     print $fh $code;
+    close $fh;
+}
+
+sub write_lookup_method_file {
+    my $self = shift;
+
+    my %map = ();
+    while (my($module, $functions) = each %{ $self->{XS} }) {
+        my $last_prefix = "";
+        for my $func (@$functions) {
+            my $class = $func->{class};
+            my $prefix = $func->{prefix};
+            $last_prefix = $prefix if $prefix;
+
+            my $name = $func->{perl_name} || $func->{name};
+            $name =~ s/^DEFINE_//;
+
+            if ($name =~ /^mpxs_/) {
+                #e.g. mpxs_Apache__RequestRec_
+                my $class_prefix = class_c_prefix($class);
+                if ($name =~ /$class_prefix/) {
+                    $prefix = class_mpxs_prefix($class);
+                }
+            }
+            elsif ($name =~ /^ap_sub_req/) {
+                $prefix = 'ap_sub_req_';
+            }
+
+            $name =~ s/^$prefix// if $prefix;
+
+            push @{ $map{$name} }, [$module, $class];
+        }
+    }
+
+    local $Data::Dumper::Terse    = 1;
+    local $Data::Dumper::Sortkeys = 1;
+    $Data::Dumper::Terse    = $Data::Dumper::Terse;    # warn
+    $Data::Dumper::Sortkeys = $Data::Dumper::Sortkeys; # warn
+    my $methods = Dumper(\%map);
+    $methods =~ s/\n$//;
+
+    my $package = "ModPerl::MethodLookup";
+    my $file = catfile "lib", "ModPerl", "MethodLookup.pm";
+    debug "creating $file";
+    open my $fh, ">$file" or die "Can't open $file: $!";
+
+    my $noedit_warning = $self->ModPerl::Code::noedit_warning_hash();
+
+    print $fh <<EOF;
+$noedit_warning
+package $package;
+
+use strict;
+use warnings;
+
+my \$methods = $methods;
+
+EOF
+
+    print $fh <<'EOF';
+
+use base qw(Exporter);
+
+our @EXPORT = qw(print_method print_module print_object);
+
+use constant MODULE => 0;
+use constant OBJECT  => 1;
+
+my $modules;
+my $objects;
+
+sub _get_modules {
+    for my $method (sort keys %$methods) { 
+        for my $item ( @{ $methods->{$method} }) {
+            push @{ $modules->{$item->[MODULE]} }, [$method, $item->[OBJECT]];
+        }
+    }
+}
+
+sub _get_objects {
+    for my $method (sort keys %$methods) { 
+        for my $item ( @{ $methods->{$method} }) {
+            push @{ $objects->{$item->[OBJECT]} }, [$method, $item->[MODULE]];
+        }
+    }
+}
+
+sub preload_all_modules {
+    _get_modules() unless $modules;
+    eval "require $_" for keys %$modules;
+}
+
+sub _print_func {
+    my $func = shift;
+    my @args = @_ ? @_ : @ARGV;
+    no strict 'refs';
+    print( ($func->($_))[0]) for @args;
+}
+
+sub print_module { _print_func('lookup_module', @_) }
+sub print_object { _print_func('lookup_object', @_) }
+
+sub print_method {
+    my @args = @_ ? @_ : @ARGV;
+    while (@args) {
+         my $method = shift @args;
+         my $object = (@args && 
+             (ref($args[0]) || $args[0] =~ /^(Apache|ModPerl|APR)/))
+             ? shift @args
+             : undef;
+         print( (lookup_method($method, $object))[0]);
+    }
+}
+
+sub sep { return '-' x (shift() + 20) . "\n" }
+
+# what modules contain the passed method.
+# an optional object or a reference to it can be passed to help
+# resolve situations where there is more than one module containing
+# the same method.
+sub lookup_method {
+    my ($method, $object) = @_;
+
+    unless (defined $method) {
+        my $hint = "No 'method' argument was passed\n";
+        return ($hint);
+    }
+
+    # strip the package name for the fully qualified method
+    $method =~ s/.+:://;
+
+    unless (exists $methods->{$method}) {
+        my $hint = "Don't know anything about method '$method'\n";
+        return ($hint);
+    }
+
+    my @items = @{ $methods->{$method} };
+    if (@items == 1) {
+        my $module = $items[0]->[MODULE];
+        my $hint = "to use method '$method' add:\n" . "\tuse $module ();\n";
+        return ($hint, $module);
+    }
+    else {
+        if (defined $object) {
+            my $class = ref $object || $object;
+            for my $item (@items) {
+                if ($class eq $item->[OBJECT]) {
+                    my $module = $item->[MODULE];
+                    my $hint = "to use method '$method' add:\n" .
+                        "\tuse $module ();\n";
+                    return ($hint, $module);
+                }
+            }
+        }
+        else {
+            my %modules = map { $_->[MODULE] => 1 } @items;
+            # remove dups if any (e.g. $s->add_input_filter and
+            # $r->add_input_filter are loaded by the same Apache::Filter)
+            my @modules = keys %modules;
+            my $hint;
+            if (@modules == 1) {
+                $hint = "To use method '$method' add:\n\tuse $modules[0] ();\n";
+                return ($hint, $modules[0]);
+            }
+            else {
+                $hint = "There is more than one class with method '$method'\n" .
+                    "try one of:\n" . join '', map {"\tuse $_ ();\n"} @modules;
+                return ($hint, @modules);
+            }
+        }
+    }
+}
+
+# what methods are contained in the passed module name
+sub lookup_module {
+    my ($module) = shift;
+
+    unless (defined $module) {
+        my $hint = "no 'module' argument was passed\n";
+        return ($hint);
+    }
+
+    _get_modules() unless $modules;
+
+    unless (exists $modules->{$module}) {
+        my $hint = "don't know anything about module '$module'\n";
+        return ($hint);
+    }
+
+    my @methods;
+    my $max_len = 6;
+    for ( @{ $modules->{$module} } ) {
+        $max_len = length $_->[0] if length $_->[0] > $max_len;
+        push @methods, $_->[0];
+    }
+
+    my $format = "%-${max_len}s %s\n";
+    my $banner = sprintf($format, "Method", "Invoked on object type");
+    my $hint = join '',
+        ("\nModule '$module' contains the following XS methods:\n\n", 
+         $banner,  sep(length($banner)),
+         map( { sprintf $format, $_->[0], $_->[1]} @{ $modules->{$module} }),
+         sep(length($banner)));
+
+    return ($hint, @methods);
+}
+
+# what methods can be invoked on the passed object (or its reference)
+sub lookup_object {
+    my ($object) = shift;
+
+    unless (defined $object) {
+        my $hint = "no 'object' argument was passed\n";
+        return ($hint);
+    }
+
+    _get_objects() unless $objects;
+
+    # a real object was passed?
+    $object = ref $object || $object;
+
+    unless (exists $objects->{$object}) {
+        my $hint = "don't know anything about objects of type '$object'\n";
+        return ($hint);
+    }
+
+    my @methods;
+    my $max_len = 6;
+    for ( @{ $objects->{$object} } ) {
+        $max_len = length $_->[0] if length $_->[0] > $max_len;
+        push @methods, $_->[0];
+    }
+
+    my $format = "%-${max_len}s %s\n";
+    my $banner = sprintf($format, "Method", "Module");
+    my $hint = join '',
+        ("\nObjects of type '$object' can invoke the following XS methods:\n\n",
+         $banner, sep(length($banner)),
+         map({ sprintf $format, $_->[0], $_->[1]} @{ $objects->{$object} }),
+         sep(length($banner)));
+
+    return ($hint, @methods);
+
+}
+
+1;
+EOF
     close $fh;
 }
 
@@ -580,8 +838,8 @@ sub generate {
 
     $self->get_functions;
     $self->get_structures;
-    $self->write_export_file('exp'); #XXX if $^O eq 'aix'
-    $self->write_export_file('def'); #XXX if $^O eq 'Win32'
+    $self->write_export_file('exp') if Apache::Build::AIX;
+    $self->write_export_file('def') if Apache::Build::WIN32;
 
     while (my($module, $functions) = each %{ $self->{XS} }) {
 #        my($root, $sub) = split '::', $module;
@@ -592,6 +850,8 @@ sub generate {
         $self->write_xs($module, $functions);
         $self->write_pm($module);
     }
+
+    $self->write_lookup_method_file;
 }
 
 #three .sym files are generated:
@@ -701,13 +961,21 @@ sub write_export_file {
     my $header = \&{"export_file_header_$ext"};
     my $format = \&{"export_file_format_$ext"};
 
-    while (my($name, $table) = each %files) {
-        my $handles = $self->open_export_files($name, $ext);
+    while (my($key, $table) = each %files) {
+        my $handles = $self->open_export_files($key, $ext);
 
 	my %seen; #only write header once if this is a single file
         for my $fh (values %$handles) {
             next if $seen{$fh}++;
             print $fh $self->$header();
+        }
+
+        # add the symbols which aren't the function table
+        if ($key eq 'modperl') {
+            my $fh = $handles->{global};
+            for my $name (@global_structs) {
+                print $fh $self->$format($name);
+            }
         }
 
         for my $entry (@$table) {

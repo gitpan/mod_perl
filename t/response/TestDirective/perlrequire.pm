@@ -70,12 +70,13 @@ __END__
 
     # use test system's @INC
     PerlSwitches -I@serverroot@
-    PerlRequire "conf/modperl_startup.pl"
+    PerlRequire "conf/modperl_inc.pl"
+    PerlModule Apache2
 
     PerlSwitches -I@documentroot@/testdirective/vh
     PerlRequire "ApacheTest/PerlRequireTest.pm"
 
-    <Location /TestDirective::perlrequire>
+    <Location /TestDirective__perlrequire>
         SetHandler modperl
         PerlResponseHandler TestDirective::perlrequire
     </Location>

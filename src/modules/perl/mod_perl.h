@@ -3,8 +3,7 @@
 
 #include "modperl_apache_includes.h"
 #include "modperl_perl_includes.h"
-
-#define MP_COMPAT_1X /* backwards compat */
+#include "modperl_apache_compat.h"
 
 #ifdef WIN32
 #define MP_THREADED 1
@@ -75,7 +74,7 @@ int modperl_init_vhost(server_rec *s, apr_pool_t *p,
                        server_rec *base_server);
 void modperl_init(server_rec *s, apr_pool_t *p);
 void modperl_init_globals(server_rec *s, apr_pool_t *pconf);
-int modperl_run(apr_pool_t *p, server_rec *s);
+int modperl_run(void);
 int modperl_is_running(void);
 int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog, 
                       apr_pool_t *ptemp, server_rec *s);
@@ -88,7 +87,7 @@ int modperl_perl_destruct_level(void);
 void xs_init(pTHX);
 
 void modperl_response_init(request_rec *r);
-void modperl_response_finish(request_rec *r);
+apr_status_t modperl_response_finish(request_rec *r);
 int modperl_response_handler(request_rec *r);
 int modperl_response_handler_cgi(request_rec *r);
 

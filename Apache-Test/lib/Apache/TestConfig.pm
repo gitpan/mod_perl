@@ -11,6 +11,12 @@ use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 
 use constant DEFAULT_PORT => 8529;
 
+use constant IS_MOD_PERL_2       =>
+    eval { require mod_perl } && $mod_perl::VERSION >= 1.99;
+
+use constant IS_MOD_PERL_2_BUILD => IS_MOD_PERL_2 &&
+    eval { require Apache::Build } && Apache::Build::IS_MOD_PERL_BUILD();
+
 use Symbol ();
 use File::Copy ();
 use File::Find qw(finddepth);
@@ -73,13 +79,19 @@ sub filter_args {
         push @pass, shift @filter;
     }
 
-    while (my($key, $val) = splice @filter, 0, 2) {
-        if ($key =~ /^-?-?(.+)/ # optinal - or -- prefix
-            && exists $wanted_args->{$1}) {
-            $keep{$1} = $val;
+    while (@filter) {
+        my $key = shift @filter;
+        # optinal - or -- prefix
+        if ($key =~ /^-?-?(.+)/ && exists $wanted_args->{$1}) {
+            if (@filter) {
+                $keep{$1} = shift @filter;
+            }
+            else {
+                die "key $1 requires a matching value";
+            }
         }
         else {
-            push @pass, $key, $val;
+            push @pass, $key;
         }
     }
 
@@ -105,6 +117,10 @@ sub passenv_makestr {
 }
 
 sub server { shift->{server} }
+
+sub modperl_2_inc_fixup {
+    (IS_MOD_PERL_2 && !IS_MOD_PERL_2_BUILD) ? "use Apache2;\n" : '';
+}
 
 sub modperl_build_config {
     eval {
@@ -434,7 +450,19 @@ sub default_group {
     #use only first value if $) contains more than one
     $gid =~ s/^(\d+).*$/$1/;
 
-    $ENV{APACHE_GROUP} || (getgrgid($gid) || "#$gid");
+    my $group = $ENV{APACHE_GROUP} || (getgrgid($gid) || "#$gid");
+
+    if ($group eq 'root') {
+        # similar to default_user, we want to avoid perms problems,
+        # when the server is started with group 'root'. When running
+        # under group root it may fail to create dirs and files,
+        # writable only by user
+        my $user = default_user();
+        my $gid = $user ? (getpwnam($user))[3] : '';
+        $group = (getgrgid($gid) || "#$gid") if $gid;
+    }
+
+    $group;
 }
 
 sub default_user {
@@ -500,6 +528,8 @@ sub default_localhost {
 sub default_servername {
     my $self = shift;
     $localhost ||= $self->default_localhost;
+    die "Can't figure out the default localhost's server name"
+        unless $localhost;
 }
 
 # memoize the selected value (so we make sure that the same port is used
@@ -612,6 +642,14 @@ sub find_apache_module {
             return $file;
         }
     }
+
+    # if the module wasn't found try to lookup in the list of modules
+    # inherited from the system-wide httpd.conf
+    my $name = $module;
+    $name =~ s/\.s[ol]$/.c/;  #mod_info.so => mod_info.c
+    $name =~ s/^lib/mod_/; #libphp4.so => mod_php4.c
+    return $self->{modules}->{$name} if $self->{modules}->{$name};
+
 }
 
 #generate files and directories
@@ -906,8 +944,9 @@ sub parse_vhost {
     #first is when we parse test .pm and .c files
     #second is when we scan *.conf.in
     my $form_postamble = sub {
+        my $indent = shift;
         for my $pair (@_) {
-            $self->postamble(@$pair);
+            $self->postamble("$indent@$pair");
         }
     };
 
@@ -916,13 +955,14 @@ sub parse_vhost {
         join "\n", map { "$indent@$_\n" } @_;
     };
 
+    my $double_indent = $indent ? $indent x 2 : ' ' x 4;
     return {
         port          => $port,
         #used when parsing .pm and .c test modules
-        in_postamble  => sub { $form_postamble->(@in_config) },
-        out_postamble => sub { $form_postamble->(@out_config) },
+        in_postamble  => sub { $form_postamble->($double_indent, @in_config) },
+        out_postamble => sub { $form_postamble->($indent, @out_config) },
         #used when parsing *.conf.in files
-        in_string     => $form_string->($indent x 2, @in_config),
+        in_string     => $form_string->($double_indent, @in_config),
         out_string    => $form_string->($indent, @out_config),
         line          => "$indent<VirtualHost _default_:$port>",
     };
@@ -1580,7 +1620,7 @@ HostnameLookups Off
 </IfModule>
 
 <IfModule mpm_winnt.c>
-    ThreadsPerChild      10
+    ThreadsPerChild      20
     MaxRequestsPerChild  0
 </IfModule>
 

@@ -98,6 +98,7 @@ like all other Perl*Handlers
 would be nice for Perl{Input,Output}FilterHandler to work with the
 modperl {get,set,push}_handlers api just like other Perl*Handlers
 
+
 tie handle interface
 --------------------
 both input/output filters should provide a tiehandle and/or perlio

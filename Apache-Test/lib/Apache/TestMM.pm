@@ -44,14 +44,17 @@ PASSENV = $env
 EOF
 
     return $preamble . <<'EOF';
+TEST_VERBOSE = 0
+TEST_FILES =
+
 test_clean :
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
 	t/TEST -clean
-	
+
 run_tests : test_clean
 	$(PASSENV) \
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
-	t/TEST
+	t/TEST -verbose=$(TEST_VERBOSE) $(TEST_FILES)
 
 test :: pure_all run_tests test_clean
 
@@ -68,31 +71,28 @@ sub generate_script {
     my $file = shift;
 
     unlink $file if -e $file;
-    my $in = Symbol::gensym();
-    my $out = Symbol::gensym();
-    open $in, "$file.PL" or die "Couldn't open $file.PL: $!";
-    open $out, ">$file" or die "Couldn't open $file: $!";
 
-    info "generating script $file";
-
-    print $out "#!$Config{perlpath}\n",
-               "# WARNING: this file is generated, edit $file.PL instead\n";
+    my $body = Apache::TestConfig->modperl_2_inc_fixup;
 
     if (@Apache::TestMM::Argv) {
-        print $out "\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
+        $body .= "\%Apache::TestConfig::Argv = qw(@Apache::TestMM::Argv);\n";
     }
 
-    print $out join '', <$in>;
-
-    close $out or die "close $file: $!";
+    my $in = Symbol::gensym();
+    open $in, "$file.PL" or die "Couldn't open $file.PL: $!";
+    {
+        local $/;
+        $body .= <$in>;
+    }
     close $in;
-    chmod 0555, $file;
+
+    info "generating script $file";
+    Apache::Test::config()->write_perlscript($file, $body);
 }
 
 sub filter_args {
     my($argv, $vars) =
-      Apache::TestConfig::filter_args(\@ARGV,
-                                      \%Apache::TestConfig::Usage);
+        Apache::TestConfig::filter_args(\@ARGV, \%Apache::TestConfig::Usage);
     @ARGV = @$argv;
     @Apache::TestMM::Argv = %$vars;
 }

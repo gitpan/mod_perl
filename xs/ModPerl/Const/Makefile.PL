@@ -1,5 +1,5 @@
 use lib qw(../lib);
-use ModPerl::MM ();
+use ModPerl::BuildMM ();
 
 my $srcdir = '../../../src/modules/perl';
 #link these two into Const.so so constants can be used outside of httpd
@@ -13,7 +13,7 @@ for (@names) {
     $src{$cfile} = "$srcdir/$cfile";
 }
 
-ModPerl::MM::WriteMakefile(
+ModPerl::BuildMM::WriteMakefile(
     NAME => 'ModPerl::Const',
     VERSION_FROM => 'Const.pm',
     OBJECT => "Const.o @obj",
@@ -21,7 +21,12 @@ ModPerl::MM::WriteMakefile(
 );
 
 sub MY::postamble {
-    join '', map {
+    my $self = shift;
+    my $string = $self->ModPerl::BuildMM::MY::postamble;
+
+    $string .= join '', map {
         "$_: $src{$_}\n\t\$(CP) $src{$_} .\n";
     } keys %src;
+
+    return $string;
 }

@@ -158,13 +158,16 @@ struct modperl_mgv_t {
     modperl_mgv_t *next;
 };
 
-typedef struct {
+typedef struct modperl_handler_t modperl_handler_t;
+
+struct modperl_handler_t{
     modperl_mgv_t *mgv_obj;
     modperl_mgv_t *mgv_cv;
-    const char *name; /* orignal name from .conf if any */
+    const char *name; /* original name from .conf if any */
     U8 flags;
     U32 attrs;
-} modperl_handler_t;
+    modperl_handler_t *next;
+};
 
 #define MP_HANDLER_TYPE_CHAR 1
 #define MP_HANDLER_TYPE_SV   2
@@ -192,13 +195,18 @@ typedef struct {
     apr_ssize_t remaining;
     modperl_wbucket_t wbucket;
     apr_bucket *bucket;
-    apr_bucket_brigade *bb;
+    apr_bucket_brigade *bb_in;
+    apr_bucket_brigade *bb_out;
+    ap_input_mode_t input_mode;
+    apr_read_type_e block;
+    apr_off_t readbytes;
     apr_status_t rc;
     modperl_filter_mode_e mode;
     apr_pool_t *pool;
 } modperl_filter_t;
 
 typedef struct {
+    int sent_eos;
     SV *data;
     modperl_handler_t *handler;
     PerlInterpreter *perl;

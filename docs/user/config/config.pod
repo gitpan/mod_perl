@@ -88,6 +88,10 @@ I<startup.pl> for mod_perl 2.0:
   # enable if the mod_perl 1.0 compatibility is needed
   # use Apache::compat ();
   
+  # preload all mp2 modules
+  # use ModPerl::MethodLookup;
+  # ModPerl::MethodLookup::preload_all_modules();
+  
   use ModPerl::Util (); #for CORE::GLOBAL::exit
   
   use Apache::RequestRec ();
@@ -199,8 +203,8 @@ callback function. If you don't need the features provided by the
 I<perl-script> handler, with the C<modperl> handler, you can gain even
 more performance. (This handler isn't available in mod_perl 1.0.)
 
-Unless the C<Perl*Handler> callback running under the C<modperl>
-handler is configured with:
+Unless the C<Perl*Handler> callback, running under the C<modperl>
+handler, is configured with:
 
   PerlOptions +SetupEnv
 
@@ -216,7 +220,7 @@ environment variables are accessible via C<%ENV>:
 
 =item *
 
-C<MOD_PERL> and C<GATEWAY_INTERFACE> (always)
+C<MOD_PERL> (always)
 
 =item *
 
@@ -347,19 +351,27 @@ same name.  This example will create two I<parent> Perl interpreters,
 one for each C<E<lt>VirtualHostE<gt>>, each with its own namespace and
 pointing to a different paths in C<@INC>:
 
-META: is -Mblib portable? (problems with -Mlib on Darwin/5.6.0?)
+META: is -Mlib portable? (problems with -Mlib on Darwin/5.6.0?)
 
   <VirtualHost ...>
       ServerName dev1
       PerlOptions +Parent
-      PerlSwitches -Mblib=/home/dev1/lib/perl
+      PerlSwitches -Mlib=/home/dev1/lib/perl
+      PerlModule Apache2
   </VirtualHost>
 
   <VirtualHost ...>
       ServerName dev2
       PerlOptions +Parent
-      PerlSwitches -Mblib=/home/dev2/lib/perl
+      PerlSwitches -Mlib=/home/dev2/lib/perl
+      PerlModule Apache2
   </VirtualHost>
+
+Remember that C<+Parent> gives you a completely new Perl interpreters
+pool, so all your modifications to C<@INC> and preloading of the
+modules should be done again. Consider using L<PerlOptions
++Clone|/C_Clone_> if you want to inherit from the parent Perl
+interpreter.
 
 Or even for a given location, for something like "dirty" cgi scripts:
 
@@ -766,9 +778,9 @@ It is also possible to configure the scope to be per-handler:
 
   PerlInterpScope handler
 
-With this configuration, an interpreter will be selected before
-C<PerlAccessHandlers> are run, and put back immediately afterwards,
-before Apache moves onto the authentication phase.  If a
+For example if C<PerlAccessHandler> is configured, an interpreter will
+be selected before running the handler, and put back immediately
+afterwards, before Apache moves onto the next phase. If a
 C<PerlFixupHandler> is configured further down the chain, another
 interpreter will be selected and again put back afterwards, before
 C<PerlResponseHandler> is run.
@@ -853,6 +865,7 @@ Handler assignment directives:
   PerlOpenLogsHandler          ITERATE    SRV
   PerlPostConfigHandler        ITERATE    SRV
   PerlChildInitHandler         ITERATE    SRV
+  PerlChildExitHandler         ITERATE    SRV
 
   PerlPreConnectionHandler     ITERATE    SRV
   PerlProcessConnectionHandler ITERATE    SRV
@@ -1032,17 +1045,19 @@ C<Apache::exists_config_define()>, for example:
 
 =head1 Perl Interface to the Apache Configuration Tree
 
-META: any volunteers to write this section? see
-t/response/TestApache/conftree.pm for examples of using the api.
+For now refer to the
+L<Apache::Directive|docs::2.0::api::Apache::Directive> manpage and the
+test I<t/response/TestApache/conftree.pm> in the mod_perl source
+distribution.
 
-L<Apache::Directive|docs::2.0::api::modperl_2.0::Apache::Directive>.
-
-
-
-
+META: need help to write the tutorial section on this with examples.
 
 
+=head1 General Issues
 
+=head2 Is There a Way to Modify C<@INC> on a Per-VirtualHost
+
+You can, using the L<PerlOptions +Parent|/C_Parent_> option.
 
 
 =head1 Maintainers
@@ -1051,10 +1066,6 @@ Maintainer is the person(s) you should contact with updates,
 corrections and patches.
 
 =over
-
-=item *
-
-Doug MacEachern E<lt>dougm (at) covalent.netE<gt>
 
 =item *
 
@@ -1069,6 +1080,10 @@ Stas Bekman E<lt>stas (at) stason.orgE<gt>
 =item *
 
 Doug MacEachern E<lt>dougm (at) covalent.netE<gt>
+
+=item *
+
+Stas Bekman E<lt>stas (at) stason.orgE<gt>
 
 =back
 

@@ -2,7 +2,8 @@ this file contains known missing features from 1.3, these are to be
 implemented unless otherwise noted.  there are more missing features
 listed in deprecated_features.txt
 
-- PerlCleanupHandler
+- anonymous handler (for push_handlers, add_input_filter, etc), see
+  modperl_mgv.c: modperl_mgv_name_from_sv
 
 - PerlModule, PerlRequire, Perl{Set,Add}Var in .htaccess is missing
 
@@ -23,9 +24,6 @@ listed in deprecated_features.txt
 
 - ... others ...
 
-- Apache::__T flag which tells whether we run under -T (in 5.8.0 can check
-  ${^TAINT})
-
 
 core modules:
 ------------
@@ -37,13 +35,18 @@ addon modules:
 
 - mod_perl.pm::import
 
-- Apache::Status
+- Apache::Status (stas: in progress, needs Apache::Peek and a few
+  other fixes)
 
 - Apache::test: tobe a compat stub around new test framework
 
 - Apache::src: tobe a compat stub around new build framework
 
-- Apache::PerlSections: depends on <Perl>
+- Apache::PerlSections: still missing:
+   - $Apache::Server::SaveConfig
+   - $Apache::ReadConfig::DocumentRoot
+   - $Apache::Server::StrictPerlSections
+   - Apache::PerlSections->store(filename)
 
 - Apache::SizeLimit and Apache::Resource
 

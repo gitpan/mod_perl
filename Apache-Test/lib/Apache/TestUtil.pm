@@ -9,15 +9,24 @@ use Exporter ();
 use Carp ();
 use Config;
 use File::Basename qw(dirname);
+use File::Spec::Functions qw(catfile);
+use Symbol ();
 
-use Apache::TestConfig;
+use Apache::Test ();
+use Apache::TestConfig ();
 
-use vars qw($VERSION @ISA @EXPORT %CLEAN);
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %CLEAN);
 
 $VERSION = '0.01';
 @ISA     = qw(Exporter);
-@EXPORT = qw(t_cmp t_debug t_write_file t_open_file t_mkdir t_rmtree
-             t_is_equal);
+
+@EXPORT = qw(t_cmp t_debug t_append_file t_write_file t_open_file
+    t_mkdir t_rmtree t_is_equal
+    t_server_log_error_is_expected t_server_log_warn_is_expected
+    t_client_log_error_is_expected t_client_log_warn_is_expected
+);
+
+@EXPORT_OK = qw(t_write_perl_script t_write_shell_script t_chown);
 
 %CLEAN = ();
 
@@ -43,22 +52,6 @@ sub t_debug {
     print map {"# $_\n"} map {split /\n/} grep {defined} expand(@_);
 }
 
-sub t_write_file {
-    my $file = shift;
-
-    die "must pass a filename" unless defined $file;
-
-    # create the parent dir if it doesn't exist yet
-    makepath(dirname $file);
-
-    my $fh = Symbol::gensym();
-    open $fh, ">$file" or die "can't open $file: $!";
-    t_debug("writing file: $file");
-    print $fh join '', @_ if @_;
-    close $fh;
-    $CLEAN{files}{$file}++;
-}
-
 sub t_open_file {
     my $file = shift;
 
@@ -75,7 +68,40 @@ sub t_open_file {
     return $fh;
 }
 
-sub write_shell_script {
+sub t_write_file {
+    my $file = shift;
+
+    die "must pass a filename" unless defined $file;
+
+    # create the parent dir if it doesn't exist yet
+    makepath(dirname $file);
+
+    my $fh = Symbol::gensym();
+    open $fh, ">$file" or die "can't open $file: $!";
+    t_debug("writing file: $file");
+    print $fh join '', @_ if @_;
+    close $fh;
+    $CLEAN{files}{$file}++;
+}
+
+sub t_append_file {
+    my $file = shift;
+
+    die "must pass a filename" unless defined $file;
+
+    # create the parent dir if it doesn't exist yet
+    makepath(dirname $file);
+
+    # add to the cleanup list only if we created it now
+    $CLEAN{files}{$file}++ unless -e $file;
+
+    my $fh = Symbol::gensym();
+    open $fh, ">>$file" or die "can't open $file: $!";
+    print $fh join '', @_ if @_;
+    close $fh;
+}
+
+sub t_write_shell_script {
     my $file = shift;
 
     my $code = join '', @_;
@@ -96,7 +122,7 @@ sub write_shell_script {
     $ext;
 }
 
-sub write_perl_script {
+sub t_write_perl_script {
     my $file = shift;
 
     my $shebang = "#!$Config{perlpath}\n";
@@ -136,7 +162,7 @@ sub t_rmtree {
 #chown a file or directory to the test User/Group
 #noop if chown is unsupported
 
-sub chown {
+sub t_chown {
     my $file = shift;
     my $config = Apache::Test::config();
     my($uid, $gid);
@@ -242,6 +268,26 @@ sub t_is_equal {
     }
     return 1;
 }
+
+my $banner_format = 
+    "\n*** The following %s entry is expected and it is harmless ***\n";
+sub t_server_log_is_expected { printf STDERR $banner_format, $_[0]; }
+
+sub t_client_log_is_expected {
+    my $vars = Apache::Test::config()->{vars};
+    my $log_file = catfile $vars->{serverroot}, "logs", "error_log";
+
+    my $fh = Symbol::gensym();
+    open $fh, ">>$log_file" or die "Can't open $log_file: $!";
+    my $oldfh = select($fh); $| = 1; select($oldfh);
+    printf $fh $banner_format, $_[0];
+    close $fh;
+}
+
+sub t_server_log_error_is_expected { t_server_log_is_expected("error");}
+sub t_server_log_warn_is_expected  { t_server_log_is_expected("warn"); }
+sub t_client_log_error_is_expected { t_client_log_is_expected("error");}
+sub t_client_log_warn_is_expected  { t_client_log_is_expected("warn"); }
 
 END {
     # remove files that were created via this package
@@ -372,9 +418,26 @@ program's execution.
 
 This function is exported by default.
 
-=item write_shell_script()
+=item t_append_file()
 
-  write_shell_script($filename, @lines);
+  t_append_file($filename, @lines);
+
+t_append_file() is similar to t_write_file(), but it doesn't clobber
+existing files and appends C<@lines> to the end of the file. If the
+file doesn't exist it will create it.
+
+If parent directories of C<$filename> don't exist they will be
+automagically created.
+
+The generated file will be registered to be automatically deleted at
+the end of the program's execution, only if the file was created by
+t_append_file().
+
+This function is exported by default.
+
+=item t_write_shell_script()
+
+  Apache::TestUtil::t_write_shell_script($filename, @lines);
 
 Similar to t_write_file() but creates a portable shell/batch
 script. The created filename is constructed from C<$filename> and an
@@ -383,9 +446,9 @@ the code is running under.
 
 It returns the extension of the created file.
 
-=item write_perl_script()
+=item t_write_perl_script()
 
-  write_perl_script($filename, @lines);
+  Apache::TestUtil::t_write_perl_script($filename, @lines);
 
 Similar to t_write_file() but creates a executable Perl script with
 correctly set shebang line.
@@ -428,9 +491,9 @@ t_rmtree() deletes the whole directories trees passed in I<@dirs>.
 
 This function is exported by default.
 
-=item chown()
+=item t_chown()
 
-  Apache::TestUtil::chown($file);
+  Apache::TestUtil::t_chown($file);
 
 Change ownership of $file to the test's I<User>/I<Group>.  This
 function is noop on platforms where chown(2) is unsupported
@@ -452,6 +515,105 @@ performed. For example:
 
 If comparing non-scalars make sure to pass the references to the
 datastructures.
+
+This function is exported by default.
+
+=item t_server_log_error_is_expected()
+
+If the handler's execution results in an error or a warning logged to
+the I<error_log> file which is expected, it's a good idea to have a
+disclaimer printed before the error itself, so one can tell real
+problems with tests from expected errors. For example when testing how
+the package behaves under error conditions the I<error_log> file might
+be loaded with errors, most of which are expected.
+
+For example if a handler is about to generate a run-time error, this
+function can be used as:
+
+  use Apache::TestUtil;
+  ...
+  sub handler {
+      my $r = shift;
+      ...
+      t_server_log_error_is_expected();
+      die "failed because ...";
+  }
+
+After running this handler the I<error_log> file will include:
+
+  *** The following error entry is expected and it is harmless ***
+  [Tue Apr 01 14:00:21 2003] [error] failed because ...
+
+If the error is generated at compile time, the logging must be done in
+the BEGIN block at the very beginning of the file:
+
+  BEGIN {
+      use Apache::TestUtil;
+      t_server_log_error_is_expected();
+  }
+  use DOES_NOT_exist;
+
+After attempting to run this handler the I<error_log> file will
+include:
+
+  *** The following error entry is expected and it is harmless ***
+  [Tue Apr 01 14:04:49 2003] [error] Can't locate "DOES_NOT_exist.pm"
+  in @INC (@INC contains: ...
+
+Also see C<t_server_log_warn_is_expected()> which is similar but used
+for warnings.
+
+This function is exported by default.
+
+=item t_server_log_warn_is_expected()
+
+C<t_server_log_warn_is_expected()> generates a disclaimer for expected
+warnings.
+
+See the explanation for C<t_server_log_error_is_expected()> for more
+details.
+
+This function is exported by default.
+
+=item t_client_log_error_is_expected()
+
+C<t_client_log_error_is_expected()> generates a disclaimer for
+expected errors. But in contrast to
+C<t_server_log_error_is_expected()> called by the client side of the
+script.
+
+See the explanation for C<t_server_log_error_is_expected()> for more
+details.
+
+For example the following client script fails to find the handler:
+
+  use Apache::Test;
+  use Apache::TestUtil;
+  use Apache::TestRequest qw(GET);
+  
+  plan tests => 1;
+  
+  t_client_log_error_is_expected();
+  my $url = "/error_document/cannot_be_found";
+  my $res = GET($url);
+  ok t_cmp(404, $res->code, "test 404");
+
+After running this test the I<error_log> file will include an entry
+similar to the following snippet:
+
+  *** The following error entry is expected and it is harmless ***
+  [Tue Apr 01 14:02:55 2003] [error] [client 127.0.0.1] 
+  File does not exist: /tmp/test/t/htdocs/error
+
+This function is exported by default.
+
+=item t_client_log_warn_is_expected()
+
+C<t_client_log_warn_is_expected()> generates a disclaimer for expected
+warnings on the client side.
+
+See the explanation for C<t_client_log_error_is_expected()> for more
+details.
 
 This function is exported by default.
 

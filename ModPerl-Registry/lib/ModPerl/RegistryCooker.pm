@@ -55,18 +55,6 @@ use constant DEBUG => 0;
 #        : D_NONE;
 
 #########################################################################
-# object's array index's access constants
-#
-#########################################################################
-use constant REQ       => 0;
-use constant FILENAME  => 1;
-use constant URI       => 2;
-use constant MTIME     => 3;
-use constant PACKAGE   => 4;
-use constant CODE      => 5;
-use constant STATUS    => 6;
-
-#########################################################################
 # OS specific constants
 #
 #########################################################################
@@ -101,7 +89,7 @@ unless (defined $ModPerl::RegistryCooker::NameWithVirtualHost) {
 
 sub new {
     my($class, $r) = @_;
-    my $self = bless [], $class;
+    my $self = bless {}, $class;
     $self->init($r);
     return $self;
 }
@@ -115,9 +103,9 @@ sub new {
 #########################################################################
 
 sub init {
-    $_[0]->[REQ]      = $_[1];
-    $_[0]->[URI]      = $_[1]->uri;
-    $_[0]->[FILENAME] = $_[1]->filename;
+    $_[0]->{REQ}      = $_[1];
+    $_[0]->{URI}      = $_[1]->uri;
+    $_[0]->{FILENAME} = $_[1]->filename;
 }
 
 #########################################################################
@@ -160,12 +148,14 @@ sub default_handler {
         return $rc unless $rc == Apache::OK;
     }
 
-    # handlers shouldn't set $r->status but return it
-    my $old_status = $self->[REQ]->status;
+    # handlers shouldn't set $r->status but return it, so we reset the
+    # status after running it
+    my $old_status = $self->{REQ}->status;
     my $rc = $self->run;
-    $self->[REQ]->status($old_status);
-
-    return ($rc != Apache::OK) ? $rc : $self->[STATUS];
+    my $new_status = $self->{REQ}->status($old_status);
+    return ($rc == Apache::OK && $old_status != $new_status)
+        ? $new_status
+        : $rc;
 }
 
 #########################################################################
@@ -179,37 +169,35 @@ sub default_handler {
 sub run {
     my $self = shift;
 
-    my $r       = $self->[REQ];
-    my $package = $self->[PACKAGE];
+    my $r       = $self->{REQ};
+    my $package = $self->{PACKAGE};
 
     $self->set_script_name;
     $self->chdir_file;
 
-    my $rc = Apache::OK;
     my $cv = \&{"$package\::handler"};
 
     my %orig_inc = %INC;
 
     { # run the code and preserve warnings setup when it's done
         no warnings;
-        eval { $rc = $cv->($r, @_) };
-        $self->[STATUS] = $rc;
+        eval { $cv->($r, @_) };
         ModPerl::Global::special_list_call(END => $package);
     }
 
     # %INC cleanup in case .pl files do not declare package ...;
     for (keys %INC) {
-	next if $orig_inc{$_};
-	next if /\.pm$/;
-	delete $INC{$_};
+        next if $orig_inc{$_};
+        next if /\.pm$/;
+        delete $INC{$_};
     }
 
     $self->flush_namespace;
 
     #XXX: $self->chdir_file("$Apache::Server::CWD/");
 
-    if ( ($rc = $self->error_check) != Apache::OK) {
-        return $rc;
+    if ( (my $err_rc = $self->error_check) != Apache::OK) {
+        return $err_rc;
     }
 
     return Apache::OK;
@@ -228,30 +216,30 @@ sub run {
 
 sub can_compile {
     my $self = shift;
-    my $r = $self->[REQ];
+    my $r = $self->{REQ};
 
     unless (-r $r->my_finfo && -s _) {
-        $self->log_error("$self->[FILENAME] not found or unable to stat");
-	return Apache::NOT_FOUND;
+        $self->log_error("$self->{FILENAME} not found or unable to stat");
+        return Apache::NOT_FOUND;
     }
 
     return Apache::DECLINED if -d _;
 
-    $self->[MTIME] = -M _;
+    $self->{MTIME} = -M _;
 
     unless (-x _ or IS_WIN32) {
         $r->log_error("file permissions deny server execution",
-                       $self->[FILENAME]);
+                       $self->{FILENAME});
         return Apache::FORBIDDEN;
     }
 
     if (!($r->allow_options & Apache::OPT_EXECCGI)) {
         $r->log_error("Options ExecCGI is off in this directory",
-                       $self->[FILENAME]);
+                       $self->{FILENAME});
         return Apache::FORBIDDEN;
     }
 
-    $self->debug("can compile $self->[FILENAME]") if DEBUG & D_NOISE;
+    $self->debug("can compile $self->{FILENAME}") if DEBUG & D_NOISE;
 
     return Apache::OK;
 
@@ -292,7 +280,7 @@ sub make_namespace {
     # prepend root
     $package = $self->namespace_root() . "::$package";
 
-    $self->[PACKAGE] = $package;
+    $self->{PACKAGE} = $package;
 
     return $package;
 }
@@ -312,7 +300,7 @@ sub namespace_from_filename {
     my $self = shift;
 
     my ($volume, $dirs, $file) = 
-        File::Spec::Functions::splitpath($self->[FILENAME]);
+        File::Spec::Functions::splitpath($self->{FILENAME});
     my @dirs = File::Spec::Functions::splitdir($dirs);
     return join '_', grep { defined && length } $volume, @dirs, $file;
 }
@@ -321,14 +309,14 @@ sub namespace_from_filename {
 sub namespace_from_uri {
     my $self = shift;
 
-    my $path_info = $self->[REQ]->path_info;
-    my $script_name = $path_info && $self->[URI] =~ /$path_info$/ ?
-	substr($self->[URI], 0, length($self->[URI]) - length($path_info)) :
-	$self->[URI];
+    my $path_info = $self->{REQ}->path_info;
+    my $script_name = $path_info && $self->{URI} =~ /$path_info$/
+        ? substr($self->{URI}, 0, length($self->{URI}) - length($path_info))
+        : $self->{URI};
 
     if ($ModPerl::RegistryCooker::NameWithVirtualHost && 
-        $self->[REQ]->server->is_virtual) {
-        my $name = $self->[REQ]->get_server_name;
+        $self->{REQ}->server->is_virtual) {
+        my $name = $self->{REQ}->get_server_name;
         $script_name = join "", $name, $script_name if $name;
     }
 
@@ -348,7 +336,7 @@ sub namespace_from_uri {
 sub convert_script_to_compiled_handler {
     my $self = shift;
 
-    $self->debug("Adding package $self->[PACKAGE]") if DEBUG & D_NOISE;
+    $self->debug("Adding package $self->{PACKAGE}") if DEBUG & D_NOISE;
 
     # get the script's source
     $self->read_script;
@@ -360,8 +348,8 @@ sub convert_script_to_compiled_handler {
     # relative require/open will work.
     $self->chdir_file;
 
-#    undef &{"$self->[PACKAGE]\::handler"}; unless DEBUG & D_NOISE; #avoid warnings
-#    $self->[PACKAGE]->can('undef_functions') && $self->[PACKAGE]->undef_functions;
+#    undef &{"$self->{PACKAGE}\::handler"}; unless DEBUG & D_NOISE; #avoid warnings
+#    $self->{PACKAGE}->can('undef_functions') && $self->{PACKAGE}->undef_functions;
 
     my $line = $self->get_mark_line;
 
@@ -369,20 +357,20 @@ sub convert_script_to_compiled_handler {
 
     my $eval = join '',
                     'package ',
-                    $self->[PACKAGE], ";",
+                    $self->{PACKAGE}, ";",
                     "sub handler {\n",
                     $line,
-                    ${ $self->[CODE] },
+                    ${ $self->{CODE} },
                     "\n}"; # last line comment without newline?
 
     my $rc = $self->compile(\$eval);
     return $rc unless $rc == Apache::OK;
-    $self->debug(qq{compiled package \"$self->[PACKAGE]\"}) if DEBUG & D_NOISE;
+    $self->debug(qq{compiled package \"$self->{PACKAGE}\"}) if DEBUG & D_NOISE;
 
     #$self->chdir_file("$Apache::Server::CWD/");
 
 #    if(my $opt = $r->dir_config("PerlRunOnce")) {
-#	$r->child_terminate if lc($opt) eq "on";
+#        $r->child_terminate if lc($opt) eq "on";
 #    }
 
     $self->cache_it;
@@ -422,7 +410,7 @@ sub cache_table_local {
 
 sub cache_it {
     my $self = shift;
-    $self->cache_table->{ $self->[PACKAGE] }{mtime} = $self->[MTIME];
+    $self->cache_table->{ $self->{PACKAGE} }{mtime} = $self->{MTIME};
 }
 
 
@@ -437,7 +425,7 @@ sub cache_it {
 
 sub is_cached {
     my $self = shift;
-    exists $self->cache_table->{ $self->[PACKAGE] }{mtime};
+    exists $self->cache_table->{ $self->{PACKAGE} }{mtime};
 }
 
 
@@ -457,9 +445,9 @@ sub is_cached {
 # wasn't modified
 sub should_compile_if_modified {
     my $self = shift;
-    $self->[MTIME] ||= -M $self->[REQ]->my_finfo;
+    $self->{MTIME} ||= -M $self->{REQ}->my_finfo;
     !($self->is_cached && 
-      $self->cache_table->{ $self->[PACKAGE] }{mtime} <= $self->[MTIME]);
+      $self->cache_table->{ $self->{PACKAGE} }{mtime} <= $self->{MTIME});
 }
 
 # return false if the package is cached already
@@ -483,10 +471,10 @@ sub flush_namespace_normal {
     $self->debug("flushing namespace") if DEBUG & D_NOISE;
 
     no strict 'refs';
-    my $tab = \%{ $self->[PACKAGE] . '::' };
+    my $tab = \%{ $self->{PACKAGE} . '::' };
 
     for (keys %$tab) {
-        my $fullname = join '::', $self->[PACKAGE], $_;
+        my $fullname = join '::', $self->{PACKAGE}, $_;
         # code/hash/array/scalar might be imported make sure the gv
         # does not point elsewhere before undefing each
         if (%$fullname) {
@@ -511,8 +499,8 @@ sub flush_namespace_normal {
             else {
                 *{$fullname} = sub {};
             }
-	    undef &$fullname;
-	}
+            undef &$fullname;
+        }
         if (*{$fullname}{IO}) {
             if (fileno $fullname) {
                 close $fullname;
@@ -535,8 +523,8 @@ sub flush_namespace_normal {
 sub read_script {
     my $self = shift;
 
-    $self->debug("reading $self->[FILENAME]") if DEBUG & D_NOISE;
-    $self->[CODE] = $self->[REQ]->my_slurp_filename;
+    $self->debug("reading $self->{FILENAME}") if DEBUG & D_NOISE;
+    $self->{CODE} = $self->{REQ}->my_slurp_filename;
 }
 
 #########################################################################
@@ -551,10 +539,9 @@ sub read_script {
 
 my %switches = (
    'T' => sub {
-# XXX: need to have $Apache::__T set by the core on PerlSwitches -T
-#       Apache::warn("T switch is ignored, ",
-#                    "enable with 'PerlSwitches -T' in httpd.conf\n")
-#             unless $Apache::__T; 
+       Apache::warn("-T switch is ignored, " .
+                    "enable with 'PerlSwitches -T' in httpd.conf\n")
+             unless ${^TAINT};
        "";
    },
    'w' => sub { "use warnings;\n" },
@@ -562,21 +549,21 @@ my %switches = (
 
 sub rewrite_shebang {
     my $self = shift;
-    my($line) = ${ $self->[CODE] } =~ /^(.*)$/m;
+    my($line) = ${ $self->{CODE} } =~ /^(.*)$/m;
     my @cmdline = split /\s+/, $line;
     return unless @cmdline;
     return unless shift(@cmdline) =~ /^\#!/;
 
     my $prepend = "";
     for my $s (@cmdline) {
-	next unless $s =~ s/^-//;
-	last if substr($s,0,1) eq "-";
-	for (split //, $s) {
-	    next unless exists $switches{$_};
-	    $prepend .= &{$switches{$_}};
-	}
+        next unless $s =~ s/^-//;
+        last if substr($s,0,1) eq "-";
+        for (split //, $s) {
+            next unless exists $switches{$_};
+            $prepend .= $switches{$_}->();
+        }
     }
-    ${ $self->[CODE] } =~ s/^/$prepend/ if $prepend;
+    ${ $self->{CODE} } =~ s/^/$prepend/ if $prepend;
 }
 
 #########################################################################
@@ -588,7 +575,7 @@ sub rewrite_shebang {
 #########################################################################
 
 sub set_script_name {
-    *0 = \(shift->[FILENAME]);
+    *0 = \(shift->{FILENAME});
 }
 
 #########################################################################
@@ -604,7 +591,7 @@ sub set_script_name {
 
 sub chdir_file_normal {
     my($self, $dir) = @_;
-    # $self->[REQ]->chdir_file($dir ? $dir : $self->[FILENAME]);
+    # $self->{REQ}->chdir_file($dir ? $dir : $self->{FILENAME});
 }
 
 #########################################################################
@@ -617,19 +604,19 @@ sub chdir_file_normal {
 
 sub get_mark_line {
     my $self = shift;
-    $ModPerl::Registry::MarkLine ? "\n#line 1 $self->[FILENAME]\n" : "";
+    $ModPerl::Registry::MarkLine ? "\n#line 1 $self->{FILENAME}\n" : "";
 }
 
 #########################################################################
 # func: strip_end_data_segment
 # dflt: strip_end_data_segment
-# desc: remove the trailing non-code from $self->[CODE]
+# desc: remove the trailing non-code from $self->{CODE}
 # args: $self - registry blessed object
 # rtrn: nothing
 #########################################################################
 
 sub strip_end_data_segment {
-    ${ +shift->[CODE] } =~ s/__(END|DATA)__(.*)//s;
+    ${ +shift->{CODE} } =~ s/__(END|DATA)__(.*)//s;
 }
 
 
@@ -641,16 +628,16 @@ sub strip_end_data_segment {
 # args: $self - registry blessed object
 #       $eval - a ref to a scalar with the code to compile
 # rtrn: success/failure
+# note: $r must not be in scope of compile(), scripts must do
+#       my $r = shift; to get it off the args stack
 #########################################################################
 
 sub compile {
     my($self, $eval) = @_;
 
-    my $r = $self->[REQ];
+    $self->debug("compiling $self->{FILENAME}") if DEBUG && D_COMPILE;
 
-    $self->debug("compiling $self->[FILENAME]") if DEBUG && D_COMPILE;
-
-    ModPerl::Global::special_list_clear(END => $self->[PACKAGE]);
+    ModPerl::Global::special_list_clear(END => $self->{PACKAGE});
 
     ModPerl::Util::untaint($$eval);
     {
@@ -674,8 +661,8 @@ sub compile {
 sub error_check {
     my $self = shift;
     if ($@ and substr($@,0,4) ne " at ") {
-	$self->log_error($@);
-	return Apache::SERVER_ERROR;
+        $self->log_error($@);
+        return Apache::SERVER_ERROR;
     }
     return Apache::OK;
 }
@@ -709,16 +696,16 @@ sub install_aliases {
 sub debug {
     my $self = shift;
     my $class = ref $self;
-    $self->[REQ]->log_error("$$: $class: " . join '', @_);
+    $self->{REQ}->log_error("$$: $class: " . join '', @_);
 }
 
 sub log_error {
     my($self, $msg) = @_;
     my $class = ref $self;
 
-    $self->[REQ]->log_error("$$: $class: $msg");
-    $self->[REQ]->notes->set('error-notes' => $msg);
-    $@{$self->[URI]} = $msg;
+    $self->{REQ}->log_error("$$: $class: $msg");
+    $self->{REQ}->notes->set('error-notes' => $msg);
+    $@{$self->{URI}} = $msg;
 }
 
 #########################################################################
@@ -780,17 +767,3 @@ sub Apache::RequestRec::my_slurp_filename {
 
 1;
 __END__
-
-=head1 NAME
-
-ModPerl::RegistryCooker - A Base Class of all mod_perl Registry Modules
-
-=head1 SYNOPSIS
-
-
-=head1 DESCRIPTION
-
-
-
-=cut
-

@@ -17,8 +17,6 @@ use Apache::Log ();
 use Apache::Const -compile => ':common';
 use APR::Const -compile => ':common';
 
-eval { require TestFilter::input_msg };
-
 use APR::Table ();
 
 unless ($ENV{MOD_PERL}) {
@@ -46,6 +44,21 @@ Apache::Server->log->info("$apr_mods APR:: modules loaded");
     }
     $server->log->info("base server + $vhosts vhosts ready to run tests");
 }
+
+# testing $s->add_config()
+my $conf = <<'EOC';
+# must use PerlModule here to check for segfaults
+PerlModule Apache::TestHandler
+<Location /apache/add_config>
+  SetHandler perl-script
+  PerlResponseHandler Apache::TestHandler::ok1
+</Location>
+EOC
+Apache->server->add_config([split /\n/, $conf]);
+
+# test a directive that triggers an early startup, so we get an
+# attempt to use perl's mip  early
+Apache->server->add_config(['<Perl >', '1;', '</Perl>']);
 
 use constant IOBUFSIZE => 8192;
 
@@ -76,6 +89,12 @@ sub ModPerl::Test::add_config {
     die $errmsg if $errmsg;
 
     Apache::OK;
+}
+
+sub ModPerl::Test::exit_handler {
+    my($p, $s) = @_;
+
+    $s->log->info("Child process pid=$$ is exiting");
 }
 
 END {

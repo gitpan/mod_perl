@@ -5,6 +5,7 @@ use warnings FATAL => 'all';
 
 use Apache::Test;
 use Apache::TestUtil;
+use Apache::TestRequest;
 
 use Apache::RequestRec ();
 use Apache::RequestUtil ();
@@ -19,7 +20,7 @@ use Apache::Const -compile => 'OK';
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 41;
+    plan $r, tests => 42;
 
     #Apache->request($r); #PerlOptions +GlobalRequest takes care
     my $gr = Apache->request;
@@ -97,6 +98,8 @@ sub handler {
 
     #user
 
+    ok $r->ap_auth_type || 1;
+
     ok $r->no_cache || 1;
 
     {
@@ -115,9 +118,8 @@ sub handler {
 
     ok $r->filename;
 
-    ok t_cmp('/' . __PACKAGE__,
-             $r->location,
-             "location");
+    my $location = '/' . Apache::TestRequest::module2path(__PACKAGE__);
+    ok t_cmp($location, $r->location, "location");
 
     my $mtime = (stat __FILE__)[9];
     $r->mtime($mtime);

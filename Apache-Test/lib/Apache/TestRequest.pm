@@ -8,7 +8,9 @@ BEGIN { $ENV{PERL_LWP_USE_HTTP_10} = 1; } #default to http/1.0
 use Apache::Test ();
 use Apache::TestConfig ();
 
-use constant TRY_TIMES => 50;
+use Carp;
+
+use constant TRY_TIMES => 200;
 use constant INTERP_KEY => 'X-PerlInterpreter';
 use constant UA_TIMEOUT => 60 * 10; #longer timeout for debugging
 
@@ -68,6 +70,17 @@ sub scheme {
     $Apache::TestRequest::Scheme;
 }
 
+sub module2path {
+    my $package = shift;
+
+    # httpd (1.3 && 2) / winFU have problems when the first path's
+    # segment includes ':' (security precaution which breaks the rfc)
+    # so we can't use /TestFoo::bar as path_info
+    (my $path = $package) =~ s/::/__/g;
+
+    return $path;
+}
+
 sub user_agent {
     my $args = {@_};
 
@@ -91,7 +104,7 @@ sub user_agent {
 sub user_agent_request_num {
     my $res = shift;
     $res->header('Client-Request-Num') ||  #lwp 5.60
-      $res->header('Client-Response-Num'); #lwp 5.62+
+        $res->header('Client-Response-Num'); #lwp 5.62+
 }
 
 sub user_agent_keepalive {
@@ -121,6 +134,8 @@ sub hostport {
 
 sub resolve_url {
     my $url = shift;
+    Carp::croak("no url passed") unless defined $url;
+
     return $url if $url =~ m,^(\w+):/,;
     $url = "/$url" unless $url =~ m,^/,;
 
@@ -186,6 +201,9 @@ sub vhost_socket {
     local $Apache::TestRequest::Module = $module if $module;
 
     my $hostport = hostport(Apache::Test::config());
+    die "can't find hostport for '$module',\n",
+        "make sure that vhost_socket() was passed a valid module name"
+            unless defined $hostport;
     my($host, $port) = split ':', $hostport;
     my(%args) = (PeerAddr => $host, PeerPort => $port);
 
@@ -283,6 +301,10 @@ sub UPLOAD {
 
 sub UPLOAD_BODY {
     UPLOAD(@_)->content;
+}
+
+sub UPLOAD_BODY_ASSERT {
+    content_assert(UPLOAD(@_));
 }
 
 #lwp only supports files
@@ -414,7 +436,9 @@ my %shortcuts = (RC   => sub { shift->code },
                  OK   => sub { shift->is_success },
                  STR  => sub { shift->as_string },
                  HEAD => sub { lwp_as_string(shift, 0) },
-                 BODY => sub { shift->content });
+                 BODY => sub { shift->content },
+                 BODY_ASSERT => sub { content_assert(shift) },
+);
 
 for my $name (@EXPORT) {
     my $package = $have_lwp ?
@@ -441,7 +465,7 @@ for my $method (@export_std) {
     push @EXPORT, map { join '_', $method, $_ } keys %shortcuts;
 }
 
-push @EXPORT, qw(UPLOAD_BODY);
+push @EXPORT, qw(UPLOAD_BODY UPLOAD_BODY_ASSERT);
 
 sub to_string {
     my $obj = shift;
@@ -565,6 +589,20 @@ sub scheme_fixup {
     my $fixup = $scheme_fixups{$scheme};
     return unless $fixup;
     $fixup->();
+}
+
+# when the client side simply prints the response body which should
+# include the test's output, we need to make sure that the request
+# hasn't failed, or the test will be skipped instead of indicating the
+# error.
+sub content_assert {
+    my $res = shift;
+
+    return $res->content if $res->is_success;
+
+    die join "\n", 
+        "request has failed (the response code was: " . $res->code . ")",
+        "see t/logs/error_log for more details\n";
 }
 
 1;

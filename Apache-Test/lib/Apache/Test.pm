@@ -12,9 +12,10 @@ use vars qw(@ISA @EXPORT $VERSION %SubTests @SkipReasons);
 
 @ISA = qw(Exporter);
 @EXPORT = qw(ok skip sok plan have have_lwp have_http11
-             have_cgi have_access have_auth have_module
-             have_apache have_perl);
-$VERSION = '0.01';
+             have_cgi have_access have_auth have_module have_apache
+             have_min_apache_version have_apache_version have_perl 
+             have_threads under_construction);
+$VERSION = '1.0';
 
 %SubTests = ();
 @SkipReasons = ();
@@ -58,9 +59,12 @@ sub test_pm_refresh {
 sub init_test_pm {
     my $r = shift;
 
+    # needed to load Apache::RequestRec::TIEHANDLE
+    eval {require Apache::RequestIO};
     if (defined &Apache::RequestRec::TIEHANDLE) {
         untie *STDOUT;
         tie *STDOUT, $r;
+        require Apache::RequestRec; # $r->pool
         require APR::Pool;
         $r->pool->cleanup_register(sub { untie *STDOUT });
     }
@@ -145,14 +149,11 @@ sub have {
     my $have_all = 1;
     for my $cond (@_) {
         if (ref $cond eq 'HASH') {
-            while (my($reason, $code) = each %$cond) {
-                if (ref $code eq 'CODE' && $code->()) {
-                    next;
-                }
-                else {
-                    push @SkipReasons, $reason;
-                    $have_all = 0;
-                }
+            while (my($reason, $value) = each %$cond) {
+                $value = $value->() if ref $value eq 'CODE';
+                next if $value;
+                push @SkipReasons, $reason;
+                $have_all = 0;
             }
         }
         else {
@@ -224,6 +225,38 @@ sub have_apache {
     }
 }
 
+sub have_min_apache_version {
+    my $wanted = shift;
+    my $cfg = Apache::Test::config();
+    (my $current) = $cfg->{server}->{version} =~ m:^Apache/(\d\.\d+\.\d+):;
+
+    if ($current lt $wanted) {
+        push @SkipReasons,
+          "apache version $wanted or higher is required," .
+          " this is version $current";
+        return 0;
+    }
+    else {
+        return 1;
+    }
+}
+
+sub have_apache_version {
+    my $wanted = shift;
+    my $cfg = Apache::Test::config();
+    (my $current) = $cfg->{server}->{version} =~ m:^Apache/(\d\.\d+\.\d+):;
+
+    if ($current ne $wanted) {
+        push @SkipReasons,
+          "apache version $wanted or higher is required," .
+          " this is version $current";
+        return 0;
+    }
+    else {
+        return 1;
+    }
+}
+
 sub config_enabled {
     my $key = shift;
     defined $Config{$key} and $Config{$key} eq 'define';
@@ -260,6 +293,32 @@ sub have_perl {
       "Perl was not built with $config enabled" :
         "$thing is not available with this version of Perl";
 
+    return 0;
+}
+
+sub have_threads {
+    my $status = 1;
+
+    # check APR support
+    my $build_config = Apache::TestConfig->modperl_build_config;
+    my $apr_config = $build_config->get_apr_config();
+    unless ($apr_config->{HAS_THREADS}) {
+        $status = 0;
+        push @SkipReasons, "Apache/APR was built without threads support";
+    }
+
+    # check Perl's useithreads
+    my $key = 'useithreads';
+    unless (exists $Config{$key} and config_enabled($key)) {
+        $status = 0;
+        push @SkipReasons, "Perl was not built with 'ithreads' enabled";
+    }
+
+    return $status;
+}
+
+sub under_construction {
+    push @SkipReasons, "This test is under construction";
     return 0;
 }
 
@@ -429,11 +488,33 @@ Requires mod_cgi or mod_cgid to be installed.
 
   plan tests => 5, have_apache 2;
 
-Requires httpd-2.x (apache-2.x).
+Requires Apache 2nd generation httpd-2.x.xx
 
   plan tests => 5, have_apache 1;
 
-Requires apache-1.3.x.
+Requires Apache 1st generation (apache-1.3.xx)
+
+See also C<have_min_apache_version()>.
+
+=item have_min_apache_version
+
+Used to require a minimum version of Apache.
+
+For example:
+
+  plan tests => 5, have_min_apache_version("2.0.40");
+
+requires Apache 2.0.40 or higher.
+
+=item have_apache_version
+
+Used to require a specific version of Apache.
+
+For example:
+
+  plan tests => 5, have_apache_version("2.0.40");
+
+requires Apache 2.0.40.
 
 =item have_perl
 
@@ -483,30 +564,30 @@ lookup, turning it into I<'mod_cgi.c'>.
 
   plan tests => 5,
       have 'LWP',
-           { "perl >= 5.7.3 is required" => sub { $] >= 5.007003   } },
-           { "not Win32"                 => sub { $^O eq 'MSWin32' } },
+           { "perl >= 5.8.0 is required" => ($] >= 5.008)          },
+           { "not Win32"                 => sub { $^O eq 'MSWin32' },
+             "foo is disabled"           => \&is_foo_enabled,
+           },
            'cgid';
 
 have() is more generic function which can impose multiple requirements
 at once. All requirements must be satisfied.
 
 have()'s argument is a list of things to test. The list can include
-scalars, which are passed to have_module(), and hash references. The
-hash references have a condition code reference as a value and a
-reason for failure as a key. The condition code is run and if it fails
-the provided reason is used to tell user why the test was skipped.
+scalars, which are passed to have_module(), and hash references. If
+hash references are used, the keys, are strings, containing a reason
+for a failure to satisfy this particular entry, the valuees are the
+condition, which are satisfaction if they return true. If the value is
+a scalar it's used as is. If the value is a code reference, it gets
+executed at the time of check and its return value is used to check
+the condition. If the condition check fails, the provided (in a key)
+reason is used to tell user why the test was skipped.
 
 In the presented example, we require the presense of the C<LWP> Perl
 module, C<mod_cgid>, that we run under perl E<gt>= 5.7.3 on Win32.
 
 It's possible to put more than one requirement into a single hash
-reference, but be careful that the keys will be different:
-
-      have 'LWP',
-           { "perl >= 5.7.3 is required" => sub { $] >= 5.007003   },
-             "not Win32"                 => sub { $^O eq 'MSWin32' },
-           },
-           'cgid';
+reference, but be careful that the keys will be different.
 
 Also see plan().
 

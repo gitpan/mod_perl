@@ -6,9 +6,11 @@ use warnings;
 
 use lib qw(Apache-Test/lib);
 
+use constant IS_MOD_PERL_BUILD => grep { -e "$_/lib/mod_perl.pm" } qw(. ..);
+
 use Config;
 use Cwd ();
-use File::Spec ();
+use File::Spec::Functions qw(catfile);
 use File::Basename;
 use ExtUtils::Embed ();
 use ModPerl::Code ();
@@ -20,11 +22,12 @@ use constant REQUIRE_ITHREADS => grep { $^O eq $_ } qw(MSWin32);
 use constant HAS_ITHREADS =>
     $Config{useithreads} && ($Config{useithreads} eq 'define');
 
+use constant AIX    => $^O eq 'aix';
 use constant DARWIN => $^O eq 'darwin';
-use constant WIN32 => $^O eq 'MSWin32';
-use constant MSVC  => WIN32() && ($Config{cc} eq 'cl');
+use constant HPUX   => $^O eq 'hpux';
+use constant WIN32  => $^O eq 'MSWin32';
 
-use constant IS_MOD_PERL_BUILD => grep { -e "$_/lib/mod_perl.pm" } qw(. ..);
+use constant MSVC => WIN32() && ($Config{cc} eq 'cl');
 
 our $VERSION = '0.01';
 our $AUTOLOAD;
@@ -89,7 +92,7 @@ sub apxs {
 
     my $query_key;
     if ($is_query) {
-        $query_key = 'APXS_' . $_[1];
+        $query_key = 'APXS_' . uc $_[1];
         if ($self->{$query_key}) {
             return $self->{$query_key};
         }
@@ -104,6 +107,7 @@ sub apxs {
         #if we are building mod_perl via apxs, apxs should already be known
         #these extra tries are for things built outside of mod_perl
         #e.g. libapreq
+        # XXX: this may pick a wrong apxs version!
         push @trys,
         Apache::TestConfig::which('apxs'),
         '/usr/local/apache/bin/apxs';
@@ -187,7 +191,7 @@ sub ldopts {
 
     my $ld = $self->perl_config('ld');
 
-    if ($^O eq 'hpux' and $ld eq 'ld') {
+    if (HPUX && $ld eq 'ld') {
         while ($ldopts =~ s/-Wl,(\S+)/$1/) {
             my $cp = $1;
             (my $repl = $cp) =~ s/,/ /g;
@@ -222,6 +226,10 @@ sub ap_ccopts {
             $ccopts .= " $Wall -DAP_DEBUG";
             $ccopts .= " -DAP_HAVE_DESIGNATED_INITIALIZER";
         }
+    }
+
+    if ($self->{MP_COMPAT_1X}) {
+        $ccopts .= " -DMP_COMPAT_1X";
     }
 
     if ($self->{MP_DEBUG}) {
@@ -281,6 +289,11 @@ sub ccopts {
     $cflags;
 }
 
+sub ldopts_prefix {
+    my $self = shift;
+    $self->perl_config('ld') eq 'ld' ? '' : "-Wl,";
+}
+
 sub perl_config_optimize {
     my($self, $val) = @_;
 
@@ -308,6 +321,33 @@ sub perl_config_lddlflags {
         if (MSVC) {
             $val =~ s/-release/-debug/;
         }
+    }
+
+    if (AIX) {
+        my $Wl = $self->ldopts_prefix;
+
+        # it's useless to import symbols from libperl.so this way,
+        # because perl.exp is incomplete. a better way is to link
+        # against -lperl which has all the symbols
+        $val =~ s|${Wl}-bI:\$\(PERL_INC\)/perl\.exp||;
+        # also in the case of Makefile.modperl PERL_INC is defined
+
+        # this works with at least ld(1) on powerpc-ibm-aix5.1.0.0:
+        # -berok ignores symbols resolution problems (they will be
+        #        resolved at run-time
+        # -brtl prepares the object for run-time loading
+        # LDFLAGS already inserts -brtl
+        $val .= " ${Wl}-berok";
+        # XXX: instead of -berok, could make sure that we have:
+        #   -Lpath/to/CORE -lperl
+        #   -bI:$path/apr.exp -bI:$path/aprutil.exp -bI:$path/httpd.exp
+        #   -bI:$path/modperl_*.exp 
+        # - don't import modperl_*.exp in Makefile.modperl which
+        #   exports -bE:$path/modperl_*.exp
+        # - can't rely on -bI:$path/perl.exp, because it's incomplete,
+        #   use -lperl instead
+        # - the issue with using apr/aprutil/httpd.exp is to pick the
+        #   right path if httpd wasn't yet installed
     }
 
     $val;
@@ -385,7 +425,7 @@ sub lib_check {
 
     my $maybe = $self->find_dlfile_maybe($name);
     my $suggest = @$maybe ? 
-      "You could just symlink it to $maybe->[0]" :
+        "You could just symlink it to $maybe->[0]" :
         'You might need to install Perl from source';
     $self->phat_warn(<<EOF);
 Your Perl is configured to link against lib$name,
@@ -597,7 +637,7 @@ sub dir {
 
     $dir ||= $self->{MP_AP_PREFIX};
 
-# we not longer install Apache headers, so dont bother looking in @INC
+# we no longer install Apache headers, so don't bother looking in @INC
 # might end up finding 1.x headers anyhow
 #    unless ($dir and -d $dir) {
 #        for (@INC) {
@@ -642,6 +682,72 @@ sub ap_includedir  {
     }
 
     $self->{ap_includedir} = $d;
+}
+
+sub apr_config_path {
+    my ($self) = @_;
+
+    return $self->{apr_config_path}
+        if $self->{apr_config_path} and -x $self->{apr_config_path};
+
+    if (exists $self->{MP_APR_CONFIG} and -x $self->{MP_APR_CONFIG}) {
+        $self->{apr_config_path} = $self->{MP_APR_CONFIG};
+    }
+
+    if (!$self->{apr_config_path} and 
+        exists $self->{MP_AP_PREFIX} and -d $self->{MP_AP_PREFIX}) {
+        my $try = catfile $self->{MP_AP_PREFIX}, "bin", "apr-config";
+        $self->{apr_config_path} = $try if -x $try;
+    }
+
+    $self->{apr_config_path} ||= Apache::TestConfig::which('apr-config');
+
+    $self->{apr_config_path};
+}
+
+sub apr_includedir {
+    my ($self) = @_;
+
+    return $self->{apr_includedir}
+        if $self->{apr_includedir} and -d $self->{apr_includedir};
+
+    my $incdir;
+    my $apr_config_path = $self->apr_config_path;
+
+    if ($apr_config_path) {
+        # --includedir is available since apr-0.9.3 (Apache 2.0.45),
+        # for older versions we attempt to parse 'apr-config --includes'
+        my $httpd_version = $self->httpd_version;
+        if ($httpd_version lt '2.0.45') {
+            chomp(my $paths = `$apr_config_path --includes`);
+            for (split /\s+/, $paths || '') {
+                s/-I//;
+                if (-e catfile $_, "apr.h") {
+                    $incdir = $_;
+                    last;
+                }
+            }
+        }
+        else {
+            chomp($incdir = `$apr_config_path --includedir`);
+        }
+    }
+
+    unless ($incdir and -d $incdir) {
+        # falling back to the default when apr header files are in the
+        # same location as the httpd header files
+        $incdir = $self->ap_includedir;
+    }
+
+    if ($incdir && -e catfile $incdir, "apr.h") {
+        $self->{apr_includedir} = $incdir;
+    }
+    else {
+        die "Can't find apr include/ directory,\n",
+            "use MP_APR_CONFIG=/path/to/apr-config";
+    }
+
+    $self->{apr_includedir};
 }
 
 #--- parsing apache *.h files ---
@@ -776,7 +882,7 @@ sub get_apr_config {
 
     return $self->{apr_config} if $self->{apr_config};
 
-    my $dir = $self->ap_includedir;
+    my $dir = $self->apr_includedir;
 
     my $header;
     for my $d ($dir, "$dir/../srclib/apr/include") {
@@ -913,7 +1019,18 @@ sub make_tools {
 
 sub export_files_MSWin32 {
     my $self = shift;
-    "-def:$self->{cwd}/xs/modperl.def";
+    my $xs_dir = $self->file_path("xs");
+    "-def:$xs_dir/modperl.def";
+}
+
+sub export_files_aix {
+    my $self = shift;
+
+    my $Wl = $self->ldopts_prefix;
+    # there are several modperl_*.exp, not just $(BASEEXT).exp
+    # $(BASEEXT).exp resolves to modperl_global.exp
+    my $xs_dir = $self->file_path("xs");
+    join " ", map "${Wl}-bE:$xs_dir/modperl_$_.exp", qw(inline ithreads);
 }
 
 sub dynamic_link_header_default {
@@ -943,6 +1060,14 @@ sub dynamic_link_MSWin32 {
     my $defs = $self->export_files_MSWin32;
     return $self->dynamic_link_header_default .
            "\t$defs" . ' -out:$@';
+}
+
+sub dynamic_link_aix {
+    my $self = shift;
+    my $link = $self->dynamic_link_header_default .
+        "\t" . $self->export_files_aix . " \\\n" .
+        "\t" . '-o $@' . " \n" .
+        "\t" . '$(MODPERL_RANLIB) $@';
 }
 
 sub dynamic_link {
@@ -999,6 +1124,11 @@ sub write_src_makefile {
     print $fh $self->canon_make_attr('libname', $self->{MP_LIBNAME});
     print $fh $self->canon_make_attr('dlext', 'so'); #always use .so
 
+    if (AIX) {
+        my $xs_dir = $self->file_path("xs");
+        print $fh "BASEEXT = $xs_dir/modperl_global\n\n";
+    }
+
     my %libs = (
         dso    => "$self->{MP_LIBNAME}.$self->{MODPERL_DLEXT}",
         static => "$self->{MP_LIBNAME}$self->{MODPERL_LIB_EXT}",
@@ -1036,7 +1166,7 @@ sub write_src_makefile {
 
     print $fh $self->canon_make_attr('lib', "@libs");
 
-    for my $q (qw(LIBEXECDIR)) {
+    for my $q (qw(LIBEXECDIR INCLUDEDIR)) {
         print $fh $self->canon_make_attr("AP_$q",
                                          $self->apxs(-q => $q));
     }
@@ -1052,16 +1182,20 @@ MODPERL_OBJS = $(MODPERL_O_FILES) $(MODPERL_XS_O_FILES)
 
 MODPERL_PIC_OBJS = $(MODPERL_O_PIC_FILES) $(MODPERL_XS_O_PIC_FILES)
 
+MKPATH = $(MODPERL_PERLPATH) "-MExtUtils::Command" -e mkpath
+
 all: lib
 
 lib: $(MODPERL_LIB)
 
 install:
-	$(MODPERL_PERLPATH) -e "exit ! -d qq{$(MODPERL_AP_LIBEXECDIR)}" || \
-	$(MODPERL_PERLPATH) -MExtUtils::Command  \
-	-e mkpath $(MODPERL_AP_LIBEXECDIR)
+# install mod_perl.so
+	@$(MKPATH) $(MODPERL_AP_LIBEXECDIR)
 	$(MODPERL_TEST_F) $(MODPERL_LIB_DSO) && \
 	$(MODPERL_CP) $(MODPERL_LIB_DSO) $(MODPERL_AP_LIBEXECDIR)
+# install mod_perl .h files
+	@$(MKPATH) $(MODPERL_AP_INCLUDEDIR)
+	$(MODPERL_CP) $(MODPERL_H_FILES) $(MODPERL_AP_INCLUDEDIR)
 
 .SUFFIXES: .xs .c $(MODPERL_OBJ_EXT) .lo .i .s
 
@@ -1112,42 +1246,65 @@ EOF
 
     print $fh @$xs_targ;
 
+    print $fh "\n"; # Makefile must end with \n to avoid warnings
+
     close $fh;
 }
 
 #--- generate MakeMaker parameter values ---
 
+sub otherldflags_default {
+    my $self = shift;
+    # e.g. aix's V:ldflags feeds -brtl and other flags
+    $self->perl_config('ldflags');
+}
+
 sub otherldflags {
     my $self = shift;
     my $flags = \&{"otherldflags_$^O"};
-    return "" unless defined &$flags;
+    return $self->otherldflags_default unless defined &$flags;
     $flags->($self);
 }
 
-#XXX: install *.exp / search @INC
-sub otherldflags_aix {
-    ""; #XXX: -bI:*.exp files
-}
-
 sub typemaps {
-    my $typemaps = [];
+    my $self = shift;
+    my @typemaps = ();
 
-    if (my $file = find_in_inc('typemap')) {
-        push @$typemaps, $file;
+    # XXX: could move here the code from ModPerl::BuildMM
+    return [] if IS_MOD_PERL_BUILD;
+
+    # for post install use
+    for (@INC) {
+        # make sure not to pick mod_perl 1.0 typemap
+        next if $self->{MP_INST_APACHE2} && $_ !~ /Apache2$/;
+        my $file = "$_/auto/Apache/typemap";
+        push @typemaps, $file if -e $file;
     }
 
-    if(IS_MOD_PERL_BUILD) {
-        push @$typemaps, '../Apache/typemap';
-    }
-
-    return $typemaps;
+    return \@typemaps;
 }
 
 sub includes {
     my $self = shift;
+
+    my @inc = ();
+
+    unless (IS_MOD_PERL_BUILD) {
+        # XXX: what if apxs is not available? win32?
+        my $ap_inc = $self->apxs('-q' => 'INCLUDEDIR');
+        if ($ap_inc && -d $ap_inc) {
+            push @inc, $ap_inc;
+        } else {
+            # this is fatal
+            die "Can't find the mod_perl include dir";
+        }
+
+        return \@inc;
+    }
+
     my $src  = $self->dir;
     my $os = WIN32 ? 'win32' : 'unix';
-    my @inc = $self->file_path("src/modules/perl", "xs");
+    push @inc, $self->file_path("src/modules/perl", "xs");
 
     push @inc, $self->mp_include_dir;
 

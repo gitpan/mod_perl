@@ -1,5 +1,3 @@
-#!perl
-
 use strict;
 use warnings FATAL => 'all';
 
@@ -25,12 +23,11 @@ sub new_test_config {
     my ($volume, $dir, $file) = splitpath Cwd::cwd(), 1;
     my @dir = grep {length} splitdir $dir;
     $dir = catdir @dir[0..($#dir-2)]; # remove two last dir segments
-    my $base = rootdir() . catpath $volume, $dir, $file;
+    my $base = catpath $volume, rootdir(), $dir, $file;
 
     $self->{conf_opts}->{maxclients} = 2;
 
-   $self->{conf_opts}->{src_dir} = catdir $base, qw(src modules perl);
-   # $self->{conf_opts}->{libmodperl} = "$cwd/../../src/modules/perl/mod_perl.so";
+    $self->{conf_opts}->{src_dir} = catdir $base, qw(src modules perl);
 
     return $self->SUPER::new_test_config;
 }

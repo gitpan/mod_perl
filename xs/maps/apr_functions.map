@@ -51,8 +51,8 @@ MODULE=APR::Socket
  apr_send | mpxs_ | sock, SV *:buf, SV *:len=Nullsv
  apr_sendto
 !apr_shutdown
--apr_socket_set_inherit
--apr_socket_unset_inherit
+-apr_socket_inherit_set
+-apr_socket_inherit_unset
 
 MODULE=APR::Socket
  apr_socket_close
@@ -60,8 +60,10 @@ MODULE=APR::Socket
 !apr_socket_addr_get
 !apr_socket_data_get
 !apr_socket_data_set
- apr_getsocketopt
- apr_setsocketopt
+ apr_socket_opt_get
+ apr_socket_opt_set
+ apr_socket_timeout_get | mpxs_ | ...
+ apr_socket_timeout_set
 -apr_sendfile
 -apr_sendv
 !apr_socket_from_file
@@ -450,7 +452,8 @@ MODULE=APR::Util PACKAGE=guess
 -apr_snprintf
 -apr_vformatter
 -apr_vsnprintf
- apr_generate_random_bytes | MPXS_ | length
+# only available if APR_HAS_RANDOM
+-apr_generate_random_bytes
  apr_strerror              | MPXS_ | statcode
 
 !MODULE=APR::General
@@ -477,8 +480,8 @@ MODULE=APR::UUID
  apr_hook_deregister_all
  apr_hook_sort_register
 -apr_register_optional_fn
- apr_show_hook
- apr_sort_hooks
+ apr_hook_debug_show
+ apr_hook_sort_all
  apr_optional_hook_add
  apr_optional_hook_get
 

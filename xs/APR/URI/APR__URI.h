@@ -3,6 +3,19 @@ char *mpxs_apr_uri_unparse(pTHX_
                            apr_uri_t *uptr,
                            unsigned flags)
 {
+
+    /* apr =< 0.9.2-dev segfaults if hostname is set, but scheme is not.
+     * apr >= 0.9.2 simply uses "", which will force the user to set scheme
+     * since apr_uri_unparse is protocol-agnostic, it doesn't use
+     * 'http' as the default fallback anymore. so we use the same solution
+     */
+#if APR_MAJOR_VERSION == 0 && APR_MINOR_VERSION == 9 && \
+    (APR_PATCH_VERSION < 2 || APR_PATCH_VERSION == 2 && defined APR_IS_DEV_VERSION)
+    if (uptr->hostname && !uptr->scheme) {
+        uptr->scheme = "";
+    }
+#endif
+    
     return apr_uri_unparse(((modperl_uri_t *)uptr)->pool,
                            uptr, flags);
 }

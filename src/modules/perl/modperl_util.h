@@ -50,6 +50,30 @@
 #define MP_magical_tie(sv, mg_flags) \
     SvFLAGS((SV*)sv) |= mg_flags
 
+#define MP_FAILURE_CROAK(rc_run) do { \
+        apr_status_t rc = rc_run; \
+        if (rc != APR_SUCCESS) { \
+            Perl_croak(aTHX_ modperl_apr_strerror(rc)); \
+        } \
+    } while (0)
+
+/* check whether the response phase has been initialized already */
+#define MP_CHECK_WBUCKET_INIT(func) \
+    if (!rcfg->wbucket) { \
+        Perl_croak(aTHX_ func " can't be called before the response phase"); \
+    }
+
+/* turn off cgi header parsing. in case we are already inside
+ *     modperl_callback_per_dir(MP_RESPONSE_HANDLER, r); 
+ * but haven't sent any data yet, it's too late to change
+ * MpReqPARSE_HEADERS, so change the wbucket's private flag directly
+ */
+#define MP_CGI_HEADER_PARSER_OFF(rcfg) \
+    MpReqPARSE_HEADERS_Off(rcfg); \
+    if (rcfg->wbucket) { \
+        rcfg->wbucket->header_parse = 0; \
+    } 
+
 MP_INLINE server_rec *modperl_sv2server_rec(pTHX_ SV *sv);
 MP_INLINE request_rec *modperl_sv2request_rec(pTHX_ SV *sv);
 
@@ -118,5 +142,7 @@ SV *modperl_table_get_set(pTHX_ apr_table_t *table, char *key,
 MP_INLINE int modperl_perl_module_loaded(pTHX_ const char *name);
 
 SV *modperl_perl_gensym(pTHX_ char *pack);
+
+void modperl_clear_symtab(pTHX_ HV *symtab);
 
 #endif /* MODPERL_UTIL_H */

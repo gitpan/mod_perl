@@ -2,7 +2,7 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 
-my $min_httpd_version = '2.0.35';
+my $min_httpd_version = '2.0.36';
 
 my($old_modperl_version, $old_modperl_pm);
 
@@ -29,10 +29,9 @@ use Apache::Build ();
 use Apache::TestReportPerl ();
 use Apache::TestSmokePerl ();
 use Apache::TestTrace;
-use Apache::TestMM qw(test);
 use ModPerl::TestRun ();
 use ModPerl::Code ();
-use ModPerl::MM ();
+use ModPerl::BuildMM ();
 
 use constant WIN32 => Apache::Build::WIN32;
 
@@ -42,6 +41,10 @@ if (Apache::Build::REQUIRE_ITHREADS()) {
     unless (Apache::Build::HAS_ITHREADS()) {
 	die "your system requires an ithreads enabled Perl";
     }
+    # 5.6.x ithreads aren't good
+    unless ($] >= 5.008) {
+        die "Perl 5.8 or higher w/ ithreads is required. This is only Perl $]";
+    }
 }
 
 perl_version_check();
@@ -49,42 +52,40 @@ perl_version_check();
 my $build = Apache::Build->new(init => 1);
 my $code  = ModPerl::Code->new;
 
-#XXX: dunno why but win32 fails because of this:
-#cd docs/api/mod_perl-2.0 && nmake all ...
-#NMAKE : fatal error U1073: don't know how to make 'all'
-#Stop.
-#NMAKE : fatal error U1077: 'cd' : return code '0x2'
-#Stop.
-my @remote_makefile_dirs = WIN32() ? () :
-                           qw(docs/api/mod_perl-2.0);
-
 configure();
 
-local %ModPerl::MM::PM = (
+local %ModPerl::BuildMM::PM = (
     'lib/typemap' => 'blib/lib/Apache2/typemap',
     'lib/Apache2.pm' => 'blib/lib/Apache2.pm',
 );
 
-ModPerl::MM::WriteMakefile(
-    NAME => 'mod_perl',
-    VERSION => $VERSION,
-    DIR     => get_dirs_with_makefile(@remote_makefile_dirs),
-    macro => {
-        MODPERL_SRC      => $code->path,
-        MODPERL_MAKEFILE => basename($build->default_file('makefile')),
-        MAKE_F           => '$(MAKE) ' . (WIN32 ? '/f' : '-f'),
-        MODPERL_LIBMAKE  => '$(MAKE) -f $(MODPERL_MAKEFILE)',
-        PERL             => $build->perl_config('perlpath'),
-        MOD_INSTALL      => ModPerl::MM::mod_install(),
-        APACHE_PREFIX    => $build->apxs('-q' => 'prefix'),
-        APACHE_LIBDIR    => $build->apxs('-q' => 'libexecdir'),
+# these h files need to be installed system-wide so 3rd party XS
+# extensions can use them
+my @xs_h_files = map catfile("xs", $_),
+    qw(modperl_xs_sv_convert.h modperl_xs_typedefs.h modperl_xs_util.h);
+
+my @exe_files =  map "bin/$_", qw(mp2doc mp2bug);
+
+ModPerl::BuildMM::WriteMakefile(
+    NAME      => 'mod_perl',
+    VERSION   => $VERSION,
+    EXE_FILES => \@exe_files,
+    macro     => {
+        MODPERL_SRC        => $code->path,
+        MODPERL_MAKEFILE   => basename($build->default_file('makefile')),
+        MAKE_F             => '$(MAKE) ' . (WIN32 ? '/f' : '-f'),
+        MODPERL_LIBMAKE    => '$(MAKE) -f $(MODPERL_MAKEFILE)',
+        PERL               => $build->perl_config('perlpath'),
+        MOD_INSTALL        => ModPerl::BuildMM::mod_install(),
+        MODPERL_AP_INCLUDEDIR  => $build->apxs('-q' => 'INCLUDEDIR'),
+        MODPERL_XS_H_FILES => join(" \\\n\t", @xs_h_files),
     },
-    clean => {
+    clean     => {
         FILES => "@{ clean_files() }",
     },
-    dist => {
+    dist      => {
         DIST_DEFAULT => 'mydist',
-	COMPRESS=> 'gzip -9f', SUFFIX=>'gz',
+	COMPRESS     => 'gzip -9f', SUFFIX=>'gz',
     },
 );
 
@@ -173,7 +174,7 @@ sub configure {
         debug "unlink...$_" if -e $_ && unlink;
     }
 
-    #ModPerl::MM will use Apache::BuildConfig in subdir/Makefile.PL's
+    #ModPerl::BuildMM will use Apache::BuildConfig in subdir/Makefile.PL's
     $build->save;
 
     for my $util (qw(Report Smoke)) {
@@ -375,32 +376,13 @@ EOF
     }
 }
 
-# by default only Makefile.PL's in the first level sub-dirs are
-# discovered. If you want to reach a Makefile.PL's in some remote
-# directories, pass them to this function.
-sub get_dirs_with_makefile {
-    my @remove_makefile_dirs = @_;
-    my %mf_dirs = ();
-
-    # since we cannot override MM::init_dirscan, but at the same time
-    # want to change $self->{DIR}, we have to reproduce
-    # MM::init_dirscan's section on setting DIR
-    for my $dir (@remote_makefile_dirs,
-                 grep {-d} DirHandle->new(curdir())->read) {
-        next if curdir() eq $dir || updir() eq $dir;
-        next if -l $dir; # no symlinks per MakeMaker
-        $mf_dirs{$dir}++ if -f catfile($dir, "Makefile.PL");
-    }
-    return [sort keys %mf_dirs];
-}
-
 package MY;
 
 use Config;
 
 sub MY::top_targets {
     my $self = shift;
-    my $string = $self->MM::top_targets;
+    my $string = $self->ModPerl::BuildMM::MY::top_targets;
 
     ModPerl::MM::add_dep(\$string, pure_all => 'modperl_lib');
 
@@ -412,6 +394,9 @@ source_scan:
 xs_generate:
 	$(PERL) build/xs_generate.pl
 
+bugreport:
+	$(PERL) bin/mp2bug
+
 etags:
 	$(SHELL) build/make_etags
 
@@ -420,6 +405,10 @@ modperl_lib:
 
 modperl_lib_install:
 	cd "$(MODPERL_SRC)" && $(MODPERL_LIBMAKE) install
+
+modperl_xs_h_install:
+	@$(MKPATH) $(MODPERL_AP_INCLUDEDIR)
+	$(CP) $(MODPERL_XS_H_FILES) $(MODPERL_AP_INCLUDEDIR)
 
 modperl_src_clean:
 	cd "$(MODPERL_SRC)" && $(MODPERL_LIBMAKE) clean
@@ -433,6 +422,7 @@ sub MY::install {
     my $self = shift;
     my $string = $self->MM::install(@_);
     ModPerl::MM::add_dep(\$string, pure_install => 'modperl_lib_install');
+    ModPerl::MM::add_dep(\$string, pure_install => 'modperl_xs_h_install');
     $string;
 }
 
@@ -444,14 +434,47 @@ sub MY::clean {
     $string;
 }
 
+sub MY::test {
+
+    my $env = Apache::TestConfig->passenv_makestr();
+
+    my $preamble = Apache::TestConfig::WIN32 ? "" : <<EOF;
+PASSENV = $env
+EOF
+
+    return $preamble . <<'EOF';
+TEST_VERBOSE = 0
+TEST_FILES =
+
+test_clean :
+	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
+	t/TEST -clean
+	
+run_tests : test_clean
+	$(PASSENV) \
+	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
+	t/TEST -verbose=$(TEST_VERBOSE) $(TEST_FILES)
+	cd ModPerl-Registry && $(MAKE) test
+
+test :: pure_all run_tests test_clean
+EOF
+
+}
+
 sub MY::postamble {
-    return <<'EOF';
+    my $self = shift;
+
+    my $string = $self->ModPerl::BuildMM::MY::postamble;
+
+    $string .= <<'EOF';
 mydist : manifest tardist
 
 cvs_tag :
 	cvs tag MODPERL_$(VERSION_SYM) .
 	@echo update mod_perl.pm VERSION now
 EOF
+
+    return $string;
 }
 
 sub MY::tool_autosplit {

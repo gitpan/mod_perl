@@ -3,6 +3,7 @@ package ModPerl::BuildOptions;
 use strict;
 use warnings;
 
+use Apache::Build ();
 my $param_qr = qr([\s=]+);
 
 use constant VERBOSE => 1;
@@ -29,6 +30,11 @@ sub init {
     }
 
     $build->{MP_GENERATE_XS} = 1 unless exists $build->{MP_GENERATE_XS};
+
+    # define MP_COMPAT_1X unless explicitly told to disable it
+    $build->{MP_COMPAT_1X} = 1
+        unless exists $build->{MP_COMPAT_1X} && !$build->{MP_COMPAT_1X};
+
 }
 
 sub parse {
@@ -62,9 +68,15 @@ sub parse {
                 my $usage = usage();
                 die "Unknown Option: $key\nUsage:\n$usage";
             }
-			
-            if($key eq 'MP_APXS') {
+
+            if ($key eq 'MP_APXS') {
                 $val = File::Spec->canonpath(File::Spec->rel2abs($val));
+            }
+
+            # MP_AP_PREFIX may not contain spaces
+            if ($key eq 'MP_AP_PREFIX' && Apache::Build::WIN32()) {
+                require Win32;
+                $val = Win32::GetShortPathName($val);
             }
 
             if ($self->{$key}) {
@@ -165,7 +177,9 @@ OPTIONS_FILE	Read options from given file
 STATIC_EXTS	Build Apache::*.xs as static extensions
 APXS            Path to apxs
 AP_PREFIX	Apache installation or source tree prefix
+APR_CONFIG	Path to apr-config
 XS_GLUE_DIR     Directories containing extension glue
 INCLUDE_DIR     Add directories to search for header files
 GENERATE_XS     Generate XS code based on httpd version
 LIBNAME         Name of the modperl dso library (default is mod_perl)
+COMPAT_1X       Compile-time mod_perl 1.0 backcompat (default is on)
