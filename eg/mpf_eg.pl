@@ -4,7 +4,7 @@
 #AddType httpd/fast-perl .fpl
 
 #add this to srm.conf:
-#PerlScript /path/where/you/put/it/mfp_eg.pl
+#PerlScript /path/where/you/put/it/mpf_eg.pl
 
 #in access.conf or .htaccess say:
 #PerlResponse response
@@ -62,8 +62,8 @@ FORM
 
     if($r->method eq "POST") {
 	#my $buff;
-	#$r->read_client_block($buff, $headers{"Content-length"});
-	#$r->print("read_client_block -> $buff\n");
+	#my $nrd = $r->read_client_block($buff, $headers{"Content-length"});
+	#$r->print("read_client_block ->[ $r ][ $nrd ] $buff\n");
 	%in = $r->content;
     }
     %args = $r->args;

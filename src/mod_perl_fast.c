@@ -50,16 +50,16 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.14 1996/06/25 15:37:36 dougm Exp $ */
-
-#include <EXTERN.h>
-#include <perl.h>
+/* $Id: mod_perl_fast.c,v 1.15 1996/07/14 23:34:39 dougm Exp $ */
 
 #include "httpd.h"
 #include "http_config.h"
 #include "http_protocol.h"
 #include "http_log.h"
 #include "http_main.h"
+
+#include <EXTERN.h>
+#include <perl.h>
 
 #ifdef PERL_TRACE
 #define CTRACE fprintf
@@ -71,6 +71,7 @@ static int avoid_first_alloc_hack = 0;
 
 typedef struct {
    char *PerlScript;
+   AV *PerlModules;
 } perl_server_config;
 
 typedef struct {
@@ -86,8 +87,10 @@ module perl_fast_module;
 
 void perl_init (server_rec *s, pool *p)
 {
-  char *argv[3];
+  char *argv[3], *mod;
   int status;
+  I32 i;
+  SV *module;
   perl_server_config *cls = get_module_config (s->module_config,
 					       &perl_fast_module);   
   char *fname = cls->PerlScript;
@@ -131,6 +134,15 @@ void perl_init (server_rec *s, pool *p)
   }
   CTRACE(stderr, "perl_init: perl_parse OK\n");
 
+  for(i = 0; i <= av_len(cls->PerlModules); i++) {
+    module = (SV*)av_shift(cls->PerlModules);
+    mod = SvPV(module, na);
+    CTRACE(stderr, "Loading Perl module '%s'\n", mod); 
+    perl_require_module(module);
+    if(perl_eval_ok(s) != 0) 
+      fprintf(stderr, "Couldn't load Perl module '%s'\n", mod);
+  }
+
   perl_clear_env();
   status = perl_run(perl);
   if (status != 0) {
@@ -158,6 +170,7 @@ void *create_perl_server_config (pool *p, server_rec *s)
   perl_server_config *cls =
     (perl_server_config *)palloc(p, sizeof (perl_server_config));
 
+  cls->PerlModules = (AV*)sv_2mortal((SV*)newAV()); 
   cls->PerlScript = NULL;
   perl = NULL;
 
@@ -200,11 +213,8 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
     
     SPAGAIN;
 
-    sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
-    if(SvTRUE(sv)) {
-	log_error(SvPV(sv, na), s);
+    if(perl_eval_ok(s) != 0) 
         return SERVER_ERROR;
-    }
 
     if(count != 1) {
 	log_error("perl_call failed, must return a status arg", s);
@@ -229,10 +239,23 @@ char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)
   return NULL;
 }
 
+char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
+{
+  perl_server_config *cls = get_module_config (parms->server->module_config,
+                                       &perl_fast_module);   
+
+  CTRACE(stderr, "push_perl_modules: arg='%s'\n", arg);
+  av_push(cls->PerlModules, newSVpv(arg,0));
+  return NULL;
+}
+
 command_rec perl_cmds [] = {
   { "PerlScript", set_perl_script,
     NULL,
     RSRC_CONF, TAKE1, "the Perl script name" },
+  { "PerlModule", push_perl_modules,
+    NULL,
+    RSRC_CONF, TAKE1, "A Perl module" },
   { "PerlResponse", set_string_slot, 
     (void*)XtOffsetOf(perl_dir_config, PerlResponse), 
     OR_ALL, TAKE1, "the Perl response routine name" },
@@ -241,6 +264,7 @@ command_rec perl_cmds [] = {
 
 handler_rec perl_fast_handlers [] = {
    { "httpd/fast-perl", perl_fast_handler },
+   { "text/x-perl-server-parsed-html", perl_fast_handler },
    { NULL }
 };
 

@@ -1,3 +1,4 @@
+ANNOUNCE
 Changes
 INSTALL
 MANIFEST
@@ -11,6 +12,7 @@ eg/mod_perl_eg.pl
 eg/mpf_eg.pl
 lib/Apache.pm
 lib/Apache/CGI.pm
+lib/Apache/SSI.pm
 src/Apache.xs
 src/mod_perl.c
 src/mod_perl_fast.c

@@ -16,7 +16,7 @@ extern "C" {
 #include "http_main.h"
 #include "http_core.h"
 
-/* $Id: Apache.xs,v 1.17 1996/06/18 18:19:55 dougm Exp $ */
+/* $Id: Apache.xs,v 1.18 1996/07/14 23:34:39 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -60,10 +60,24 @@ void perl_apache_bootstrap()
     perl_call_argv("Apache::bootstrap", G_DISCARD, bootargs);
 }
 
-void perl_clear_env()
+void
+perl_clear_env()
 {
   /* flush %ENV */
   hv_clear(perl_get_hv("ENV", FALSE));
+}
+
+int
+perl_eval_ok(server_rec *s)
+{
+  SV *sv;
+  sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
+  if(SvTRUE(sv)) {
+    fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na));
+    log_error(SvPV(sv, na), s);
+    return -1;
+  }
+  return 0;
 }
 
 void
@@ -71,7 +85,7 @@ perl_require_module(m)
 SV *m;
 {
     SV* sv = sv_newmortal();
-    sv_setpv(sv, "require ");
+    sv_setpv(sv, "use ");
     sv_catsv(sv, m);
     perl_eval_sv(sv, G_DISCARD);
 }
@@ -224,7 +238,7 @@ send_fd(r, f)
     CODE:
     RETVAL = send_fd(f, r);
 
-long
+void
 read_client_block(r, buffer, bufsiz)
     Apache	r
     char    *buffer
@@ -233,17 +247,19 @@ read_client_block(r, buffer, bufsiz)
     ALIAS:
     Apache::read = 1
 
-    CODE:
-    {
-      buffer = (char*)palloc(r->pool, bufsiz+1);
-      RETVAL = read_client_block(r, buffer, bufsiz);
-	#ST(0) = sv_newmortal();
-	#sv_setiv(ST(0), (IV)RETVAL);
-    }
-
-    OUTPUT:
-    RETVAL
-    buffer
+     PPCODE:
+     {
+       long nrd;
+       buffer = (char*)palloc(r->pool, bufsiz+1);
+       nrd = read_client_block(r, buffer, bufsiz);
+       if ( nrd > 0 ) {
+	 XPUSHs(newSViv((long)nrd));
+	 sv_setpvn((SV*)ST(1), buffer, bufsiz);
+       } 
+       else {
+	 ST(1) = &sv_undef;
+       }
+     }
 
 int
 write_client(r, ...)

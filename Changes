@@ -1,3 +1,18 @@
+July 14, 1996
+
+o release 0.70b1
+
+o applied patches from Andreas Koenig <k@anna.in-berlin.de> to fix 
+  Makefile.tmpl bug, NeXT define troubles, typos and documentation clean-up
+
+o Added Apache::SSI module for server side includes
+
+o Added 'PerlModule' directive for loading modules in srm.conf
+
+o fixed read_client_block bug that was causing trailing garbage to show up
+  on the client for some people. 
+  Thanks to Alan Beale <agb@openplus.co.uk> for the fix.
+
 June 25, 1996
 
 o release 0.60a5

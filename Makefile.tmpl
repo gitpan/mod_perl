@@ -35,11 +35,11 @@ perlxsi.c:
 perlxsi.o: perlxsi.c
 	$(CC) $(PERL_INC) -I/usr/local/include -c $(CFLAGS) $(AUX_CFLAGS) $<
 
-mod_perl.o: perlxsi.o mod_perl.c
-	$(CC) $(PERL_INC) -I/usr/local/include -c $(CFLAGS) $(AUX_CFLAGS) $<
+mod_perl.o: perlxsi.o 
+	$(CC) $(PERL_INC) -I/usr/local/include -c $(CFLAGS) $(AUX_CFLAGS) mod_perl.c
 
-mod_perl_fast.o: perlxsi.o mod_perl_fast.c
-	$(CC) $(PERL_INC) -I/usr/local/include -c $(CFLAGS) $(AUX_CFLAGS) $<
+mod_perl_fast.o: perlxsi.o 
+	$(CC) $(PERL_INC) -I/usr/local/include -c $(CFLAGS) $(AUX_CFLAGS) mod_perl_fast.c
 
 Apache.c: Apache.xs
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Apache.xs >Apache.c

@@ -1,52 +1,62 @@
  
 README for mod_perl.c, mod_perl_fast.c, and Apache.xs
 
-These are Apache modules that embed a perl interpreter in the HTTP server.  
-The benefit of this is that we are able to
-run scripts without going through the expensive (fork/exec/parameter
-passing/parsing, etc.) CGI interface.  
-The scripts will run faster and they have direct access to the C API of the server.
+These are Apache modules that embed a perl interpreter in the HTTP
+server.  The benefit of this is that we are able to run scripts
+without going through the expensive (fork/exec/parameter
+passing/parsing, etc.) CGI interface.  The scripts will run faster and
+they have direct access to the C API of the server.
 
-The current approach of mod_perl is to allocate and construct a new perl interpreter for
-each request.  The interpreter will then parse and run a perl script and we
-finally destruct the perl interpreter in order to free memory consumed.  
+The current approach of mod_perl is to allocate and construct a new
+perl interpreter for each request.  The interpreter will then parse
+and run a perl script and we finally destruct the perl interpreter in
+order to free memory consumed.
 
-The current approach of mod_perl_fast is to allocate and contruct one perl interpreter when
-the server starts.  At the same time, load, parse and run one perl script, which may pull 
-in other perl code such as your favorite modules.
-This also allows you to initiate persistent connections such as to a database server.
-Then, a subroutine in memory is called to handle each request.
-The interpreter is destroyed upon restart or shutdown of the server.
+The current approach of mod_perl_fast is to allocate and construct one
+perl interpreter when the server starts.  At the same time, load,
+parse and run one perl script, which may pull in other perl code such
+as your favorite modules.  This also allows you to initiate persistent
+connections such as to a database server.  Then, a subroutine in
+memory is called to handle each request.  The interpreter is destroyed
+upon restart or shutdown of the server.
 
 This *is not CGI*, your existing scripts will need some changes.
-Apache's i/o is not stream oriented.
-So, you cannot print() to STDOUT from your script, use $r->print() instead.
-Nor can you read() from STDIN, use $r->read() or the $r->content
-methods to read POST data.
-(A clean mechanism is in the works for redirecting your script's streams.)
-See the eg/ directory for and read the documentation in Apache.pm
-for examples.
+Apache's i/o is not stream oriented.  So, you cannot print() to STDOUT
+from your script, use $r->print() instead.  Nor can you read() from
+STDIN, use $r->read() or the $r->content methods to read POST data.
+(A clean mechanism is in the works for redirecting your script's
+streams.)  See the eg/ directory and read the documentation in
+Apache.pm for examples.
 
 Your scripts will not run from the command line (yet).
 
 For users of CGI.pm, see the Apache::CGI module for compatibility.
 There are modules on the way to support the CGI::* modules as well.
 
-For comments, questions, bug-reports, announcements, etc.,
-send mail to majordomo@listproc.itribe.net
-with the string "subscribe modperl" in the body.
-(Thanks to Mark A. Imbriaco <mark@itribe.net>)
+It is also possible to write full-blown Apache modules in Perl for
+things such as server side includes.  See the Apache::SSI module as
+an example.
+ 
+For comments, questions, bug-reports, announcements, etc., send mail
+to majordomo@listproc.itribe.net with the string "subscribe modperl"
+in the body.  (Thanks to Mark A. Imbriaco <mark@itribe.net>)
 
-The latest version of this software and other information is availible at:
-http://www.osf.org/~dougm/apache/
+Thanks to James Cooper <pixel@tiger.coe.missouri.edu>,
+there is a hypermail archive for this list at:
+ 
+http://www.coe.missouri.edu/~faq/lists/modperl/
+ 
+
+The latest version of this software and other information is availible
+at: http://www.osf.org/~dougm/apache/
 
 KNOWN BUGS
 
-mod_perl leaks memory,
-this is a problem with perl itself, which is being fixed.
+mod_perl leaks memory, this is a problem with perl itself, which is
+being fixed.
 
-mod_perl_fast leaks memory when the server is restarted
-this too is a problem with perl itself, which is being fixed.
+mod_perl_fast leaks memory when the server is restarted this too is a
+problem with perl itself, which is being fixed.
 
 Installation needs work.
 
@@ -61,13 +71,17 @@ o Provide an optional and configurable Safe wrapper around embedded scripts
 
 ACKNOWLEGEMENTS
 
-Many thanks to Gisle Aas <aas@oslonett.no>
-for getting this started.
+Many thanks to Gisle Aas <aas@oslonett.no> for getting this started.
 
-Thanks to John Detloff <detloff@arizona.edu> for
-contributions to mod_perl_fast.
+Thanks to John Detloff <detloff@arizona.edu> for contributions to
+mod_perl_fast.
 
 ---------------------------------------------------------------------------
 
 Enjoy,
 -Doug MacEachern <dougm@osf.org>
+
+
+
+
+

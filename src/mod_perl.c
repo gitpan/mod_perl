@@ -59,17 +59,17 @@
  * scripts and you also has more direct contol over the connection
  * back to the client.
  *
- * $Id: mod_perl.c,v 1.15 1996/06/17 20:28:55 dougm Exp $
+ * $Id: mod_perl.c,v 1.16 1996/07/14 23:34:39 dougm Exp $
  */
-
-#include <EXTERN.h>
-#include <perl.h>
 
 #include "httpd.h"
 #include "http_config.h"
 #include "http_protocol.h"
 #include "http_log.h"
 #include "http_main.h"
+
+#include <EXTERN.h>
+#include <perl.h>
 
 void xs_init _((void));
 void perl_set_request_rec(request_rec *);
