@@ -9,7 +9,7 @@ Perl version 5.003 or higher
 
 If you do not have Perl version 5.003_01 or higher,
 fetch and install ExtUtils::Embed from CPAN 
-<URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.07.tar.gz>
+<URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.09.tar.gz>
 
 Build and install mod_perl
 --------------------------
@@ -20,9 +20,10 @@ In this current directory run:
   make
   make install
 
-Makefile.PL will search for apache source trees to configure against 
-and prompt for each one found.  If you answer 'y', httpd will be 
-configured and built when you say 'make'.
+Makefile.PL will search for apache source trees to configure against, 
+if no source trees are found, you will be prompted for a path to one.
+You will be prompted for each source tree found, if you answer 'y', 
+httpd will be configured and built when you say 'make'.
 If you answer 'n', see the instructions below on how to build by hand.
 
 In either case, you need to 'make install' so the perl side of mod_perl

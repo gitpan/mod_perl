@@ -3,11 +3,12 @@
 # Check GET via HTTP.
 #
 
-my $num_tests = 5;
-my(@test_scripts) = qw(test);
+my $num_tests = 7;
+my(@test_scripts) = qw(test perl-status);
+%get_only = map { $_,1 } qw(perl-status);
 
 if($] > 5.003) {
-    $num_tests += 2;
+    $num_tests += 3;
     push @test_scripts, qw(io/perlio.pl);
 }
 
@@ -20,9 +21,9 @@ my $ua = new LWP::UserAgent;    # create a useragent to test
 
 my($request,$response,$str);
 
-foreach $script (@test_scripts) {
+foreach $s (@test_scripts) {
     $netloc = $net::httpserver;
-    $script = $net::perldir . "/$script";
+    $script = $net::perldir . "/$s";
 
     $url = new URI::URL("http://$netloc$script?query");
 
@@ -36,7 +37,10 @@ foreach $script (@test_scripts) {
 
     print "$str\n";
 
-    test ++$i, ($response->is_success and $str =~ /^REQUEST_METHOD=GET$/m); 
+    test ++$i, ($response->is_success);
+    next if $get_only{$s};
+
+    test ++$i, ($str =~ /^REQUEST_METHOD=GET$/m); 
     test ++$i, ($str =~ /^QUERY_STRING=query$/m); 
 }
 

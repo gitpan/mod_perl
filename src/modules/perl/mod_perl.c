@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.29 1996/11/27 16:59:45 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.30 1996/12/05 02:43:00 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -157,30 +157,21 @@ void perl_init (server_rec *s, pool *p)
 
   CTRACE(stderr, "parsing perl script: %s %s...", argv[1],argv[2]);
   status = perl_parse(perl, xs_init, 2, argv, NULL);
-  if (status != 0) {
+  if (status != OK) {
      CTRACE(stderr,"not ok, status=%d\n", status);
      perror("parse");
      exit(1);
   }
   CTRACE(stderr, "ok\n");
 
-  for(i = 0; i < cls->NumPerlModules; i++) {
-    CTRACE(stderr, "loading perl module '%s'...", cls->PerlModules[i]); 
-    perl_require_module(cls->PerlModules[i]);
-
-    if(perl_eval_ok(s) != 0) {
-      CTRACE(stderr, "not ok\n");
-      perror("require");
-      exit(1);
-    }
-    CTRACE(stderr, "ok\n");
-  }
+  for(i = 0; i < cls->NumPerlModules; i++) 
+    perl_require_module(cls->PerlModules[i], s);
 
   perl_clear_env();
 
   CTRACE(stderr, "running perl interpreter...");
   status = perl_run(perl);
-  if (status != 0) {
+  if (status != OK) {
      CTRACE(stderr,"not ok, status=%d\n", status);
      perror("run");
      exit(1);
@@ -198,6 +189,8 @@ void *create_perl_dir_config (pool *p, char *dirname)
 
   cld->vars = make_table(p, MAX_PERL_CONF_VARS); 
   cld->PerlHandler = NULL;
+  cld->setup_env = 0;
+  cld->sendheader = 0;
   PERL_AUTHEN_CREATE(cld);
   PERL_AUTHZ_CREATE(cld);
   PERL_ACCESS_CREATE(cld);
@@ -234,10 +227,12 @@ int perl_handler(request_rec *r)
   perl_stdout2client(r);
   perl_stdin2client(r);
 
-  if(cld->sendheader)
+  if(cld->sendheader) {
+    CTRACE(stderr, "mod_perl sending basic_http_header...\n");
     basic_http_header(r);
-  if(cld->setup_env)
-    perl_setup_env();
+  }
+  if(cld->setup_env) 
+    perl_setup_env(r);
 
   PERL_CALLBACK_RETURN("handler", cld->PerlHandler);
 }
@@ -312,10 +307,10 @@ int PERL_LOGGER_HOOK(request_rec *r)
 }
 #endif
 
-int perl_call(char *perlsub, request_rec *r)
+int perl_call(char *imp, request_rec *r)
 {
     int count, status;
-    SV *sv;
+    SV *sv = newSVpv(imp,0);
     
     dSP;
     ENTER;
@@ -324,15 +319,28 @@ int perl_call(char *perlsub, request_rec *r)
     XPUSHs((SV*)perl_bless_request_rec(r)); 
     PUTBACK;
     
-    /* agb. need to reset $$ */
+    /* reset $$ */
     perl_set_pid();
 
+    /* if a Perl*Handler is not a defined function name,
+     * default to the class implementor's handler() function
+     * attempt to load the class module if it is not already
+     */
+    if(!GvCV(gv_fetchmethod(NULL, imp))) { 
+      if(!gv_stashpv(imp, FALSE)) {
+	CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
+	perl_require_module(imp, r->server);
+      }
+      sv_catpv(sv, "::handler");
+      CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
+    }
+
     /* use G_EVAL so we can trap errors */
-    count = perl_call_pv(perlsub, G_EVAL | G_SCALAR);
+    count = perl_call_sv(sv, G_EVAL | G_SCALAR);
     
     SPAGAIN;
 
-    if(perl_eval_ok(r->server) != 0) 
+    if(perl_eval_ok(r->server) != OK) 
         return SERVER_ERROR;
 
     if(count != 1) {
@@ -345,6 +353,9 @@ int perl_call(char *perlsub, request_rec *r)
     PUTBACK;
     FREETMPS;
     LEAVE;
+
+    /* perl_clear_env(); XXX not sure this is the right place */
+
     return status;
 }
 

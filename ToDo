@@ -11,12 +11,12 @@ timeout handling
 Apache::Registry should parse command line if present in scripts
 e.g. #!/usr/local/bin/perl -w
 
-figure out ErrorDocument + $r->status problem
-
 Apache::DBI module for managing persistent database connections
 
 provide an optional and configurable Safe wrapper around embedded scripts
 
-more tests for the test suites
+more tests for the test suite
 
 clean up lousy examples
+
+

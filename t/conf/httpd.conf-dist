@@ -1,6 +1,6 @@
 #Configuration directives specific to mod_perl
 
-PerlModule Apache::Registry 
+PerlModule Apache::Registry
 
 Alias /perl/ /users/dougm/www/apache_perl/
 
@@ -18,6 +18,10 @@ PerlSendHeader On
 PerlSetupEnv   On
 </Location>
 
+<Location /perl/t/perl-status>
+SetHandler perl-script
+PerlHandler Apache::Status
+</Location>
 
 #end mod_perl stuff
 

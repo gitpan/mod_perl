@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.13 1996/10/25 13:25:10 dougm Exp $
+# $Id: Makefile,v 1.14 1996/12/05 02:47:50 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -74,7 +74,7 @@ PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
 
 #TRACE = -DPERL_TRACE
 PERL=/afs/ri/project/perl/bin/perl
-PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlib}'`
+PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
 PERL_STATIC_EXTS = -std

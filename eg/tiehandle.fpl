@@ -5,7 +5,7 @@
 
 require Apache::TieHandle;
 
-tie *STDOUT => 'Apache::TieHandle';
+#tie *STDOUT => 'Apache::TieHandle';
 
 print <<RESPONSE;
 Content-type: text/html

@@ -8,7 +8,6 @@ CGI-XA/eg/rgy-cgi-pm2.pl
 CGI-XA/lib/Apache/CGI.pm
 CGI-XA/lib/CGI/Switch.pm
 CGI-XA/lib/CGI/XA.pm
-CGI-XA/test.pl
 Changes
 Constants/Constants.pm
 Constants/Constants.xs
@@ -60,3 +59,4 @@ t/net/http-post.t
 t/net/perl/test
 ToDo
 t/net/perl/io/perlio.pl
+lib/Apache/Status.pm

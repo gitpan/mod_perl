@@ -5,8 +5,8 @@ use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.17 1996/11/13 15:57:07 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.17 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.18 1996/12/05 02:47:50 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.18 $ =~ /(\d+)\.(\d+)/);
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -98,13 +98,95 @@ sub handler {
     }
 }
 
+my(%status) = (
+   inc => "Loaded Modules",
+   rgysubs => "Compiled Registry Scripts",
+   symdump => "Symbol Table Dump",
+);
+
+sub status {
+    my($r) = @_;
+    require Apache::CGI;
+    my $q = new Apache::CGI;
+    my $qs = $r->args;
+    my $sub = "status_$qs";
+    no strict 'subs';
+    $r->write_client($q->header, $q->start_html, $q->start_form);
+    if(defined &$sub) {
+	$r->write_client(@{ &{$sub}($r,$q) });
+    }
+    elsif (exists $Apache::Registry->{$qs}) { 
+	$r->write_client(symdump($qs));
+    }
+    else {
+	my $uri = $r->uri;
+	my $start = scalar localtime($^T);
+	$r->write_client(
+            "Perl Status for process <b>$$</b>, running since $start",	 
+ 	    "<h3>Menu</h3>\n",
+ 	    map { qq[<a href="$uri?$_">$status{$_}</a><br>\n] } keys %status
+        );
+    }
+
+    1;
+}
+
+sub symdump {
+    my($package) = @_;
+    require Devel::Symdump;
+    my $sob = Devel::Symdump->rnew($package);
+
+    my($type, @syms, @retval);
+    push @retval, "<h2>Symbol table dump of package '$package'</h2>\n<pre>";
+    for $type ( qw{
+	       packages
+	       scalars arrays hashes
+	       functions filehandles dirhandles 
+	     })
+    {
+	push @retval, "<hr><h3>$type:</h3>", join("\n", $sob->$type())
+    }
+    join '', @retval, "</pre>";
+}
+
+sub status_symdump { [symdump('main')] }
+
+sub status_inc {
+    my($r,$q) = @_;
+    my(@retval, $module);
+    local $_;
+    foreach $module ($q->param("INC")) {
+	delete $INC{$module};
+    }
+    $q->delete("INC");
+    foreach (sort keys %INC) {
+	push @retval, $q->checkbox(-name => "INC", -value => $_, -label => $_), "<br>";
+    }
+    push @retval, $q->submit(-value => "Delete");
+    \@retval;
+}
+
+sub status_rgysubs {
+    my($r,$q) = @_;
+    my(@retval);
+    local $_;
+    my $uri = $r->uri;
+    foreach (sort keys %{$Apache::Registry}) {
+	push @retval, 
+	$q->checkbox(-name => "RGY", 
+		     -label => qq(<a href="$uri?$_">$_</a>)), 
+	"<br>";
+    }
+    \@retval;
+}
+
 1;
 
 __END__
 
 =head1 NAME
 
-Apache::Registry - Run (mostly) unaltered CGI scripts through mod_perl_fast
+Apache::Registry - Run (mostly) unaltered CGI scripts through mod_perl
 
 =head1 SYNOPSIS
 
@@ -152,3 +234,4 @@ perl(1), Apache(3)
 
 Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> and 
 Doug MacEachern <dougm@osf.org>
+

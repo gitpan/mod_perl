@@ -3,7 +3,7 @@ package Apache;
 use vars qw($VERSION);
 use Apache::Constants ();
 
-$VERSION = "1.07";
+$VERSION = "1.08";
 
 bootstrap Apache $VERSION;
 
@@ -32,6 +32,7 @@ sub args {
 sub read {
     my($r, $bufsiz) = @_[0,2];
     my($nrd, $buf);
+    $r->hard_timeout("Apache->read");
     while($bufsiz) {
 	$nrd = $r->read_client_block($buf, $bufsiz);
 	if($nrd > 0) {
@@ -44,6 +45,14 @@ sub read {
 	    $_[1] = undef;
 	}
     }
+    $r->kill_timeout;
+}
+
+sub print {
+    my($r) = shift;
+    $r->hard_timeout("Apache->print");
+    $r->write_client(@_);
+    $r->kill_timeout;
 }
 
 sub send_cgi_header {
@@ -231,7 +240,11 @@ Read from the entity body sent by the client.  Example of use:
 
 =item $r->read($buf, $bytes_to_read)
 
+This method uses read_client_block() to read data from the client, 
+looping until it gets all of C<$bytes_to_read> or a timeout happens.
 
+In addition, this method sets a timeout before reading with
+C<$r->hard_timeout>
 
 =item $r->get_remote_host
 
@@ -428,7 +441,8 @@ $r->send_http_header.
 
 =item $r->print()
 
-Friendly alias for $r->write_client()
+This method sends data to the client with C<$r->write_client>, but first
+sets a timeout before sending with C<$r->hard_timeout>.
 
 =item $r->send_fd( $filehandle )
 
@@ -445,6 +459,53 @@ Redirect to a location in the server's namespace without
 telling the client. For instance:
 
   $r->internal_redirect_handler("/home/sweet/home.html");
+
+=back
+
+=head1 SERVER CORE FUNCTIONS
+
+=over 4
+
+=item $r->soft_timeout($message)
+
+=item $r->hard_timeout($message)
+
+=item $r->kill_timeout
+
+=item $r->reset_timeout
+
+(Documentation borrowed from http_main.h)
+
+There are two functions which modules can call to trigger a timeout
+(with the per-virtual-server timeout duration); these are hard_timeout
+and soft_timeout.
+
+The difference between the two is what happens when the timeout
+expires (or earlier than that, if the client connection aborts) ---
+a soft_timeout just puts the connection to the client in an
+"aborted" state, which will cause http_protocol.c to stop trying to
+talk to the client, but otherwise allows the code to continue normally.
+hard_timeout(), by contrast, logs the request, and then aborts it
+completely --- longjmp()ing out to the accept() loop in http_main.
+Any resources tied into the request's resource pool will be cleaned up;
+everything that isn't will leak.
+
+soft_timeout() is recommended as a general rule, because it gives your
+code a chance to clean up.  However, hard_timeout() may be the most
+convenient way of dealing with timeouts waiting for some external
+resource other than the client, if you can live with the restrictions.
+
+When a hard timeout is in scope, critical sections can be guarded
+with block_alarms() and unblock_alarms() --- these are declared in
+alloc.c because they are most often used in conjunction with
+routines to allocate something or other, to make sure that the
+cleanup does get registered before any alarm is allowed to happen
+which might require it to be cleaned up; they * are, however,
+implemented in http_main.c.
+
+kill_timeout() will disarm either variety of timeout.
+
+reset_timeout() resets the timeout in progress.
 
 =back
 

@@ -15,6 +15,32 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.85_03
+
+cleaned up internal perl_setup_env()
+
+Perl*Handler's default to calling Perl*Handler::handler if the
+Perl*Handler is just a class name, e.g. 'PerlHandler Apache::Registry'
+will call Apache::Registry::handler
+In addition, the class module will be loaded if it is not already, 
+so there is no need to specify PerlModule
+
+added Apache::Status module 
+
+$r->print now sets a hard_timeout() before sending to the client
+$r->read now sets a hard_timeout() before reading from the client
+
+added $r->soft_timeout, $r->hard_timeout, $r->kill_timeout and
+$r->reset_timeout methods
+
+top-level Makefile.PL looks further for apache_x.x/src/ 
+prompts you if nothing found
+
+applied fix from Andreas to s/privlib/privlibexp/ in src/modules/perl/Makefile
+
+applied patch from Rob Hartill <robh@imdb.com> to correctly initialize
+cld->sendheader and cld->setup_env
+
 =item 0.85_02
 
 Apache::DBIAuthen renamed Apache::AuthenDBI and split out from

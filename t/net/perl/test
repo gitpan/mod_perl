@@ -1,4 +1,11 @@
 use Apache ();
+use strict;
+use vars qw($Scalar @Array %Hash); #for testing perl-status
+
+$Scalar = 1;
+@Array  = qw(one two three);
+%Hash   = map { $_, $Scalar++ } @Array;
+
 my $r = Apache->request;
 %ENV = $r->cgi_env;
 
@@ -18,12 +25,12 @@ if (@args = $r->args) {
 
 my($key,$val);
 while (($key,$val) = each %ENV) {
-   $r->write_client("$key=$val\n");
+   $r->print("$key=$val\n");
 }
 
 if ($ENV{CONTENT_LENGTH}) {
     #$len = $ENV{CONTENT_LENGTH};
-    $content = $r->content;
+    my $content = $r->content;
     
-    $r->write_client("\nContent\n-------\n$content");
+    $r->print("\nContent\n-------\n$content");
 }

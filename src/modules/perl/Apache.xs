@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.35 1996/11/27 16:59:45 dougm Exp $ */
+/* $Id: Apache.xs,v 1.36 1996/12/05 02:47:50 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -79,8 +79,25 @@ typedef server_rec  * Apache__Server;
     bwrite(r->connection->client, buffer, n); \
     SET_BYTES_SENT(r)
 
+/* #define SENDN_TO_CLIENT rwrite(buffer, n, r) */
+
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
+
+#define PUSHelt(key,val,klen) \
+    XPUSHs(sv_2mortal((SV*)newSVpv(key, klen))); \
+    XPUSHs(sv_2mortal((SV*)newSVpv(val, 0))) 
+
+#define CGIENVinit \
+       int i; \
+       char *tz; \
+       table_entry *elts; \
+       add_common_vars(r); \
+       add_cgi_vars(r); \
+       elts = (table_entry *)env_arr->elts; \
+       tz = getenv("TZ"); \
+       table_set (env_arr, "PATH", DEFAULT_PATH); \
+       table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1") 
 
 static IV perl_apache_request_rec;
 
@@ -94,23 +111,32 @@ void perl_set_request_rec(request_rec *r)
 SV *perl_bless_request_rec(request_rec *r)
 {
     SV *sv = sv_newmortal();
-    char *package = "Apache";
-    sv_setref_pv(sv, package, (void*)r);
+    sv_setref_pv(sv, "Apache", (void*)r);
     CTRACE(stderr, "blessing request_rec\n");
     return sv;
 }
 
-void perl_setup_env()
-{ /* XXX yuck, rework this later */
-  SV *sv = newSV(0);
-  sv_setpv(sv, "%ENV = Apache->request->cgi_env();"); 
-  perl_eval_sv(sv, G_DISCARD);
+void perl_setup_env(request_rec *r)
+{ 
+    HV *cgienv = GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV));
+    array_header *env_arr = table_elts (r->subprocess_env); 
+    CGIENVinit; 
+
+    if (tz != NULL) 
+       hv_store(cgienv, "TZ", 2, newSVpv(tz,0), 0);
+    
+    for (i = 0; i < env_arr->nelts; ++i) {
+       if (!elts[i].key) continue;
+       hv_store(cgienv, elts[i].key, strlen(elts[i].key), 
+       newSVpv(elts[i].val,0), 0);
+    }
+    CTRACE(stderr, "perl_setup_env...%d keys\n", i);
 }
 
 void perl_clear_env()
 {
   /* flush %ENV */
-  hv_clear(perl_get_hv("ENV", FALSE));
+  hv_clear(GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV)));
 }
 
 void perl_set_pid()
@@ -132,14 +158,20 @@ int perl_eval_ok(server_rec *s)
   return 0;
 }
 
-void perl_require_module(mod)
-char *mod;
+void perl_require_module(char *mod, server_rec *s)
 {
     SV *sv = sv_newmortal();
     SV *m = newSVpv(mod,0);
+    CTRACE(stderr, "loading perl module '%s'...", mod); 
     sv_setpv(sv, "require ");
     sv_catsv(sv, m);
     perl_eval_sv(sv, G_DISCARD);
+    if(perl_eval_ok(s) != OK) {
+      CTRACE(stderr, "not ok\n");
+      perror("require");
+      exit(1);
+    }
+    CTRACE(stderr, "ok\n");
 }
 
 #ifdef USE_SFIO
@@ -245,6 +277,8 @@ Apache r
     PERL_EXIT_CLEANUP;
     exit(sts);
     }
+
+#httpd.h
      
 char *
 unescape_url(string)
@@ -258,7 +292,34 @@ unescape_url(string)
 
    OUTPUT:
    RETVAL
-   
+
+#functions from http_main.c
+
+void
+hard_timeout(r, string)
+Apache     r
+char       *string
+
+    CODE:
+    hard_timeout(string, r);
+
+void
+soft_timeout(r, string)
+Apache     r
+char       *string
+
+    CODE:
+    soft_timeout(string, r);
+
+void
+kill_timeout(r)
+Apache     r
+
+void
+reset_timeout(r)
+Apache     r
+
+
 #functions from http_core.c
 
 void
@@ -395,8 +456,7 @@ write_client(r, ...)
     Apache	r
 
     ALIAS:
-    Apache::print = 1
-    Apache::PRINT = 2
+    Apache::PRINT = 1
 
     CODE:
     {    
@@ -448,7 +508,6 @@ cgi_env(r, ...)
 
     PPCODE:
    {
-
    array_header *env_arr = table_elts (r->subprocess_env);
    char *key;
 
@@ -458,26 +517,13 @@ cgi_env(r, ...)
 	   table_set(env_arr, key, SvPV(ST(2),na));
    }
    if(GIMME == G_ARRAY) {
-       int i;
-       char *tz;
-       table_entry *elts;
-       add_common_vars(r);
-       add_cgi_vars(r);
-       elts = (table_entry *)env_arr->elts;
-       tz = getenv("TZ");
-       table_set (env_arr, "PATH", DEFAULT_PATH);
-       table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1"); 
-       
-       if (tz!= NULL) {
-	   EXTEND(sp, 2);
-	   PUSHs(sv_2mortal((SV*)newSVpv("TZ", 2)));
-	   PUSHs(sv_2mortal((SV*)newSVpv(tz, strlen(tz))));
-       }
+       CGIENVinit;
+       if (tz != NULL) 
+	   PUSHelt("TZ", tz, 0);
+
        for (i = 0; i < env_arr->nelts; ++i) {
 	   if (!elts[i].key) continue;
-	   EXTEND(sp, 2);	   
-	   PUSHs(sv_2mortal((SV*)newSVpv(elts[i].key, strlen(elts[i].key))));
-	   PUSHs(sv_2mortal((SV*)newSVpv(elts[i].val, strlen(elts[i].val))));
+	   PUSHelt(elts[i].key, elts[i].val, 0);
        }
    }
    else if(key) 
@@ -485,21 +531,6 @@ cgi_env(r, ...)
 
    }
    
-
-void
-client_to_stdout(r)
-    Apache	r
-
-    CODE:
-    perl_stdout2client(r);
-
-void
-client_to_stdin(r)
-    Apache	r
-
-    CODE:
-    perl_stdin2client(r);
-
 #see httpd.h
 #struct request_rec {
 
@@ -725,19 +756,12 @@ headers_in(r)
     PPCODE:
     {
     int i;
-    char *key, *val;
-
     array_header *hdrs_arr = table_elts (r->headers_in);
     table_entry  *hdrs = (table_entry *)hdrs_arr->elts;
 
     for (i = 0; i < hdrs_arr->nelts; ++i) {
-	key = hdrs[i].key;
-	if (!key) continue;
-	val = hdrs[i].val;
-
-	EXTEND(sp, 2);	   
-	PUSHs(sv_2mortal((SV*)newSVpv(key, strlen(key))));
-	PUSHs(sv_2mortal((SV*)newSVpv(val, strlen(val))));
+	if (!hdrs[i].key) continue;
+	PUSHelt(hdrs[i].key, hdrs[i].val, 0);
     }
     }
 
