@@ -98,8 +98,8 @@ With the recommended configuration, these options and Perl linked with sfio
 There are several stages of a request where the Apache API allows a module
 to step and do something.  The Apache documentation will tell you all about
 those stages and what your modules can do.  
-By default, these hooks are disabled at compile time, to change the defaults,
-simply edit mod_perl's Makefile (src/modules/perl/Makefile).  
+By default, these hooks are disabled at compile time, see the INSTALL
+document for information on enabling these hooks.
 The following configuration directives take one argument, which is the name
 of the subroutine to call. 
 

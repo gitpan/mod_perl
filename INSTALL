@@ -57,6 +57,27 @@ You may wish see the instructions below on how to build by hand.
 In any case, you need to 'make install' so the perl side of mod_perl
 will be installed.
 
+By default, all callback hooks except for PerlHandler are turned off.
+You may edit src/modules/perl/Makefile, or enable when running Makfile.PL
+Possible arguments are:
+
+  PERL_TRANS
+  PERL_AUTHEN
+  PERL_AUTHZ
+  PERL_ACCESS
+  PERL_TYPE
+  PERL_FIXUP
+  PERL_LOGGER
+
+Example to enable PerlAuthenHandler and PerlFixupHandler:
+ 
+  perl Makefile.PL PERL_AUTHEN=1 PERL_FIXUP=1
+
+
+To enable tracing set PERL_TRACE=1
+
+  perl Makefile.PL PERL_TRACE=1
+ 
 =back
 
 =head1 Testing mod_perl
@@ -140,10 +161,6 @@ module, that came with perl5.003, so if your perl is not younger than
 problem until it is fixed in the standard distribution of Perl.
 Although, it is a strange bug, you might not even see it without the
 patch...
-
-You may also wish to edit the on/off switches for callback hooks
-during request stages in src/modules/perl/Makefile. The default is
-that most callbacks are disabled.
 
 Type 'perldoc mod_perl' for info on configuring, running
 and writing Apache/Perl scripts and modules.

@@ -3,7 +3,7 @@ use Config;
 use FileHandle ();
 use Cwd;
 
-$VERSION = "0.89";
+$VERSION = "0.90";
 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
@@ -18,11 +18,21 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
 );	     
 
 $NO_HTTPD = $ENV{NO_HTTPD} || 0;
+$PERL_TRACE = 0;
+#callback hooks
+%callback_hooks = map { $_,0 } qw{
+   PERL_TRANS PERL_AUTHEN PERL_AUTHZ 
+   PERL_ACCESS PERL_TYPE PERL_FIXUP
+   PERL_LOGGER
+};
 
 while($_ = shift) {
     ($k,$v) = split /=/;
-    ${$k} = $v if defined ${$k};
+    $v ||= 1;
+    ${$k} = $v, next if defined ${$k};
+    $callback_hooks{$k} = $v if exists $callback_hooks{$k};
 }
+
 
 foreach $src_dir (qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 		  <../apache*/src>, <../stronghold*/src>, <../src>, <./src>) 
@@ -126,6 +136,16 @@ EOT
 	system "(cd $adir; ./Configure${dash_make})"
     }
     last if $APACHE_SRC;
+}
+
+unless ($NO_HTTPD) {
+    while(($k,$v) = each %callback_hooks) {
+	next unless $v;
+	system $^X, "-pi~", "-e", "s/^$k/#$k/", "$APACHE_SRC/modules/perl/Makefile";
+	$k =~ s/^PERL_(.*)/ucfirst(lc($1))/e;
+	print "Perl${k}Handler enabled\n";
+    }
+    system $^X, "-pi~", "-e", "s/^#TRACE/TRACE/", "$APACHE_SRC/modules/perl/Makefile" if $PERL_TRACE;
 }
 
 unless(-e "t/conf/httpd.conf") {

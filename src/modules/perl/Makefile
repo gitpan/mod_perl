@@ -74,7 +74,7 @@ PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOGGER) 
 
 #TRACE = -DPERL_TRACE
-PERL=/usr/local/bin/perl
+PERL=/afs/ri/project/perl/bin/perl
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
