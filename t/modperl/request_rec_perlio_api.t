@@ -9,7 +9,7 @@ use Config;
 
 my $uri = "/TestModperl__request_rec_perlio_api";
 
-plan tests => 2, have { "perl $]: TIEd IO is used instead of PerlIO"
+plan tests => 2, need { "perl $]: TIEd IO is used instead of PerlIO"
                             => ($] >= 5.008 && $Config{useperlio}) };
 
 
@@ -18,12 +18,12 @@ plan tests => 2, have { "perl $]: TIEd IO is used instead of PerlIO"
     my $location = "$uri?STDIN";
     my $expected = join "", 'a'..'j', "package", 'k'..'t';
     my $received = POST_BODY_ASSERT $location, content => $content;
-    ok t_cmp($expected, $received, "STDIN tests");
+    ok t_cmp($received, $expected, "STDIN tests");
 }
 
 {
     my $location = "$uri?STDOUT";
     my $expected = "life is hard and then you die! next you reincarnate...";
     my $received = GET_BODY_ASSERT $location;
-    ok t_cmp($expected, $received, "STDOUT tests");
+    ok t_cmp($received, $expected, "STDOUT tests");
 }

@@ -31,13 +31,16 @@ sub handler {
     # XXX: currently binmode is only available with perlio (used on the
     # server side on the tied/perlio STDOUT)
     plan $r, tests => 2, 
-        have have_min_perl_version(5.008), have_perl('perlio');
+        need need_min_perl_version(5.008), need_perl('perlio');
 
     my $received = ModPerl::Test::read_post($r) || "";
-    utf8::decode($received); # assume that we know that it's utf8
+    # assume that we know that it's utf8
+    require Encode; # since 5.8.0
+    $received = Encode::decode('utf8', $received);
+    # utf8::decode() doesn't work under -T
     my ($received_ascii, $received_utf8) = split /=/, $received;
 
-    ok t_cmp($expected_ascii, $received_ascii, "ascii");
+    ok t_cmp($received_ascii, $expected_ascii, "ascii");
 
     ok $expected_utf8 eq $received_utf8;
     # if you want to see the utf8 data run with:

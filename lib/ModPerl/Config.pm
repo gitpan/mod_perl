@@ -18,27 +18,31 @@ use strict;
 
 use Apache::Build ();
 use Apache::TestConfig ();
+use File::Spec ();
+
+use constant WIN32 => Apache::Build::WIN32;
 
 sub as_string {
-    my $build_config = Apache::Build->build_config;
+    my $build = Apache::Build->build_config;
 
     my $cfg = '';
 
     $cfg .= "*** mod_perl version $mod_perl::VERSION\n\n";;
 
-    $cfg .= "*** using $INC{'Apache/BuildConfig.pm'}\n";
+    my $file = File::Spec->rel2abs($INC{'Apache/BuildConfig.pm'});
+    $cfg .= "*** using $file\n\n";
 
     # the widest key length
     my $max_len = 0;
-    for (map {length} grep /^MP_/, keys %$build_config) {
+    for (map {length} grep /^MP_/, keys %$build) {
         $max_len = $_ if $_ > $max_len;
     }
 
     # mod_perl opts
     $cfg .= "*** Makefile.PL options:\n";
     $cfg .= join '',
-        map {sprintf "  %-${max_len}s => %s\n", $_, $build_config->{$_}}
-            grep /^MP_/, sort keys %$build_config;
+        map {sprintf "  %-${max_len}s => %s\n", $_, $build->{$_}}
+            grep /^MP_/, sort keys %$build;
 
     my $command = '';
 
@@ -52,8 +56,19 @@ sub as_string {
         $cfg .= "\n\n*** The httpd binary was not found\n";
     }
 
+    # apr
+    $cfg .= "\n\n*** (apr|apu)-config linking info\n\n";
+    my @apru_link_flags = $build->apru_link_flags;
+    if (@apru_link_flags) {
+        my $libs = join "\n", @apru_link_flags;
+        $cfg .= "$libs\n\n";
+    }
+    else {
+        $cfg .= "(apr|apu)-config scripts were not found\n\n";
+    }
+
     # perl opts
-    my $perl = $build_config->{MODPERL_PERLPATH};
+    my $perl = $build->{MODPERL_PERLPATH};
     $command = "$perl -V";
     $cfg .= "\n\n*** $command\n";
     $cfg .= qx{$command};

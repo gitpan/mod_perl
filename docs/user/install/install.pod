@@ -26,17 +26,17 @@ The mod_perl 2.0 prerequisites are:
 
 Apache 2.0 is required. mod_perl 2.0 B<does not> work with Apache 1.3.
 
+L<Dynamic|/MP_USE_DSO> (DSO) mod_perl build requires Apache 2.0.47 or
+higher. L<Static|/MP_USE_STATIC> build requires Apache 2.0.51 or
+higher.
+
 =item * Perl
 
 =over
 
 =item prefork MPM
 
-Requires at least Perl version 5.6.0. But we strongly suggest to use
-at least version 5.6.1, since 5.6.0 is quite buggy. The only reason we
-support 5.6.0 is for development reasons (so the build can be tested
-on systems having only 5.6.0) and those users who want to give it a
-try, without first having the hassle of updating their perl version.
+Requires at least Perl version 5.6.1.
 
 You don't need to have threads-support enabled in Perl. If you do have
 it, it B<must> be I<ithreads> and not I<5005threads>! If you have:
@@ -383,28 +383,10 @@ C<MP_USE_DSO> and C<MP_USE_STATIC> are both enabled by default. So
 mod_perl is built once as I<mod_perl.a> and I<mod_perl.so>, but
 afterwards you can choose which of the two to use.
 
-META: The following is not implemented yet.
+=head4 MP_AP_BUILD
 
-  mod_perl and ends up with a src/modules/perl/mod_perl.{so,a} and
-  src/modules/perl/ldopts.  to link modperl static with httpd, we just
-  need some config.m4 magic to add `ldopts` and mod_perl.a to the build.
-  so one could then build httpd like so:
-  
-  ln -s ~/apache/modperl-2.0/src/modules/perl $PWD/src/modules
-  ./configure --with-mpm=prefork --enable-perl=static ...
-  
-  we not be configuring/building httpd for the user as 1.x attempted.
-  
-  downside is one will need to have configured httpd first, so that
-  headers generated.  so it will probably be more like:
-  
-  ./configure --with-mpm=prefork ...
-  (go build modperl)
-  ./config.nice --enable-perl=static && make
-  
-  we could of course provide a wrapper script todo this, but don't want
-  to have this stuff buried and tangled like it is in 1.x
-
+Configure and build httpd in C<MP_AP_PREFIX>, linking mod_perl statically
+to it.
 
 =head4 MP_STATIC_EXTS
 
@@ -439,12 +421,10 @@ C<@INC>. Instead use:
 
 in I<httpd.conf> or:
 
-  use Apache::Server ();
   use Apache::ServerUtil ();
-  use Apache::Process ();
-  my $pool = Apache->server->process->pool;
-  push @INC, Apache::Server::server_root_relative($pool, "");
-  push @INC, Apache::Server::server_root_relative($pool, "lib/perl");
+  use File::Spec::Functins qw(catfile);
+  push @INC, catfile Apache::ServerUtil::server_root, "";
+  push @INC, catfile Apache::ServerUtil::server_root, "lib/perl";
 
 in I<startup.pl>.
 
@@ -505,9 +485,8 @@ I</home/httpd/httpd-2.0/bin/apxs>.
 =head4 MP_AP_PREFIX
 
 Apache installation prefix, under which the I<include/> directory with
-Apache C header files can be found. For example if you've have
-installed Apache 2.0 in directory I<\Apache2> on Win32, you should
-use:
+Apache C header files can be found. For example if you've installed
+Apache 2.0 in directory I<\Apache2> on Win32, you should use:
 
   MP_AP_PREFIX=\Apache2
 
@@ -549,7 +528,18 @@ Read build options from given file. e.g.:
 
   MP_OPTIONS_FILE=~/.my_mod_perl2_opts
 
+=head4 MP_APR_LIB
 
+On Win32, in order to build the APR and APR::* modules so as to
+be independent of mod_perl.so, a static library is first built
+containing the needed functions these modules link into. The option
+
+  MP_APR_LIB=aprext
+
+specifies the name that this library has. The default used
+is C<aprext>. This option has no effect on platforms other than
+Win32, as they use a different mechanism to accomplish the
+decoupling of APR and APR::* from mod_perl.so.
 
 =head3 mod_perl-specific Compiler Options
 
@@ -585,6 +575,12 @@ environment variable C<APACHE_TEST_COLOR> to 1 to enable the colored
 tracing which makes it easier to tell the reported errors and
 warnings, from the rest of the notifications.
 
+=head4 MP_AP_CONFIGURE
+
+The command-line arguments to pass to httpd's configure script.
+
+C<MP_AP_CONFIGURE> has no effect unless C<MP_AP_BUILD> is also
+specified.
 
 =head2 Re-using Configure Options
 

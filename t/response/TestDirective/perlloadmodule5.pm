@@ -39,7 +39,7 @@ sub MyTest5 {
 
 use Apache::RequestRec ();
 use Apache::RequestIO ();
-use Apache::Server ();
+use Apache::ServerRec ();
 use Apache::ServerUtil ();
 use Apache::Module ();
 use Apache::Test;
@@ -65,9 +65,9 @@ sub handler {
 
     ok $s->is_virtual;
 
-    ok t_cmp("Dir", $dir_cfg->{+KEY}, "Section");
+    ok t_cmp($dir_cfg->{+KEY}, "Dir", "Section");
 
-    ok t_cmp("Vhost", $srv_cfg->{+KEY}, "Section");
+    ok t_cmp($srv_cfg->{+KEY}, "Vhost", "Section");
 
     return Apache::OK;
 }

@@ -35,14 +35,15 @@ modperl_newSVsv_obj(aTHX_ stashsv, sv)
 #define mpxs_Apache__RequestRec_UNTIE(r, refcnt) \
     (r && refcnt) ? SVYES : SVNO /* noop */
 
-#define mpxs_output_flush(r, rcfg) \
+#define mpxs_output_flush(r, rcfg, name)             \
     /* if ($|) */ \
     if (IoFLUSH(PL_defoutgv)) { \
         MP_TRACE_o(MP_FUNC, "(flush) %d bytes [%s]", \
                    rcfg->wbucket->outcnt, \
                    apr_pstrmemdup(rcfg->wbucket->pool, rcfg->wbucket->outbuf, \
                                   rcfg->wbucket->outcnt)); \
-        MP_FAILURE_CROAK(modperl_wbucket_flush(rcfg->wbucket, TRUE)); \
+        MP_RUN_CROAK(modperl_wbucket_flush(rcfg->wbucket, TRUE), \
+                     name);                                      \
     }
 
 static MP_INLINE apr_size_t mpxs_ap_rvputs(pTHX_ I32 items,
@@ -60,7 +61,8 @@ static MP_INLINE apr_size_t mpxs_ap_rvputs(pTHX_ I32 items,
     MP_START_TIMES();
 
     MP_CHECK_WBUCKET_INIT("$r->puts");
-    mpxs_write_loop(modperl_wbucket_write, rcfg->wbucket);
+    mpxs_write_loop(modperl_wbucket_write, rcfg->wbucket,
+                    "Apache::RequestIO::puts");
 
     MP_END_TIMES();
     MP_PRINT_TIMES("r->puts");
@@ -88,9 +90,10 @@ apr_size_t mpxs_Apache__RequestRec_print(pTHX_ I32 items,
     rcfg = modperl_config_req_get(r);
 
     MP_CHECK_WBUCKET_INIT("$r->print");
-    mpxs_write_loop(modperl_wbucket_write, rcfg->wbucket);
+    mpxs_write_loop(modperl_wbucket_write, rcfg->wbucket,
+                    "Apache::RequestIO::print");
     
-    mpxs_output_flush(r, rcfg);
+    mpxs_output_flush(r, rcfg, "Apache::RequestIO::print");
     
     return bytes;
 }  
@@ -118,46 +121,48 @@ apr_size_t mpxs_ap_rprintf(pTHX_ I32 items, SV **MARK, SV **SP)
 
     MP_TRACE_o(MP_FUNC, "%d bytes [%s]", bytes, SvPVX(sv));
 
-    MP_FAILURE_CROAK(modperl_wbucket_write(aTHX_ rcfg->wbucket,
-                                           SvPVX(sv), &bytes));
+    MP_RUN_CROAK(modperl_wbucket_write(aTHX_ rcfg->wbucket,
+                                       SvPVX(sv), &bytes),
+                 "Apache::RequestIO::printf");
     
-    mpxs_output_flush(r, rcfg);
+    mpxs_output_flush(r, rcfg, "Apache::RequestIO::printf");
 
     return bytes;
 }  
 
 /* alias */
-#define mpxs_Apache__RequestRec_WRITE(r, buffer, bufsiz, offset) \
-    mpxs_Apache__RequestRec_write(aTHX_ r, buffer, bufsiz, offset)
+#define mpxs_Apache__RequestRec_WRITE(r, buffer, len, offset) \
+    mpxs_Apache__RequestRec_write(aTHX_ r, buffer, len, offset)
 
 static MP_INLINE
 apr_size_t mpxs_Apache__RequestRec_write(pTHX_ request_rec *r,
-                                         SV *buffer, apr_size_t bufsiz,
-                                         int offset)
+                                         SV *buffer, apr_size_t len,
+                                         apr_off_t offset)
 {
-    apr_size_t wlen = bufsiz;
+    apr_size_t wlen;
     const char *buf;
-    STRLEN svlen;
+    STRLEN avail;
     MP_dRCFG;
 
-    buf = (const char *)SvPV(buffer, svlen);
+    buf = (const char *)SvPV(buffer, avail);
 
-    if (bufsiz == -1) {
-        wlen = offset ? svlen - offset : svlen;
+    if (len == -1) {
+        wlen = offset ? avail - offset : avail;
     }
     else {
-        wlen = bufsiz;
+        wlen = len;
     }
 
     MP_CHECK_WBUCKET_INIT("$r->write");
-    MP_FAILURE_CROAK(modperl_wbucket_write(aTHX_ rcfg->wbucket,
-                                           buf+offset, &wlen));
+    MP_RUN_CROAK(modperl_wbucket_write(aTHX_ rcfg->wbucket,
+                                       buf+offset, &wlen),
+                 "Apache::RequestIO::write");
     
     return wlen;
 }
 
 static MP_INLINE
-int mpxs_Apache__RequestRec_rflush(pTHX_ I32 items,
+void mpxs_Apache__RequestRec_rflush(pTHX_ I32 items,
                                    SV **MARK, SV **SP)
 {
     modperl_config_req_t *rcfg;
@@ -173,9 +178,8 @@ int mpxs_Apache__RequestRec_rflush(pTHX_ I32 items,
                rcfg->wbucket->outcnt,
                apr_pstrmemdup(rcfg->wbucket->pool, rcfg->wbucket->outbuf,
                               rcfg->wbucket->outcnt));
-    MP_FAILURE_CROAK(modperl_wbucket_flush(rcfg->wbucket, TRUE));
-
-    return APR_SUCCESS;
+    MP_RUN_CROAK(modperl_wbucket_flush(rcfg->wbucket, TRUE),
+                 "Apache::RequestIO::rflush");
 }
 
 static MP_INLINE long mpxs_ap_get_client_block(pTHX_ request_rec *r,
@@ -194,6 +198,9 @@ static MP_INLINE long mpxs_ap_get_client_block(pTHX_ request_rec *r,
     else {
         sv_setpvn(buffer, "", 0);
     }
+
+    /* must run any set magic */
+    SvSETMAGIC(buffer);
 
     return nrd;
 }
@@ -219,17 +226,17 @@ apr_status_t mpxs_setup_client_block(request_rec *r)
     (r->read_length || ap_should_client_block(r))
 
 /* alias */
-#define mpxs_Apache__RequestRec_READ(r, bufsv, len, offset) \
-    mpxs_Apache__RequestRec_read(aTHX_ r, bufsv, len, offset)
+#define mpxs_Apache__RequestRec_READ(r, buffer, len, offset) \
+    mpxs_Apache__RequestRec_read(aTHX_ r, buffer, len, offset)
 
 static SV *mpxs_Apache__RequestRec_read(pTHX_ request_rec *r,
-                                         SV *bufsv, int len,
-                                         int offset)
+                                         SV *buffer, apr_size_t len,
+                                         apr_off_t offset)
 {
-    long total;
+    SSize_t total;
 
-    if (!SvOK(bufsv)) {
-        sv_setpvn(bufsv, "", 0);
+    if (!SvOK(buffer)) {
+        sv_setpvn(buffer, "", 0);
     }
 
     if (len <= 0) {
@@ -239,19 +246,19 @@ static SV *mpxs_Apache__RequestRec_read(pTHX_ request_rec *r,
     /* XXX: need to handle negative offset */
     /* XXX: need to pad with \0 if offset > size of the buffer */
 
-    mpxs_sv_grow(bufsv, len+offset);
-    total = modperl_request_read(aTHX_ r, SvPVX(bufsv)+offset, len);
+    mpxs_sv_grow(buffer, len+offset);
+    total = modperl_request_read(aTHX_ r, SvPVX(buffer)+offset, len);
 
     if (total > 0) {
-        mpxs_sv_cur_set(bufsv, offset+total);
-        SvTAINTED_on(bufsv);
+        mpxs_sv_cur_set(buffer, offset+total);
+        SvTAINTED_on(buffer);
     } 
-    else if (total == 0) {
-        sv_setpvn(bufsv, "", 0);
-    }
     else {
-        return &PL_sv_undef;
+        sv_setpvn(buffer, "", 0);
     }
+
+    /* must run any set magic */
+    SvSETMAGIC(buffer);
 
     return newSViv(total);
 }
@@ -261,6 +268,8 @@ SV *mpxs_Apache__RequestRec_GETC(pTHX_ request_rec *r)
 {
     char c[1] = "\0";
 
+    /* XXX: reimplement similar to read() w/o using the deprecated
+     * client_block interface */
     if (mpxs_setup_client_block(r) == APR_SUCCESS) {
         if (mpxs_should_client_block(r)) {
             if (ap_get_client_block(r, c, 1) == 1) {
@@ -302,31 +311,62 @@ int mpxs_Apache__RequestRec_FILENO(pTHX_ request_rec *r)
 }
 
 static MP_INLINE
-apr_status_t mpxs_Apache__RequestRec_sendfile(request_rec *r,
+apr_status_t mpxs_Apache__RequestRec_sendfile(pTHX_ request_rec *r,
                                               const char *filename,
                                               apr_off_t offset,
                                               apr_size_t len)
 {
     apr_size_t nbytes;
-    apr_status_t status;
+    apr_status_t rc;
     apr_file_t *fp;
 
-    status = apr_file_open(&fp, filename, APR_READ|APR_BINARY,
-                           APR_OS_DEFAULT, r->pool);
+    rc = apr_file_open(&fp, filename, APR_READ|APR_BINARY,
+                       APR_OS_DEFAULT, r->pool);
 
-    if (status != APR_SUCCESS) {
-        return status;
+    if (rc != APR_SUCCESS) {
+        if (GIMME_V == G_VOID) {
+            modperl_croak(aTHX_ rc,
+                          apr_psprintf(r->pool,
+                                       "Apache::RequestIO::sendfile('%s')",
+                                       filename));
+        }
+        else {
+            return rc;
+        }
     }
 
     if (!len) {
         apr_finfo_t finfo;
         apr_file_info_get(&finfo, APR_FINFO_NORM, fp);
         len = finfo.size;
+        if (offset) {
+            len -= offset;
+        }
     }
 
-    status = ap_send_fd(fp, r, offset, len, &nbytes);
+    /* flush any buffered modperl output */
+    {
+        modperl_config_req_t *rcfg = modperl_config_req_get(r);
+        
+        MP_CHECK_WBUCKET_INIT("$r->rflush");
+        if (rcfg->wbucket->outcnt) {
+            MP_TRACE_o(MP_FUNC, "flushing %d bytes [%s]",
+                       rcfg->wbucket->outcnt,
+                       apr_pstrmemdup(rcfg->wbucket->pool,
+                                      rcfg->wbucket->outbuf,
+                                      rcfg->wbucket->outcnt));
+            MP_RUN_CROAK(modperl_wbucket_flush(rcfg->wbucket, TRUE),
+                         "Apache::RequestIO::sendfile");
+        }
+    }
+    
+    rc = ap_send_fd(fp, r, offset, len, &nbytes);
 
     /* apr_file_close(fp); */ /* do not do this */
 
-    return status;
+    if (GIMME_V == G_VOID && rc != APR_SUCCESS) {
+        modperl_croak(aTHX_ rc, "Apache::RequestIO::sendfile");
+    }
+
+    return rc;
 }

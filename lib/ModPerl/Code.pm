@@ -642,7 +642,8 @@ my %sources = (
 my @c_src_names = qw(interp tipool log config cmd options callback handler
                      gtop util io io_apache filter bucket mgv pcw global env
                      cgi perl perl_global perl_pp sys module svptr_table
-                     const constants apache_compat error);
+                     const constants apache_compat error debug
+                     common_util common_log);
 my @h_src_names = qw(perl_unembed);
 my @g_c_names = map { "modperl_$_" } qw(hooks directives flags xsinit);
 my @c_names   = ('mod_perl', (map "modperl_$_", @c_src_names));
@@ -653,7 +654,8 @@ sub o_pic_files { [map { "$_.lo" } @c_names, @g_c_names] }
 my @g_h_names = map { "modperl_$_" } qw(hooks directives flags trace
                                         largefiles);
 my @h_names = (@c_names, map { "modperl_$_" } @h_src_names,
-               qw(types time apache_includes perl_includes));
+               qw(types time apache_includes perl_includes apr_includes
+                  common_includes common_types));
 sub h_files { [map { "$_.h" } @h_names, @g_h_names] }
 
 sub clean_files {
@@ -1081,6 +1083,13 @@ sub constants_lookup_code_doc {
                 unless $seen_const{$class}{$name}
         }
     }
+}
+
+# src/modules/perl/*.c files needed to build APR/APR::* outside
+# of mod_perl.so
+sub src_apr_ext {
+    return map { "modperl_$_" } (qw(error bucket),
+                                  map { "common_$_" } qw(util log));
 }
 
 1;

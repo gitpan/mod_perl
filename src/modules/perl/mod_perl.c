@@ -24,6 +24,17 @@ static int MP_init_status = 0;
 #define MP_IS_STARTING    (MP_init_status == 1 ? 1 : 0)
 #define MP_IS_RUNNING     (MP_init_status == 2 ? 1 : 0)
 
+/* false while there is only the parent process and may be child
+ * processes, but no threads around, useful for allowing things that
+ * don't require locking and won't affect other threads. It should
+ * become true just before the child_init phase  */
+static int MP_threads_started = 0;
+
+int modperl_threads_started(void)
+{
+    return MP_threads_started;
+}
+
 #ifndef USE_ITHREADS
 static apr_status_t modperl_shutdown(void *data)
 {
@@ -321,7 +332,9 @@ int modperl_init_vhost(server_rec *s, apr_pool_t *p,
         return OK;
     }
 
-    if (!MpSrvENABLE(scfg)) {
+    /* the base server could have mod_perl callbacks disabled, but it
+     * still needs perl to drive the vhosts */
+    if (!MpSrvENABLE(scfg) && s->is_virtual) {
         MP_TRACE_i(MP_FUNC, "mod_perl disabled for server %s\n", vhost);
         scfg->mip = NULL;
         return OK;
@@ -390,11 +403,6 @@ void modperl_init(server_rec *base_server, apr_pool_t *p)
         exit(1);
     }
 #endif
-
-    if (!MpSrvENABLE(base_scfg)) {
-        /* how silly */
-        return;
-    }
 
     base_perl = modperl_startup(base_server, p);
 
@@ -592,7 +600,8 @@ static int modperl_hook_post_config(apr_pool_t *pconf, apr_pool_t *plog,
      */
     {
         apr_file_t *dup;
-        MP_FAILURE_CROAK(apr_file_dup(&dup, s->error_log, pconf));
+        MP_RUN_CROAK(apr_file_dup(&dup, s->error_log, pconf),
+                     "mod_perl core post_config");
         modperl_trace_logfile_set(dup);
     }
 #endif
@@ -611,6 +620,20 @@ static int modperl_hook_post_config(apr_pool_t *pconf, apr_pool_t *plog,
     ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
                  "mod_perl: using Perl HASH_SEED: %"UVuf, MP_init_hash_seed);
 #endif
+    
+    return OK;
+}
+
+static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
+                                         apr_pool_t *ptemp, server_rec *s)
+{
+    MP_dSCFG(s);
+
+    /* in the threaded environment, no server_rec/process_rec
+     * modifications should be done beyond this point */
+    if (scfg->threaded_mpm) {
+        MP_threads_started = 1;
+    }
     
     return OK;
 }
@@ -714,6 +737,11 @@ static void modperl_hook_child_init(apr_pool_t *p, server_rec *s)
 
 void modperl_register_hooks(apr_pool_t *p)
 {
+
+#ifdef USE_ITHREADS
+    APR_REGISTER_OPTIONAL_FN(modperl_interp_unselect);
+#endif
+
     /* for <IfDefine MODPERL2> and Apache->define("MODPERL2") */
     *(char **)apr_array_push(ap_server_config_defines) =
         apr_pstrdup(p, "MODPERL2");
@@ -726,6 +754,9 @@ void modperl_register_hooks(apr_pool_t *p)
 
     ap_hook_post_config(modperl_hook_post_config,
                         NULL, NULL, APR_HOOK_FIRST);
+
+    ap_hook_post_config(modperl_hook_post_config_last,
+                        NULL, NULL, APR_HOOK_REALLY_LAST);
 
     ap_hook_handler(modperl_response_handler,
                     NULL, NULL, APR_HOOK_MIDDLE);
@@ -779,16 +810,16 @@ void modperl_register_hooks(apr_pool_t *p)
 
 static const command_rec modperl_cmds[] = {  
     MP_CMD_SRV_ITERATE("PerlSwitches", switches, "Perl Switches"),
-    MP_CMD_SRV_ITERATE("PerlModule", modules, "PerlModule"),
-    MP_CMD_SRV_ITERATE("PerlRequire", requires, "PerlRequire"),
+    MP_CMD_DIR_ITERATE("PerlModule", modules, "PerlModule"),
+    MP_CMD_DIR_ITERATE("PerlRequire", requires, "PerlRequire"),
     MP_CMD_DIR_ITERATE("PerlOptions", options, "Perl Options"),
     MP_CMD_DIR_ITERATE("PerlInitHandler", init_handlers, "Subroutine name"),
     MP_CMD_DIR_TAKE2("PerlSetVar", set_var, "PerlSetVar"),
     MP_CMD_DIR_ITERATE2("PerlAddVar", add_var, "PerlAddVar"),
     MP_CMD_DIR_TAKE2("PerlSetEnv", set_env, "PerlSetEnv"),
     MP_CMD_SRV_TAKE1("PerlPassEnv", pass_env, "PerlPassEnv"),
-    MP_CMD_SRV_RAW_ARGS_ON_READ("<Perl", perl, "Perl Code"),
-    MP_CMD_SRV_RAW_ARGS("Perl", perldo, "Perl Code"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("<Perl", perl, "Perl Code"),
+    MP_CMD_DIR_RAW_ARGS("Perl", perldo, "Perl Code"),
 
     MP_CMD_DIR_TAKE1("PerlSetInputFilter", set_input_filter,
                      "filter[;filter]"),

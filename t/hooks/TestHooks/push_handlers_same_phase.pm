@@ -38,18 +38,18 @@ sub real_response {
     # longer happen as we don't allow switching 'perl-script' <=>
     # 'modperl' on the go, but test anyway)
     my $counter = $r->notes->get('counter') || 0;
-    ok t_cmp(1, $counter, 
+    ok t_cmp($counter, 1,
              __PACKAGE__ . "::handler must have been called only once");
 
     my @handlers = @{ $r->get_handlers('PerlResponseHandler') || []};
-    ok t_cmp(2,
-             scalar(@handlers),
+    ok t_cmp(scalar(@handlers),
+             2,
              "there should be 2 response handlers");
 
     # once running inside the response phase it shouldn't be possible
     # to switch from 'perl-script' to 'modperl' and vice versa
     eval { $r->handler("perl-script") };
-    ok t_cmp(qr/Can't switch from/, $@, 
+    ok t_cmp($@, qr/Can't switch from/,
              "can't switch from 'perl-script' to 'modperl' inside " .
              "the response phase");
 

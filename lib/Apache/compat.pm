@@ -34,15 +34,16 @@ no warnings 'redefine';
 #   PerlResponseHandler Apache::Registry
 #</Location>
 
-use Apache::RequestRec ();
-use Apache::SubRequest ();
 use Apache::Connection ();
-use Apache::Server ();
+use Apache::ServerRec ();
 use Apache::ServerUtil ();
 use Apache::Access ();
+use Apache::RequestRec ();
 use Apache::RequestIO ();
 use Apache::RequestUtil ();
 use Apache::Response ();
+use Apache::SubRequest ();
+use Apache::Filter ();
 use Apache::Util ();
 use Apache::Log ();
 use Apache::URI ();
@@ -51,8 +52,12 @@ use APR::Table ();
 use APR::Pool ();
 use APR::URI ();
 use APR::Util ();
+use APR::Brigade ();
+use APR::Bucket ();
 use mod_perl ();
+
 use Symbol ();
+use File::Spec ();
 
 BEGIN {
     $INC{'Apache.pm'} = __FILE__;
@@ -153,21 +158,6 @@ EOI
 }
 EOI
 
-    'Apache::server_root_relative' => <<'EOI',
-{
-    require Apache::Server;
-    require Apache::ServerUtil;
-
-    my $orig_sub = *Apache::Server::server_root_relative{CODE};
-    *Apache::server_root_relative = sub {
-        my $class = shift;
-        return Apache->server->server_root_relative(@_);
-    };
-    $orig_sub;
-}
-
-EOI
-
     'Apache::Util::ht_time' => <<'EOI',
 {
     require Apache::Util;
@@ -252,11 +242,21 @@ sub request {
 
 package Apache::Server;
 # XXX: is that good enough? see modperl/src/modules/perl/mod_perl.c:367
-our $CWD = Apache::server_root;
+our $CWD = Apache::ServerUtil::server_root;
 
 our $AddPerlVersion = 1;
 
 package Apache;
+
+sub server_root_relative {
+    my $class = shift;
+    if (@_ && defined($_[0]) && File::Spec->file_name_is_absolute($_[0])) {
+         return File::Spec->catfile(@_);
+    }
+    else {
+        File::Spec->catfile(Apache::ServerUtil::server_root, @_);
+    }
+}
 
 sub exit {
     require ModPerl::Util;
@@ -296,7 +296,7 @@ sub gensym {
 
 sub define {
     shift if @_ == 2;
-    exists_config_define(@_);
+    Apache::ServerUtil::exists_config_define(@_);
 }
 
 sub log_error {
@@ -350,7 +350,7 @@ sub import {
 #no need to support in 2.0
 sub export {}
 
-sub SERVER_VERSION { Apache::get_server_version() }
+sub SERVER_VERSION { Apache::ServerUtil::get_server_version() }
 
 package Apache::RequestRec;
 
@@ -471,26 +471,46 @@ sub Apache::args {
     return $r->parse_args($args);
 }
 
+use Apache::Const -compile => qw(MODE_READBYTES);
+use APR::Const    -compile => qw(SUCCESS BLOCK_READ);
+
 use constant IOBUFSIZE => 8192;
 
 sub content {
     my $r = shift;
 
-    $r->setup_client_block;
-
-    return undef unless $r->should_client_block;
+    my $bb = APR::Brigade->new($r->pool,
+                               $r->connection->bucket_alloc);
 
     my $data = '';
-    my $buf;
-    while (my $read_len = $r->get_client_block($buf, IOBUFSIZE)) {
-        if ($read_len == -1) {
-            die "some error while reading with get_client_block";
+    my $seen_eos = 0;
+    do {
+        $r->input_filters->get_brigade($bb, Apache::MODE_READBYTES,
+                                       APR::BLOCK_READ, IOBUFSIZE);
+
+        for (my $b = $bb->first; $b; $b = $bb->next($b)) {
+            if ($b->is_eos) {
+                $seen_eos++;
+                last;
+            }
+
+            if ($b->read(my $buf)) {
+                $data .= $buf;
+            }
+
+            $b->remove; # optimization to reuse memory
         }
-        $data .= $buf;
-    }
+    } while (!$seen_eos);
+
+    $bb->destroy;
 
     return $data unless wantarray;
     return $r->parse_args($data);
+}
+
+sub server_root_relative {
+    my $r = shift;
+    File::Spec->catfile(Apache::ServerUtil::server_root, @_);
 }
 
 sub clear_rgy_endav {
@@ -642,8 +662,10 @@ sub tmpfile {
     }
 }
 
-# the following functions now live in Apache::Response
+# the following functions now live in Apache::RequestIO
 # * discard_request_body
+
+# the following functions now live in Apache::Response
 # * meets_conditions
 # * set_content_length
 # * set_etag
@@ -708,7 +730,7 @@ sub escape_html {
 
 *parsedate = \&APR::Date::parse_http;
 
-*validate_password = \&APR::password_validate;
+*validate_password = \&APR::Util::password_validate;
 
 sub Apache::URI::parse {
     my($class, $r, $uri) = @_;

@@ -243,7 +243,7 @@ just logs the supplied message to I<error_log>
 =over 4
 
 =item obj: C<$s>
-( C<L<Apache::Server object|docs::2.0::api::Apache::Server>> )
+( C<L<Apache::ServerRec object|docs::2.0::api::Apache::ServerRec>> )
 
 =item arg1: C<@message> ( strings ARRAY )
 
@@ -273,7 +273,7 @@ gives an access to built-in status codes.
 =over 4
 
 =item obj: C<$s>
-( C<L<Apache::Server object|docs::2.0::api::Apache::Server>> )
+( C<L<Apache::ServerRec object|docs::2.0::api::Apache::ServerRec>> )
 
 =item arg1: C<$file> ( string )
 
@@ -329,7 +329,7 @@ levels|/LogLevel_Methods>.
 =over 4
 
 =item obj: C<$s>
-( C<L<Apache::Server object|docs::2.0::api::Apache::Server>> )
+( C<L<Apache::ServerRec object|docs::2.0::api::Apache::ServerRec>> )
 
 =item ret: C<$slog> ( C<Apache::Log::Server> object )
 
@@ -593,12 +593,12 @@ For example:
 
 =head1 Unsupported API
 
-C<Apache::Log> also provides auto-generated perl interface for a few
+C<Apache::Log> also provides auto-generated Perl interface for a few
 other methods which aren't tested at the moment and therefore their
 API is a subject to change. These methods will be finalized later as a
 need arises. If you want to rely on any of the following methods
 please contact the L<the mod_perl development mailing
-list|maillist::dev> so we can help eachother take the steps necessary
+list|maillist::dev> so we can help each other take the steps necessary
 to shift the method to an officially supported API.
 
 
@@ -644,7 +644,7 @@ L<mod_perl 2.0 documentation|docs::2.0::index>.
 =head1 Copyright
 
 mod_perl 2.0 and its core modules are copyrighted under
-The Apache Software License, Version 1.1.
+The Apache Software License, Version 2.0.
 
 
 

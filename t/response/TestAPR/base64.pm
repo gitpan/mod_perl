@@ -4,23 +4,17 @@ use strict;
 use warnings FATAL => 'all';
 
 use Apache::Test;
-
-use APR::Base64 ();
-
 use Apache::Const -compile => 'OK';
+
+use TestAPRlib::base64;
 
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 2;
+    my $num_of_tests = TestAPRlib::base64::num_of_tests();
+    plan $r, tests => $num_of_tests;
 
-    my $encoded = APR::Base64::encode("$r");
-
-    ok $encoded;
-
-    my $decoded = APR::Base64::decode($encoded);
-
-    ok $decoded eq "$r";
+    TestAPRlib::base64::test();
 
     Apache::OK;
 }

@@ -16,14 +16,13 @@ Apache::Directive - Perl API for manipulating Apache configuration tree
   my $vhost = $tree->lookup('VirtualHost', 'localhost:8000');
   my $servername = $vhost->{'ServerName'};
   
-  print $tree->as_string;
-  
   use Data::Dumper;
   print Dumper($tree->as_hash);
   
   my $node = $tree;
   while ($node) {
-  
+      print $node->as_string;
+
       #do something with $node
   
       if (my $kid = $node->first_child) {
@@ -55,10 +54,88 @@ Internally, this information is stored in a tree structure. Each node
 in the tree has a reference to its parent (if it's not the root), its
 first child (if any), and to its next sibling.
 
+B<All these methods are read-only>
 
-=head1 Class Methods
 
-=head2 C<conftree()>
+
+
+
+=head1 API
+
+C<Apache::Directive> provides the following functions and/or methods:
+
+
+
+
+
+=head2 C<args> 
+
+The arguments for the current directive, stored as a space separated
+list
+
+  $args      = $node->args();
+
+=over 4
+
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+=item ret: C<$args> ( string )
+
+=item since: 1.99_12
+
+=back
+
+
+
+=head2 C<as_hash>
+
+Returns a hash representation of the configuration tree, in a format
+suitable for inclusion in E<lt>PerlE<gt> sections.
+
+   $config_hash = $conftree->as_hash();
+
+=over 4
+
+=item obj: C<$conftree>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+The config tree to stringify
+
+=item ret: C<$config_hash> (HASH)
+
+=item since: 1.99_12
+
+=back
+
+
+
+
+
+
+=head2 C<as_string>
+
+Returns a string representation of the configuration node, in
+F<httpd.conf> format. This does not traverse down to sub-trees.
+
+   $string = $node->as_string();
+
+=over 4
+
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+The config tree to stringify
+
+=item ret: C<$string> ( string )
+
+=item since: 1.99_12
+
+=back
+
+
+
+=head2 C<conftree>
 
 Returns the root of the configuration tree.
 
@@ -68,7 +145,9 @@ Returns the root of the configuration tree.
 
 =item obj: C<Apache::Directive> (class name)
 
-=item ret: C<$tree> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item ret: C<$tree> ( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+=item since: 1.99_12
 
 =back
 
@@ -76,49 +155,92 @@ Returns the root of the configuration tree.
 
 
 
+=head2 C<directive>
 
-=head1 Object Methods
+Returns the name of the directive in C<$node>.
 
-=head2 C<as_hash()>
-
-Returns a hash representation of the configuration tree, in a format
-suitable for inclusion in the E<lt>PerlE<gt> sections.
-
-   $config_hash = $conftree->as_hash();
+  $name = $node->directive();
 
 =over 4
 
-=item obj: C<$conftree> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
-The config tree to stringify
+=item ret: C<$directive> ( string )
 
-=item ret: C<$config_hash> (HASH)
+=item since: 1.99_12
 
 =back
 
 
 
 
-=head2 C<as_string()>
 
-Returns a string representation of the configuration tree, in
-httpd.conf format.
+=head2 C<filename>
 
-   $string = $conftree->as_string();
+Returns the filename the configuration node was created from
+
+  $filename = $node->filename();
 
 =over 4
 
-=item obj: C<$conftree> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
-The config tree to stringify
+=item ret: C<$filename> ( string )
 
-=item ret: C<$string> (string)
+=item since: 1.99_12
 
 =back
 
 
 
-=head2 C<lookup()>
+
+
+=head2 C<first_child>
+
+The first child node of this directive
+
+  $subtree = $node->first_child;
+
+=over 4
+
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+=item ret: C<$child_node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+Returns the first child node of C<$node>, C<undef> if there is none
+
+=item since: 1.99_12
+
+=back
+
+
+
+
+=head2 C<line_num>
+
+Returns the line number in C<filename> this node was created from
+
+  $lineno = $node->line_num();
+
+=over 4
+
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
+
+=item arg1: C<$lineno> (integer)
+
+=item since: 1.99_12
+
+=back
+
+
+
+
+=head2 C<lookup>
 
 Returns node(s) matching a certain value.
 
@@ -127,15 +249,16 @@ Returns node(s) matching a certain value.
 
 =over 4
 
-=item obj: C<$conftree> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item obj: C<$conftree>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
 The config tree to stringify
 
-=item arg1: C<$directive> (string)
+=item arg1: C<$directive> ( string )
 
-=item opt arg3: C<args> (string)
+=item opt arg2: C<args> ( string )
 
-=item ret: C<$string> (string)
+=item ret: C<$string> ( string / ARRAY of HASHES )
 
 In list context, it will return all matching nodes.
 
@@ -153,11 +276,9 @@ where both the directive and the args matched. For example:
 
   $VHost = $tree->lookup('VirtualHost', '_default_:8000');
 
+=item since: 1.99_12
 
 =back
-
-
-
 
 If called with only one C<$directive> value, this will return all
 nodes from that directive:
@@ -174,76 +295,9 @@ where both the directive and the args matched:
 
 
 
-=head2 C<walk_config>
-
-META: Autogenerated - needs to be reviewed/completed
-
-Walk a config tree and setup the server's internal structures
-
-  $ret = $conftree->walk_config($cmdparms, $section_vector);
-
-=over 4
-
-=item obj: C<$conftree> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-The config tree to walk
-
-=item arg1: C<$cmdparms> (C<L<Apache::CmdParms|docs::2.0::api::Apache::CmdParms>>)
-
-The cmd_parms to pass to all functions
-
-=item arg2: C<$section_vector> (C<L<Apache::ConfVector|docs::2.0::api::Apache::ConfVector>>)
-
-The per-section config vector.
-
-=item ret: C<$ret> (string)
-
-Error string on error, C<undef> otherwise
-
-=back
 
 
 
-
-
-
-
-
-
-
-=head2 C<directive>
-
-
-Returns the name of the directive in C<$node>.
-
-  $name = $node->directive();
-
-=over 4
-
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-=item ret: C<$directive> (string)
-
-=back
-
-
-
-
-
-=head2 C<args>
-
-The arguments for the current directive, stored as a space
-separated list
-
-  $args = $node->args();
-
-=over 4
-
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-=item ret: C<$args> (string)
-
-=back
 
 
 
@@ -257,33 +311,18 @@ The next directive node in the tree
 
 =over 4
 
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item obj: C<$node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
-=item ret: C<$next_node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item ret: C<$next_node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
 Returns the next sibling of C<$node>, C<undef> if there is none
 
-=back
-
-
-
-
-
-=head2 C<first_child>
-
-The first child node of this directive
-
-  $subtree = $node->first_child;
-
-=over 4
-
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-=item ret: C<$child_node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-Returns the first child node of C<$node>, C<undef> if there is none
+=item since: 1.99_12
 
 =back
+
 
 
 
@@ -291,79 +330,24 @@ Returns the first child node of C<$node>, C<undef> if there is none
 
 =head2 C<parent>
 
-META: Autogenerated - needs to be reviewed/completed
-
 The parent node of this directive
 
   $parent_node = $node->parent();
 
 =over 4
 
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item obj: C<$node> ( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
-=item ret: C<parent_node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
+=item ret: C<parent_node>
+( C<L<Apache::Directive object|docs::2.0::api::Apache::Directive>> )
 
 Returns the parent of C<$node>, C<undef> if this node is the root node
 
-=back
-
-
-
-
-
-=head2 C<data>
-
-META: Autogenerated - needs to be reviewed/completed
-
-directive's module can store add'l data here
-
-  $ret = $conftree->data($newval);
-
-=over 4
-
-=item obj: C<$conftree> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-=item arg1: C<$newval> XXX
-
-=item ret: XXX
+=item since: 1.99_12
 
 =back
 
 
-
-
-
-=head2 C<filename>
-
-Returns the filename the configuration node was created from
-
-  $filename = $node->filename();
-
-=over 4
-
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-=item ret: C<$filename> (string)
-
-=back
-
-
-
-
-
-=head2 C<line_num>
-
-Returns the line number in C<filename> this node was created from
-
-  $lineno = $node->line_num();
-
-=over 4
-
-=item obj: C<$node> (C<L<Apache::Directive|docs::2.0::api::Apache::Directive>>)
-
-=item arg1: C<$lineno> (integer)
-
-=back
 
 
 
@@ -378,7 +362,7 @@ L<mod_perl 2.0 documentation|docs::2.0::index>.
 =head1 Copyright
 
 mod_perl 2.0 and its core modules are copyrighted under
-The Apache Software License, Version 1.1.
+The Apache Software License, Version 2.0.
 
 
 

@@ -21,36 +21,25 @@ sub handler : FilterRequestHandler {
 
     my $ctx_bb = APR::Brigade->new($filter->r->pool, $ba);
 
-    my $rv = $filter->next->get_brigade($ctx_bb, $mode, $block, $readbytes);
+    $filter->next->get_brigade($ctx_bb, $mode, $block, $readbytes);
 
-    if ($rv != APR::SUCCESS) {
-        return $rv;
-    }
+    while (!$ctx_bb->is_empty) {
+        my $b = $ctx_bb->first;
 
-    while (!$ctx_bb->empty) {
-        my $data;
-        my $bucket = $ctx_bb->first;
+        $b->remove;
 
-        $bucket->remove;
-
-        if ($bucket->is_eos) {
+        if ($b->is_eos) {
             #warn "EOS!!!!";
-            $bb->insert_tail($bucket);
+            $bb->insert_tail($b);
             last;
         }
 
-        my $status = $bucket->read($data);
-        #warn "DATA bucket!!!!";
-        if ($status != APR::SUCCESS) {
-            return $status;
-        }
-
-        if ($data) {
+        if ($b->read(my $data)) {
             #warn"[$data]\n";
-            $bucket = APR::Bucket->new(scalar reverse $data);
+            $b = APR::Bucket->new(scalar reverse $data);
         }
 
-        $bb->insert_tail($bucket);
+        $bb->insert_tail($b);
     }
 
     Apache::OK;

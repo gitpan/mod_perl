@@ -1,4 +1,7 @@
-#modperl specfic functions
+##########  mod_perl specific functions  ##########
+
+# for mapping see %ModPerl::MapUtil::disabled_map in
+# lib/ModPerl/MapUtil.pm
 
 MODULE=ModPerl::Util
  mpxs_ModPerl__Util_untaint | | ...
@@ -16,8 +19,7 @@ MODULE=Apache::RequestRec   PACKAGE=Apache::RequestRec
  mpxs_Apache__RequestRec_content_type   | | r, type=Nullsv
  mpxs_Apache__RequestRec_proxyreq       | | r, val=Nullsv
  mpxs_Apache__RequestRec_subprocess_env | | r, key=NULL, val=Nullsv
- mpxs_Apache__RequestRec_finfo
- SV *:DEFINE_server_root_relative | | SV *:p, const char *:fname=""
+ mpxs_Apache__RequestRec_finfo | | r, finfo=NULL
  mpxs_Apache__RequestRec_handler | | ...
 
 
@@ -29,7 +31,7 @@ MODULE=Apache::RequestUtil   PACKAGE=guess
  mpxs_Apache__RequestRec_location
  mpxs_Apache__RequestRec_as_string
  mpxs_Apache__RequestRec_pnotes | | r, key=Nullsv, val=Nullsv
- mpxs_Apache__RequestRec_add_config | | r, lines, path=r->filename, override=OR_AUTHCFG 
+ mpxs_Apache__RequestRec_add_config | | r, lines, override=OR_AUTHCFG 
 
  #protocol module helpers
  mpxs_Apache__RequestRec_location_merge
@@ -51,12 +53,12 @@ MODULE=Apache::RequestIO   PACKAGE=Apache::RequestRec
  SV *:DEFINE_CLOSE    | | request_rec *:r
  SV *:DEFINE_UNTIE    | | request_rec *:r, int:refcnt
  mpxs_Apache__RequestRec_sendfile | | r, filename=r->filename, offset=0, len=0
- mpxs_Apache__RequestRec_read | | r, bufsv, len, offset=0
- SV *:DEFINE_READ | | request_rec *:r, SV *:bufsv, int:len, int:offset=0
- mpxs_Apache__RequestRec_write | | r, buffer, bufsiz=-1, offset=0
+ mpxs_Apache__RequestRec_read | | r, buffer, len, offset=0
+ SV *:DEFINE_READ | | request_rec *:r, SV *:buffer, apr_size_t:len, apr_off_t:offset=0
+ mpxs_Apache__RequestRec_write | | r, buffer, len=-1, offset=0
  mpxs_Apache__RequestRec_print | | ...
- apr_ssize_t:DEFINE_WRITE | | \
-             request_rec *:r, SV *:buffer, apr_ssize_t:bufsiz=-1, int:offset=0
+ apr_size_t:DEFINE_WRITE | | \
+             request_rec *:r, SV *:buffer, apr_size_t:len=-1, apr_off_t:offset=0
  mpxs_Apache__RequestRec_rflush | | ...
  mpxs_Apache__RequestRec_GETC
  mpxs_Apache__RequestRec_OPEN | | SV *:self, SV *:arg1, SV *:arg2=Nullsv
@@ -68,23 +70,23 @@ DEFINE_send_cgi_header | | request_rec *:r, SV *:buffer
 
 
 MODULE=Apache::ServerUtil   PACKAGE=guess
- mpxs_Apache__Server_push_handlers
- mpxs_Apache__Server_set_handlers
- mpxs_Apache__Server_get_handlers
- mpxs_Apache__Server_is_perl_option_enabled
- mpxs_Apache__Server_add_config
+ mpxs_Apache__ServerRec_push_handlers
+ mpxs_Apache__ServerRec_set_handlers
+ mpxs_Apache__ServerRec_get_handlers
+ mpxs_Apache__ServerRec_is_perl_option_enabled
+ mpxs_Apache__ServerRec_add_config
 
-PACKAGE=Apache::Server
+MODULE=Apache::ServerUtil  PACKAGE=Apache::ServerRec
  SV *:DEFINE_dir_config | | server_rec *:s, char *:key=NULL, SV *:sv_val=Nullsv
- SV *:DEFINE_server_root_relative | | SV *:p, const char *:fname=""
+
+MODULE=Apache::ServerUtil PACKAGE=Apache::ServerUtil
+ mpxs_Apache__ServerUtil_server_root_relative | | p, fname=""
 
 PACKAGE=Apache
  server_rec *:DEFINE_server | | SV *:classname=Nullsv
- SV *:DEFINE_server_root_relative | | SV *:p, const char *:fname=""
 
 MODULE=Apache::Connection
  mpxs_Apache__Connection_client_socket | | c, s=NULL
- SV *:DEFINE_server_root_relative | | SV *:p, const char *:fname=""
 
 MODULE=Apache::Filter
  modperl_filter_attributes | MPXS_ | ... | MODIFY_CODE_ATTRIBUTES
@@ -96,7 +98,7 @@ MODULE=Apache::Filter
  mpxs_Apache__Filter_remove   | | ...
 
  SV *:DEFINE_TIEHANDLE | | SV *:stashsv, SV *:sv=Nullsv
- int:DEFINE_PRINT      | | ...
+ apr_size_t:DEFINE_PRINT      | | ...
 
 MODULE=Apache::Filter PACKAGE=Apache::RequestRec
  mpxs_Apache__RequestRec_add_input_filter
@@ -123,7 +125,7 @@ SV *:DEFINE_log   | | SV *:obj
 DEFINE_log_rerror | MPXS_Apache__Log_log_xerror | ...
 DEFINE_log_error  | MPXS_Apache__Log_log_error  | ...
 
-PACKAGE=Apache::Server
+PACKAGE=Apache::ServerRec
 SV *:DEFINE_log   | | SV *:obj
 DEFINE_log_serror | MPXS_Apache__Log_log_xerror | ...
 DEFINE_log_error  | MPXS_Apache__Log_log_error  | ...
@@ -132,7 +134,7 @@ DEFINE_warn       | MPXS_Apache__Log_log_error  | ...
 PACKAGE=Apache
 DEFINE_warn       | MPXS_Apache__Log_log_error | ...
 
-MODULE=Apache::SubProcess
+MODULE=Apache::SubProcess   PACKAGE=Apache::RequestRec
  # ap_subprocess_ won't work
  modperl_spawn_proc_prog | MPXS_ | ... | spawn_proc_prog
 
@@ -142,6 +144,8 @@ MODULE=Apache::Directive
  DEFINE_lookup | MPXS_Apache__Directive_lookup | ...
 
 MODULE=Apache::CmdParms
+ ap_check_cmd_context
+ ap_method_is_limited
  mpxs_Apache__CmdParms_info
 
 MODULE=Apache::MPM    PACKAGE=Apache::MPM   BOOT=1

@@ -67,7 +67,7 @@ sub handler {
     # bytes to work with
     do {
         my $tbb = APR::Brigade->new($filter->r->pool, $ba);
-        my $rv = $filter->next->get_brigade($tbb, $mode, $block, $readbytes);
+        $filter->next->get_brigade($tbb, $mode, $block, $readbytes);
         debug "asking for a bb";
         ($data, $seen_eos) = flatten_bb($tbb);
         $tbb->destroy;
@@ -122,7 +122,6 @@ sub flatten_bb {
     for (my $b = $bb->first; $b; $b = $bb->next($b)) {
         $seen_eos++, last if $b->is_eos;
         $b->read(my $bdata);
-        $bdata = '' unless defined $bdata;
         push @data, $bdata;
     }
     return (join('', @data), $seen_eos);

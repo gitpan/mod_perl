@@ -34,10 +34,12 @@ static MP_INLINE apr_size_t mpxs_Apache__Filter_print(pTHX_ I32 items,
     MP_TRACE_f(MP_FUNC, "from %s\n",
                ((modperl_filter_ctx_t *)modperl_filter->f->ctx)->handler->name);    
     if (modperl_filter->mode == MP_OUTPUT_FILTER_MODE) {
-        mpxs_write_loop(modperl_output_filter_write, modperl_filter);
+        mpxs_write_loop(modperl_output_filter_write,
+                        modperl_filter, "Apache::Filter::print");
     }
     else {
-        mpxs_write_loop(modperl_input_filter_write, modperl_filter);
+        mpxs_write_loop(modperl_input_filter_write,
+                        modperl_filter, "Apache::Filter::print");
     }
 
     /* XXX: ap_rflush if $| */
@@ -75,6 +77,9 @@ static MP_INLINE apr_size_t mpxs_Apache__Filter_read(pTHX_ I32 items,
         len = modperl_output_filter_read(aTHX_ modperl_filter, buffer, wanted);
     }
 
+    /* must run any set magic */
+    SvSETMAGIC(buffer);
+    
     return len;
 }
 
@@ -289,4 +294,50 @@ void mpxs_Apache__Filter_remove(pTHX_ I32 items, SV **MARK, SV **SP)
     else {
         ap_remove_output_filter(f);
     }
+}
+
+static MP_INLINE
+apr_status_t mpxs_Apache__Filter_fflush(pTHX_ ap_filter_t *filter,
+                                        apr_bucket_brigade *brigade)
+{
+    apr_status_t rc = ap_fflush(filter, brigade);
+    /* if users don't bother to check the success, do it on their
+     * behalf */
+    if (GIMME_V == G_VOID && rc != APR_SUCCESS) {
+        modperl_croak(aTHX_ rc, "Apache::Filter::fflush");
+    }
+
+    return rc;
+}
+
+static MP_INLINE
+apr_status_t mpxs_Apache__Filter_get_brigade(pTHX_
+                                             ap_filter_t *f,
+                                             apr_bucket_brigade *bb,
+                                             ap_input_mode_t mode,
+                                             apr_read_type_e block,
+                                             apr_off_t readbytes)
+{
+    apr_status_t rc = ap_get_brigade(f, bb, mode, block, readbytes);
+    /* if users don't bother to check the success, do it on their
+     * behalf */
+    if (GIMME_V == G_VOID && rc != APR_SUCCESS) {
+        modperl_croak(aTHX_ rc, "Apache::Filter::get_brigade");
+    }
+
+    return rc;
+}
+
+static MP_INLINE
+apr_status_t mpxs_Apache__Filter_pass_brigade(pTHX_ ap_filter_t *f,
+                                              apr_bucket_brigade *bb)
+{
+    apr_status_t rc = ap_pass_brigade(f, bb);
+    /* if users don't bother to check the success, do it on their
+     * behalf */
+    if (GIMME_V == G_VOID && rc != APR_SUCCESS) {
+        modperl_croak(aTHX_ rc, "Apache::Filter::pass_brigade");
+    }
+
+    return rc;
 }

@@ -33,16 +33,19 @@
 
 # function names that do not begin with /^\w/ are skipped
 # for details see: %ModPerl::MapUtil::disabled_map
+# in lib/ModPerl/MapUtil.pm
+
+MODULE=Apache::RequestUtil
+ ap_get_status_line
 
 MODULE=Apache::RequestUtil   PACKAGE=guess
+ ap_psignature | | r, prefix
 >ap_finalize_request_protocol
  ap_default_type
  ap_get_server_name
  ap_get_server_port
 !ap_content_type_tolower
- ap_get_status_line
  ap_is_initial_req
- ap_method_register
 >ap_method_registry_init
 >ap_process_request_internal
 ?ap_get_mime_headers
@@ -85,13 +88,13 @@ MODULE=Apache::SubRequest   PACKAGE=Apache::RequestRec
  ap_sub_req_lookup_dirent     | | r, finfo, subtype=AP_SUBREQ_NO_ARGS, next_filter=NULL | lookup_dirent
 
 subrequest_rec *:ap_sub_req_lookup_file | | \
- r, new_file, next_filter=r->output_filters->next | lookup_file
+ r, new_file, next_filter=r->proto_output_filters | lookup_file
 
 subrequest_rec *:ap_sub_req_lookup_uri  | | \
- r, new_file, next_filter=r->output_filters->next | lookup_uri
+ r, new_file, next_filter=r->proto_output_filters | lookup_uri
 
 subrequest_rec *:ap_sub_req_method_uri  | | \
- r, method, new_file, next_filter=r->output_filters->next | lookup_method_uri
+ r, method, new_file, next_filter=r->proto_output_filters | lookup_method_uri
 
 PACKAGE=Apache::SubRequest   ISA=Apache::RequestRec
  ap_destroy_sub_req  | | r | DESTROY
@@ -153,21 +156,28 @@ MODULE=Apache::Access   PACKAGE=Apache::RequestRec
 -ap_scan_script_header_err_strs
 -ap_scan_script_header_err_brigade
 
-MODULE=Apache::ServerUtil   PACKAGE=guess   BOOT=1
- ap_add_version_component
+MODULE=Apache::ServerUtil   PACKAGE=Apache::ServerRec BOOT=1
+~ap_method_register
+ int:DEFINE_method_register | | server_rec *:s, const char *:methname
+~add_version_component
+ void:DEFINE_add_version_component | | server_rec *:s, const char *:component
+
+MODULE=Apache::ServerUtil   PACKAGE=Apache::ServerUtil
+ ap_exists_config_define
+
+MODULE=Apache::ServerUtil   PACKAGE=guess
  ap_error_log2stderr
 ?ap_replace_stderr_log
 
 #MODULE=Apache::ServerConfig
- ap_exists_config_define
 #XXX: thought this might be useful
 #however it is not exported on win32
 !ap_get_local_host
 ~ap_get_server_built
 ~ap_get_server_version
 ~ap_server_root
- ap_psignature | | r,prefix
 ~ap_server_root_relative
+
 
 MODULE=Apache::Connection   PACKAGE=guess
 #XXX: thought this might be useful for protocol modules
@@ -193,9 +203,9 @@ MODULE=Apache::Module
 -ap_add_module
 -ap_add_named_module
  ap_find_linked_module
- ap_find_module_name
- ap_remove_loaded_module
- ap_remove_module
+-ap_find_module_name
+ap_remove_loaded_module
+-ap_remove_module
 >ap_single_module_configure
 >ap_setup_prelinked_modules
 >ap_show_directives
@@ -210,7 +220,7 @@ MODULE=Apache::Directive
 !ap_add_node
 !ap_build_config
 !ap_build_cont_config
- ap_walk_config
+!ap_walk_config
 >ap_process_config_tree
 
 MODULE=Apache::Filter PACKAGE=guess
@@ -221,21 +231,24 @@ MODULE=Apache::Filter PACKAGE=guess
 -ap_add_output_filter_handle
 -ap_get_output_filter_handle
 >ap_add_ouput_filters_by_type
- ap_get_brigade | | \
-               filter, bucket, mode=AP_MODE_READBYTES, \
+~ap_get_brigade
+ mpxs_Apache__Filter_get_brigade | | \
+               f, bb, mode=AP_MODE_READBYTES, \
                block=APR_BLOCK_READ, \
                readbytes=8192
- ap_pass_brigade
+~ap_pass_brigade
+ mpxs_Apache__Filter_pass_brigade
 !ap_register_input_filter
 !ap_register_output_filter
- ap_remove_output_filter
- ap_remove_input_filter
+-ap_remove_output_filter
+-ap_remove_input_filter
 !ap_save_brigade
  ap_filter_flush
- ap_fflush
+~ap_fflush
+ mpxs_Apache__Filter_fflush
 -ap_fputstrs
- int:DEFINE_ap_fputs | | \
-     ap_filter_t *:f, apr_bucket_brigade *:bb, const char *:str
+#int:DEFINE_ap_fputs | | \
+#     ap_filter_t *:f, apr_bucket_brigade *:bb, const char *:str
 -ap_fprintf
 >ap_byterange_filter
 >ap_http_header_filter
@@ -264,8 +277,7 @@ MODULE=Apache::Filter PACKAGE=guess
 
 MODULE=Apache::Command
  command_rec *:DEFINE_next | | command_rec *:cmd
- ap_check_cmd_context
- ap_soak_end_container
+-ap_soak_end_container
 -ap_set_int_slot
 -ap_set_file_slot
 -ap_set_flag_slot
@@ -452,7 +464,7 @@ MODULE=Apache::HookRun   PACKAGE=guess
  ap_run_handler
  ap_run_log_transaction
 >ap_run_rewrite_args
- ap_run_create_request
+?ap_run_create_request
 >ap_run_error_log
 >ap_run_get_mgmt_items
  ap_run_map_to_storage

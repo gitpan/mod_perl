@@ -14,31 +14,33 @@ use Apache::Const -compile => 'OK';
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 20 + keys(%ENV);
+    plan $r, tests => 22 + keys(%ENV);
 
     my $env = $r->subprocess_env;
 
     ok $ENV{MODPERL_EXTRA_PL}; #set in t/conf/modperl_extra.pl
     ok $ENV{MOD_PERL};
 
-    $ENV{FOO} = 2;
-    ok $ENV{FOO} == 2;
-    ok $env->get('FOO') == 2;
-
-    $ENV{FOO}++;
-    ok $ENV{FOO} == 3;
-    ok $env->get('FOO') == 3;
-
-    $ENV{FOO} .= 6;
-    ok $ENV{FOO} == 36;
-    ok $env->get('FOO') == 36;
-
-    delete $ENV{FOO};
-    ok ! $ENV{FOO};
-    ok ! $env->get('FOO');
-
     ok $ENV{SERVER_SOFTWARE};
     ok $env->get('SERVER_SOFTWARE');
+
+    {
+        $ENV{FOO} = 2;
+        ok $ENV{FOO} == 2;
+        ok $env->get('FOO') == 2;
+
+        $ENV{FOO}++;
+        ok $ENV{FOO} == 3;
+        ok $env->get('FOO') == 3;
+
+        $ENV{FOO} .= 6;
+        ok $ENV{FOO} == 36;
+        ok $env->get('FOO') == 36;
+
+        delete $ENV{FOO};
+        ok ! $ENV{FOO};
+        ok ! $env->get('FOO');
+    }
 
     {
         local %ENV = (FOO => 1, BAR => 2);
@@ -58,14 +60,23 @@ sub handler {
     #skip "r->subprocess_env + local() doesnt fully work yet", 1;
     ok 1; #the skip() message is just annoying
 
-    ok $ENV{SERVER_SOFTWARE};
-    ok $env->get('SERVER_SOFTWARE');
+    {
+        my $key = 'SERVER_SOFTWARE';
+        my $val = $ENV{SERVER_SOFTWARE};
+        ok $val;
+        ok t_cmp $env->get($key), $val, '$r->subprocess_env->get($key)';
+        ok t_cmp $r->subprocess_env($key), $val, '$r->subprocess_env($key)';
 
-    #Make sure each key can be deleted
+        $val = 'BAR';
+        $r->subprocess_env($key => $val);
+        ok t_cmp $r->subprocess_env($key), $val,
+            '$r->subprocess_env($key => $val)';
+    }
 
+    # make sure each key can be deleted
     for my $key (sort keys %ENV) {
         eval { delete $ENV{$key}; };
-        ok t_cmp('', $@, $key);
+        ok t_cmp($@, '', $key);
     }
 
     Apache::OK;

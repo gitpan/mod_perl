@@ -11,6 +11,7 @@ use Apache::RequestIO ();
 use Apache::Connection ();
 use Apache::Filter ();
 use APR::Brigade ();
+use APR::Error ();
 
 use Apache::Const -compile => qw(OK MODE_READBYTES);
 use APR::Const    -compile => qw(SUCCESS BLOCK_READ);
@@ -32,9 +33,8 @@ sub handler {
         my $filters = $r->input_filters();
         my $ba = $r->connection->bucket_alloc;
         my $bb = APR::Brigade->new($r->pool, $ba);
-        my $rv = $filters->get_brigade($bb, Apache::MODE_READBYTES,
-                                       APR::BLOCK_READ, IOBUFSIZE);
-        die "failed to read partial data" unless $rv == APR::SUCCESS;
+        $filters->get_brigade($bb, Apache::MODE_READBYTES,
+                              APR::BLOCK_READ, IOBUFSIZE);
     }
     elsif ($test eq 'all') {
         # consume all of the request body
@@ -44,7 +44,8 @@ sub handler {
 
     # now get rid of the rest of the input data should work, no matter
     # how little or how much of the body was read
-    $r->discard_request_body;
+    my $rc = $r->discard_request_body;
+    die APR::Error::strerror($rc) unless $rc == Apache::OK;
 
     $r->print($test);
 

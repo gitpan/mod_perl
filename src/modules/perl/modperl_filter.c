@@ -19,40 +19,72 @@
 
 #define MP_FILTER_NAME_FORMAT "   %s\n\n\t"
 
-#define MP_FILTER_NAME(f) \
-    (is_modperl_filter(f) \
-        ? modperl_handler_name(((modperl_filter_ctx_t *)(f)->ctx)->handler) \
-        : (f)->frec->name)
+#define MP_FILTER_NAME(f)                                   \
+    (is_modperl_filter(f)                                   \
+         ? modperl_handler_name(                            \
+             ((modperl_filter_ctx_t *)(f)->ctx)->handler)   \
+         : (f)->frec->name)
 
-#define MP_FILTER_TYPE(filter) \
-    (is_modperl_filter(filter->f) \
+#define MP_FILTER_TYPE(filter)                                         \
+    (is_modperl_filter(filter->f)                                      \
         ? ((modperl_filter_ctx_t *)(filter)->f->ctx)->handler->attrs & \
-            MP_FILTER_CONNECTION_HANDLER  ? "connection" : "request" \
+            MP_FILTER_CONNECTION_HANDLER  ? "connection" : "request"   \
         : "unknown")
 
-#define MP_FILTER_MODE(filter) \
+#define MP_FILTER_MODE(filter)                                  \
     (filter->mode == MP_INPUT_FILTER_MODE ? "input" : "output")
 
 #define MP_FILTER_POOL(f) f->r ? f->r->pool : f->c->pool
 
-/* allocate wbucket memory using malloc and not request pools, since
- * we may need many of these if the filter is invoked multiple
- * times */
-#define WBUCKET_INIT(wb, p, next_filter)                   \
-    if (!wb) {                                             \
-        wb = (modperl_wbucket_t *)safemalloc(sizeof(*wb)); \
-        wb->pool    = p;                                   \
-        wb->filters = &next_filter;                        \
-        wb->outcnt  = 0;                                   \
-        wb->r       = NULL;                                \
-        wb->header_parse = 0;                              \
+/* allocate wbucket memory using a sub-pool and not a ap_filter_t
+ * pool, since we may need many of these if the filter is invoked
+ * multiple times */
+#define WBUCKET_INIT(filter)                                     \
+    if (!filter->wbucket) {                                      \
+        modperl_wbucket_t *wb =                                  \
+            (modperl_wbucket_t *)apr_pcalloc(filter->temp_pool,  \
+                                             sizeof(*wb));       \
+        wb->pool         = filter->pool;                         \
+        wb->filters      = &(filter->f->next);                   \
+        wb->outcnt       = 0;                                    \
+        wb->r            = NULL;                                 \
+        wb->header_parse = 0;                                    \
+        filter->wbucket  = wb;                                   \
     }
 
-#define FILTER_FREE(filter)        \
-    if (filter->wbucket) {         \
-        safefree(filter->wbucket); \
-    }                              \
-    safefree(filter);
+#define FILTER_FREE(filter)                     \
+    apr_pool_destroy(filter->temp_pool);
+
+/* Save the value of $@ if it was set */
+#define MP_FILTER_SAVE_ERRSV(tmpsv)                 \
+    if (SvTRUE(ERRSV)) {                            \
+        tmpsv = newSVsv(ERRSV);                     \
+        MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT   \
+                  "Saving $@='%s'",                 \
+                   MP_FILTER_NAME(filter->f),       \
+                   SvPVX(tmpsv)                     \
+                   );                               \
+    }
+
+/* Restore previously saved value of $@, warning if a new error was
+ * generated */
+#define MP_FILTER_RESTORE_ERRSV(tmpsv)                  \
+    if (tmpsv) {                                        \
+        if (SvTRUE(ERRSV)) {                            \
+            Perl_warn(aTHX_ "%s", SvPVX(ERRSV));        \
+            MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT   \
+                       "error: %s",                     \
+                        MP_FILTER_NAME(filter->f),      \
+                        SvPVX(ERRSV)                    \
+                        );                              \
+        }                                               \
+        sv_setsv(ERRSV, tmpsv);                         \
+        MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT       \
+                   "Restoring $@='%s'",                 \
+                   MP_FILTER_NAME(filter->f),           \
+                   SvPVX(tmpsv)                         \
+                   );                                   \
+    }
 
 /* this function is for tracing only, it's not optimized for performance */
 static int is_modperl_filter(ap_filter_t *f)
@@ -276,26 +308,35 @@ modperl_filter_t *modperl_filter_new(ap_filter_t *f,
                                      apr_off_t readbytes)
 {
     apr_pool_t *p = MP_FILTER_POOL(f);
+    apr_pool_t *temp_pool;
     modperl_filter_t *filter;
 
     /* we can't allocate memory from the pool here, since potentially
      * a filter can be called hundreds of times during the same
      * request/connection resulting in enormous memory demands
-     * (sizeof(*filter)*number of invocations)
+     * (sizeof(*filter)*number of invocations). so we use a sub-pool
+     * which will get destroyed at the end of each modperl_filter
+     * invocation.
      */
-    Newz(0, filter, 1, modperl_filter_t);
-
-    filter->mode = mode;
-    filter->f = f;
-    filter->pool = p;
-    filter->wbucket = NULL;
+    apr_status_t rv = apr_pool_create(&temp_pool, p);
+    if (rv != APR_SUCCESS) {
+        /* XXX: how do we handle the error? assert? */
+        return NULL;
+    }
+    filter = (modperl_filter_t *)apr_pcalloc(temp_pool, sizeof(*filter));
+                
+    filter->temp_pool = temp_pool;
+    filter->mode      = mode;
+    filter->f         = f;
+    filter->pool      = p;
+    filter->wbucket   = NULL;
 
     if (mode == MP_INPUT_FILTER_MODE) {
-        filter->bb_in  = NULL;
-        filter->bb_out = bb;
+        filter->bb_in      = NULL;
+        filter->bb_out     = bb;
         filter->input_mode = input_mode;
-        filter->block = block;
-        filter->readbytes = readbytes;
+        filter->block      = block;
+        filter->readbytes  = readbytes;
     }
     else {
         filter->bb_in  = bb;
@@ -432,6 +473,7 @@ static int modperl_run_filter_init(ap_filter_t *f,
 int modperl_run_filter(modperl_filter_t *filter)
 {
     AV *args = Nullav;
+    SV *errsv = Nullsv;
     int status;
     modperl_handler_t *handler =
         ((modperl_filter_ctx_t *)filter->f->ctx)->handler;
@@ -443,6 +485,8 @@ int modperl_run_filter(modperl_filter_t *filter)
 
     MP_dINTERP_SELECT(r, c, s);
 
+    MP_FILTER_SAVE_ERRSV(errsv);
+    
     modperl_handler_make_args(aTHX_ &args,
                               "Apache::Filter", filter->f,
                               "APR::Brigade",
@@ -490,10 +534,12 @@ int modperl_run_filter(modperl_filter_t *filter)
             apr_brigade_destroy(filter->bb_in);
             filter->bb_in = NULL;
         }
-        MP_FAILURE_CROAK(modperl_input_filter_flush(filter));
+        MP_RUN_CROAK(modperl_input_filter_flush(filter),
+                     "Apache::Filter");
     }
     else {
-        MP_FAILURE_CROAK(modperl_output_filter_flush(filter));
+        MP_RUN_CROAK(modperl_output_filter_flush(filter),
+                     "Apache::Filter");
     }
 
     MP_INTERP_PUTBACK(interp);
@@ -501,29 +547,31 @@ int modperl_run_filter(modperl_filter_t *filter)
     MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT
                "return: %d\n", modperl_handler_name(handler), status);
     
+    MP_FILTER_RESTORE_ERRSV(errsv);
+ 
     return status;
 }
 
 
 /* unrolled APR_BRIGADE_FOREACH loop */
 
-#define MP_FILTER_EMPTY(filter) \
-APR_BRIGADE_EMPTY(filter->bb_in)
+#define MP_FILTER_EMPTY(filter)                 \
+    APR_BRIGADE_EMPTY(filter->bb_in)
 
-#define MP_FILTER_SENTINEL(filter) \
-APR_BRIGADE_SENTINEL(filter->bb_in)
+#define MP_FILTER_SENTINEL(filter)              \
+    APR_BRIGADE_SENTINEL(filter->bb_in)
 
-#define MP_FILTER_FIRST(filter) \
-APR_BRIGADE_FIRST(filter->bb_in)
+#define MP_FILTER_FIRST(filter)                 \
+    APR_BRIGADE_FIRST(filter->bb_in)
 
-#define MP_FILTER_NEXT(filter) \
-APR_BUCKET_NEXT(filter->bucket)
+#define MP_FILTER_NEXT(filter)                  \
+    APR_BUCKET_NEXT(filter->bucket)
 
-#define MP_FILTER_IS_EOS(filter) \
-APR_BUCKET_IS_EOS(filter->bucket)
+#define MP_FILTER_IS_EOS(filter)                \
+    APR_BUCKET_IS_EOS(filter->bucket)
 
-#define MP_FILTER_IS_FLUSH(filter) \
-APR_BUCKET_IS_FLUSH(filter->bucket)
+#define MP_FILTER_IS_FLUSH(filter)              \
+    APR_BUCKET_IS_FLUSH(filter->bucket)
 
 MP_INLINE static int get_bucket(modperl_filter_t *filter)
 {
@@ -649,12 +697,8 @@ MP_INLINE static apr_size_t modperl_filter_read(pTHX_
                        (unsigned long)filter->bucket);
         }
         else {
-            MP_TRACE_f(MP_FUNC,
-                       MP_FILTER_NAME_FORMAT
-                       "read in: apr_bucket_read error: %s\n",
-                       MP_FILTER_NAME(filter->f),
-                       modperl_error_strerror(aTHX_ filter->rc));
-            return len;
+            SvREFCNT_dec(buffer);
+            modperl_croak(aTHX_ filter->rc, "Apache::Filter::read");
         }
 
         if (buf_len) {
@@ -695,24 +739,25 @@ MP_INLINE apr_size_t modperl_input_filter_read(pTHX_
         /* This should be read only once per handler invocation! */
         filter->bb_in = apr_brigade_create(filter->pool,
                                            filter->f->c->bucket_alloc);
-        ap_get_brigade(filter->f->next, filter->bb_in,
-                       filter->input_mode, filter->block, filter->readbytes);
         MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT
                    "retrieving bb: 0x%lx\n",
                    MP_FILTER_NAME(filter->f),
                    (unsigned long)(filter->bb_in));
+        MP_RUN_CROAK(ap_get_brigade(filter->f->next, filter->bb_in,
+                                    filter->input_mode, filter->block,
+                                    filter->readbytes),
+                     "Apache::Filter::read");
     }
 
     len = modperl_filter_read(aTHX_ filter, buffer, wanted);
 
-/*     if (APR_BRIGADE_EMPTY(filter->bb_in)) { */
-/*         apr_brigade_destroy(filter->bb_in); */
-/*         filter->bb_in = NULL; */
-/*     } */
-
     if (filter->flush && len == 0) {
         /* if len > 0 then $filter->write will flush */
-        modperl_input_filter_flush(filter);
+        apr_status_t rc = modperl_input_filter_flush(filter);
+        if (rc != APR_SUCCESS) {
+            SvREFCNT_dec(buffer);
+            modperl_croak(aTHX_ rc, "Apache::Filter::read");
+        }
     }
 
     return len;
@@ -729,7 +774,11 @@ MP_INLINE apr_size_t modperl_output_filter_read(pTHX_
     
     if (filter->flush && len == 0) {
         /* if len > 0 then $filter->write will flush */
-        MP_FAILURE_CROAK(modperl_output_filter_flush(filter));
+        apr_status_t rc = modperl_output_filter_flush(filter);
+        if (rc != APR_SUCCESS) {
+            SvREFCNT_dec(buffer);
+            modperl_croak(aTHX_ rc, "Apache::Filter::read");
+        }
     }
 
     return len;
@@ -770,7 +819,7 @@ MP_INLINE apr_status_t modperl_output_filter_flush(modperl_filter_t *filter)
         filter->flush = 0;
     }
 
-    WBUCKET_INIT(filter->wbucket, filter->pool, filter->f->next);
+    WBUCKET_INIT(filter);
     filter->rc = modperl_wbucket_flush(filter->wbucket, add_flush_bucket);
     if (filter->rc != APR_SUCCESS) {
         return filter->rc;
@@ -810,7 +859,8 @@ MP_INLINE apr_status_t modperl_output_filter_write(pTHX_
                                                    const char *buf,
                                                    apr_size_t *len)
 {
-    WBUCKET_INIT(filter->wbucket, filter->pool, filter->f->next);
+    WBUCKET_INIT(filter);
+
     return modperl_wbucket_write(aTHX_ filter->wbucket, buf, len);
 }
 
@@ -1153,7 +1203,9 @@ void modperl_filter_runtime_add(pTHX_ request_rec *r, conn_rec *c,
         if (handler->attrs & MP_FILTER_HAS_INIT_HANDLER && handler->next) {
             int status = modperl_run_filter_init(f, mode, handler->next);
             if (status != OK) {
-                /* XXX */
+                modperl_croak(aTHX_ status, strEQ("InputFilter", type)
+                              ? "Apache::Filter::add_input_filter"
+                              : "Apache::Filter::add_output_filter");
             }
         }
         

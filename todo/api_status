@@ -6,6 +6,7 @@ col1 legend
 -: not started/unknown
 +: in process
 V: done (for 2.0 release)
+g = gozer at work
 
 col2 legend
 -----------
@@ -16,75 +17,76 @@ V: done completely
 - the file path is relative to the modperl-docs cvs repository
 #########################################################
 -- src/docs/2.0/api/Apache.pod
--- src/docs/2.0/api/Apache/Access.pod
--- src/docs/2.0/api/Apache/CmdParms.pod
--- src/docs/2.0/api/Apache/Command.pod
--- src/docs/2.0/api/Apache/Connection.pod
-
-+- src/docs/2.0/api/Apache/Const.pod
-
--- src/docs/2.0/api/Apache/Directive.pod
--- src/docs/2.0/api/Apache/Filter.pod
--- src/docs/2.0/api/Apache/FilterRec.pod
--- src/docs/2.0/api/Apache/HookRun.pod
-
+VV src/docs/2.0/api/Apache/Access.pod
+g- src/docs/2.0/api/Apache/CmdParms.pod
+g- src/docs/2.0/api/Apache/Command.pod
+VP src/docs/2.0/api/Apache/Connection.pod
+        conn_config
+VP src/docs/2.0/api/Apache/Const.pod
+        (this will never be complete, fill it in as we go)
+g- src/docs/2.0/api/Apache/Directive.pod
+VP src/docs/2.0/api/Apache/Filter.pod
+        The whole TIE interface   
+VV src/docs/2.0/api/Apache/FilterRec.pod
+VV src/docs/2.0/api/Apache/HookRun.pod
 +- src/docs/2.0/api/Apache/Log.pod
         log_pid
+g- src/docs/2.0/api/Apache/Module.pod
+VV src/docs/2.0/api/Apache/PerlSections.pod
+VV src/docs/2.0/api/Apache/Process.pod
+VV src/docs/2.0/api/Apache/Reload.pod
+VV src/docs/2.0/api/Apache/RequestIO.pod
+VP src/docs/2.0/api/Apache/RequestRec.pod
+        allowed_methods
+        allowed_xmethods
+        content_languages (was in mp1, need to implement APR::ArrayHeader )
+        request_config
+        used_path_info
+VV src/docs/2.0/api/Apache/RequestUtil.pod
+VP src/docs/2.0/api/Apache/Response.pod
+        send_error_response
+        send_mmap
+VP src/docs/2.0/api/Apache/ServerRec.pod
+        addrs
+        lookup_defaults
+        module_config
+        names
+        wild_names
+VP src/docs/2.0/api/Apache/ServerUtil.pod
+        error_log2stderr
+VV src/docs/2.0/api/Apache/SubProcess.pod
+VV src/docs/2.0/api/Apache/SubRequest.pod
+        internal_fast_redirect
+        lookup_dirent
+VV src/docs/2.0/api/Apache/URI.pod
+VV src/docs/2.0/api/Apache/Util.pod
 
--- src/docs/2.0/api/Apache/Module.pod
--- src/docs/2.0/api/Apache/PerlSections.pod
--- src/docs/2.0/api/Apache/Process.pod
--- src/docs/2.0/api/Apache/Reload.pod
--- src/docs/2.0/api/Apache/RequestIO.pod
--- src/docs/2.0/api/Apache/RequestRec.pod
--- src/docs/2.0/api/Apache/RequestUtil.pod
--- src/docs/2.0/api/Apache/Response.pod
--- src/docs/2.0/api/Apache/Server.pod
--- src/docs/2.0/api/Apache/ServerUtil.pod
--- src/docs/2.0/api/Apache/Status.pod
--- src/docs/2.0/api/Apache/SubProcess.pod
--- src/docs/2.0/api/Apache/SubRequest.pod
--- src/docs/2.0/api/Apache/URI.pod
--- src/docs/2.0/api/Apache/Util.pod
--- src/docs/2.0/api/Apache/compat.pod
--- src/docs/2.0/api/Apache/porting.pod
-
--- src/docs/2.0/api/ModPerl/BuildMM.pod
-++ src/docs/2.0/api/ModPerl/Const.pod
-
+VV src/docs/2.0/api/ModPerl/Const.pod
 VV src/docs/2.0/api/ModPerl/Global.pod
+VV src/docs/2.0/api/ModPerl/Util.pod
 
--- src/docs/2.0/api/ModPerl/MM.pod
-
-VV src/docs/2.0/api/ModPerl/MethodLookup.pod
-
--- src/docs/2.0/api/ModPerl/PerlRun.pod
--- src/docs/2.0/api/ModPerl/Registry.pod
--- src/docs/2.0/api/ModPerl/RegistryBB.pod
--- src/docs/2.0/api/ModPerl/RegistryCooker.pod
--- src/docs/2.0/api/ModPerl/RegistryLoader.pod
--- src/docs/2.0/api/ModPerl/Util.pod
-
--- src/docs/2.0/api/APR.pod
--- src/docs/2.0/api/APR/Base64.pod
--- src/docs/2.0/api/APR/Brigade.pod
--- src/docs/2.0/api/APR/Bucket.pod
-
-+- src/docs/2.0/api/APR/Const.pod
+VV src/docs/2.0/api/APR.pod
+VV src/docs/2.0/api/APR/Base64.pod
+VV src/docs/2.0/api/APR/Brigade.pod
+VP src/docs/2.0/api/APR/Bucket.pod
+        data
+        start
+VV src/docs/2.0/api/APR/BucketAlloc.pod
+VV src/docs/2.0/api/APR/BucketType.pod
+VP src/docs/2.0/api/APR/Const.pod
+        (this will never be complete, fill it in as we go)
 VV src/docs/2.0/api/APR/Date.pod
 VV src/docs/2.0/api/APR/Error.pod
-
 -- src/docs/2.0/api/APR/Finfo.pod
--- src/docs/2.0/api/APR/NetLib.pod
+VV src/docs/2.0/api/APR/IpSubnet.pod
+VV src/docs/2.0/api/APR/OS.pod
 +V src/docs/2.0/api/APR/PerlIO.pod
-
-
+        (convert to use exceptions)
 VP src/docs/2.0/api/APR/Pool.pod
         cleanup_for_exec
-
+        (clean has some win32 problems)
 VP src/docs/2.0/api/APR/SockAddr.pod
         equal
-
 VP src/docs/2.0/api/APR/Socket.pod
         bind
         close
@@ -92,8 +94,70 @@ VP src/docs/2.0/api/APR/Socket.pod
         listen
         recvfrom
         sendto
-
 VV src/docs/2.0/api/APR/Table.pod
--- src/docs/2.0/api/APR/ThreadMutex.pod
--- src/docs/2.0/api/APR/URI.pod
--- src/docs/2.0/api/APR/Util.pod
+VP src/docs/2.0/api/APR/ThreadMutex.pod
+        DESTROY
+        lock
+        new
+        pool_get
+        trylock
+        unlock
+VV src/docs/2.0/api/APR/URI.pod
+VP src/docs/2.0/api/APR/Util.pod
+        filepath_name_get
+        password_get
+
+#####################
+### other modules ###
+#####################
+
+-- src/docs/2.0/api/Apache/Status.pod
+VV src/docs/2.0/api/Apache/compat.pod
+VV src/docs/2.0/api/Apache/porting.pod
+-- src/docs/2.0/api/ModPerl/BuildMM.pod
+-- src/docs/2.0/api/ModPerl/MM.pod
+VV src/docs/2.0/api/ModPerl/MethodLookup.pod
+-- src/docs/2.0/api/ModPerl/PerlRun.pod
+-- src/docs/2.0/api/ModPerl/Registry.pod
+-- src/docs/2.0/api/ModPerl/RegistryBB.pod
+-- src/docs/2.0/api/ModPerl/RegistryCooker.pod
+-- src/docs/2.0/api/ModPerl/RegistryLoader.pod
+
+
+################################
+### Other API related things ###
+################################
+
+Q: APR::BucketAlloc object returned by $r->connection->bucket_alloc
+   doesn't have a real package. It's OK for now, but when used outside
+   httpd, where that allocation should come from?
+
+A: Add glue for function: apr_bucket_alloc_create(pool);
+   not urgent for 2.0
+
+* why APR::OS::thread_current returns an object and to get the tid,
+  you need to dereference it? that doesn't sounds too
+  intuitive. Should we change it to return the id right away?
+
+* the following accessors might be turned into read/write (they are
+  readonly at the moment). if you think that should be the case,
+  please document the change and hopefully add a new sub-test.
+
+  conn_rec:
+  ---------
+  local_addr
+  remote_addr
+  remote_ip
+  remote_host 
+  aborted 
+  local_ip
+  local_host 
+
+  ap_directive_t:
+  ---------------
+  next
+  first_child
+  parent
+  filename
+  line_num 
+

@@ -1,36 +1,23 @@
 package TestAPR::util;
 
+# test APR::Util
+
 use strict;
 use warnings FATAL => 'all';
 
 use Apache::Test;
-use Apache::TestUtil;
-
-use APR::Util ();
-use APR::Error ();
 
 use Apache::Const -compile => 'OK';
-use APR::Const -compile => 'EMISMATCH';
+
+use TestAPRlib::util;
 
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 2;
+    my $num_of_tests = TestAPRlib::util::num_of_tests();
+    plan $r, tests => $num_of_tests;
 
-#this function seems unstable on certain platforms
-#    my $blen = 10;
-#    my $bytes = APR::generate_random_bytes($blen);
-#    ok length($bytes) == $blen;
-
-    ok ! APR::password_validate("one", "two");
-
-    my $status = APR::EMISMATCH;
-
-    my $str = APR::Error::strerror($status);
-
-    t_debug "strerror=$str\n";
-
-    ok $str eq 'passwords do not match';
+    TestAPRlib::util::test();
 
     Apache::OK;
 }

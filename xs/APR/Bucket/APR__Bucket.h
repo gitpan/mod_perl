@@ -16,42 +16,45 @@
 #include "modperl_bucket.h"
 
 static apr_bucket *mpxs_APR__Bucket_new(pTHX_ SV *classname, SV *sv,
-                                        int offset, int len)
+                                        apr_off_t offset, apr_size_t len)
 {
-    if (!len) {
-        (void)SvPV(sv, len);
-    }
 
+    apr_size_t full_len;
+    (void)SvPV(sv, full_len);
+
+    if (len) {
+        if (len > full_len - offset) {
+            Perl_croak(aTHX_ "APR::Bucket::new: the length argument can't be"
+                       " bigger than the total buffer length minus offset");
+        }
+    }
+    else {
+        len = full_len - offset;
+    }
+    
     return modperl_bucket_sv_create(aTHX_ sv, offset, len);
 }
 
-/* this is just so C::Scan will pickup the prototype */
-static MP_INLINE apr_status_t modperl_bucket_read(apr_bucket *bucket,
-                                                  const char **str,
-                                                  apr_size_t *len,
-                                                  apr_read_type_e block)
+static MP_INLINE
+apr_size_t mpxs_APR__Bucket_read(pTHX_
+                                 apr_bucket *bucket,
+                                 SV *buffer,
+                                 apr_read_type_e block)
 {
-    return apr_bucket_read(bucket, str, len, block);
-}
-
-static MP_INLINE apr_status_t mpxs_modperl_bucket_read(pTHX_
-                                                       apr_bucket *bucket,
-                                                       SV *buffer,
-                                                       apr_read_type_e block)
-{
-    int rc;
     apr_size_t len;
     const char *str;
+    apr_status_t rc = apr_bucket_read(bucket, &str, &len, block);
 
-    rc = modperl_bucket_read(bucket, &str, &len, block);
-
-    if ((rc != APR_SUCCESS) && (rc != APR_EOF)) {
-        /* XXX: croak ? */
+    if (!(rc == APR_SUCCESS || rc == APR_EOF)) {
+        modperl_croak(aTHX_ rc, "APR::Bucket::read");
     }
 
-    sv_setpvn(buffer, str, len);
+    sv_setpvn(buffer, (len ? str : ""), len);
 
-    return rc;
+    /* must run any set magic */
+    SvSETMAGIC(buffer);
+    
+    return len;
 }
 
 static MP_INLINE int mpxs_APR__Bucket_is_eos(apr_bucket *bucket)

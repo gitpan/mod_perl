@@ -5,7 +5,7 @@ use Apache::Test;
 use Apache::TestUtil;
 use Apache::TestRequest;
 
-plan tests => 1, have_min_module_version('B::Deparse', 0.6);
+plan tests => 1, need_min_module_version('B::Deparse', 0.6);
 
 my @refs = qw(conf conf1 conf2 coderef 
              full_coderef coderef1 coderef2 coderef3);
@@ -17,4 +17,4 @@ my $location = "/TestHooks__push_handlers";
 my $expected = join "\n", @strings, '';
 my $received = GET_BODY $location;
 
-ok t_cmp($expected, $received, "push_handlers ways");
+ok t_cmp($received, $expected, "push_handlers ways");

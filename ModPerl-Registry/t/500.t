@@ -14,8 +14,8 @@ plan tests => 7;
     my $res = GET($url);
     #t_debug($res->content);
     ok t_cmp(
-        500,
         $res->code,
+        500,
         "500 error on runtime error (when the script changes the status)",
        );
 }
@@ -25,8 +25,8 @@ plan tests => 7;
     my $res = GET($url);
     #t_debug($res->content);
     ok t_cmp(
-        500,
         $res->code,
+        500,
         "500 compile time error (syntax error)",
        );
 }
@@ -36,8 +36,8 @@ plan tests => 7;
     my $res = GET($url);
     #t_debug($res->content);
     ok t_cmp(
-        500,
         $res->code,
+        500,
         "500 compile error on use() failure",
        );
 }
@@ -47,8 +47,8 @@ plan tests => 7;
     my $res = GET($url);
     #t_debug($res->content);
     ok t_cmp(
-        500,
         $res->code,
+        500,
         "500 error on missing HTTP headers",
        );
 }
@@ -62,8 +62,8 @@ plan tests => 7;
     my $res = GET($url);
     #t_debug($res->content);
     ok t_cmp(
-        500,
         $res->code,
+        500,
         "500 error on runtime error",
        );
 }
@@ -77,15 +77,14 @@ plan tests => 7;
     my $res = GET($url);
     #t_debug($res->content);
     ok t_cmp(
-        200,
         $res->code,
+        200,
         "200, followed by a runtime error",
        );
 
     # the error message is attached after the body
-    ok t_cmp(
-        qr/some body.*The server encountered an internal error/ms,
-        $res->content,
-        "200, followed by a runtime error",
-       );
+    ok t_cmp($res->content,
+             qr/some body.*The server encountered an internal error/ms,
+             "200, followed by a runtime error",
+            );
 }

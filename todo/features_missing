@@ -2,6 +2,15 @@
 # mp1 missing features #
 ########################
 
+* $r->last is missing (it was provided explicitly by modperl, it's not
+  an apache thing) see modperl/src/modules/perl/Apache.xs
+
+* automate generation of xs/tables/current/apr/FunctionTable.pm
+  via Apache::ParseSource. This file contains a subset of
+  functions appearing in ModPerl::FunctionTable that are
+  needed when building APR.so, and is used when generating
+  the def/exp files on Win32/AIX.
+
 * directive handlers are supported but need some work for 1.x compat
   - Apache::ModuleConfig->get needs a compat method mapping to
     Apache::Module->get_config
@@ -53,8 +62,6 @@
 * $r->log_reason:
   should be simple, see modperl_log.h (currently aliased to log_error
   in compat.pm)
-
-* APR::URI missing $uri->rpath
 
 * size_string() - can we use apr_strfsize ?
 

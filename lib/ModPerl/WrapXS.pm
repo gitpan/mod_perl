@@ -227,7 +227,12 @@ $attrs
 
 EOF
             }
-            elsif ($access_mode eq 'rw') {
+            elsif ($access_mode eq 'rw' or $access_mode eq 'r+w_startup') {
+
+                my $check_runtime = $access_mode eq 'rw'
+                    ? ''
+                    : qq[MP_CROAK_IF_THREADS_STARTED("setting $name");];
+
                 $code = <<EOF;
 $type
 $name(obj, val=$default)
@@ -242,7 +247,42 @@ $attrs
     RETVAL = ($cast) obj->$name;
 
     if (items > 1) {
+         $check_runtime
          obj->$name = ($cast) $val;
+    }
+
+    OUTPUT:
+    RETVAL
+
+EOF
+            }
+            elsif ($access_mode eq 'rw_char_undef') {
+                my $pool = $e->{pool} 
+                    or die "rw_char_undef accessors need pool";
+                $pool .= '(obj)';
+# XXX: not sure where val=$default is coming from, but for now use
+# hardcoded Nullsv
+                $code = <<EOF;
+$type
+$name(obj, val_sv=Nullsv)
+    $class obj
+    SV *val_sv
+
+    PREINIT:
+$attrs
+
+    CODE:
+    RETVAL = ($cast) obj->$name;
+
+    if (val_sv) {
+        if (SvOK(val_sv)) {
+            STRLEN val_len;
+            char *val = (char *)SvPV(val_sv, val_len);
+            obj->$name = apr_pstrndup($pool, val, val_len);
+        }
+        else {
+            obj->$name = NULL;
+        }
     }
 
     OUTPUT:
@@ -514,6 +554,10 @@ EOF
         }
     }
 
+    if ($module eq 'APR::Pool') {
+        print $fh "    modperl_opt_interp_unselect = APR_RETRIEVE_OPTIONAL_FN(modperl_interp_unselect);\n\n";
+    }
+
     close $fh;
 }
 
@@ -538,6 +582,7 @@ sub write_pm {
 
     my $fh = $self->open_class_file($module, '.pm');
     my $noedit_warning = $self->ModPerl::Code::noedit_warning_hash();
+    my $use_apr = ($module =~ /^APR::\w+$/) ? 'use APR ();' : '';
 
     print $fh <<EOF;
 $noedit_warning
@@ -548,6 +593,7 @@ use strict;
 use warnings FATAL => 'all';
 
 $isa
+$use_apr
 use $loader ();
 our \$VERSION = '0.01';
 $loader\::load __PACKAGE__;
@@ -1159,6 +1205,7 @@ sub write_export_file {
     my %files = (
         modperl => $ModPerl::FunctionTable,
         apache  => $Apache::FunctionTable,
+        apr     => $APR::FunctionTable,
     );
 
     my $header = \&{"export_file_header_$ext"};

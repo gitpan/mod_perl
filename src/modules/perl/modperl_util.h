@@ -16,63 +16,7 @@
 #ifndef MODPERL_UTIL_H
 #define MODPERL_UTIL_H
 
-#ifdef MP_DEBUG
-#define MP_INLINE
-#else
-#define MP_INLINE APR_INLINE
-#endif
-
-#ifdef WIN32
-#   define MP_FUNC_T(name) (_stdcall *name)
-/* XXX: not all functions get inlined
- * so its unclear what to and not to include in the .def files
- */
-#   undef MP_INLINE
-#   define MP_INLINE
-#else
-#   define MP_FUNC_T(name)          (*name)
-#endif
-
-#define MP_SSTRLEN(string) (sizeof(string)-1)
-
-#ifndef strcaseEQ
-#   define strcaseEQ(s1,s2) (!strcasecmp(s1,s2))
-#endif
-#ifndef strncaseEQ
-#   define strncaseEQ(s1,s2,l) (!strncasecmp(s1,s2,l))
-#endif
-
-#ifndef SvCLASS
-#define SvCLASS(o) HvNAME(SvSTASH(SvRV(o)))
-#endif
-
-#define SvObjIV(o) SvIV((SV*)SvRV(o))
-#define MgObjIV(m) SvIV((SV*)SvRV(m->mg_obj))
-
-#define MP_SvGROW(sv, len) \
-    (void)SvUPGRADE(sv, SVt_PV); \
-    SvGROW(sv, len+1)
-
-#define MP_SvCUR_set(sv, len) \
-    SvCUR_set(sv, len); \
-    *SvEND(sv) = '\0'; \
-    SvPOK_only(sv)
-
-#define MP_magical_untie(sv, mg_flags) \
-    mg_flags = SvMAGICAL((SV*)sv); \
-    SvMAGICAL_off((SV*)sv)
-
-#define MP_magical_tie(sv, mg_flags) \
-    SvFLAGS((SV*)sv) |= mg_flags
-
-
-/* XXX: this should be removed */
-#define MP_FAILURE_CROAK(rc_run) do { \
-        apr_status_t rc = rc_run; \
-        if (rc != APR_SUCCESS) { \
-            Perl_croak(aTHX_ modperl_error_strerror(aTHX_ rc)); \
-        } \
-    } while (0)
+#include "modperl_common_util.h"
 
 /* check whether the response phase has been initialized already */
 #define MP_CHECK_WBUCKET_INIT(func) \
@@ -101,17 +45,12 @@ MP_INLINE SV *modperl_newSVsv_obj(pTHX_ SV *stashsv, SV *obj);
 
 MP_INLINE SV *modperl_ptr2obj(pTHX_ char *classname, void *ptr);
 
-MP_INLINE SV *modperl_perl_sv_setref_uv(pTHX_ SV *rv,
-                                        const char *classname, UV uv);
-
 int modperl_errsv(pTHX_ int status, request_rec *r, server_rec *s);
+
+void modperl_errsv_prepend(pTHX_ const char *pat, ...);
 
 int modperl_require_module(pTHX_ const char *pv, int logfailure);
 int modperl_require_file(pTHX_ const char *pv, int logfailure);
-
-char *modperl_server_desc(server_rec *s, apr_pool_t *p);
-
-MP_INLINE char *modperl_pid_tid(apr_pool_t *p);
 
 void modperl_xs_dl_handles_clear(pTHX);
 
@@ -120,16 +59,6 @@ void **modperl_xs_dl_handles_get(pTHX);
 void modperl_xs_dl_handles_close(void **handles);
 
 modperl_cleanup_data_t *modperl_cleanup_data_new(apr_pool_t *p, void *data);
-
-MP_INLINE modperl_uri_t *modperl_uri_new(apr_pool_t *p);
-
-/* tie %hash */
-MP_INLINE SV *modperl_hash_tie(pTHX_ const char *classname,
-                               SV *tsv, void *p);
-
-/* tied %hash */
-MP_INLINE void *modperl_hash_tied_object(pTHX_ const char *classname,
-                                         SV *tsv);
 
 MP_INLINE void modperl_perl_av_push_elts_ref(pTHX_ AV *dst, AV *src);
 
@@ -165,13 +94,9 @@ MP_INLINE int modperl_perl_module_loaded(pTHX_ const char *name);
  */
 SV *modperl_slurp_filename(pTHX_ request_rec *r, int tainted);
 
-SV *modperl_perl_gensym(pTHX_ char *pack);
-
 void modperl_clear_symtab(pTHX_ HV *symtab);
 
 char *modperl_file2package(apr_pool_t *p, const char *file);
-
-SV *modperl_server_root_relative(pTHX_ SV *sv, const char *fname);
 
 /**
  * convert a compiled *CV ref to its original source code
@@ -180,15 +105,6 @@ SV *modperl_server_root_relative(pTHX_ SV *sv, const char *fname);
  * @return string of original source code
  */
 char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv);
-
-#ifdef MP_TRACE
-
-void modperl_apr_table_dump(pTHX_ apr_table_t *table, char *name);
-
-/* dump the contents of PL_modglobal */
-void modperl_perl_modglobal_dump(pTHX);
-
-#endif
 
 #if defined(MP_TRACE) && defined(APR_HAS_THREADS)
 #define MP_TRACEf_TID   "/tid 0x%lx"

@@ -179,88 +179,6 @@ MP_INLINE SV *modperl_ptr2obj(pTHX_ char *classname, void *ptr)
     return sv;
 }
 
-/* XXX: sv_setref_uv does not exist in 5.6.x */
-MP_INLINE SV *modperl_perl_sv_setref_uv(pTHX_ SV *rv,
-                                        const char *classname, UV uv)
-{
-    sv_setuv(newSVrv(rv, classname), uv);
-    return rv;
-}
-
-static apr_pool_t *modperl_sv2pool(pTHX_ SV *obj, CV *method)
-{
-    apr_pool_t *p = NULL;
-    char *classname = NULL;
-    IV ptr = 0;
-
-    if ((SvROK(obj) && (SvTYPE(SvRV(obj)) == SVt_PVMG))) {
-        /* standard classes */
-        classname = SvCLASS(obj);
-        ptr = SvObjIV(obj);
-    }
-    else if ((SvROK(obj) && (SvTYPE(SvRV(obj)) == SVt_PVHV))) {
-        /* Apache::RequestRec subclass */
-        classname = SvCLASS(obj);
-        ptr = SvIV(modperl_hv_request_find(aTHX_ obj, classname, method));
-
-        /* if modperl_hv_request_find succeeeds then the class is an 
-         * Apache::RequestRec subclass (the only subclass we support).
-         * so, fake things a bit so we can dig out the proper pool below
-         */
-         classname = "Apache::RequestRec";
-    }
-    else {
-        MP_TRACE_m(MP_FUNC, "SV not a recognized object");
-        return NULL;
-    }
-
-    if (strnEQ(classname, "APR::", 5)) {
-        classname += 5;
-        switch (*classname) {
-          case 'P':
-            if (strEQ(classname, "Pool")) {
-                p = (apr_pool_t *)SvObjIV(obj);
-            }
-            break;
-          default:
-            MP_TRACE_m(MP_FUNC, "class %s not recognized", classname);
-            break;
-        };
-    }
-    else if (strnEQ(classname, "Apache::", 8)) {
-        classname += 8;
-        switch (*classname) {
-          case 'C':
-            if (strEQ(classname, "Connection")) {
-                p = ((conn_rec *)ptr)->pool;
-            }
-            break;
-          case 'R':
-            if (strEQ(classname, "RequestRec")) {
-                p = ((request_rec *)ptr)->pool;
-            }
-            break;
-          case 'S':
-            if (strEQ(classname, "Server")) {
-                p = ((server_rec *)ptr)->process->pconf;
-            }
-            break;
-          default:
-            MP_TRACE_m(MP_FUNC, "class %s not recognised", classname);
-            break;
-        };
-    }
-    else {
-        MP_TRACE_m(MP_FUNC, "class %s not recognised", classname);
-    }
-
-    if (p == NULL) {
-        MP_TRACE_m(MP_FUNC, "unable to derive pool from object");
-    }
-
-    return p;
-}
-
 int modperl_errsv(pTHX_ int status, request_rec *r, server_rec *s)
 {
     SV *sv = ERRSV;
@@ -290,19 +208,22 @@ int modperl_errsv(pTHX_ int status, request_rec *r, server_rec *s)
     return status;
 }
 
-char *modperl_server_desc(server_rec *s, apr_pool_t *p)
+/* prepends the passed sprintf-like arguments to ERRSV, which also
+ * gets stringified on the way */
+void modperl_errsv_prepend(pTHX_ const char *pat, ...)
 {
-    return apr_psprintf(p, "%s:%u", s->server_hostname, s->port);
+    SV *sv;
+    va_list args;
+
+    va_start(args, pat);
+    sv = vnewSVpvf(pat, &args);
+    va_end(args);
+
+    sv_catsv(sv, ERRSV);
+    sv_copypv(ERRSV, sv);
+    sv_free(sv);
 }
 
-/* used in debug traces */
-MP_INLINE char *modperl_pid_tid(apr_pool_t *p)
-{
-    return apr_psprintf(p, "%lu" MP_TRACEf_TID,
-                        (unsigned long)getpid() MP_TRACEv__TID);
-}
-
-    
 #define dl_librefs "DynaLoader::dl_librefs"
 #define dl_modules "DynaLoader::dl_modules"
 
@@ -386,61 +307,6 @@ modperl_cleanup_data_t *modperl_cleanup_data_new(apr_pool_t *p, void *data)
     cdata->pool = p;
     cdata->data = data;
     return cdata;
-}
-
-MP_INLINE modperl_uri_t *modperl_uri_new(apr_pool_t *p)
-{
-    modperl_uri_t *uri = (modperl_uri_t *)apr_pcalloc(p, sizeof(*uri));
-    uri->pool = p;
-    return uri;
-}
-
-MP_INLINE SV *modperl_hash_tie(pTHX_ 
-                               const char *classname,
-                               SV *tsv, void *p)
-{
-    SV *hv = (SV*)newHV();
-    SV *rsv = sv_newmortal();
-
-    sv_setref_pv(rsv, classname, p);
-    sv_magic(hv, rsv, PERL_MAGIC_tied, Nullch, 0);
-
-    return SvREFCNT_inc(sv_bless(sv_2mortal(newRV_noinc(hv)),
-                                 gv_stashpv(classname, TRUE)));
-}
-
-MP_INLINE void *modperl_hash_tied_object(pTHX_ 
-                                         const char *classname,
-                                         SV *tsv)
-{
-    if (sv_derived_from(tsv, classname)) {
-        if (SVt_PVHV == SvTYPE(SvRV(tsv))) {
-            SV *hv = SvRV(tsv);
-            MAGIC *mg;
-
-            if (SvMAGICAL(hv)) {
-                if ((mg = mg_find(hv, PERL_MAGIC_tied))) {
-                    return (void *)MgObjIV(mg);
-                }
-                else {
-                    Perl_warn(aTHX_ "Not a tied hash: (magic=%c)", mg);
-                }
-            }
-            else {
-                Perl_warn(aTHX_ "SV is not tied");
-            }
-        }
-        else {
-            return (void *)SvObjIV(tsv);
-        }
-    }
-    else {
-        Perl_croak(aTHX_
-                   "argument is not a blessed reference "
-                   "(expecting an %s derived object)", classname);
-    }
-
-    return NULL;
 }
 
 MP_INLINE void modperl_perl_av_push_elts_ref(pTHX_ AV *dst, AV *src)
@@ -625,16 +491,6 @@ MP_INLINE int modperl_perl_module_loaded(pTHX_ const char *name)
     return (*name && gv_stashpv(name, FALSE)) ? 1 : 0;
 }
 
-/* same as Symbol::gensym() */
-SV *modperl_perl_gensym(pTHX_ char *pack)
-{
-    GV *gv = newGVgen(pack);
-    SV *rv = newRV((SV*)gv);
-    (void)hv_delete(gv_stashpv(pack, TRUE), 
-                    GvNAME(gv), GvNAMELEN(gv), G_DISCARD);
-    return rv;
-}
-
 static int modperl_gvhv_is_stash(GV *gv)
 {
     int len = GvNAMELEN(gv);
@@ -798,30 +654,6 @@ char *modperl_file2package(apr_pool_t *p, const char *file)
     return package;
 }
 
-/* this is used across server_root_relative() in the
- * Apache, Apache::Server, Apache::RequestRec, and 
- * Apache::Connection classes
- */
-SV *modperl_server_root_relative(pTHX_ SV *sv, const char *fname)
-{
-    apr_pool_t *p;
-
-    if (!sv_isobject(sv)) {
-        Perl_croak(aTHX_ "usage: Apache::server_root_relative(obj, name)");
-    }
-
-    p = modperl_sv2pool(aTHX_ sv, get_cv("Apache::server_root_relative", 0));
-
-    if (p == NULL) {
-        MP_TRACE_a(MP_FUNC,
-                   "unable to isolate pool for ap_server_root_relative()");
-        return &PL_sv_undef;
-    }
-
-    /* copy the SV in case the pool goes out of scope before the perl scalar */
-    return newSVpv(ap_server_root_relative(p, fname), 0);
-}
-
 char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv)
 {
     dSP;
@@ -834,9 +666,9 @@ char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv)
      * notice that B::Deparse is not CPAN-updatable.
      * 0.61 is available starting from 5.8.0
      */
-    load_module(PERL_LOADMOD_NOIMPORT,
-                newSVpvn("B::Deparse", 10),
-                newSVnv(SvOBJECT((SV*)cv) ? 0.61 : 0.60));
+    Perl_load_module(aTHX_ PERL_LOADMOD_NOIMPORT,
+                     newSVpvn("B::Deparse", 10),
+                     newSVnv(SvOBJECT((SV*)cv) ? 0.61 : 0.60));
 
     ENTER;
     SAVETMPS;
@@ -881,51 +713,3 @@ char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv)
 
     return text;
 }
-
-#ifdef MP_TRACE
-
-/* XXX: internal debug function, a candidate for modperl_debug.c */
-/* any non-false value for MOD_PERL_TRACE/PerlTrace enables this function */
-void modperl_apr_table_dump(pTHX_ apr_table_t *table, char *name)
-{
-    int i;
-    const apr_array_header_t *array;
-    apr_table_entry_t *elts;
-
-    array = apr_table_elts(table);
-    elts  = (apr_table_entry_t *)array->elts;
-    modperl_trace(MP_FUNC, "Contents of table %s", name);
-    for (i = 0; i < array->nelts; i++) {
-        if (!elts[i].key || !elts[i].val) {
-            continue;
-        }
-        modperl_trace(MP_FUNC, "%s => %s", elts[i].key, elts[i].val);
-    }    
-}
-
-/* XXX: internal debug function, a candidate for modperl_debug.c */
-void modperl_perl_modglobal_dump(pTHX)
-{
-    HV *hv = PL_modglobal;
-    AV *val;
-    char *key;
-    I32 klen;
-    hv_iterinit(hv);
-
-    MP_TRACE_g(MP_FUNC, "|-------- PL_modglobal --------");
-#ifdef USE_ITHREADS
-    MP_TRACE_g(MP_FUNC, "| perl 0x%lx", (unsigned long)aTHX);
-#endif
-    MP_TRACE_g(MP_FUNC, "| PL_modglobal 0x%lx",
-               (unsigned long)PL_modglobal);
-    
-    while ((val = (AV*)hv_iternextsv(hv, &key, &klen))) {
-        MP_TRACE_g(MP_FUNC, "| %s => 0x%lx", key, val);
-    }
-    
-    MP_TRACE_g(MP_FUNC, "|-------- PL_modglobal --------\n");
-        
-}
-
-
-#endif

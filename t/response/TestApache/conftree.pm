@@ -15,7 +15,10 @@ sub handler {
     my $r = shift;
 
     my $cfg = Apache::Test::config();
-    plan $r, tests => 8;
+    
+    my $node_count = node_count();
+    
+    plan $r, tests => 8 + (5*$node_count);
 
     ok $cfg;
 
@@ -29,15 +32,15 @@ sub handler {
 
     my $hostname_lookups = $tree->lookup('HostnameLookups');
 
-    ok t_cmp("Off", $hostname_lookups);
+    ok t_cmp($hostname_lookups, "Off");
 
     my $documentroot = $tree->lookup('DocumentRoot');
 
-    ok t_cmp('HASH' , ref($tree->as_hash()), 'as_hash');
+    ok t_cmp(ref($tree->as_hash()), 'HASH', 'as_hash');
 
-    ok t_cmp(qq("$vars->{documentroot}"), $documentroot);
+    ok t_cmp($documentroot, qq("$vars->{documentroot}"));
 
-    ok t_cmp(qq("$vars->{documentroot}"), $tree->lookup("DocumentRoot"));
+    ok t_cmp($tree->lookup("DocumentRoot"), qq("$vars->{documentroot}"));
 
     #XXX: This test isn't so good, but its quite problematic to try
     #and _really_ compare $cfg and $tree...
@@ -60,7 +63,51 @@ sub handler {
 
         ok !$vhost_failed;
     }
-
+    
+    traverse_tree ( \&test_node );
+    
     Apache::OK;
+}
+
+sub test_node {
+    my ($data, $node) = @_;
+    ok $node->directive;
+    #Args can be null for argless directives
+    ok $node->args || 1;
+    #As string can be null for containers
+    ok $node->as_string || 1;
+    ok $node->filename;
+    ok $node->line_num;
+}
+
+sub traverse_tree {
+    my ($sub, $data) = @_;
+    my $node = Apache::Directive->conftree;
+    while ($node) {
+        $sub->($data, $node);
+        if (my $kid = $node->first_child) {
+            $node = $kid;
+        } 
+        elsif (my $next = $node->next) {
+            $node = $next;
+        }
+        else {
+            if (my $parent = $node->parent) {
+                $node = $parent->next;
+            }
+            else {
+                $node = undef;
+            }
+        }
+    }
+    return;
+}
+
+sub node_count {
+    my $node_count = 0;
+    
+    traverse_tree( sub { ${$_[0]}++ }, \$node_count );
+    
+    return $node_count;
 }
 1;

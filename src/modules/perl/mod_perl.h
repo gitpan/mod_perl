@@ -17,7 +17,7 @@
 #define MOD_PERL_H
 
 #include "modperl_apache_includes.h"
-#include "modperl_perl_includes.h"
+#include "modperl_common_includes.h"
 #include "modperl_apache_compat.h"
 
 #ifdef WIN32
@@ -91,7 +91,16 @@ extern module AP_MODULE_DECLARE_DATA perl_module;
 #include "modperl_perl.h"
 #include "modperl_svptr_table.h"
 #include "modperl_module.h"
+#include "modperl_debug.h"
 
+int modperl_threads_started(void);
+
+#define MP_CROAK_IF_THREADS_STARTED(what)                       \
+    if (modperl_threads_started()) {                            \
+        Perl_croak(aTHX_ "Can't run '%s' in the threaded "      \
+                   "environment after server startup", what);   \
+    }
+    
 int modperl_init_vhost(server_rec *s, apr_pool_t *p,
                        server_rec *base_server);
 void modperl_init(server_rec *s, apr_pool_t *p);
@@ -126,5 +135,7 @@ typedef void MP_FUNC_T(modperl_table_modify_t) (apr_table_t *,
 
 /* we need to hook a few internal things before APR_HOOK_REALLY_FIRST */
 #define MODPERL_HOOK_REALLY_REALLY_FIRST (-20)
+
+APR_DECLARE_OPTIONAL_FN(apr_status_t,modperl_interp_unselect,(void *));
 
 #endif /*  MOD_PERL_H */

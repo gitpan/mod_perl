@@ -61,7 +61,7 @@ or if the date is invalid.
 
 =back
 
-Remember to multiply the return value by 1_000_000 if you need it in
+Remember to divide the return value by 1_000_000 if you need it in
 seconds.
 
 
@@ -103,7 +103,7 @@ or if the date is invalid.
 
 =back
 
-Remember to multiply the return value by 1_000_000 if you need it in
+Remember to divide the return value by 1_000_000 if you need it in
 seconds.
 
 
@@ -121,7 +121,7 @@ L<mod_perl 2.0 documentation|docs::2.0::index>.
 =head1 Copyright
 
 mod_perl 2.0 and its core modules are copyrighted under
-The Apache Software License, Version 1.1.
+The Apache Software License, Version 2.0.
 
 
 

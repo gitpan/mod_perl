@@ -6,6 +6,104 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.13-dev
+
+move the custom config code into Apache::TestConfig, split the config
+object creation in 2 parts - first not requiring the knowledge of
+httpd location, the second requiring one, refactor the custom config
+interactive prompting into the second phase, if failed to find
+httpd. Reshuffle the code to run first bits not requiring the
+knowledge of httpd location. [Stas]
+
+fix Apache::TestCommonPost::lwp_do to work with LWP 5.800
+($res->content() doesn't allow CODE refs anymore, instead used
+content_ref to avoid huge strings copy) [Stas]
+
+add @PHP_MODULE@ extra.conf.in substitution variable, which selects
+mod_php4 or mod_php5 as appropriate.  [Geoffrey Young]
+
+the have() function was removed entirely - use need() instead.
+[Geoffrey Young]
+
+add need() and need_* variant functions (need_module(), need_apache(),
+etc) for use specifically with plan() to decide whether or not a test
+should run.  have_* variants (have_module(), have_apache(), etc) are
+now specifically for use outside of plan(), although they can continue
+to be used within plan() without fear of current tests breaking.
+[Geoffrey Young]
+
+add need_php() and have_php() which will return true when either
+mod_php4 or mod_php5 are available, providing functionality similar to 
+need_cgi() and have_cgi().
+[Geoffrey Young]
+
+Add APACHE_TEST_EXTRA_ARGS make variable to all invocations to t/TEST
+to allow passing extra arguments from the command line. [Gozer]
+
+When APACHE_TEST_NO_STICKY_PREFERENCES=1 is used don't even try to
+interactively configure the server, as we don't save any config it was
+entering an infinite loop. [Stas]
+
+If a directory t/lib exists from where the tests are run, adjust
+@INC so that this directory is added when running the tests,
+both within t/TEST and within t/conf/modperl_inc.pl.
+This allows inclusion of modules specific to the tests that 
+aren't intended to be installed. [Stas, Randy]
+
+make a special case for threaded mpm configuration, to ensure that
+unless maxclients was specified, MaxClients will be exactly twice
+bigger than ThreadsPerChild (minclients), since if we don't do that,
+Apache will reduce MaxClients to the same value as
+ThreadsPerChild. [Stas]
+
+Renamed generate_test_script() to generate_script() in Apache::TestMB
+to match the naming convention used in Apache::TestMM and elsewhere.
+[David]
+
+Apache::TestMB now only prints the "Generating test running script"
+message if verbosity is enabled (e.g., by passing --verbose when
+executing Build.PL). [David]
+
+Fixed the "requests_redirectable" parameter to
+Apache::TestRequest::user_agent() so that it works as docmented when
+passed a negative value. [Boris Zentner]
+
+Documented support for passing an array reference to the
+"requests_redirectable" parameter to Apache::TestRequest::user_agent()
+to be passed to LWP::UserAgent if LWP ist installed. [David]
+
+
+=item 1.12 - June 28, 2004
+
+Force projects that use Apache::TestReportPerl to implement
+report_to() if they use t/REPORT in their projects. [Stas]
+
+Add redirect tests [David Wheeler <david@kineticode.com>]
+
+add -no-httpd runtime option to allow tests to run without configuring,
+starting, or stopping Apache.  this essentially provides a direct
+Test::Harness interface through t/TEST, useful for running single tests
+that do not depend on Apache.  [Geoffrey Young]
+
+Add support for Module::Build, with a new module: Apache::TestMB (a
+"clone" of Apache::TestMM for ExtUtils::MakeMaker). [David Wheeler
+<david@kineticode.com>]
+
+switch the order of arguments in t_cmp() and t_is_equal() so that
+the order matches Test::More::is() and other Test::More functions.
+the new call is: t_cmp($received, $expected, $comment);  support
+for $expected as the first argument marked as deprecated and will
+be removed in the course of the next few release cycles.
+[Geoffrey Young]
+
+add skip_reason() to Apache::Test, which provides a mechanism for
+user-specified skip messages [Geoffrey Young]
+
+Tweak Apache::TestRun to support test filenames starting with
+/(.\\)?t\\/ prefixes, windows style (needed for t/SMOKE) [Steve Hay]
+
+
+
 =item 1.11 - May 21, 2004
 
 if we fail to match the Apache revision (which is OK at the early

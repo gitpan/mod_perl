@@ -2,6 +2,8 @@
 
 Apache::porting -- a helper module for mod_perl 1.0 to mod_perl 2.0 porting
 
+
+
 =head1 Synopsis
 
   # either add at the very beginning of startup.pl
@@ -13,6 +15,9 @@ Apache::porting -- a helper module for mod_perl 1.0 to mod_perl 2.0 porting
   PerlModule Apache::porting
 
   # now issue requests and look at the error_log file for hints
+
+
+
 
 =head1 Description
 
@@ -45,6 +50,7 @@ which can also be used manually to lookup things.
 
 
 
+
 =head1 Culprits
 
 C<Apache::porting> uses the C<UNIVERSAL::AUTOLOAD> function to provide
@@ -66,6 +72,9 @@ AUTOLOAD for each class separately, instead of using UNIVERSAL. See
 the discussion on the dev list (hint: search the archive for EazyLife)
 
 
+
+
+
 =head1 See Also
 
 L<mod_perl 2.0 documentation|docs::2.0::index>.
@@ -73,10 +82,11 @@ L<mod_perl 2.0 documentation|docs::2.0::index>.
 
 
 
+
 =head1 Copyright
 
 mod_perl 2.0 and its core modules are copyrighted under
-The Apache Software License, Version 1.1.
+The Apache Software License, Version 2.0.
 
 
 

@@ -43,7 +43,7 @@ sub handler {
     my $cfg = Apache::Test::config();
     my $vars = $cfg->{vars};
 
-    plan $r, tests => 4, have qw(APR::PerlIO Apache::SubProcess);
+    plan $r, tests => 4, need qw(APR::PerlIO Apache::SubProcess);
 
     my $target_dir = catfile $vars->{documentroot}, "util";
 
@@ -51,11 +51,10 @@ sub handler {
         # test: passing argv + scalar context
         my $script = catfile $target_dir, "argv.pl";
         my @argv = qw(foo bar);
-        my $out_fh =
-            Apache::SubProcess::spawn_proc_prog($r, $perl, [$script, @argv]);
+        my $out_fh = $r->spawn_proc_prog($perl, [$script, @argv]);
         my $output = read_data($out_fh);
-        ok t_cmp(\@argv,
-                 [split / /, $output],
+        ok t_cmp([split / /, $output],
+                 \@argv,
                  "passing ARGV"
                 );
     }
@@ -65,10 +64,10 @@ sub handler {
         my $script = catfile $target_dir, "env.pl";
         my $value = "my cool proc";
         $r->subprocess_env->set(SubProcess => $value);
-        my $out_fh = Apache::SubProcess::spawn_proc_prog($r, $perl, [$script]);
+        my $out_fh = $r->spawn_proc_prog($perl, [$script]);
         my $output = read_data($out_fh);
-        ok t_cmp($value,
-                 $output,
+        ok t_cmp($output,
+                 $value,
                  "passing env via subprocess_env"
                 );
     }
@@ -78,11 +77,11 @@ sub handler {
         my $script = catfile $target_dir, "in_out.pl";
         my $value = "my cool proc\r\n"; # must have \n for <IN>
         my ($in_fh, $out_fh, $err_fh) =
-            Apache::SubProcess::spawn_proc_prog($r, $perl, [$script]);
+            $r->spawn_proc_prog($perl, [$script]);
         print $in_fh $value;
         (my $output = read_data($out_fh)) =~ s/[\r\n]{1,2}/\r\n/;
-        ok t_cmp($value,
-                 $output,
+        ok t_cmp($output,
+                 $value,
                  "testing subproc's stdin -> stdout + list context"
                 );
     }
@@ -92,11 +91,11 @@ sub handler {
         my $script = catfile $target_dir, "in_err.pl";
         my $value = "my stderr\r\n"; # must have \n for <IN>
         my ($in_fh, $out_fh, $err_fh) =
-            Apache::SubProcess::spawn_proc_prog($r, $perl, [$script]);
+            $r->spawn_proc_prog($perl, [$script]);
         print $in_fh $value;
         (my $output = read_data($err_fh)) =~ s/[\r\n]{1,2}/\r\n/;
-        ok t_cmp($value,
-                 $output,
+        ok t_cmp($output,
+                 $value,
                  "testing subproc's stdin -> stderr + list context"
                 );
     }
@@ -106,20 +105,20 @@ sub handler {
 
 # these are wannabe's
 #    ok t_cmp(
-#             Apache::SUCCESS,
 #             Apache::SubProcess::spawn_proc_sub($r, $sub, \@args),
+#             Apache::SUCCESS,
 #             "spawn a subprocess and run a subroutine in it"
 #            );
 
 #    ok t_cmp(
-#             Apache::SUCCESS,
 #             Apache::SubProcess::spawn_thread_prog($r, $command, \@argv),
+#             Apache::SUCCESS,
 #             "spawn thread and run a program in it"
 #            );
 
 #     ok t_cmp(
-#             Apache::SUCCESS,
 #             Apache::SubProcess::spawn_thread_sub($r, $sub, \@args),
+#             Apache::SUCCESS,
 #             "spawn thread and run a subroutine in it"
 #            );
 

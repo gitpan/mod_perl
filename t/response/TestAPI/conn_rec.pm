@@ -1,5 +1,8 @@
 package TestAPI::conn_rec;
 
+# this test module is only for testing fields in the conn_rec listed
+# in apache_structures.map (but some fields are tested in other tests)
+
 use strict;
 use warnings FATAL => 'all';
 
@@ -10,24 +13,20 @@ use Apache::RequestRec ();
 use Apache::RequestUtil ();
 use Apache::Connection ();
 
-use Apache::Const -compile => qw(OK REMOTE_HOST REMOTE_NAME
-    REMOTE_NOLOOKUP REMOTE_DOUBLE_REV CONN_CLOSE);
-
-#this test module is only for testing fields in the conn_rec
-#listed in apache_structures.map
+use Apache::Const -compile => qw(OK CONN_CLOSE);
 
 sub handler {
     my $r = shift;
 
     my $c = $r->connection;
 
-    plan $r, tests => 23;
+    plan $r, tests => 14;
 
     ok $c;
 
     ok $c->pool->isa('APR::Pool');
 
-    ok $c->base_server->isa('Apache::Server');
+    ok $c->base_server->isa('Apache::ServerRec');
 
     ok $c->client_socket->isa('APR::Socket');
 
@@ -39,43 +38,23 @@ sub handler {
 
     ok $c->remote_host || 1;
 
-    ok $c->remote_logname || 1;
+    ok !$c->aborted;
 
-    ok $c->aborted || 1;
-
-    ok t_cmp(Apache::CONN_CLOSE,
-             $c->keepalive,
+    ok t_cmp($c->keepalive,
+             Apache::CONN_CLOSE,
              "the client has issued a non-keepalive request");
 
     ok $c->local_ip;
 
     ok $c->local_host || 1;
 
+    t_debug "id ", ($c->id == 0 ? "zero" : $c->id);
     ok $c->id || 1;
-
-    #conn_config
 
     ok $c->notes;
 
-    ok $r->notes;
-
-    #input_filters
-    #output_filters
-    #remain
-
-    # Connection utils (XXX: move to conn_utils.pm?)
-
-    # $c->get_remote_host
-    ok $c->get_remote_host() || 1;
-
-    for (Apache::REMOTE_HOST, Apache::REMOTE_NAME, 
-        Apache::REMOTE_NOLOOKUP, Apache::REMOTE_DOUBLE_REV) {
-        ok $c->get_remote_host($_) || 1;
-    }
-
-    ok $c->get_remote_host(Apache::REMOTE_HOST, 
-                           $r->per_dir_config) || 1;
-    ok $c->get_remote_host(Apache::REMOTE_HOST, $r->per_dir_config) || 1;
+    # XXX: missing tests
+    # conn_config
 
     Apache::OK;
 }

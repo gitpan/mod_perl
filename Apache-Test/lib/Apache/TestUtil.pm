@@ -35,7 +35,7 @@ $VERSION = '0.01';
 @ISA     = qw(Exporter);
 
 @EXPORT = qw(t_cmp t_debug t_append_file t_write_file t_open_file
-    t_mkdir t_rmtree t_is_equal
+    t_mkdir t_rmtree t_is_equal t_filepath_cmp
     t_server_log_error_is_expected t_server_log_warn_is_expected
     t_client_log_error_is_expected t_client_log_warn_is_expected
 );
@@ -59,6 +59,16 @@ sub t_is_equal ($$) {
     my ($a, $b) = @_;
     return 0 unless @_ == 2;
 
+    # this was added in Apache::Test::VERSION 1.12 - remove deprecated
+    # logic sometime around 1.15 or mid September, 2004.
+    if (UNIVERSAL::isa($a, 'Regexp')) {
+        my @warning = ("WARNING!!! t_is_equal() argument order has changed.",
+                       "use of a regular expression as the first argument",
+                       "is deprecated.  support will be removed soon.");
+        t_debug(@warning);
+        ($a, $b) = ($b, $a);
+    }
+
     if (defined $a && defined $b) {
         my $ref_a = ref $a;
         my $ref_b = ref $b;
@@ -78,8 +88,8 @@ sub t_is_equal ($$) {
                 t_is_equal($a->{$key}, $b->{$key}) || return 0;
             }
         }
-        elsif ($ref_a eq 'Regexp') {
-            return $b =~ $a;
+        elsif ($ref_b eq 'Regexp') {
+            return $a =~ $b;
         }
         else {
             # try to compare the references
@@ -97,14 +107,38 @@ sub t_is_equal ($$) {
 
 sub t_cmp ($$;$) {
     Carp::carp(join(":", (caller)[1..2]) . 
-        ' usage: $res = t_cmp($expected, $received, [$comment])')
+        ' usage: $res = t_cmp($received, $expected, [$comment])')
             if @_ < 2 || @_ > 3;
 
+    my ($received, $expected) = @_;
+
+    # this was added in Apache::Test::VERSION 1.12 - remove deprecated
+    # logic sometime around 1.15 or mid September, 2004.
+    if (UNIVERSAL::isa($_[0], 'Regexp')) {
+        my @warning = ("WARNING!!! t_cmp() argument order has changed.",
+                       "use of a regular expression as the first argument",
+                       "is deprecated.  support will be removed soon.");
+        t_debug(@warning);
+        ($received, $expected) = ($expected, $received);
+    }
+
     t_debug("testing : " . pop) if @_ == 3;
-    t_debug("expected: " . struct_as_string(0, $_[0]));
-    t_debug("received: " . struct_as_string(0, $_[1]));
-    return t_is_equal($_[0], $_[1]);
+    t_debug("expected: " . struct_as_string(0, $expected));
+    t_debug("received: " . struct_as_string(0, $received));
+    return t_is_equal($received, $expected);
 }
+
+# Essentially t_cmp, but on Win32, first converts pathnames
+# to their DOS long name.
+sub t_filepath_cmp ($$;$) {
+    my @a = (shift, shift);
+    if (Apache::TestConfig::WIN32) {
+        $a[0] = Win32::GetLongPathName($a[0]) if defined $a[0];
+        $a[1] = Win32::GetLongPathName($a[1]) if defined $a[1];
+    }
+    return @_ == 1 ? t_cmp($a[0], $a[1], $_[0]) : t_cmp($a[0], $a[1]);
+}
+
 
 *expand = HAS_DUMPER ?
     sub { map { ref $_ ? Data::Dumper::Dumper($_) : $_ } @_ } :
@@ -393,7 +427,7 @@ directories and files at the end of the test.
 
 =item t_cmp()
 
-  t_cmp($expected, $received, $comment);
+  t_cmp($received, $expected, $comment);
 
 t_cmp() prints the values of I<$comment>, I<$expected> and
 I<$received>. e.g.:
@@ -431,13 +465,24 @@ datastructures can be deeply nested. For example you can compare:
         "hash of array of hashes");
 
 You can also compare the second argument against the first as a
-regex. Use the C<qr//> function in the first argument. For example:
+regex. Use the C<qr//> function in the second argument. For example:
 
-  t_cmp(qr/^abc/, "abcd", "regex compare");
+  t_cmp("abcd", qr/^abc/, "regex compare");
 
 will do:
 
   "abcd" =~ /^abc/;
+
+This function is exported by default.
+
+=item t_filepath_cmp()
+
+This function is used to compare two filepaths via t_cmp().
+For non-Win32, it simply uses t_cmp() for the comparison,
+but for Win32, Win32::GetLongPathName() is invoked to convert
+the first two arguments to their DOS long pathname. This is useful
+when there is a possibility the two paths being compared
+are not both represented by their long or short pathname.
 
 This function is exported by default.
 
@@ -561,10 +606,10 @@ exactly the same, otherwise 0. The datastructures can be nested
 hashes, arrays, scalars, undefs or a combination of any of these.  See
 t_cmp() for an example.
 
-If C<$a> is a regex reference, the regex comparison C<$b =~ $a> is
+If C<$b> is a regex reference, the regex comparison C<$a =~ $b> is
 performed. For example:
 
-  t_is_equal(qr{^Apache}, $server_version);
+  t_is_equal($server_version, qr{^Apache});
 
 If comparing non-scalars make sure to pass the references to the
 datastructures.

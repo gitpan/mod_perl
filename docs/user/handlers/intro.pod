@@ -72,8 +72,14 @@ returned to the client.
 
 =head1 Handler Return Values
 
-Different handler groups are supposed to return different values. The
-only value that can be returned by all handlers is C<Apache::OK>,
+Different handler groups are supposed to return different values.
+
+Make sure that you B<always> explicitly return a wanted value and
+don't rely on the result of last expression to be used as the return
+value -- things will change in the future and you won't know why
+things aren't working anymore.
+
+The only value that can be returned by all handlers is C<Apache::OK>,
 which tells Apache that the handler has successfully finished its
 execution.
 
@@ -132,13 +138,13 @@ several categories:
 
 =over
 
-=item * C<L<PerlOpenLogsHandler|docs::2.0::user::handlers::server/PerlOpenLogsHandler>>
+=item * C<L<PerlOpenLogsHandler|docs::2.0::user::handlers::server/C_PerlOpenLogsHandler_>>
 
-=item * C<L<PerlPostConfigHandler|docs::2.0::user::handlers::server/PerlPostConfigHandler>>
+=item * C<L<PerlPostConfigHandler|docs::2.0::user::handlers::server/C_PerlPostConfigHandler_>>
 
-=item * C<L<PerlChildInitHandler|docs::2.0::user::handlers::server/PerlChildInitHandler>>
+=item * C<L<PerlChildInitHandler|docs::2.0::user::handlers::server/C_PerlChildInitHandler_>>
 
-=item * C<L<PerlChildExitHandler|docs::2.0::user::handlers::server/PerlChildExitHandler>>
+=item * C<L<PerlChildExitHandler|docs::2.0::user::handlers::server/C_PerlChildExitHandler_>>
 
 =back
 
@@ -253,7 +259,7 @@ following table specifies each handler's behavior in this situation:
   PerlOutputFilterHandler      VOID
 
 Note:
-C<L<PerlChildExitHandler|docs::2.0::user::handlers::http/PerlChildExitHandler>>
+C<L<PerlChildExitHandler|docs::2.0::user::handlers::http/C_PerlChildExitHandler_>>
 and
 C<L<PerlCleanupHandler|docs::2.0::user::handlers::http/PerlCleanupHandler>>
 are not real Apache hooks, but to mod_perl users they behave as all
@@ -281,7 +287,6 @@ cases the execution will be aborted.
 Handlers of the type C<RUN_ALL> will be executed in the order they
 have been registered until the first handler that returns something
 other than C<Apache::OK> or C<Apache::DECLINED>.
-
 
 For C API declarations see I<include/ap_config.h>, which includes
 other types which aren't exposed by mod_perl handlers.

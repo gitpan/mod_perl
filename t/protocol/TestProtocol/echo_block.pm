@@ -12,7 +12,7 @@ use Apache::Connection ();
 use APR::Socket ();
 
 use Apache::Const -compile => 'OK';
-use APR::Const    -compile => qw(SO_NONBLOCK TIMEUP EOF);
+use APR::Const    -compile => qw(SO_NONBLOCK);
 
 use constant BUFF_LEN => 1024;
 
@@ -20,9 +20,8 @@ sub handler {
     my Apache::Connection $c = shift;
     my APR::Socket $socket = $c->client_socket;
 
-    # make sure the socket is in the blocking mode for recv().
-    # on some platforms (e.g. OSX/Solaris) httpd hands us a
-    # non-blocking socket
+    # starting from Apache 2.0.49 several platforms require you to set
+    # the socket to a blocking IO mode
     my $nonblocking = $socket->opt_get(APR::SO_NONBLOCK);
     if ($nonblocking) {
         $socket->opt_set(APR::SO_NONBLOCK => 0);
@@ -32,12 +31,8 @@ sub handler {
             or die "failed to set blocking mode";
     }
 
-    while (1) {
-        my $buff = $socket->recv(BUFF_LEN);
-        last unless length $buff; # EOF
-
-        my $wlen = $socket->send($buff);
-        last if $wlen != length $buff; # write failure?
+    while ($socket->recv(my $buff, BUFF_LEN)) {
+        $socket->send($buff);
     }
 
     Apache::OK;

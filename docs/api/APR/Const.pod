@@ -2,9 +2,40 @@
 
 APR::Const - Perl Interface for APR Constants
 
+
+
+
+
+
 =head1 Synopsis
 
+  # make the constants available but don't import them
   use APR::Const -compile => qw(constant names ...);
+  
+  # w/o the => syntax sugar
+  use APR::Const ("-compile", qw(constant names ...));
+  
+  # compile and import the constants
+  use APR::Const qw(constant names ...);
+
+
+
+
+
+
+
+=head1 Description
+
+This package contains constants specific to C<APR> features.
+
+Refer to C<L<the Apache::Const description
+section|docs::2.0::api::Apache::Const/Description>> for more
+information.
+
+
+
+
+
 
 
 =head1 Constants
@@ -85,7 +116,8 @@ The C<:error> group is for XXX constants.
 
 =back
 
-
+The error I<Resource temporarily unavailable>, may be returned by many
+different system calls, especially IO calls.
 
 
 
@@ -1840,7 +1872,7 @@ The C<:poll> group is for XXX constants.
 
   use APR::Const -compile => qw(:read_type);
 
-The C<:read_type> group is for XXX constants.
+The C<:read_type> group is for IO constants.
 
 
 
@@ -1853,6 +1885,8 @@ The C<:read_type> group is for XXX constants.
 
 =back
 
+the read function blocks
+
 
 
 
@@ -1864,6 +1898,14 @@ The C<:read_type> group is for XXX constants.
 =item since: 1.99_12
 
 =back
+
+
+the read function does not block
+
+
+
+
+
 
 
 
@@ -2179,7 +2221,7 @@ and C<L<APR::Table::overlap|docs::2.0::api::APR::Table/C_overlap_>>.
 
   use APR::Const -compile => qw(:uri);
 
-The C<:uri> group is for XXX constants.
+The C<:uri> group of constants is for manipulating URIs.
 
 
 
@@ -2414,6 +2456,8 @@ The C<:uri> group is for XXX constants.
 
 =back
 
+See C<L<APR::URI::unparse|docs::2.0::api::APR::URI/C_unparse_>>.
+
 
 
 
@@ -2428,6 +2472,8 @@ The C<:uri> group is for XXX constants.
 =item since: 1.99_12
 
 =back
+
+See C<L<APR::URI::unparse|docs::2.0::api::APR::URI/C_unparse_>>.
 
 
 
@@ -2444,6 +2490,7 @@ The C<:uri> group is for XXX constants.
 
 =back
 
+See C<L<APR::URI::unparse|docs::2.0::api::APR::URI/C_unparse_>>.
 
 
 
@@ -2460,7 +2507,7 @@ The C<:uri> group is for XXX constants.
 
 =back
 
-
+See C<L<APR::URI::unparse|docs::2.0::api::APR::URI/C_unparse_>>.
 
 
 
@@ -2476,6 +2523,7 @@ The C<:uri> group is for XXX constants.
 
 =back
 
+See C<L<APR::URI::unparse|docs::2.0::api::APR::URI/C_unparse_>>.
 
 
 
@@ -2504,6 +2552,7 @@ The C<:uri> group is for XXX constants.
 
 =back
 
+See C<L<APR::URI::unparse|docs::2.0::api::APR::URI/C_unparse_>>.
 
 
 
@@ -2548,7 +2597,7 @@ L<mod_perl 2.0 documentation|docs::2.0::index>.
 =head1 Copyright
 
 mod_perl 2.0 and its core modules are copyrighted under
-The Apache Software License, Version 1.1.
+The Apache Software License, Version 2.0.
 
 
 

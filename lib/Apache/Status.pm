@@ -161,7 +161,7 @@ sub handler {
 sub header {
     my $r = shift;
     my $start = scalar localtime $^T;
-    my $srv = Apache::get_server_version();
+    my $srv = Apache::ServerUtil::get_server_version();
     $r->content_type("text/html");
     my $v = $^V ? sprintf "v%vd", $^V : $];
     $r->print(<<"EOF");
@@ -704,8 +704,8 @@ sub noh_b_graph {
 
     untie *STDOUT;
 
-    my $dir = 
-        $r->server_root_relative($r->dir_config("GraphDir") || "logs/b_graphs");
+    my $dir = File::Spec->catfile(Apache::ServerUtil::server_root,
+        ($r->dir_config("GraphDir") || "logs/b_graphs"));
 
     mkdir $dir, 0755 unless -d $dir;
 

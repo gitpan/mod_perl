@@ -63,12 +63,12 @@ TEST_FILES =
 
 test_clean :
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
-	t/TEST -clean
+	t/TEST $(APACHE_TEST_EXTRA_ARGS) -clean
 
 run_tests : test_clean
 	$(PASSENV) \
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
-	t/TEST -bugreport -verbose=$(TEST_VERBOSE) $(TEST_FILES)
+	t/TEST $(APACHE_TEST_EXTRA_ARGS) -bugreport -verbose=$(TEST_VERBOSE) $(TEST_FILES)
 
 test :: pure_all run_tests test_clean
 
@@ -105,7 +105,7 @@ sub generate_script {
     close $in;
 
     info "generating script $file";
-    Apache::Test::config()->write_perlscript($file, $body);
+    Apache::Test::basic_config()->write_perlscript($file, $body);
 }
 
 sub filter_args {

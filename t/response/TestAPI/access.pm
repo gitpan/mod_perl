@@ -4,6 +4,7 @@ use strict;
 use warnings FATAL => 'all';
 
 use Apache::Test;
+use Apache::TestUtil;
 
 use Apache::Access ();
 
@@ -12,7 +13,7 @@ use Apache::Const -compile => qw(OK :options :override :satisfy);
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 10;
+    plan $r, tests => 11;
 
     $r->allow_methods(1, qw(GET POST));
 
@@ -24,21 +25,28 @@ sub handler {
 
     ok !($r->allow_overrides & Apache::OR_LIMIT);
 
-    ok $r->satisfies == Apache::SATISFY_NOSPEC;
+    ok t_cmp $r->satisfies, Apache::SATISFY_NOSPEC, "satisfies";
 
-    ok $r->auth_name eq 'modperl';
+    ok t_cmp $r->auth_name, 'modperl', "auth_name";
 
     $r->auth_name('modperl_test');
-    ok $r->auth_name eq 'modperl_test';
+    ok t_cmp $r->auth_name, 'modperl_test', "auth_name";
     $r->auth_name('modperl');
 
-    ok $r->auth_type eq 'none';
-    
+    ok t_cmp $r->auth_type,  'none', "auth_type";
+
     $r->auth_type('Basic');
-    ok $r->auth_type eq 'Basic';
+    ok t_cmp $r->auth_type, 'Basic', "auth_type";
     $r->auth_type('none');
 
     ok !$r->some_auth_required;
+
+    # XXX: this test requires a running identd, which we have no way
+    # to figure out whether it's running, or how to start one. so for
+    # now just check that the method is call-able.
+    my $remote_logname = $r->get_remote_logname() || '';
+    t_debug "get_remote_logname: $remote_logname";
+    ok 1;
 
     Apache::OK;
 }
@@ -49,3 +57,8 @@ Options None
 Options Indexes FollowSymLinks
 AuthName modperl
 AuthType none
+
+# this directive was moved from core in Apache 2.1
+# since we're not testing that identd is running
+# anyway we probably don't need to include it at all
+#IdentityCheck On

@@ -84,6 +84,14 @@ If you need to use the same I<httpd.conf> for 1.0 and 2.0, use:
       PerlFreshRestart
   </IfDefine>
 
+=head2 C<$Apache::Server::StrictPerlSections>
+
+In mod_perl 2.0, C<L<E<lt>PerlE<gt>|docs::2.0::api::Apache::PerlSections>>
+sections errors are now always fatal. Any error in them will cause an immediate
+server startup abort, dumping the error to stderr. To avoid this, C<eval {}>
+can be used to trap errors and ignore them. In mod_perl 1, 'strict' was
+somewhat of a misnomer.
+
 =head2 Apache Configuration Customization
 
 mod_perl 2.0 has slightly changed the mechanism for L<adding custom
@@ -119,35 +127,13 @@ C<@INC>.
 
 =head1 Server Startup
 
-mod_perl 1.0 was always running its startup code immediately at the
-server startup. On a big setup it was causing a slow startup, since
-Apache always starts and immediately restarts itself, running the
-startup code twice. Therefore in mod_perl 2.0, by default perl won't
-be started until after the configuration phase. So, if for example you
-run:
+mod_perl 1.0 was always running its startup code as soon as it was
+encountered. In mod_perl 2.0, it is not always the case. Refer to the
+L<mod_perl 2.0 startup process
+section|docs::2.0::user::config::config/Startup_Process> section for
+details.
 
-  % apachectl configtest
 
-none of your perl code will be executed.
-
-There are two cases when mod_perl 2.0 is forced to start early. First,
-is when
-C<L<PerlLoadModule|docs::2.0::user::config::config/C_PerlLoadModule_>>
-is used and the second is
-C<L<E<lt>PerlE<gt>|docs::2.0::api::Apache::PerlSections>> sections,
-both requiring a running perl, and triggering an early server startup.
-
-Therefore at the moment, if you want to trigger an early startup, like
-mod_perl 1.0 does, just add an empty
-C<L<E<lt>PerlE<gt>|docs::2.0::api::Apache::PerlSections>> section:
-
-  <Perl>
-  # trigger an early startup
-  </Perl>
-
-Right after loading the mod_perl module in F<httpd.conf> if you are
-using DSO, or just before your mod_perl configuration if you using a
-static build.
 
 
 =head1 Code Porting
@@ -409,7 +395,9 @@ This will work in both mod_perl generations.
 
 C<Apache::Constants::SERVER_VERSION()> has been replaced with:
 
-  Apache::get_server_version();
+  Apache::ServerUtil::get_server_version();
+
+
 
 =head2 C<export()>
 
@@ -569,12 +557,10 @@ C<Apache-E<gt>request> available in the calls made from it:
 =head2 C<Apache-E<gt>define>
 
 C<Apache-E<gt>define> has been replaced with
-C<Apache::exists_config_define()> residing inside
-C<Apache::ServerUtil>.
+C<L<Apache::ServerUtil::exists_config_define()|docs::2.0::Apache::ServerUtil/C_exists_config_define_>>.
 
-See the
-C<L<Apache::ServerUtil|docs::2.0::api::Apache::ServerUtil>>
-manpage.
+
+
 
 =head2 C<Apache-E<gt>can_stack_handlers>
 
@@ -680,11 +666,6 @@ for C<Apache::gensym()> function, since now it can be done with:
 Though the C function C<modperl_perl_gensym()> is available for XS/C
 extensions writers.
 
-=head2 C<Apache::module()>
-
-C<Apache::module()> has been replaced with the function
-C<Apache::Module::loaded()>, which now accepts a single argument: the
-module name.
 
 =head2 C<Apache::log_error()>
 
@@ -696,6 +677,12 @@ use:
 instead. See the
 C<L<Apache::Log|docs::2.0::api::Apache::Log>> manpage.
 
+
+=head2 C<Apache::module()>
+
+C<Apache::module()> has been replaced with the function
+C<Apache::Module::loaded()>, which now accepts a single argument: the
+module name.
 
 
 
@@ -858,8 +845,7 @@ better in C<Apache::Request>.
 =item *
 
 if one wishes to simply read POST data, there is the more modern
-C<{setup,should,get}_client_block> API, and even more modern filter
-API, along with continued support for C<read(STDIN, ...)> and
+filter API, along with continued support for C<read(STDIN, ...)> and
 C<$r-E<gt>read($buf, $r-E<gt>headers_in-E<gt>{'content-length'}>)
 
 =back
@@ -1019,8 +1005,9 @@ Use C<L<Apache-E<gt>request|/__Apache___gt_request_>>.
 
 =head2 C<$r-E<gt>send_fd>
 
-Apache 2.0 provides a new method C<sendfile()> instead of C<send_fd>,
-so if your code used to do:
+mod_perl 2.0 provides a new method
+C<L<sendfile()|docs::2.0::api::Apache::RequestIO/C_sendfile_>> instead
+of C<send_fd>, so if your code used to do:
 
   open my $fh, "<$file" or die "$!";
   $r->send_fd($fh);
@@ -1028,19 +1015,16 @@ so if your code used to do:
 
 now all you need is:
 
-  $r->sendfile($fh);
+  $r->sendfile($file);
 
-There is also a compatibility implementation in pure perl in
-C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
+There is also a compatibility implementation of send_fd in pure perl
+in C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
 
+XXX: later we may provide a direct access to the real send_fd. That
+will be possible if we figure out how to portably convert PerlIO/FILE
+into apr_file_t (with help of apr_os_file_put, which expects a native
+filehandle, so I'm not sure whether this will work on win32).
 
-=head2 C<$r-E<gt>send_fd_length>
-
-currently available only in the 1.0 compatibility layer. The problem
-is that Apache has changed the API and its functionality. See the
-implementation in C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
-
-XXX: needs a better resolution
 
 =head2 C<$r-E<gt>send_http_header>
 
@@ -1048,33 +1032,31 @@ This method is not needed in 2.0, though available in
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>. 2.0 handlers only
 need to set the I<Content-type> via C<$r-E<gt>content_type($type)>.
 
+
+
+
+
 =head2 C<$r-E<gt>server_root_relative>
 
-C<Apache::server_root_relative> is a function in 2.0 and its first
-argument is the I<pool> object. For example:
+This method was replaced with
+C<L<Apache::ServerUtil::server_root_relative|docs::2.0::Apache::ServerUtil/C_server_root_relative_>>
+function and its first argument is a I<pool> object. For example:
 
   # during request
-  my $conf_dir = Apache::server_root_relative($r->pool, 'conf');
+  $conf_dir = Apache::server_root_relative($r->pool, 'conf');
   # during startup
-  my $conf_dir = Apache::server_root_relative($s->pool, 'conf');
-
-Alternatively:
-
-  # during request
-  my $conf_dir = $r->server_root_relative('conf');
-  # during startup
-  my $conf_dir = $c->server_root_relative('conf');
+  $conf_dir = Apache::server_root_relative($s->pool, 'conf');
 
 Note that the old form
 
   my $conf_dir = Apache->server_root_relative('conf');
 
-is no longer valid - C<Apache::server_root_relative> must be called
-from either one of C<$r>, C<$s>, or C<$c>, or be explicitly
-passed a pool.
+is no longer valid - C<Apache::server_root_relative> must be
+explicitly passed a pool.
 
+The old functionality is available with
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
 
-See the L<Apache::ServerUtil> manpage.
 
 
 =head2 C<$r-E<gt>hard_timeout>
@@ -1150,12 +1132,14 @@ and you can use this object's methods to retrieve the wanted bits of
 information, so if you had a code like:
 
   use Socket 'sockaddr_in';
-  my ($serverport, $serverip) = sockaddr_in($r->connection->local_addr);
-  my ($remoteport, $remoteip) = sockaddr_in($r->connection->remote_addr);
+  my $c = $r->connection;
+  my ($serverport, $serverip) = sockaddr_in($c->local_addr);
+  my ($remoteport, $remoteip) = sockaddr_in($c->remote_addr);
 
 now it'll be written as:
 
   require APR::SockAddr;
+  my $c = $r->connection;
   my $serverport = $c->local_addr->port;
   my $serverip   = $c->local_addr->ip_get;
   my $remoteport = $c->remote_addr->port;
@@ -1186,11 +1170,27 @@ L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_wi
 The methods from mod_perl 1.0's module C<Apache::File> have been
 either moved to other packages or removed.
 
-=head2 C<open()> and C<close()>
 
-The methods C<open()> and C<close()> were removed. See the back
-compatibility implementation in the module
+=head2 C<new()>, C<open()> and C<close()>
+
+The methods C<new()>, C<open()> and C<close()> were removed. See the
+back compatibility implementation in the module
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
+
+Because of that some of the idioms have changes too. If previously you
+were writing:
+
+    my $fh = Apache::File->new($r->filename)
+        or return Apache::DECLINED;
+    # Slurp the file (hopefully it's not too big).
+    my $content = do { local $/; <$fh> };
+    close $fh;
+
+Now, you would write that as:
+
+  use Apache::RequestUtil ();
+  my $content = ${ $r->slurp_filename() };
+
 
 =head2 C<tmpfile()>
 
@@ -1273,7 +1273,7 @@ For example:
 =head2 C<Apache::Util::validate_password()>
 
 C<Apache::Util::validate_password()> has been replaced with
-C<APR::password_validate()>. For example:
+C<APR::Util::password_validate()>. For example:
 
    my $ok = Apache::Util::password_validate("stas", "ZeO.RAc3iYvpA");
 

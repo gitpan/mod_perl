@@ -53,10 +53,27 @@ is ended with C<1;> to return true when it gets loaded.
 
 Those familiar with mod_perl 1.0 will find the HTTP request cycle in
 mod_perl 2.0 to be almost identical to the mod_perl 1.0's model. The
-only difference is in the I<response> phase which now includes
-filtering. Also the C<PerlHandler> directive has been renamed to
+different things are:
+
+=over
+
+=item *
+
+a new directive C<L<PerlMapToStorageHandler|/PerlMapToStorageHandler>>
+was added to match the new phase I<map_to_storage> added by Apache
+2.0.
+
+=item *
+
+the C<PerlHandler> directive has been renamed to
 C<PerlResponseHandler> to better match the corresponding Apache phase
 name (I<response>).
+
+=item *
+
+the I<response> phase now includes filtering.
+
+=back
 
 The following diagram depicts the HTTP request life cycle and
 highlights which handlers are available to mod_perl 2.0:
@@ -66,7 +83,7 @@ highlights which handlers are available to mod_perl 2.0:
  align="middle" alt="HTTP cycle"><br><br>
 
 From the diagram it can be seen that an HTTP request is processes by
-11 phases, executed in the following order:
+12 phases, executed in the following order:
 
 =over
 
@@ -106,7 +123,8 @@ be filtered through request input filters, which are preceded by
 connection input filters if any. Similarly the generated response is
 first run through request output filters and eventually through
 connection output filters before it's sent to the client. We will talk
-about filters in detail later in this chapter.
+about filters in detail later in L<the dedicated to filters
+chapter|docs::2.0::user::handlers::filters>.
 
 Before discussing each handler in detail remember that if you use
 L<the stacked handlers
@@ -144,15 +162,16 @@ Now, let's look at an example. Consider the following registry script:
   use warnings;
   
   use Apache::ServerUtil ();
+  use Apache::RequestIO ();
   use File::Spec::Functions qw(catfile);
   
   my $r = shift;
   $r->content_type('text/plain');
   
-  my $conf_file = catfile Apache::Server::server_root_relative($r->pool, 'conf'),
-      "httpd.conf";
+  my $conf_file = catfile Apache::ServerUtil::server_root,
+      "conf", "httpd.conf";
   
-  printf "$conf_file is %0.2f minutes old", 60*24*(-M $conf_file);
+  printf "$conf_file is %0.2f minutes old\n", 60*24*(-M $conf_file);
 
 This registry script is supposed to print when the last time
 I<httpd.conf> has been modified, compared to the start of the request
@@ -219,16 +238,14 @@ host.
 
 =head2 PerlTransHandler
 
-The I<translate> phase is used to perform the translation of a
-request's URI into an corresponding filename. If no custom handler is
-provided, the server's standard translation rules (e.g., C<Alias>
-directives, mod_rewrite, etc.) will continue to be used. A
-C<PerlTransHandler> handler can alter the default translation
-mechanism or completely override it.
-
-In addition to doing the translation, this stage can be used to modify
-the URI itself and the request method. This is also a good place to
-register new handlers for the following phases based on the URI.
+The I<translate> phase is used to perform the manipulation of a
+request's URI. If no custom handler is provided, the server's standard
+translation rules (e.g., C<Alias> directives, mod_rewrite, etc.) will
+be used. A C<PerlTransHandler> handler can alter the default
+translation mechanism or completely override it. This is also a good
+place to register new handlers for the following phases based on the
+URI. C<L<PerlMapToStorageHandler|/PerlMapToStorageHandler>> is to be
+used to override the URI to filename translation.
 
 This phase is of type
 C<L<RUN_FIRST|docs::2.0::user::handlers::intro/item_RUN_FIRST>>.
@@ -269,7 +286,7 @@ I<news.pl>, so you can still use the former URI mapping:
   sub handler {
       my $r = shift;
   
-      my ($date, $id, $page) = $r->uri =~ m|^/news/(\d+)/(\d+)/(.*)|;
+      my($date, $id, $page) = $r->uri =~ m|^/news/(\d+)/(\d+)/(.*)|;
       $r->uri("/perl/news.pl");
       $r->args("date=$date&id=$id&page=$page");
   
@@ -296,7 +313,12 @@ To configure this module simply add to I<httpd.conf>:
 
 =head2 PerlMapToStorageHandler
 
-META: add something here
+The I<map_to_storage> phase is used to perform the translation of a
+request's URI into a corresponding filename. If no custom handler is
+provided, the server will try to walk the filesystem trying to find
+what file or directory corresponds to the request's URI. Since usually
+mod_perl handler don't have corresponding files on the filesystem, you
+will want to shortcut this phase and save quite a few CPU cycles.
 
 This phase is of type
 C<L<RUN_FIRST|docs::2.0::user::handlers::intro/item_RUN_FIRST>>.
@@ -305,6 +327,61 @@ The handler's configuration scope is
 C<L<SRV|docs::2.0::user::config::config/item_SRV>>, because at this
 phase the request has not yet been associated with a particular
 filename or directory.
+
+For example if you don't want Apache to try to attempt to translate
+URI into a filename, just add a handler:
+
+  PerlMapToStorageHandler MyApache::NoTranslation
+
+using the following code:
+
+  file:MyApache/NoTranslation.pm
+  ------------------------------
+  package MyApache::NoTranslation;
+  
+  use strict;
+  use warnings FATAL => 'all';
+  
+  use Apache::Const -compile => qw(OK);
+  
+  sub handler {
+      my $r = shift;
+  
+      # skip ap_directory_walk stat() calls
+      return Apache::OK;
+  }
+  1;
+
+Apache also uses this phase to handle C<TRACE> requests. So if you
+shortcut it, C<TRACE> calls will be not handled. In case you need to
+handle such, you may rewrite it as:
+
+  file:MyApache/NoTranslation2.pm
+  -------------------------------
+  package MyApache::NoTranslation2;
+  
+  use strict;
+  use warnings FATAL => 'all';
+  
+  use Apache::RequestRec ();
+
+  use Apache::Const -compile => qw(DECLINED OK M_TRACE);
+  
+  sub handler {
+      my $r = shift;
+  
+      return Apache::DECLINED if $r->method_number == Apache::M_TRACE;
+  
+      # skip ap_directory_walk stat() calls
+      return Apache::OK;
+  }
+  1;
+
+Another way to prevent the core translation is to set
+C<$r-E<gt>filename()> to some value, which can also be done in the
+C<L<PerlTransHandler|/PerlTransHandler>>, if you are already using it.
+
+
 
 
 
@@ -367,6 +444,10 @@ and here is the C<MyApache::SendEmail> handler:
   use Apache::RequestRec ();
   use Apache::RequestIO ();
   use Apache::RequestUtil ();
+  use Apache::ServerUtil ();
+  use Apache::ServerRec ();
+  use Apache::Process ();
+  use APR::Table ();
   
   use Apache::Const -compile => qw(DECLINED OK);
   
@@ -378,7 +459,7 @@ and here is the C<MyApache::SendEmail> handler:
   
       return Apache::DECLINED unless $r->method eq METHOD;
   
-      Apache::Server::method_register($r->pool, METHOD);
+      $r->server->method_register(METHOD);
       $r->handler("perl-script");
       $r->push_handlers(PerlResponseHandler => \&send_email_handler);
   
@@ -398,27 +479,42 @@ and here is the C<MyApache::SendEmail> handler:
       return Apache::OK;
   }
   
+  use APR::Brigade ();
+  use APR::Bucket ();
+  
+  use Apache::Const -compile => qw(MODE_READBYTES);
+  use APR::Const    -compile => qw(SUCCESS BLOCK_READ);
+  
+  use constant IOBUFSIZE => 8192;
+  
   sub content {
       my $r = shift;
   
-      $r->setup_client_block;
-      return '' unless $r->should_client_block;
-      my $len = $r->headers_in->get('content-length');
-      my $buf;
-      $r->get_client_block($buf, $len);
+      my $bb = APR::Brigade->new($r->pool, $r->connection->bucket_alloc);
   
-      return $buf;
-  }
+      my $data = '';
+      my $seen_eos = 0;
+      do {
+          $r->input_filters->get_brigade($bb, Apache::MODE_READBYTES,
+                                         APR::BLOCK_READ, IOBUFSIZE);
   
-  sub send_email {
-      my($rh_headers, $r_body) = @_;
+          for (my $b = $bb->first; $b; $b = $bb->next($b)) {
+              if ($b->is_eos) {
+                  $seen_eos++;
+                  last;
+              }
   
-      require MIME::Lite;
-      MIME::Lite->send("smtp", SMTP_HOSTNAME, Timeout => 60);
+              if ($b->read(my $buf)) {
+                  $data .= $buf;
+              }
   
-      my $msg = MIME::Lite->new(%$rh_headers, Data => $$r_body);
-      #warn $msg->as_string;
-      $msg->send;
+              $b->remove; # optimization to reuse memory
+          }
+      } while (!$seen_eos);
+  
+      $bb->destroy;
+  
+      return $data;
   }
   
   1;
@@ -437,12 +533,19 @@ constant):
       return Apache::DECLINED unless $r->method eq METHOD;
 
 Next it tells Apache that this new method is a valid one and that the
-C<perl-script> handler will do the processing. Finally it pushes the
-function C<send_email_handler()> to the C<PerlResponseHandler> list of
-handlers:
+C<perl-script> handler will do the processing.
 
-      Apache::Server::method_register($r->pool, METHOD);
+      Apache::RequestUtil::method_register($r->server->process->pconf,
+                                           METHOD);
       $r->handler("perl-script");
+
+Notice that we use the C<pconf> pool which persists through the server
+life, and not C<$r-E<gt>pool> whose life span will end at the end of
+the request.
+
+Finally it pushes the function C<send_email_handler()> to the
+C<PerlResponseHandler> list of handlers:
+
       $r->push_handlers(PerlResponseHandler => \&send_email_handler);
 
 The function terminates the header_parser phase by:
@@ -679,8 +782,6 @@ secret length, specified by the constant C<SECRET_LENGTH>.
   use Apache::RequestUtil ();
   
   use Apache::Const -compile => qw(OK DECLINED HTTP_UNAUTHORIZED);
-
-  use Apache::Access();
   
   use constant SECRET_LENGTH => 14;
   
@@ -820,8 +921,6 @@ properly authenticated:
   use Apache::RequestUtil ();
   
   use Apache::Const -compile => qw(OK HTTP_UNAUTHORIZED);
-
-  use Apache::Access ();
   
   my %protected = (
       'admin'  => ['stas'],
@@ -970,6 +1069,7 @@ the file extension of the request's URI.
   
   use Apache::RequestIO ();
   use Apache::RequestRec ();
+  use Apache::RequestUtil ();
   
   use Apache::Const -compile => 'OK';
   
@@ -1131,6 +1231,8 @@ I<http://localhost/deparse> we get the following response:
 
   sub handler {
       package MyApache::Deparse;
+      use warnings;
+      use strict 'refs';
       my $r = shift @_;
       $r->content_type('text/plain');
       $r->print('sub handler ', 'B::Deparse'->new->coderef2text(\&handler));
@@ -1175,7 +1277,9 @@ URI path component. Here is the log handler that does that:
   
   use Apache::RequestRec ();
   use Apache::Connection ();
+  
   use Fcntl qw(:flock);
+  use File::Spec::Functions qw(catfile);
   
   use Apache::Const -compile => qw(OK DECLINED);
   
@@ -1189,8 +1293,8 @@ URI path component. Here is the log handler that does that:
           $r->connection->remote_ip, scalar(localtime),
           $r->uri, $r->status, $r->bytes_sent;
   
-      my $log_path = Apache::Server::server_root_relative($r->pool, 
-          "logs/$username.log");
+      my $log_path = catfile Apache::ServerUtil::server_root,
+          "logs", "$username.log";
       open my $fh, ">>$log_path" or die "can't open $log_path: $!";
       flock $fh, LOCK_EX;
       print $fh $entry;
@@ -1488,25 +1592,114 @@ http://marc.theaimsgroup.com/?l=apache-modperl-dev&m=106427616108596&w=2
 
 
 
-=head1 Handling HEAD Requests
+
+
+
+
+=head1 Miscellaneous Issues
+
+
+=head2 Handling HEAD Requests
 
 In order to avoid the overhead of sending the data to the client when
 the request is of type HEAD in mod_perl 1.0 we L<used to return
 early|docs::1.0::guide::porting/Generating_correct_HTTP_Headers> from
 the handler:
 
-  return OK if $r->header_only;
+  return Apache::OK if $r->header_only;
 
-This logic is no longer needed in mod_perl 2.0, because Apache 2.0
-automatically discards the response body for HEAD requests. (You can
-also read the comment in for C<ap_http_header_filter()> in
+This logic should not be used in mod_perl 2.0, because Apache 2.0
+automatically discards the response body for HEAD requests. It expects
+the full body to generate the correct set of response headers, if you
+don't send the body you may encounter problems.
+
+(You can also read the comment in for C<ap_http_header_filter()> in
 I<modules/http/http_protocol.c> in the Apache 2.0 source.)
+
+
+
+
+
+=head2 C<Content-Length> Response Header
+
+You may encounter some issues with the C-L (C<Content-Length>)
+header. Some of them are discussed here.
+
+=over
+
+=item * The special case of C<Content-Length: 0>
+
+Since Apache proclaims itself governor of the C-L header via the C-L
+filter (ap_content_length_filter at F<httpd-2.0/server/protocol.c>),
+for the most part C<GET> and C<HEAD> behave exactly the same.
+However, when Apache sees a C<HEAD> request with a C-L header of zero
+it takes special action and removes the C-L header.  This is done to
+protect against handlers that called C<$r-E<gt>header_only> (L<which
+was ok in 1.3 but is not in 2.0|/Handling_HEAD_Requests>).  Therefore,
+C<GET> and C<HEAD> behave indentically, except when the content
+handler (and/or filters) end up sending no content.  For more details
+refer to the lengthy comments in C<ap_http_header_filter()> in
+F<httpd-2.0/modules/http/http_protocol.c>).
+
+For more discussion on why it is important to get HEAD requests right,
+see these threads from the mod_perl list:
+
+  http://marc.theaimsgroup.com/?l=apache-modperl&m=108647669726915&w=2
+  http://marc.theaimsgroup.com/?t=109122984600001&r=1&w=2
+
+as well as this bug report from mozilla, which shows how C<HEAD>
+requests are used in the wild:
+
+  http://bugzilla.mozilla.org/show_bug.cgi?id=245447
+
+=item * Not getting C<Content-Length> header with C<HEAD> requests
+
+Even though the spec says that content handlers should send an
+identical response for GET and HEAD requests, some folks try to
+L<avoid the overhead of generating the response
+body|/Handling_HEAD_Requests>, which Apache is going to discard anyway
+for HEAD requests. The following discussion assumes that we deal with
+a HEAD request.
+
+When Apache sees EOS and no headers and no response body were sent,
+C<ap_content_length_filter()> (F<httpd-2.0/server/protocol.c>) sets
+C-L to 0. Later on C<ap_http_header_filter()>
+(F<httpd-2.0/modules/http/http_protocol.c>) removes the C-L header for
+the HEAD requests.
+
+The workaround is to force the sending of the response headers, before
+C<EOS> was sent (which happens when the response handler returns). The
+simplest solution is to use rflush():
+
+  if ($r->header_only) { # HEAD
+      $body_len = calculate_body_len();
+      $r->set_content_length($body_len);
+      $r->rflush;
+  }
+  else {                 # GET
+      # generate and send the body
+  }
+
+now if the handler sets the C-L header it'll be delivered to the
+client unmodified.
+
+=back
+
+
+
+
+
+
 
 =head1 Extending HTTP Protocol
 
 Extending HTTP under mod_perl is a trivial task.  Look at L<the
 example of adding a new method C<EMAIL>|/PerlHeaderParserHandler> for
 details.
+
+
+
+
 
 
 =head1 Maintainers

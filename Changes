@@ -10,6 +10,320 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
+=item 1.99_15  - Aug 20, 2004
+
+replace the memory allocation for modperl filter handlers to use a
+temporary subpool of the ap_filter_t object. previously using perl's
+safemalloc had problems on win32 (randomly my_perl == NULL) [Stas]
+
+Apache::Module remove_loaded_module re-added [Gozer]
+
+Disable Apache::HookRun::run_create_request -- it's already run
+internally by Apache::RequestRec->new [Stas]
+
+Update Apache::RequestRec->new() to initialize members of request_rec
+which were added some time ago (without it we were getting segfaults
+in the new pseudo_http test. [Stas]
+
+Apache::CmdParms->limited member replaced by is_method_limited()
+method [Gozer]
+
+Apache::Module changes [Gozer]
+- readwrite => readonly:
+    cmds, next, name, module_index, minor_version, version
+- removed: remove_loaded_module, remove_module
+
+ensure that a sub-dir Apache-Test exists in the source distro (this is
+a requirement, since the test suite relies on the particular
+Apache-Test version distributed with the mod_perl source) [Stas]
+
+combine handler resolving failure error with the actual error, so
+there is only one logged entry [Stas]
+
+pod manpages are now glued to all .pm files for which .pod exists at
+'make install' phase [Stas]
+
+Apache::RequestIO::sendfile() now indicates which file it has failed
+to open on failure. [Stas]
+
+fix Apache::SubRequest's methods: lookup_file, lookup_uri,
+lookup_method_uri to default the last argument to
+r->proto_output_filters (no request filters for the subrequest) and
+not r->output_filters->next as it was before (one filter was getting
+skipped and the rest of the filters were applied *twice*). [Stas]
+
+Apache::CmdParms changes [Gozer]
+- readwrite => readonly:
+    override, limited, directive, pool, temp_pool, server, path,
+    cmd, context, err_directive
+
+- removed: limited_xmethods, xlimited, config_file, err_directive
+
+Fix a bug in APR::Bucket->new when a passed argument was of type
+PADTMP [Stas]
+
+Apache::Connection changes [Stas, "Fred Moyer" <fred /about/
+taperfriendlymusic.org>]
+- readwrite => readonly:
+
+    pool, base_server, local_addr, remote_addr, remote_ip, remote_host, 
+    aborted, local_ip, local_host, id, conn_config, sbh, bucket_alloc
+
+- removed: logname
+
+Move check_cmd_context from Apache::Command to Apache::CmdParms.
+[Gozer]
+
+Add :context group of constants for check_cmd_context().
+NOT_IN_VIRTUALHOST, NOT_IN_LIMIT, NOT_IN_DIRECTORY, NOT_IN_LOCATION,
+NOT_IN_FILES, NOT_IN_DIR_LOC_FILE & GLOBAL_ONLY [Gozer]
+
+Removed Apache::Command method soak_end_container [Gozer]
+
+Removed Apache::Module methods (dynamic_load_handle and
+find_module_name) [Gozer]
+
+All Apache::Command methods are now read-only [Gozer]
+
+Removed Apache::Command methods (func and cmd_data) [Gozer]
+
+Removed Apache::Directive methods (data & walk_config) [Gozer]
+
+All Apache::Directive methods are now read-only [Gozer]
+
+Filters should not reset $@ if it was already set before
+invocation [Gozer]
+
+Apache::compat server_root_relative now correctly handles absolute 
+paths like ap_server_root_relative does [Gozer]
+
+Fix a bug in <Perl> sections with multiple aliases in a
+virtualhost container. [Gozer]
+
+PerlModule, PerlRequire, Perl and <Perl> is now supported in
+.htaccess. They will run for each request. [Gozer]
+
+removed support for httpd 2.0.46.  httpd 2.0.47 is now the minimum
+supported version.  [Geoffrey Young]
+
+Static builds for httpd >= 2.0.51 available. With the new MP_AP_BUILD
+option, configure and compile an httpd with mod_perl statically linked
+in [Gozer]
+
+Apache::RequestRec methods changes [Stas]
+- readwrite => readonly:
+
+    connection, canonical_filename, header_only, main, next, prev,
+    pool, per_dir_config, request_config, proto_num, protocol,
+    request_time, server, the_request, unparsed_uri
+
+- removed:
+
+    remaining - this method is not needed if the deprecated
+                $r->client_block methods aren't used, (use $r->read
+                $r->instead)
+    canonical_filename - it's a private member
+
+The func Apache::SubProcess::spawn_proc_prog is now a method:
+$r->spawn_proc_prog [Stas]
+
+Apache::Process methods (pool, pconf and short_name) are now read-only
+[Stas]
+
+($r|$c|$s)->server_root_relative were removed. Now only an explicit
+and somewhat deprecated function API remains:
+Apache::ServerUtil::server_root_relative($pool, $path); it's too easy
+to cause memory leak with this method, and it's inefficient as it
+duplicates the return value, to avoid potential segfaults if the pool
+it was allocated from gets destroyed and the value is attempted to be
+used. Instead of this method use the equivalent:
+File::Spec->catfile(Apache::ServerUtil::server_root, $fname); [Stas]
+
+$r->psignature now lives in the package it belongs to:
+Apache::RequestUtil (previously lived in Apache::ServerUtil). [Stas]
+
+A few functions moved namespace from Apache:: to Apache::ServerUtil::
+(to make it easier to find the container of the function): [Stas]
+  - exists_config_define
+  - server_root
+  - get_server_built
+  - get_server_version
+
+fix an old outstanding bug in the APR::Table's TIE interface with
+each()/values() over tables with multi-values keys. Now the produced
+order is correct and consistent with keys(). Though, values() works
+correctly only with perl 5.8.x and higher. [Joe Schaefer]
+
+require Perl 5.6.1, 5.6.0 isn't supported for a long time, but we
+weren't aborting at the Makefile.PL stage [Stas]
+
+Apache::RequestUtil::method_register($s->process->pconf, 'FOO'); is
+now $s->method_register('FOO').
+Apache::RequestUtil::add_version_component($s->process->pconf, 'BAR/0.1');
+is now $s->add_version_component('BAR/0.1').  [Stas]
+
+Remove $Apache::Server::StrictPerlSections. Now, all <Perl>
+sections errors are fatal by default and cause server startup to
+abort on error. [Gozer]
+
+Fix ($r|$filter|$bucket)->read() functions to run the set magic logic,
+to handle cases when a passed buffer to fill is not a regular
+scalar. [Stas]
+
+Apache::ServerRec accessors changes: [Stas]
+- readonly accessors:
+
+    process, next, is_virtual, module_config, lookup_defaults and
+    addrs
+
+- readwrite accessors with the exception of threaded mpms, where the
+  accessors are writable only before the child_init phase (i.e. before
+  threads are spawned):
+
+    server_admin, server_hostname, port, error_fname, error_log,
+    loglevel, timeout, keep_alive_timeout, keep_alive_max, keep_alive,
+    names, wild_names, limit_req_line, limit_req_fieldsize,
+    limit_req_fields, and path
+
+supports a new type of struct accessor, which is just like read/write
+one, but doesn't allow write access starting at the ChildInit phase
+under threaded mpm (to avoid thread-safely issues) [Stas]
+
+In order to be consistent with Apache::RequestRec, Apache::Server is
+now Apache::ServerRec and all methods/functions from Apache::Server
+now live in Apache::ServerRec. [Stas]
+
+Use a context-specific Perl_load_module() instead of load_module(), to
+avoid the problem with 'load_module' symbol resolution on certain
+platforms, where for some reason it doesn't get resolved at compile
+time to Perl_load_module_nocontext [Stas]
+
+Make it possible to disable mod_perl for the base server, but enable
+it for the virtual hosts [Stas]
+
+Removed the deprecated path argument to $r->add_config() [Gozer]
+
+Created a META.yml for CPAN and friends, including Apache-Test as
+a private resource to keep CPAN from installing mod_perl when a
+user just wants Apache::Test [Gozer]
+
+Moving HTTP specific functions get_status_line, method_register from
+Apache:: to Apache::RequestUtil:: to match their container [Stas]
+
+Adjust the list of mod_perl header files installed into the Apache2
+include/ directory, made necessary from the renaming and refactoring
+arising from the decoupling of APR and APR::* from mod_perl.so.
+Also include modperl_apr_perlio.h under xs/APR/PerlIO/ in
+the list of such files installed [Stas, Randy Kobes]
+
+$r->read()/READ now throw exceptions [Stas]
+
+$r->rflush now returns nothing (was always returning APR::SUCCESS
+before) [Stas]
+
+bug reports generating code: [Stas]
+- add (apr|apu)-config linking info
+- show the full path to the config file used to get the data for the
+  report
+
+The APR and APR::* family of modules can now be used without having
+to load mod_perl.so. On *nix, this is done by compiling the needed
+functions from the appropriate sources used to build mod_perl.so
+into APR.so, and then arranging for APR::* to 'use APR ()'. On Win32,
+a static library of needed functions is built, and APR/APR::* 
+then link into this library [Stas, Joe Schaefer, Randy Kobes]
+
+APR::RequestIO::sendfile() now flushes any buffered output before
+sending the file contents out. If the return status is not checked and
+an error happens it'll throw an exception. Fix offset handling. [Stas]
+
+Registry: remove the misleading prefix "$$: $class:" in the logged
+error message, since not only registry errors will get logged if $@ is
+set [Stas]
+
+change t/REPORT to suggest to post bug reports to the modperl users
+list, to be consistent with the documentation [Stas]
+
+amd64 fixes  [Joe Schaefer <joe+gmane@sunstarsys.com>]
+  - use IV insteaf of int where a pointer is used
+  - mpxs_APR__Bucket_new needs to use apr_size_t/off_set_t types
+
+APR::Socket::recv() now returns the length of the read data [Stas]
+
+APR::Bucket's read() returns "" instead of undef when there is no data
+to read. [Stas]
+
+fix a bug in Registry handlers, where the same error was logged twice
+and potentially a wrong error code returned [Stas]
+
+Apache::RequestIO: print(), printf(), puts(), write(), rflush() throw
+an exception on failure [Stas]
+
+Apache::SubRequest: run() throw an exception on failure [Stas]
+
+Apache::Filter: [Stas]
+  - remove unneeded methods: remove_input_filter() and
+    remove_output_filter(), fputs()
+  - frec() accessor is made read-only
+  - fflush(), get_brigade() and pass_brigade() now throw exceptions if
+    called in the void context
+  - read, print() and puts() throw an exception on failure
+
+Apache::FilterRec: [Stas]
+  - remove the next() accessor since it's not used by Apache at the
+    moment
+  - name() is made read-only
+
+APR::URI: [Stas]
+  - removed accessors
+    o is_initialized() (internal apr_uri flag)
+    o  dns_looked_up() and dns_resolved() (they are not 
+       used by apache/apr)
+  - all remaining accessors now accept undef value, which unsets the
+    field
+
+Extended WrapXS code to support a new type of accessor: char * which
+accepts undef to set the C pointer to NULL and as such unset the
+member of the struct. [Stas]
+
+Exception error messages now include the error id along with the error
+message (as they did in first place). [Stas]
+
+$r->finfo now accepts APR::Finfo object as an optional
+argument. [Stas]
+
+APR::Finfo [Stas]
+  - change stat() to return finfo
+  - make all field accessors readonly
+
+ARP::password_validate is now ARP::Util::password_validate [Stas]
+
+APR::IpSubnet::new() now throws APR::Error exception (not returning
+rc) [Stas]
+
+rename package APR::NetLib -> APR::IpSubnet to match the class name
+[Stas]
+
+APR::BucketType: [Stas]
+  - name is readonly
+
+APR::Brigade [Stas]
+  - destroy() now throws APR::Error exception (not returning rc)
+  - rename empty => is_empty
+  - added the method cleanup()
+  - flatten() now returns the number of bytes read (and passed the
+    buffer by the argument) and throws APR::Error exception
+
+APR::Bucket: [Stas]
+  - read() now returns the length of the read data and throws
+    APR::Error exception (not returning rc). The returned scalar is
+    now TAINTED.
+  - type->name now has a module APR::BucketType
+  - type(), length(), start(), data() are now all readonly
+  - new() fix a bug in offset handling
+
+
+
 =item 1.99_14 - May 21, 2004
 
 APR::SockAddr::port() accessor is now read-only [Stas]

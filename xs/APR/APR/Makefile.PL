@@ -3,11 +3,14 @@ use warnings;
 
 use lib qw(../lib);
 use ModPerl::BuildMM ();
+require ModPerl::Code;
 use Apache::Build ();
 use Config;
+use File::Spec::Functions;
 
 use constant WIN32   => Apache::Build::WIN32;
 use constant SOLARIS => $^O eq 'solaris';
+use constant BUILD_APREXT   => Apache::Build::BUILD_APREXT;
 
 my %args = (
     'NAME'         => 'APR',
@@ -17,19 +20,17 @@ my %args = (
 my $libs = '';
 my $build = ModPerl::BuildMM::build_config();
 
-if (my $apr_bindir = $build->apr_bindir()) {
-
-    # XXX: this works only with libapr 0.9.2+
-    my $ext = WIN32 ? '.bat' : '';
-    my @libs = grep $_, map { -x $_ && qx{$_ --link-ld --libs} }
-        map { qq{$apr_bindir/$_-config$ext} } qw(apr apu);
-    chomp @libs;
-    $libs = join ' ', @libs;
-}
+my @apru_link_flags = $build->apru_link_flags;
+$libs .= join ' ', @apru_link_flags if @apru_link_flags;
 
 if (WIN32) {
     $libs =~ s{/libpath:}{-L}g;
     $libs =~ s{(\w+)\.lib}{-l$1}g;
+}
+
+if (BUILD_APREXT) {
+    my $mp_apr_lib = $build->mp_apr_lib;
+    $libs .= qq{ $mp_apr_lib };
 }
 
 if (SOLARIS && $libs) {
@@ -54,4 +55,35 @@ if (SOLARIS && $libs) {
 
 $args{LIBS} = [$libs] if $libs;
 
+my $srcdir = '../../../src/modules/perl';
+
+# link the following into APR.so so other APR:: modules can be used
+# outside of httpd
+my @names = ModPerl::Code::src_apr_ext();
+
+my(@obj, @clean, %src);
+for (@names) {
+    push @obj, join '.', $_, 'o';
+    my $cfile = join '.', $_, 'c';
+    push @clean, $cfile;
+    $src{$cfile} = "$srcdir/$cfile";
+}
+
+$args{OBJECT} = BUILD_APREXT() ? "APR.o" : "APR.o @obj";
+$args{clean}  = { FILES => "@clean" };
+
 ModPerl::BuildMM::WriteMakefile(%args);
+
+# avoid redefined warnings from imported postamble symbol from
+# elsewhere in other Makefile.PL files
+no warnings 'redefine';
+sub MY::postamble {
+    my $self = shift;
+    my $string = $self->ModPerl::BuildMM::MY::postamble;
+
+    $string .= join '', map {
+        "$_: $src{$_}\n\t\$(CP) $src{$_} .\n";
+    } keys %src;
+
+    return $string;
+}

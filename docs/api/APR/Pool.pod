@@ -43,13 +43,14 @@ APR::Pool - Perl API for APR pools
 =head1 Description
 
 C<APR::Pool> provides an access to APR pools, which are used for an
-easy memory management. Different pools have different life scopes and
-therefore one doesn't need to free allocated memory explicitly, but
-instead it's done when the pool's life is getting to an end. For
-example a request pool is created at the beginning of a request and
-destroyed at the end of it, and all the memory allocated during the
-request processing using the request pool is freed at once at the end
-of the request.
+easy memory management.
+
+Different pools have different life scopes and therefore one doesn't
+need to free allocated memory explicitly, but instead it's done when
+the pool's life is getting to an end. For example a request pool is
+created at the beginning of a request and destroyed at the end of it,
+and all the memory allocated during the request processing using the
+request pool is freed at once at the end of the request.
 
 Most of the time you will just pass various pool objects to the
 methods that require them. And you must understand the scoping of the
@@ -386,12 +387,12 @@ provide such an accessor method.
 
 =head1 Unsupported API
 
-C<APR::Pool> also provides auto-generated perl interface for a few
+C<APR::Pool> also provides auto-generated Perl interface for a few
 other methods which aren't tested at the moment and therefore their
 API is a subject to change. These methods will be finalized later as a
 need arises. If you want to rely on any of the following methods
 please contact the L<the mod_perl development mailing
-list|maillist::dev> so we can help eachother take the steps necessary
+list|maillist::dev> so we can help each other take the steps necessary
 to shift the method to an officially supported API.
 
 
@@ -434,7 +435,7 @@ L<mod_perl 2.0 documentation|docs::2.0::index>.
 =head1 Copyright
 
 mod_perl 2.0 and its core modules are copyrighted under
-The Apache Software License, Version 1.1.
+The Apache Software License, Version 2.0.
 
 
 

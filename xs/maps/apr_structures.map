@@ -1,5 +1,8 @@
 ##########  APR structures  ##########
 
+# for mapping see %ModPerl::MapUtil::disabled_map in
+# lib/ModPerl/MapUtil.pm
+
 IGNORE: apr_pool_t apr_os_ apr_vformatter_buff_t apr_pool_t \
 apr_table_t apr_in_addr_t apr_bucket_ apr_md5_ctx_t apr_sha1_ctx_t \
 apr_md4_ctx_t apr_sdbm_datum_t apr_memnode_t \
@@ -8,8 +11,8 @@ apr_strmatch_pattern apr_version_t
 
 #buckets
 
-<apr_bucket_type_t MODULE=APR::Bucket>
-   name
+<apr_bucket_type_t>
+<  name
 -  num_func
 -  destroy
 -  read
@@ -20,10 +23,10 @@ apr_strmatch_pattern apr_version_t
 
 <apr_bucket>
 >  link
-   type
-   length
-   start
-   data
+<  type
+<  length
+<  start
+<  data
 >  free
 >  list
 </apr_bucket>
@@ -35,22 +38,22 @@ apr_strmatch_pattern apr_version_t
 </apr_bucket_brigade>
 
 <apr_finfo_t>
-   pool
-   valid
-   protection
-   filetype
-   user
-   group
-   inode
-   device
-   nlink
-   size
-   csize
-   atime
-   mtime
-   ctime
-   fname
-   name
+<  pool
+<  valid
+<  protection
+<  filetype
+<  user
+<  group
+<  inode
+<  device
+<  nlink
+<  size
+<  csize
+<  atime
+<  mtime
+<  ctime
+<  fname
+<  name
 -  filehand
 </apr_finfo_t>
 
@@ -169,18 +172,18 @@ apr_strmatch_pattern apr_version_t
 </apr_text>
 
 <apr_uri_t>
-   scheme
+&  scheme
    hostinfo
-   user
-   password
-   hostname
+&  user
+&  password
+&  hostname
 -  port_str
-   path
-   query
-   fragment
+&  path
+&  query
+&  fragment
    hostent
 ~  port
-   is_initialized
-   dns_looked_up
-   dns_resolved
+-  is_initialized
+-  dns_looked_up
+-  dns_resolved
 </apr_uri_t>

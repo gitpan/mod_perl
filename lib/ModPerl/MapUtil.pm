@@ -25,7 +25,10 @@ our @EXPORT_OK = qw(list_first disabled_reason
 
 our @ISA = qw(Exporter);
 
+# the mapping happens in lib/ModPerl/StructureMap.pm
 #    '<' => 'auto-generated but gives only a read-only access'
+#    '&' => 'RDWR accessor to a char* field, supporting undef arg'
+#    '$'  => 'RONLY accessor, with WRITE accessor before child_init'
 my %disabled_map = (
     '!' => 'disabled or not yet implemented',
     '~' => 'implemented but not auto-generated',
@@ -41,7 +44,9 @@ sub function_table {
     push @INC, "xs/tables/current";
     require Apache::FunctionTable;
     require ModPerl::FunctionTable;
-    @$function_table = (@$Apache::FunctionTable, @$ModPerl::FunctionTable);
+    require APR::FunctionTable;
+    @$function_table = (@$Apache::FunctionTable, @$ModPerl::FunctionTable,
+                        @$APR::FunctionTable);
     $function_table;
 }
 

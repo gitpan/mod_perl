@@ -37,6 +37,7 @@ use constant MSVC => WIN32() && ($Config{cc} eq 'cl');
 use constant REQUIRE_ITHREADS => grep { $^O eq $_ } qw(MSWin32);
 use constant PERL_HAS_ITHREADS =>
     $Config{useithreads} && ($Config{useithreads} eq 'define');
+use constant BUILD_APREXT => WIN32();
 
 use ModPerl::Code ();
 use ModPerl::BuildOptions ();
@@ -80,7 +81,7 @@ sub ap_prefix_invalid {
 
     my $include_dir = $self->apxs(-q => 'INCLUDEDIR');
 
-    unless (-e $include_dir) {
+    unless (-d $include_dir) {
         return "include/ directory not found in $prefix";
     }
 
@@ -165,12 +166,12 @@ sub apxs {
 
     my $devnull = devnull();
     my $val = qx($apxs @_ 2>$devnull);
-    chomp $val if defined $val; # apxs post-2.0.40 adds a new line
+    chomp $val if defined $val;
 
     unless ($val) {
         # do we have an error or is it just an empty value?
         my $error = qx($apxs @_ 2>&1);
-        chomp $error if defined $error; # apxs post-2.0.40 adds a new line
+        chomp $error if defined $error;
         if ($error) {
             error "'$apxs @_' failed:";
             error $error;
@@ -244,6 +245,47 @@ sub mpm_name {
     return $self->{mpm_name} = $mpm_name;
 }
 
+sub should_build_apache {
+    my ($self) = @_;
+    return $self->{MP_AP_BUILD} ? 1 : 0;
+}
+
+sub configure_apache {
+    my ($self) = @_;
+
+    unless ($self->{MP_AP_CONFIGURE}) {
+        error "You specified MP_AP_BUILD but did not specify the " .
+              "arguments to httpd's ./configure with MP_AP_CONFIGURE";
+        exit 1;
+    }
+    
+    unless ($self->{MP_USE_STATIC}) {
+        error "When building httpd, you must set MP_USE_STATIC=1";
+        exit 1;
+    }
+
+    debug "Configuring httpd in $self->{MP_AP_PREFIX}";
+    
+    my $httpd = File::Spec->catfile($self->{MP_AP_PREFIX}, 'httpd');
+    push @Apache::TestMM::Argv, ('-httpd' => $httpd);
+    
+    my $mplib = "$self->{MP_LIBNAME}$Config{lib_ext}";
+    my $mplibpath = catfile($self->{cwd}, qw(src modules perl), $mplib);
+    
+    local $ENV{BUILTIN_LIBS} = $mplibpath;
+    local $ENV{AP_LIBS} = $self->ldopts;
+    local $ENV{MODLIST} = 'perl';
+
+    #XXX: -Wall and/or -Werror at httpd configure time breaks things
+    local $ENV{CFLAGS} = join ' ', grep { ! /\-Wall|\-Werror/ } 
+        split /\s+/, $ENV{CFLAGS};
+    
+    my $cd = qq(cd $self->{MP_AP_PREFIX});
+    my $cmd = qq(./configure $self->{MP_AP_CONFIGURE});
+    debug "Running $cmd";
+    system("$cd && $cmd") == 0 or die "httpd: $cmd failed";
+}
+
 #--- Perl Config stuff ---
 
 my %gtop_config = ();
@@ -268,6 +310,7 @@ sub find_gtop {
 sub find_gtop_config {
     my %c = ();
 
+    my $ver_2_5_plus = 0;
     if (system('pkg-config --exists libgtop-2.0') == 0) {
         # 2.x
         chomp($c{ccopts} = qx|pkg-config --cflags libgtop-2.0|);
@@ -279,7 +322,9 @@ sub find_gtop_config {
 
         chomp($c{ver} = qx|pkg-config --modversion libgtop-2.0|);
         ($c{ver_maj}, $c{ver_min}) = split /\./, $c{ver};
-        if ($c{ver_maj} == 2 && $c{ver_min} >= 5) {
+        $ver_2_5_plus++ if $c{ver_maj} == 2 && $c{ver_min} >= 5;
+
+        if ($ver_2_5_plus) {
             # some headers were removed in libgtop 2.5.0 so we need to
             # be able to exclude them at compile time
             $c{ccopts} .= ' -DGTOP_2_5_PLUS';
@@ -295,7 +340,9 @@ sub find_gtop_config {
         $c{ldopts} =~ s|^/|-L/|;
     }
 
-    if ($c{ccopts}) {
+    # starting from 2.5.0 'pkg-config --cflags libgtop-2.0' already
+    # gives us all the cflags that are needed
+    if ($c{ccopts} && !$ver_2_5_plus) {
         chomp(my $ginc = `glib-config --cflags`);
         $c{ccopts} .= " $ginc";
     }
@@ -698,6 +745,8 @@ sub new {
         @_,
     }, $class;
 
+    $self->{MP_APR_LIB} = 'aprext';
+
     ModPerl::BuildOptions->init($self) if delete $self->{init};
 
     $self;
@@ -884,19 +933,52 @@ sub apr_bindir {
     $self->{apr_bindir};
 }
 
-# XXX: we assume that apr-config and apu-config reside in the same
-# directory
-sub apr_config_path {
-    my ($self) = @_;
+sub apr_generation {
+    my($self) = @_;
+    return $self->httpd_version_as_int =~ m/21\d+/ ? 1 : 0;
+}
 
-    return $self->{apr_config_path}
-        if $self->{apr_config_path} and -x $self->{apr_config_path};
+# returns an array of apr/apu linking flags (--link-ld --libs) if found
+# an empty array otherwise
+my @apru_link_flags = ();
+sub apru_link_flags {
+    my($self) = @_;
 
-    if (exists $self->{MP_APR_CONFIG} and -x $self->{MP_APR_CONFIG}) {
-        $self->{apr_config_path} = $self->{MP_APR_CONFIG};
+    return @apru_link_flags if @apru_link_flags;
+
+    for ($self->apr_config_path, $self->apu_config_path) {
+        if (my $link = $_ && -x $_ && qx{$_ --link-ld --libs}) {
+            chomp $link;
+            push @apru_link_flags, $link;
+        }
     }
 
-    if (!$self->{apr_config_path}) {
+    return @apru_link_flags;
+}
+
+sub apr_config_path {
+    shift->apru_config_path("apr");
+}
+
+sub apu_config_path {
+    shift->apru_config_path("apu");
+}
+
+sub apru_config_path {
+    my ($self, $what) = @_;
+
+    my $key = "${what}_config_path"; # apr_config_path
+    my $mp_key = "MP_" . uc($what) . "_CONFIG"; # MP_APR_CONFIG
+
+    return $self->{$key} if $self->{$key} and -x $self->{$key};
+
+    if (exists $self->{$mp_key} and -x $self->{$mp_key}) {
+        $self->{$key} = $self->{$mp_key};
+    }
+
+    my $config = $self->apr_generation ? "$what-1-config" : "$what-config";
+
+    if (!$self->{$key}) {
         my @tries = ();
         if ($self->httpd_is_source_tree) {
             push @tries, grep { -d $_ }
@@ -904,14 +986,13 @@ sub apr_config_path {
                 grep defined $_, $self->dir;
         }
         else {
-            # APR_BINDIR was added only at httpd-2.0.46
             push @tries, grep length,
                 map $self->apxs(-q => $_), qw(APR_BINDIR BINDIR);
             push @tries, catdir $self->{MP_AP_PREFIX}, "bin"
                 if exists $self->{MP_AP_PREFIX} and -d $self->{MP_AP_PREFIX};
         }
 
-        @tries = map { catfile $_, "apr-config" } @tries;
+        @tries = map { catfile $_, $config } @tries;
         if (WIN32) {
             my $ext = '.bat';
             for (@tries) {
@@ -921,22 +1002,22 @@ sub apr_config_path {
 
         for my $try (@tries) {
             next unless -x $try;
-            $self->{apr_config_path} = $try;
+            $self->{$key} = $try;
         }
     }
 
-    $self->{apr_config_path} ||= Apache::TestConfig::which('apr-config');
+    $self->{$key} ||= Apache::TestConfig::which($config);
 
     # apr_bindir makes sense only if httpd/apr is installed, if we are
     # building against the source tree we can't link against
     # apr/aprutil libs
     unless ($self->httpd_is_source_tree) {
-        $self->{apr_bindir} = $self->{apr_config_path}
-            ? dirname $self->{apr_config_path}
+        $self->{apr_bindir} = $self->{$key}
+            ? dirname $self->{$key}
             : '';
         }
 
-    $self->{apr_config_path};
+    $self->{$key};
 }
 
 sub apr_includedir {
@@ -1344,6 +1425,36 @@ sub modperl_libs {
     $libs->($self);
 }
 
+# returns the directory and name of the aprext lib built under blib/ 
+sub mp_apr_blib {
+    my $self = shift;
+    return unless (my $mp_apr_lib = $self->{MP_APR_LIB});
+    my $lib_mp_apr_lib = 'lib' . $mp_apr_lib;
+    my @dirs = $self->{MP_INST_APACHE2} ?
+        qw(blib arch Apache2 auto) : qw(blib arch auto);
+    my $apr_blib = catdir $self->{cwd}, @dirs, $lib_mp_apr_lib;
+    my $full_libname = $lib_mp_apr_lib . $Config{lib_ext};
+    return ($apr_blib, $full_libname);
+}
+
+sub mp_apr_lib_MSWin32 {
+    my $self = shift;
+    # The MP_APR_LIB will be installed into MP_AP_PREFIX/lib
+    # for use by 3rd party xs modules
+    my ($dir, $lib) = $self->mp_apr_blib();
+    $lib =~ s[^lib(\w+)$Config{lib_ext}$][$1];
+    $dir = Win32::GetShortPathName($dir);
+    return qq{ -L$dir -l$lib };
+}
+
+# linking used for the aprext lib used to build APR/APR::*
+sub mp_apr_lib {
+    my $self = shift;
+    my $libs = \&{"mp_apr_lib_$^O"};
+    return "" unless defined &$libs;
+    $libs->($self);
+}
+
 sub modperl_symbols_MSWin32 {
     my $self = shift;
     return "" unless $self->{MP_DEBUG};
@@ -1588,12 +1699,14 @@ sub includes {
         my $ap_inc = $self->apxs('-q' => 'INCLUDEDIR');
         if ($ap_inc && -d $ap_inc) {
             push @inc, $ap_inc;
-        } else {
-            # this is fatal
-            die "Can't find the mod_perl include dir";
+            return \@inc;
         }
 
-        return \@inc;
+        # this is fatal
+        my $reason = $ap_inc
+            ? "path $ap_inc doesn't exist"
+            : "apxs -q INCLUDEDIR didn't return a value";
+        die "Can't find the mod_perl include dir (reason: $reason)";
     }
 
     my $src = $self->dir;

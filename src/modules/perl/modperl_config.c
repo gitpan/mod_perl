@@ -268,7 +268,7 @@ void *modperl_config_srv_create(apr_pool_t *p, server_rec *s)
          * PerlTrace. This place is the earliest point in mod_perl
          * configuration parsing, when we have the server object
          */
-        modperl_trace_level_set(s, NULL);
+        modperl_trace_level_set_apache(s, NULL);
 
         /* Must store the global server record as early as possible,
          * because if mod_perl happens to be started from within a
@@ -573,15 +573,16 @@ const char *modperl_config_insert_server(pTHX_ server_rec *s, SV *lines)
 const char *modperl_config_insert_request(pTHX_
                                           request_rec *r,
                                           SV *lines,
-                                          char *path,
                                           int override)
 {
     const char *errmsg;
     ap_conf_vector_t *dconf = ap_create_per_dir_config(r->pool);
 
+    /* The path argument of "/" is only required to be non-NULL
+       and "/" is as good a default as anything else */
     errmsg = modperl_config_insert(aTHX_
                                    r->server, r->pool, r->pool,
-                                   override, path,
+                                   override, "/",
                                    dconf, lines);
 
     if (errmsg) {

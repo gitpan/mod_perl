@@ -1,10 +1,13 @@
+use strict;
+use warnings FATAL => 'all';
+
 use Socket (); #test DynaLoader vs. XSLoader workaround for 5.6.x
 use IO::File ();
 use File::Spec::Functions qw(canonpath catdir);
 
 use Apache2 ();
 
-use Apache::Server ();
+use Apache::ServerRec ();
 use Apache::ServerUtil ();
 use Apache::Process ();
 
@@ -13,7 +16,7 @@ use Apache::Process ();
 # perl core libs
 my $pool = Apache->server->process->pool;
 my $project_root = canonpath
-    Apache::Server::server_root_relative($pool, "..");
+    Apache::ServerUtil::server_root_relative($pool, "..");
 my (@a, @b, @c);
 for (@INC) {
     if (m|^\Q$project_root\E|) {
@@ -35,7 +38,7 @@ use Apache::Connection ();
 use Apache::Log ();
 
 use Apache::Const -compile => ':common';
-use APR::Const -compile => ':common';
+use APR::Const    -compile => ':common';
 
 use APR::Table ();
 
@@ -53,8 +56,19 @@ $ENV{MODPERL_EXTRA_PL} = __FILE__;
 my $ap_mods  = scalar grep { /^Apache/ } keys %INC;
 my $apr_mods = scalar grep { /^APR/    } keys %INC;
 
+# test startup loglevel setting (under threaded mpms loglevel can be
+# changed only before threads are started) so here we test whether we
+# can still set it after restart
+{
+    use Apache::Const -compile => 'LOG_INFO';
+    my $s = Apache->server;
+    my $oldloglevel = $s->loglevel(Apache::LOG_INFO);
+    # restore
+    $s->loglevel($oldloglevel);
+}
+
 Apache::Log->info("$ap_mods Apache:: modules loaded");
-Apache::Server->log->info("$apr_mods APR:: modules loaded");
+Apache::ServerRec->log->info("$apr_mods APR:: modules loaded");
 
 {
     my $server = Apache->server;
@@ -92,6 +106,18 @@ Apache->server->add_config(['<Perl >', '1;', '</Perl>']);
     }
 }
 
+{
+    # test add_version_component
+    Apache->server->push_handlers(
+        PerlPostConfigHandler => \&add_my_version);
+
+    sub add_my_version {
+        my($conf_pool, $log_pool, $temp_pool, $s) = @_;
+        $s->add_version_component("world domination series/2.0");
+        return Apache::OK;
+    }
+}
+
 # this is needed for TestModperl::ithreads
 # one should be able to boot ithreads at the server startup and then
 # access the ithreads setup at run-time when a perl interpreter is
@@ -119,10 +145,14 @@ sub ModPerl::Test::pass_through_response_handler {
     Apache::OK;
 }
 
-use constant IOBUFSIZE => 8192;
+use APR::Brigade ();
+use APR::Bucket ();
+use Apache::Filter ();
 
 use Apache::Const -compile => qw(MODE_READBYTES);
 use APR::Const    -compile => qw(SUCCESS BLOCK_READ);
+
+use constant IOBUFSIZE => 8192;
 
 # to enable debug start with: (or simply run with -trace=debug)
 # t/TEST -trace=debug -start
@@ -130,49 +160,40 @@ sub ModPerl::Test::read_post {
     my $r = shift;
     my $debug = shift || 0;
 
-    my @data = ();
-    my $seen_eos = 0;
-    my $filters = $r->input_filters();
-    my $ba = $r->connection->bucket_alloc;
-    my $bb = APR::Brigade->new($r->pool, $ba);
+    my $bb = APR::Brigade->new($r->pool,
+                               $r->connection->bucket_alloc);
 
+    my $data = '';
+    my $seen_eos = 0;
     my $count = 0;
     do {
-        my $rv = $filters->get_brigade($bb,
-            Apache::MODE_READBYTES, APR::BLOCK_READ, IOBUFSIZE);
-        if ($rv != APR::SUCCESS) {
-            return $rv;
-        }
+        $r->input_filters->get_brigade($bb, Apache::MODE_READBYTES,
+                                       APR::BLOCK_READ, IOBUFSIZE);
 
         $count++;
 
         warn "read_post: bb $count\n" if $debug;
 
-        while (!$bb->empty) {
-            my $buf;
-            my $b = $bb->first;
-
-            $b->remove;
-
+        for (my $b = $bb->first; $b; $b = $bb->next($b)) {
             if ($b->is_eos) {
                 warn "read_post: EOS bucket:\n" if $debug;
                 $seen_eos++;
                 last;
             }
 
-            my $status = $b->read($buf);
-            if ($status != APR::SUCCESS) {
-                return $status;
+            if ($b->read(my $buf)) {
+                warn "read_post: DATA bucket: [$buf]\n" if $debug;
+                $data .= $buf;
             }
-            warn "read_post: DATA bucket: [$buf]\n" if $debug;
-            push @data, $buf;
-        }
 
-        $bb->destroy;
+            $b->remove; # optimization to reuse memory
+        }
 
     } while (!$seen_eos);
 
-    return join '', @data;
+    $bb->destroy;
+
+    return $data;
 }
 
 sub ModPerl::Test::add_config {
@@ -199,6 +220,9 @@ END {
 
 package ModPerl::TestTiePerlSection;
 
+use strict;
+use warnings FATAL => 'all';
+
 # the following is needed for the tied %Location test in <Perl>
 # sections. Unfortunately it can't be defined in the section itself
 # due to the bug in perl:
@@ -216,10 +240,13 @@ sub FETCH {
 
 package ModPerl::TestFilterDebug;
 
+use strict;
+use warnings FATAL => 'all';
+
 use base qw(Apache::Filter);
-use Apache::FilterRec ();
 use APR::Brigade ();
 use APR::Bucket ();
+use APR::BucketType ();
 
 use Apache::Const -compile => qw(OK DECLINED);
 use APR::Const -compile => ':common';
@@ -254,7 +281,7 @@ sub snoop {
         my $rv = $filter->next->pass_brigade($bb);
         return $rv unless $rv == APR::SUCCESS;
     }
-    #if ($bb->empty) {
+    #if ($bb->is_empty) {
     #    return -1;
     #}
 
@@ -267,7 +294,6 @@ sub bb_dump {
     my @data;
     for (my $b = $bb->first; $b; $b = $bb->next($b)) {
         $b->read(my $bdata);
-        $bdata = '' unless defined $bdata;
         push @data, $b->type->name, $bdata;
     }
 
@@ -332,8 +358,8 @@ package ModPerl::TestMemoryLeak;
 # need, so some leaks can be hard to see, unless many tests (like a
 # hundred) were run.
 
-use warnings;
 use strict;
+use warnings FATAL => 'all';
 
 # XXX: as of 5.8.4 when spawning ithreads we get an annoying
 #  Attempt to free unreferenced scalar ... perlbug #24660

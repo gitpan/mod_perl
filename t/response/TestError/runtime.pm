@@ -22,9 +22,9 @@ sub handler {
 
     $r->content_type('text/plain');
 
-    # set timeout to 1 usec (microsec!) which makes sure that any
-    # socket read call will fail
-    $socket->timeout_set(1);
+    # set timeout to 0 to make sure that any socket read call will
+    # fail
+    $socket->timeout_set(0);
 
     no strict 'refs';
     $args->($r, $socket);
@@ -74,9 +74,17 @@ sub die_hook_custom_non_mp_error {
 
 sub eval_block_mp_error {
     my($r, $socket) = @_;
-    eval { mp_error($socket) };
+
+    # throw in some retry attempts
+    my $tries = 0;
+    RETRY: eval { mp_error($socket) };
     if ($@ && ref($@) && $@ == APR::TIMEUP) {
-        $r->print("ok eval_block_mp_error");
+        if ($tries++ < 3) {
+            goto RETRY;
+        }
+        else {
+            $r->print("ok eval_block_mp_error");
+        }
     }
     else {
         die "eval block has failed: $@";
@@ -85,7 +93,7 @@ sub eval_block_mp_error {
 
 sub eval_string_mp_error {
     my($r, $socket) = @_;
-    eval "\$socket->recv(SIZE)";
+    eval '$socket->recv(my $buffer, SIZE)';
     if ($@ && ref($@) && $@ == APR::TIMEUP) {
         $r->print("ok eval_string_mp_error");
     }
@@ -121,7 +129,7 @@ sub non_mp_error {
 # fails because of the timeout set earlier in the handler
 sub mp_error {
     my $socket = shift;
-    $socket->recv(SIZE);
+    $socket->recv(my $buffer, SIZE);
 }
 
 1;

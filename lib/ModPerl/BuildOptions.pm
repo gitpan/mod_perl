@@ -220,10 +220,13 @@ OPTIONS_FILE   0    Read options from given file
 STATIC_EXTS    0    Build Apache::*.xs as static extensions
 APXS           0    Path to apxs
 AP_PREFIX      0    Apache installation or source tree prefix
+AP_CONFIGURE   0    Apache ./configure arguments
+AP_BUILD       0    Whether to build httpd
 APR_CONFIG     0    Path to apr-config
 XS_GLUE_DIR    1    Directories containing extension glue
 INCLUDE_DIR    1    Add directories to search for header files
 GENERATE_XS    0    Generate XS code based on httpd version
 LIBNAME        0    Name of the modperl dso library (default is  mod_perl)
 COMPAT_1X      0    Compile-time mod_perl 1.0 backcompat (default is  on)
+APR_LIB        0    Lib used to build APR::* on Win32 (default is aprext)
 

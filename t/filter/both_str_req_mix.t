@@ -5,8 +5,8 @@ use Apache::Test;
 use Apache::TestRequest;
 use Apache::TestUtil;
 
-plan tests => 1, have 'deflate', 'include',
-    have_min_module_version("Compress::Zlib", "1.09");
+plan tests => 1, need 'deflate', 'include',
+    need_min_module_version("Compress::Zlib", "1.09");
 
 require Compress::Zlib;
 my $location = '/TestFilter__both_str_req_mix';
@@ -30,6 +30,6 @@ my $response_clear = Compress::Zlib::memGunzip($response_raw);
 my $expected = $response_orig;
 my $received = $response_clear;
 
-ok t_cmp($expected, $received, 
+ok t_cmp($received, $expected,
     "mixing httpd and mod_perl filters, while preserving order");
 

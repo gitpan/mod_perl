@@ -27,33 +27,31 @@ sub handler {
     {
         my $data = $r->slurp_filename(0); # untainted
         my $received = eval $$data;
-        ok t_cmp($expected, $received, "slurp filename untainted");
+        ok t_cmp($received, $expected, "slurp filename untainted");
     }
 
     {
         my $data = $r->slurp_filename; # tainted
-        my $received;
-        eval { $received = eval $$data };
-        ok t_cmp(qr/Insecure dependency in eval/, $@,
+        my $received = eval { eval $$data };
+        ok t_cmp($@, qr/Insecure dependency in eval/,
                  "slurp filename tainted");
 
         ModPerl::Util::untaint($$data);
         $received = eval $$data;
-        ok t_cmp($expected, $received, "slurp filename untainted");
+        ok t_cmp($received, $expected, "slurp filename untainted");
     }
 
     {
         # just in case we will encounter some probs in the future,
         # here is pure perl function for comparison
         my $data = slurp_filename_perl($r); # tainted
-        my $received;
-        eval { $received = eval $$data };
-        ok t_cmp(qr/Insecure dependency in eval/, $@,
+        my $received = eval { eval $$data };
+        ok t_cmp($@, qr/Insecure dependency in eval/,
                  "slurp filename (perl) tainted");
 
         ModPerl::Util::untaint($$data);
         $received = eval $$data;
-        ok t_cmp($expected, $received, "slurp filename (perl) untainted");
+        ok t_cmp($received, $expected, "slurp filename (perl) untainted");
     }
 
     Apache::OK;

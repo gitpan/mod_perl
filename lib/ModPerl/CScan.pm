@@ -3,7 +3,11 @@ package ModPerl::CScan;
 require Exporter;
 use Config '%Config';
 use File::Basename;
+
+# NOTE to distributors: this module is needed only for mp2 developers,
+# it's not a requirement for mod_perl users
 use Data::Flow qw(0.05);
+
 use strict;			# Earlier it catches ISA and EXPORT.
 
 @ModPerl::CScan::ISA = qw(Exporter Data::Flow);
@@ -912,6 +916,7 @@ package C::Preprocessed;
 use Symbol;
 use File::Basename;
 use Config;
+use constant WIN32 => $^O eq 'MSWin32';
 
 sub new {
     die "usage: C::Preprocessed->new(filename[, defines[, includes[, cpp]]])" 
@@ -925,8 +930,9 @@ sub new {
     $addincludes = "-I" . join(" -I", @$Includes)
       if defined $Includes and @$Includes;
     my($sym) = gensym;
-    my $cmd = "echo '\#include \"$filename\"' | $Cpp->{cppstdin} $Defines $addincludes $Cpp->{cppflags} $Cpp->{cppminus} |";
-    #my $cmd = "$Cpp->{cppstdin} $Defines $addincludes $Cpp->{cppflags} $Cpp->{cppminus} < $filename |";
+    my $cmd = WIN32 ?
+        "$Cpp->{cppstdin} $Defines $addincludes $Cpp->{cppflags} $filename |" :
+        "echo '\#include \"$filename\"' | $Cpp->{cppstdin} $Defines $addincludes $Cpp->{cppflags} $Cpp->{cppminus} |";
     #my $cmd = "echo '\#include <$filename>' | $Cpp->{cppstdin} $Defines $addincludes $Cpp->{cppflags} $Cpp->{cppminus} |";
 
     (open($sym, $cmd) or die "Cannot open pipe from `$cmd': $!")

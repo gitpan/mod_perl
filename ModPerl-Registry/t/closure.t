@@ -21,6 +21,7 @@ my $cfg = Apache::Test::config();
 
 my $file = 'closure.pl';
 my $path = catfile $cfg->{vars}->{serverroot}, 'cgi-bin', $file;
+my $orig_mtime = (stat($path))[8];
 
 # for all sub-tests in this test, we make sure that we always get onto
 # the same interpreter. if this doesn't happen we skip the sub-test or
@@ -39,22 +40,24 @@ my $path = catfile $cfg->{vars}->{serverroot}, 'cgi-bin', $file;
     my $second = get_body($same_interp, $url);
     skip_not_same_interp(
         (scalar(grep defined, $first, $second) != 2),
-        0,
         $first && $second && ($second - $first),
+        0,
         "never the closure problem",
     );
 
     # modify the file
-    sleep_and_touch_file($path);
+    touch_mtime($path);
 
     # it doesn't matter, since the script is not cached anyway
     my $third = get_body($same_interp, $url);
     skip_not_same_interp(
         (scalar(grep defined, $first, $second, $third) != 3),
-        1,
         $third,
+        1,
         "never the closure problem",
     );
+
+    reset_mtime($path);
 }
 
 {
@@ -71,22 +74,24 @@ my $path = catfile $cfg->{vars}->{serverroot}, 'cgi-bin', $file;
     my $second = get_body($same_interp, $url);
     skip_not_same_interp(
         (scalar(grep defined, $first, $second) != 2),
-        1,
         $first && $second && ($second - $first),
+        1,
         "the closure problem should exist",
     );
 
     # modify the file
-    sleep_and_touch_file($path);
+    touch_mtime($path);
 
     # should not notice closure effect on the first request
     my $third = get_body($same_interp, $url);
     skip_not_same_interp(
         (scalar(grep defined, $first, $second, $third) != 3),
-        1,
         $third,
+        1,
         "no closure on the first request",
     );
+
+    reset_mtime($path);
 }
 
 {
@@ -103,33 +108,38 @@ my $path = catfile $cfg->{vars}->{serverroot}, 'cgi-bin', $file;
     my $second = get_body($same_interp, $url);
     skip_not_same_interp(
         (scalar(grep defined, $first, $second) != 2),
-        1,
         $first && $second && ($second - $first),
+        1,
         "the closure problem should exist",
     );
 
     # modify the file
-    sleep_and_touch_file($path);
+    touch_mtime($path);
 
     # modification shouldn't be noticed
     my $third = get_body($same_interp, $url);
     skip_not_same_interp(
         (scalar(grep defined, $first, $second, $third) != 3),
-        1,
         $first && $second && $third - $second,
+        1,
         "no reload on modification, the closure problem persists",
     );
+
+    reset_mtime($path);
 }
 
-sub sleep_and_touch_file {
+sub touch_mtime {
     my $file = shift;
-    # need to wait at least 1 whole sec, so utime() will notice the
-    # difference. select() has better resolution than 1 sec as in
-    # sleep() so we are more likely to have the minimal waiting time,
-    # while fulfilling the purpose
-    select undef, undef, undef, 1.00; # sure 1 sec
-    my $now = time;
-    utime $now, $now, $file;
+    # push the mtime into the future (at least 2 secs to work on win32)
+    # so ModPerl::Registry will re-compile the package
+    my $time = time + 5; # make it 5 to be sure
+    utime $time, $time, $file;
+}
+
+sub reset_mtime {
+    my $file = shift;
+    # reset  the timestamp to the original mod-time
+    utime $orig_mtime, $orig_mtime, $file;
 }
 
 # if we fail to find the same interpreter, return undef (this is not

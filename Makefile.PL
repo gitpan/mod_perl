@@ -6,7 +6,8 @@ use warnings FATAL => 'all';
 # directly or via the top level Makefile.PL
 $ENV{MOD_PERL_2_BUILD} = 1;
 
-my $min_httpd_version = '2.0.46';
+my $min_httpd_version = '2.0.47';
+my $min_httpd_version_static = '2.0.51';
 
 my($old_modperl_version, $old_modperl_pm);
 
@@ -38,6 +39,7 @@ use ModPerl::Code ();
 use ModPerl::BuildMM ();
 
 use constant WIN32 => Apache::Build::WIN32;
+use constant BUILD_APREXT => Apache::Build::BUILD_APREXT;
 
 our $VERSION;
 
@@ -57,13 +59,15 @@ local %ModPerl::BuildMM::PM = (
 # these h files need to be installed system-wide so 3rd party XS
 # extensions can use them
 my @xs_h_files = map catfile("xs", $_),
-    qw(modperl_xs_sv_convert.h modperl_xs_typedefs.h modperl_xs_util.h);
+    qw(modperl_xs_sv_convert.h modperl_xs_typedefs.h modperl_xs_util.h
+       APR/PerlIO/modperl_apr_perlio.h);
 
 my @exe_files =  map "bin/$_", qw(mp2doc mp2bug);
 
 ModPerl::BuildMM::WriteMakefile(
     NAME          => 'mod_perl',
     VERSION       => $VERSION,
+    NO_META       => 1,
     ABSTRACT_FROM => 'lib/mod_perl.pm',
     EXE_FILES     => \@exe_files,
     DEFINE        => get_DEFINE(),
@@ -97,12 +101,7 @@ sub get_DEFINE {
     # top-level Makefile.PL overrides MY::pasthru, and defines DEFINE= which
     # overrides any local definition, not sure what's the right fix, for
     # now just define it here (should it define PASTHRU_DEFINE instead?)
-    if (my $apr_bindir = $build->apr_bindir()) {
-        my $ext = WIN32 ? '.bat' : '';
-        my @apr_libs = grep $_, map { -x $_ && qx{$_ --link-ld} }
-            map { qq{$apr_bindir/$_-config$ext} } qw(apr apu);
-        $opt_define = '-DMP_HAVE_APR_LIBS' if @apr_libs;
-    }
+    $opt_define = '-DMP_HAVE_APR_LIBS' if $build->apru_link_flags;
 
     # preserve any DEFINE opts from outside and combine them with our
     # local DEFINE
@@ -113,6 +112,16 @@ sub get_DEFINE {
 }
 
 sub configure {
+
+    # mod_perl test suite relies on having Apache-Test bundled with
+    # the mod_perl source, since any pre-installed version may not do
+    # the right thing
+    unless (-d "Apache-Test") {
+        error "Can't find a sub-directory Apache-Test. " .
+            "Make sure that you are using a complete source distribution";
+        exit 1;
+    }
+
     set_modperl_version();
 
     if ($old_modperl_version) {
@@ -149,15 +158,39 @@ sub configure {
 
     $build->generate_apache2_pm;
 
-    if (WIN32()) {
+    # On Win32, in order to decouple APR::* from mod_perl.so, we
+    # make up a static library MP_APR_LIB of the symbols required from
+    # src/modules/perl/*.c (see xs/APR/aprext/Makefile.PL), and
+    # then link APR/APR::* against this library. The reason for
+    # this is that, unlike Unix, if we had linked APR/APR::* against
+    # the mod_perl lib, then use of APR/APR::* would demand mod_perl.so
+    # be available, even if these symbols are supplied by another
+    # loaded library (which is done for unix by APR.so - see
+    # xs/APR/APR/Makefile.PL). This also means we must ensure the
+    # MP_APR_LIB lib is built before any of the APR/APR::* modules 
+    # (see the aprext target in the MY::top_targets sub below), as 
+    # symbols must get resolved at link time.
+
+    if (BUILD_APREXT()) {
+        require File::Path;
         #Makefile.PL's in WrapXS/ just need to pass the -e mod_perl.lib test
         #the real mod_perl.lib will be in place when WrapXS/ dll's are
         #actually linked
-        my $lib = "src/modules/perl/$build->{MP_LIBNAME}.lib";
-        unless (-e $lib) {
-            open my $fh, '>', $lib or die "open $lib: $!";
-            print $fh "#this is a dummy file to trick MakeMaker";
-            close $fh;
+        # this must also be done for aprext.lib, build in xs/APR/aprext/;
+        # we must create a dummy aprext.lib to pass the -e test.
+        my $lib1 = catfile qw(src modules perl), 
+            $build->{MP_LIBNAME} . $Config{lib_ext};
+        my ($apr_blib, $full_libname) = $build->mp_apr_blib();
+        my $lib2 = catfile $apr_blib, $full_libname;
+        unless (-d $apr_blib) {
+            File::Path::mkpath($apr_blib) or die "mkdir $apr_blib failed: $!";
+        }
+        foreach my $lib ($lib1, $lib2) {
+            unless (-e $lib) {
+                open my $fh, '>', $lib or die "open $lib: $!";
+                print $fh "#this is a dummy file to trick MakeMaker";
+                close $fh;
+            }
         }
     }
 
@@ -196,8 +229,16 @@ sub configure {
         }
         exit(1);
     }
-
-    if ($httpd_version lt $min_httpd_version) {
+    
+    my $min_version;
+    if ($build->should_build_apache) {
+        $min_version = $min_httpd_version_static;
+    }
+    else {
+        $min_version = $min_httpd_version;
+    }
+    
+    if ($httpd_version lt $min_version) {
         error "Apache/$httpd_version not supported, " .
               "$min_httpd_version or higher is required";
         exit(1);
@@ -224,6 +265,10 @@ sub configure {
 
     #ModPerl::BuildMM will use Apache::BuildConfig in subdir/Makefile.PL's
     $build->save;
+
+    if ($build->should_build_apache) {
+        $build->configure_apache();
+    }
 
     ModPerl::TestRun->generate_script;
     ModPerl::TestReport->generate_script;
@@ -345,7 +390,7 @@ sub perl_version_check {
     my $build = shift;
 
     my $perl_version = $];
-    $perl_version =~ s/5.00(\d)(?:00(\d))?/"5.$1" . ($2 ? ".$2" : "")/e;
+    $perl_version =~ s/5.00(\d)(?:00(\d))?/"5.$1." . ($2||0)/e;
     my $perl_threads = Apache::Build::PERL_HAS_ITHREADS ? "w/" : "w/o";
     my $perl_string = "Using Perl $perl_version $perl_threads ithreads";
 
@@ -366,8 +411,8 @@ sub perl_version_check {
     }
 
     if ($] < 5.006_001) {
-        error "$perl_string.",
-            "We strongly suggest you upgrade it to at least 5.6.1";
+        error "$perl_string. You need at least Perl 5.6.1";
+        exit 1;
     }
 
     if ($] >= 5.007 and $] < 5.008) {
@@ -445,9 +490,12 @@ sub win32_fetch_apxs {
     system(@args) == 0 or die "system @args failed: $?";
 }
 
+
 package MY;
 
 use Config;
+use constant WIN32 => $^O eq 'MSWin32';
+use constant BUILD_APREXT => Apache::Build::BUILD_APREXT;
 
 my $apache_test_install;
 BEGIN {
@@ -460,6 +508,33 @@ sub MY::top_targets {
     my $self = shift;
     my $string = $self->ModPerl::BuildMM::MY::top_targets;
 
+    if (BUILD_APREXT) {
+        ModPerl::MM::add_dep(\$string, pure_all => 'aprext');
+
+        # must not import File::Spec functions inside MY, it breaks
+        # 5.6.x builds
+        my ($apr_blib, $full_libname) = $build->mp_apr_blib();
+        my $from = File::Spec->catfile($apr_blib, $full_libname);
+        (my $ap_lib = $build->ap_includedir()) =~ s{include$}{lib};
+        my $to = File::Spec->catfile($ap_lib, $full_libname);
+        my $src_dir = File::Spec->catdir(qw(xs APR), 'aprext');
+        $string .= <<"EOF";
+
+aprext:
+	cd "$src_dir" && \$(MAKE) all \$(PASTHRU) LINKTYPE="static"
+
+aprext_install:
+	\@\$(MKPATH) "$ap_lib"
+	\$(CP) "$from" "$to"
+
+EOF
+    }
+
+    if ($build->should_build_apache) {
+        ModPerl::MM::add_dep(\$string, pure_all => 'ap_build');
+        $string .= qq[\nap_build:\n\tcd "$build->{MP_AP_PREFIX}" && make\n];
+    }
+    
     ModPerl::MM::add_dep(\$string, pure_all => 'modperl_lib');
 
     $string .= <<'EOF';
@@ -527,11 +602,16 @@ sub MY::install {
     my $string = $self->MM::install(@_);
     ModPerl::MM::add_dep(\$string, pure_install => 'modperl_lib_install');
     ModPerl::MM::add_dep(\$string, pure_install => 'modperl_xs_h_install');
+    # ModPerl::MM::add_dep(\$string, pure_install => 'aprext_install')
+    #    if BUILD_APREXT;
 
     ModPerl::MM::add_dep(\$string, pure_install => 'nuke_Apache__test')
           if $apache_test_install;
 
     ModPerl::MM::add_dep_after(\$string, qw(install doc_install modperl_banner));
+
+    # glue_pods target must come first
+    ModPerl::MM::add_dep(\$string, pure_install => 'glue_pods');
 
     $string;
 }
@@ -546,11 +626,25 @@ sub MY::clean {
 
 sub MY::test {
 
-    my $env = Apache::TestConfig->passenv_makestr();
-
-    my $preamble = Apache::TestConfig::WIN32 ? "" : <<EOF;
+    my $preamble;
+    if (Apache::TestConfig::WIN32) {
+        # need to add the location of Apache's dlls to the PATH
+        my $ap_bindir = $build->apr_bindir() || '';
+        unless ($ap_bindir) {
+            $ap_bindir = File::Spec->catdir($build->{MP_AP_PREFIX}, 'bin')
+                if $build->{MP_AP_PREFIX};
+        }
+        $preamble = <<EOF;
+PATH = \$(PATH);$ap_bindir
+EOF
+    }
+    else {
+        # PASSENV confuses the Win32 command-line build
+        my $env = Apache::TestConfig->passenv_makestr();
+        $preamble = <<EOF;
 PASSENV = $env
 EOF
+    }
 
     return $preamble . <<'EOF';
 TEST_VERBOSE = 0
