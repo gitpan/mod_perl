@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.34 1998/02/20 01:36:17 dougm Exp $
+# $Id: Makefile,v 1.35 1998/03/19 06:02:22 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -111,7 +111,7 @@ XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- -std $(PERL_STATIC_EXTS) $(STATIC_EXTS
 CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
 
 # AUX_CFLAGS comes from higher level Makefile
-CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex $(AUX_CFLAGS) \
+CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex -I$(INCDIR)/../$(OSDIR) $(AUX_CFLAGS) \
 	$(APACHE_SSL) $(PERL_CCFLAGS) \
 	-DMOD_PERL_VERSION=\"$(MOD_PERL_VERSION)\" $(PERL_VERSION) \
 	$(INCLUDES)
