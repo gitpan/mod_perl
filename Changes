@@ -16,6 +16,23 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.98 - 05/02/97
+
+save a pointer to request_rec in the translate stage so we always have one
+for PerlCleanupHandler (e.g. no PerlHandler first), tracked down by Eric Bartley
+
+PerlTransHandler enabled by default now
+
+don't use server_argv0 when intializing perl_startup's argv[], caught by Andreas
+
+remove headers.t, will bring back in 0.98_01 and flesh out PerlNewSendHeader
+
+fix exit() so we don't need to $r->rflush first and we make Rob happy
+
+fix bug in $r->requires, caught by Eric Bartley
+
+go back to $|=1 #ifdef USE_SFIO, caught by Salvador Garcia
+
 =item 0.97_02 - 04/29/97
 
 added documentation for stacked handlers and a little for method handlers.

@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern, 29-Apr-1997 -->
+<!-- Changed by: Doug MacEachern,  2-May-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.20 $ $Date: 1997/04/30 03:00:43 $</i>
+<br><i> $Revision: 1.21 $ $Date: 1997/05/02 19:37:14 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -88,11 +88,14 @@ AuthenDBI	bmpO	Authenticate via Perl's DBI		SKANE
 Authen		bmpf	Perl Apache authentication utilities	SKANE
 AuthenDBIConnectbdpf	Authenticate to backend database 	JGROV
 BasicCookieAuth	cdpf	Accept cookie or basic auth creds	PMKANE
+AuthCookie	cdpf	Authen + Authz via cookies		EBARTLEY
 
 * PerlAuthzHandler's
+AuthCookie	cdpf	Authen + Authz via cookies		EBARTLEY
 AuthzAge	bmpf	Authorize based on age			APML
 AuthzDCE	cdpf	DFS/DCE ACL based access control	DOUGM
 RoleAuthz	i	Role-based authorization		DOUGM
+
 
 * PerlAccessHandler's
 AccessLimitNum	bmpf	Limit user access by number of requests	APML
@@ -144,6 +147,7 @@ how you can go about getting your hands on a copy.
 APML	 The Apache/Perl Mailing List &lt;modperl@listproc.itribe.net&gt;
 BMILLETT Brian Millett &lt;bpm@techapp.com&gt;
 DOUGM	 Doug MacEachern &lt;dougm@osf.org&gt;
+EBARTLEY Eric Bartley  &lt;bartley@pdn.cc.purdue.edu&gt;
 GRICHTER Gerald Richter &lt;richter@ecos.de&gt;
 JGROV	 John D Groenveld &lt;groenvel@cse.psu.edu&gt;
 JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;

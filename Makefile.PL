@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath rmtree);
 use Cwd;
 
-$VERSION = "0.97_02";
+$VERSION = "0.98";
 #
 # Check if Readline is installed
 #
@@ -90,6 +90,7 @@ $callback_alias{PERL_INIT} = "PERL_HEADER_PARSER";
 %callback_hooks = map { $_,0 } @callback_hooks;
 $callback_hooks{PERL_HANDLER} = 1; #PerlHandler always on
 $callback_hooks{PERL_CLEANUP} = 1;
+$callback_hooks{PERL_TRANS}   = 1;
 %cant_hook = ();
 
 while($_ = shift) {

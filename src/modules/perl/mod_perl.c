@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.51 1997/04/30 03:00:43 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.53 1997/05/02 19:37:14 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -341,10 +341,12 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 
 void perl_startup (server_rec *s, pool *p)
 {
-    char *argv[] = { server_argv0, NULL, NULL, NULL, NULL };
+    char *argv[] = { NULL, NULL, NULL, NULL, NULL };
     char *constants[] = { "Apache::Constants", "OK", "DECLINED", NULL };
     int status, i, argc=2, t=0, w=0;
     perl_server_config *cls;
+
+    argv[0] = server_argv0;
 #ifndef PERL_SECTIONS
     if(avoid_alloc_hack++ != PERL_DO_ALLOC) {
 	CTRACE(stderr, "perl_startup: skipping perl_alloc + perl_construct\n");
@@ -558,7 +560,12 @@ int perl_handler(request_rec *r)
 
     (void)perl_request_rec(r); 
 
-    IoFLAGS(GvIOp(defoutgv)) &= ~IOf_FLUSH; /* reset $| */
+#ifdef USE_SFIO
+    IoFLAGS(GvIOp(defoutgv)) |= IOf_FLUSH; /* $|=1 */
+#else
+    IoFLAGS(GvIOp(defoutgv)) &= ~IOf_FLUSH; /* $|=0 */
+#endif
+
     /* hookup STDIN & STDOUT to the client */
     perl_stdout2client(r);
     perl_stdin2client(r);
@@ -590,6 +597,7 @@ int PERL_TRANS_HOOK(request_rec *r)
     int status = DECLINED;
     perl_server_config *cls = get_module_config (r->server->module_config,
 						 &perl_module);   
+    (void)perl_request_rec(r);
     PERL_CALLBACK_RETURN("PerlTransHandler", cls->PerlTransHandler);
     return status;
 }
@@ -966,6 +974,7 @@ int perl_call_handler(SV *sv, request_rec *r)
 #else
     SvREFCNT_dec(class);
 #endif
+
     XPUSHs((SV*)perl_bless_request_rec(r)); 
     PUTBACK;
     

@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.51 1997/04/30 03:00:43 dougm Exp $ */
+/* $Id: Apache.xs,v 1.52 1997/05/02 00:36:12 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -154,7 +154,7 @@ taint(...)
 
 #CORE::exit only causes trouble when we're embedded
 void
-exit(...)
+__exit(...)
 
     PREINIT:
     int sts = 0;
@@ -174,17 +174,11 @@ exit(...)
 	    sts = (int)SvIV(ST(0));
     }
 
+    bflush(r->connection->client);
+    bclose(r->connection->client);
     /* make sure we log the transaction, etc. */
     PERL_EXIT_CLEANUP;
-    bflush(r->connection->client);
-    if (r &&  r->connection
-	&& !r->connection->aborted
-	&&  r->connection->client
-	&& (r->connection->client->fd >= 0)) {
-	bclose(r->connection->client);
-    }
 
-    kill_timeout(r);
     exit(sts);
 
 #httpd.h
@@ -294,7 +288,7 @@ requires(r)
 		     newSViv((IV)reqs[x].method_mask), 0);
 	    hv_store(hv, "requirement", 11, 
 		     newSVpv(reqs[x].requirement,0), 0);
-	    av_push(av, newRV_noinc((SV*)hv));
+	    av_push(av, newRV((SV*)hv));
 	}
 	ST(0) = newRV_noinc((SV*)av); 
     }

@@ -13,6 +13,18 @@ bootstrap Apache $VERSION;
 
 *Apache::warn = \&Apache::log_error;
 
+sub exit {
+    my($r, $s);
+    if(scalar @_ > 1) {
+	($r,$s) = @_;
+    }
+    else {
+	($r,$s) = (Apache->request, @_);
+    }
+    $r->rflush;
+    $r->__exit($s);
+}
+
 sub module {
     my($self, $module) = @_;
     eval "require $module;";

@@ -38,7 +38,6 @@ t/conf/httpd.conf.pl
 t/conf/mod_perl_srm.conf
 t/constants/export.t
 t/net/config.pl.dist
-t/net/headers.t
 t/net/cgi.t
 t/net/api.t
 t/net/http-get.t
