@@ -30,7 +30,7 @@ HTTPD::UserAdmin - Apache::Authen stuff
 
 CGI - CGI.pm
 
-Apache::ePerl - Mark Imbriaco's mod_perl adaptation of 'ePerl'
+Apache::ePerl - mod_perl adaptation of 'ePerl'
 
 Apache::DBI   - Wrapper around DBI->connect to transparently maintain persistent connections
 

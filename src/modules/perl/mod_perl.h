@@ -74,6 +74,23 @@ typedef server_rec  * Apache__Server;
 #define PERL_SECTIONS
 #endif
 
+#ifdef MULTITHREAD
+#include "multithread.h"
+extern void *mod_perl_mutex;
+#else
+#define mod_perl_mutex NULL 
+extern void *mod_perl_dummy_mutex;
+#endif
+
+#ifndef MULTITHREAD_H
+typedef void mutex;
+#define MULTI_OK (0)
+#define create_mutex(name)	((mutex *)mod_perl_dummy_mutex)
+#define acquire_mutex(mutex_id)	((int)MULTI_OK)
+#define release_mutex(mutex_id)	((int)MULTI_OK)
+
+#endif
+
 #ifdef PERL_STACKED_HANDLERS
 #define PERL_TAKE ITERATE
 #define PERL_CMD_INIT  Nullav
@@ -135,10 +152,17 @@ else { \
 #define PERL_READ_SETUP
 #endif 
 
+#if MODULE_MAGIC_NUMBER >= 19970622 
+#define PERL_SET_READ_LENGTH  r->read_length = 0
+#else
+#define PERL_SET_READ_LENGTH
+#endif 
+
 #if MODULE_MAGIC_NUMBER >= 19961125 
 #define PERL_READ_CLIENT \
 if(should_client_block(r)) { \
     nrd = get_client_block(r, buffer, bufsiz); \
+    PERL_SET_READ_LENGTH; \
 } 
 #else 
 #define PERL_READ_CLIENT \
@@ -185,21 +209,6 @@ PERL_READ_CLIENT
            table_set (env_arr, "PATH", DEFAULT_PATH); \
            table_set (env_arr, "GATEWAY_INTERFACE", PERL_GATEWAY_INTERFACE); \
        }
-
-#ifdef MULTITHREAD
-extern void *mod_perl_mutex;
-#else
-extern void *mod_perl_dummy_mutex;
-#endif
-
-#ifndef MULTITHREAD_H
-typedef void mutex;
-#define MULTI_OK (0)
-#define create_mutex(name)	((mutex *)mod_perl_dummy_mutex)
-#define acquire_mutex(mutex_id)	((int)MULTI_OK)
-#define release_mutex(mutex_id)	((int)MULTI_OK)
-
-#endif
 
 /* on/off switches for callback hooks during request stages */
 

@@ -66,3 +66,4 @@ t/net/perl/hooks.pl
 t/net/perl/api.pl
 benchmark/lwp-simple.pod
 benchmark/stopwatch.pod
+nt-modules.pat

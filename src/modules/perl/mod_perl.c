@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.60 1997/06/30 02:19:14 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.61 1997/07/08 05:37:24 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -191,12 +191,14 @@ void perl_clear_env(void)
     SV *val;
     HV *hv = (HV*)GvHV(envgv);
 
+    sv_unmagic((SV*)hv, 'E');
     (void)hv_iterinit(hv); 
     while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { 
 	if(strnEQ(key, "TZ", 2))
 	    continue;
 	(void)hv_delete(hv, key, klen, G_DISCARD);
     }
+    hv_magic(hv, envgv, 'E');
 }
 
 void perl_startup (server_rec *s, pool *p)

@@ -7,8 +7,8 @@ use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.33 1997/06/30 02:19:14 dougm Exp $
-$VERSION = (qw$Revision: 1.33 $)[1];
+#$Id: Registry.pm,v 1.34 1997/07/08 05:37:24 dougm Exp $
+$VERSION = (qw$Revision: 1.34 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -102,12 +102,7 @@ sub handler {
 			    $sub,
 			    "\n}", # last line comment without newline?
 			   );
-	    {
-		# hide our variables within this block
-                my($r,$filename,$script_name,$mtime,$package,$sub);
-		Apache->untaint($eval);
-                eval $eval;
-            }
+	    compile($eval);
 	    if ($@) {
 		$r->log_error($@);
 		return SERVER_ERROR unless $Debug & 2;
@@ -146,6 +141,12 @@ sub handler {
 	return NOT_FOUND unless $Debug & 2;
 	return Apache::Debug::dump($r, NOT_FOUND);
     }
+}
+
+sub compile {
+    my $eval = shift;
+    Apache->untaint($eval);
+    eval $eval;
 }
 
 #XXX not good enough yet

@@ -3,6 +3,9 @@
 use Apache ();
 use strict;
 use vars qw($Scalar @Array %Hash); #for testing perl-status
+use vars qw($filename); 
+
+not $filename or die "Apache::Registry scoping is broken!\n";
 
 #make sure this untrip works
 $/ eq "\n" or die "\$/ was not reset!\n";

@@ -241,6 +241,11 @@ consumption.  See Perl's INSTALL file for details on C<-DPACK_MALLOC>
 and C<-DTWO_POT_OPTIMIZE>.  With these options, my httpd shrinks down
 ~150K. 
 
+The mod_perl INSTALL document explains how to build the Apache::
+extensions as shared libraries (with 'perl Makefile.PL DYNAMIC=1').
+This may save you some memory, however, it doesn't work on a few
+systems such as aix and unixware.
+
 For me, once everything is compiled, the processes no longer grow, I can live
 with the size at that point. For others, this size might be too big, or they 
 might be using a module that leaks or have code of their own that leaks, in
@@ -630,6 +635,29 @@ stuctured such that they do not need to use exit().
 If you wish to use a module that is normally linked static with your
 Perl, it must be listed in static_ext in Perl's Config.pm to be linked
 with httpd during the mod_perl build.
+
+If you are a user of B<mod_auth_dbm> or B<mod_auth_db>, you may need
+to edit Perl's C<Config> module.  When Perl is configured it attempts
+to find libraries for ndbm, gdbm, db, etc., for the *DBM*_File
+modules.  By default, these libraries are linked with Perl and
+remembered by the B<Config> module.  When mod_perl is configured with
+apache, the B<ExtUtils::Embed> module returns these libraries to be
+linked with httpd so Perl extensions will work under mod_perl.
+However, the order in which these libraries are stored in
+B<Config.pm>, may confuse C<mod_auth_db*>.  If C<mod_auth_db*> does
+not work with mod_perl, take a look at this order with the following
+command:
+
+ % perl -V:libs
+
+If C<-lgdbm> is before C<-lndbm> or C<-ldb>, example:
+
+ libs='-lnet -lnsl_s -lgdbm -lndbm -ldb -ldld -lm -lc -lndir -lcrypt';
+
+Edit B<Config.pm> and move C<-lgdbm> to the end of the list.  Here's
+how to find B<Config.pm>:
+
+ % perl -MConfig -e 'print "$Config{archlibexp}/Config.pm\n"'
 
 =head1 SUPPORT
 

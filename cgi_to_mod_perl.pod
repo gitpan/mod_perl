@@ -50,20 +50,16 @@ Note that `ScriptAlias' does _not_ work for mod_perl.
 
 =head1 PORTING CGI SCRIPTS
 
-=item I/O
-
 =over 4
+
+=item I/O
 
 If you are using Perl 5.004 most CGI scripts can run under mod_perl
 untouched.  If you're using 5.003, Perl's built-in C<read()> and
 C<print()> functions do not work as they do under CGI.  If you're
 using CGI.pm, use C<$query->print> instead of plain 'ol C<print()>.
 
-=back
-
 =item HEADERS
-
-=over 4
 
 By default, mod_perl does not send any headers by itself, however, you
 may wish to change this:
@@ -78,11 +74,7 @@ send that itself, e.g.:
 If you're using CGI::Switch and 'print $q->header' you do _not_ need
 C<PerlSendHeader On>.  
 
-=back
-
 =item PROGRAMMING PRACTICE
-
-=over 4
 
 CGI lets you get away with sloppy programming, mod_perl does not.
 Why?  CGI scripts have the lifetime of a single HTTP request as a
@@ -92,7 +84,7 @@ etc.  Scripts running under mod_perl have a longer lifetime, over
 several request, different scripts may be in the same process.  This
 means you must clean up after yourself.  You've heard:
  
- always 'use strict' and -w!!!
+ always 'use strict' and C<-w>!!!
 
 It's more important under mod_perl Perl than anywhere else, while it's
 not required, it B<strongly> recommended, it will save you more time
@@ -119,6 +111,8 @@ with.  C<perl -V> is requested as well.
 You may also be asked:
 
 -Does 'make test' pass 100%?
+
 -Does your script still work under CGI?
+
 -Do you have a *small* test script that illustrates the problem?
 

@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.57 1997/06/30 02:19:14 dougm Exp $ */
+/* $Id: Apache.xs,v 1.58 1997/07/08 05:37:24 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -241,16 +241,6 @@ unescape_url_info(url)
 
     OUTPUT:
     RETVAL
-
-#from mod_include.c
-
-void
-send_parsed_content(r, f)
-    Apache     r
-    FILE       *f
-
-    CODE:
-    send_parsed_content(f, r);
 
 #functions from http_main.c
 
@@ -810,6 +800,19 @@ method_number(r, ...)
     OUTPUT:
     RETVAL
 
+long
+read_length(r, ...)
+    Apache	r
+
+    CODE:
+    {
+#if MODULE_MAGIC_NUMBER >= 19970622
+    RETVAL = r->read_length;
+    if(items > 1)
+        r->read_length = (long)SvIV(ST(1));
+#endif
+    }
+
 #    /* MIME header environments, in and out.  Also, an array containing
 #   * environment variables to be passed to subprocesses, so people can
 #   * write modules to add to that environment.
@@ -1199,7 +1202,7 @@ dir_config(r, key)
 # */
 
 #struct conn_rec {
-  
+
 MODULE = Apache  PACKAGE = Apache::Connection
 
 PROTOTYPES: DISABLE

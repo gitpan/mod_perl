@@ -22,7 +22,7 @@ use File::Copy qw(cp);
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.00b1";
+$VERSION = "1.00b2";
 
 use subs qw(_prompt iedit);
 
@@ -87,6 +87,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
     NONE => "", 
 );	     
 
+$EVERYTHING = 0;
 $PERL_STATIC_EXTS = "";
 $Port = $PORT = 8529;
 $DO_HTTPD = $ENV{DO_HTTPD} || 0;
@@ -128,6 +129,13 @@ $STATIC = 0 if $DYNAMIC;
 for (keys %callback_alias) {
     $callback_hooks{$callback_alias{$_}}++ 
        if $callback_hooks{$_};
+}
+
+if($EVERYTHING) {
+    @callback_hooks{qw(PERL_STACKED_HANDLERS PERL_METHOD_HANDLERS)} = (1) x 2;
+    for(qw(ALL_HOOKS PERL_SSI PERL_SECTIONS)) {
+       $$_ = 1;
+    }
 }
 
 if($ALL_HOOKS) {
@@ -253,6 +261,12 @@ foreach $adir (@adirs) {
     last if $APACHE_SRC;
 }
 
+if($DYNAMIC) {
+    for (qw(Apache Constants)) {
+	cp "src/modules/perl/${_}.xs", "${_}/${_}.xs" if $DYNAMIC;
+    }
+}
+
 unless ($NO_HTTPD) {
     ++$STATIC if $Config{osname} =~ /^(aix|svr4|unixware)$/i;
 
@@ -260,12 +274,6 @@ unless ($NO_HTTPD) {
 	$callback_hooks{PERL_HEADER_PARSER} = 0;
 	$cant_hook{PERL_HEADER_PARSER} = 
 	    "(need 1.2b5 or higher)";
-    }
-
-    if($DYNAMIC) {
-	for (qw(Apache Constants)) {
-	    cp "src/modules/perl/${_}.xs", "${_}/${_}.xs" if $DYNAMIC;
-	}
     }
 
     setup_for_static();
@@ -341,12 +349,20 @@ unless (-e "t/net/config.pl") {
 }
 
 unless($Is_Win32 or -e "t/conf/httpd.conf") {
+    chmod 0755, "t/conf/httpd.conf";
     cp "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
-#    $User  = (getpwnam('nobody'))[0]  || getpwuid($>) || $>;
-#    $Group = (getgrnam('nogroup'))[0] || getgrgid($)) || $); 
+
     $User  = $Is_Win32 ? "nobody" : (getpwuid($>) || $>);
     $Group = $Is_Win32 ? "nogroup" : (getgrgid($)) || $)); 
-
+    if($User eq "root") {
+	my $other = (getpwnam('nobody'))[0];
+	$User = $other if $other;
+    } 
+    if($User eq "root") {
+	print "Cannot run tests as User `$User'\n";
+        $User = _prompt("Which User?", "nobody");
+	$Group = _prompt("Which Group?", $Group); 
+    }
     print STDERR "Will run tests as User: '$User' Group: '$Group'\n";
 
     if($Port != $PORT) {
@@ -360,12 +376,13 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
     for (qw(User Group)) {
 	iedit "t/conf/httpd.conf", "s/^$_ .*/$_ $$_/"; 
     }
-    if($IsBenSSL) {
-	local *CONF;
-	open CONF, ">>t/conf/httpd.conf" or die $!;
-	print CONF "SSLDisable\n";
-	close CONF;
-    }
+    conf_append("SSLDisable") if $IsBenSSL;
+ 
+    #phooey!
+    my $v = httpd_version($APACHE_SRC, 1);
+    $v =~ s/\.//g;
+    $v .= "0" if length $v < 3;
+    conf_append("LockFile /tmp/mod_perl.lock") if $v >= 121;
 }
 
 
@@ -592,7 +609,7 @@ test_report:
 }
 
 sub httpd_version {
-    my($dir) = @_;
+    my($dir, $vnumber) = @_;
     my $fh = new FileHandle "$dir/httpd.h" or return;
     my($server, $version, $rest);
     my($fserver, $fversion, $frest);
@@ -621,7 +638,7 @@ sub httpd_version {
 		    if($frest >= 8 and is_ssl($dir)) {
 			$do_link_swap++;
 			$can_dash_make{$dir}++;
-			return "NONE";
+			return $vnumber ? $version : "NONE";
 		    }
 		    warn "Apache/1.2b$frest is not supported, upgrade to 1.2.0.\n";
 		    return undef;
@@ -629,7 +646,7 @@ sub httpd_version {
 		elsif($version >= 1.2) {
 		    $do_link_swap++ if is_ssl($dir);
 		    $can_dash_make{$dir}++;
-		    return "NONE";
+		    return $vnumber ? $version : "NONE";
 		}
 	    }
 	    else {
@@ -707,6 +724,13 @@ EOT
     }
 }
 
+sub conf_append {
+    local *CFG;
+    open CFG, ">>t/conf/httpd.conf" or die "open httpd.conf $!";
+    print CFG join "\n", @_, "";
+    close CFG;
+}
+
 sub conf_fixup {
     my($mf, $cfg) = @_;
 
@@ -734,7 +758,10 @@ sub conf_fixup {
 	my $repl = q{AUX_CFLAGS='\$(CFLAGS)'};
 	iedit $mf, qq{s/AUX_CFLAGS="..CFLAGS."/$repl/};
     }
-
+    {
+	my $repl = q{CC='\$(CC)'};
+	iedit $mf, qq{s/CC=..CC. /$repl /};
+    }
     open(CONF, $cfg) || die "Can't open $cfg: $!";
     while (<CONF>) {
 	$seen_modperl++ if /^Module\s+perl_module/i;
@@ -778,7 +805,7 @@ sub report_setup {
     print OUT "#!$Config{perlpath}\n", join '', <IN>;
     close OUT;
     close IN;
-    chmod 0755 => "t/report";
+    chmod 0755, "t/report";
 }
 
 sub iedit {

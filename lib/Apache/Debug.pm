@@ -1,8 +1,36 @@
 package Apache::Debug;
 use Cwd 'fastcwd';
-#from HTTP::Status
+
 use vars qw($VERSION);
-$VERSION = (qw$Revision: 1.16 $)[1];
+$VERSION = (qw$Revision: 1.17 $)[1];
+
+sub import {
+    local $^W = 0;
+    shift;
+
+    my(%args) = @_;
+    return unless exists $args{level};
+
+    print STDERR "Apache::Debug: [@_]\n";
+    $Apache::Registry::Debug = $args{level};
+
+    $^M = 'a' x (1<<16);
+
+    require Carp;
+    $SIG{__DIE__} = \&Carp::confess;
+
+    require Apache::Registry;
+    eval {
+	sub UNIVERSAL::AUTOLOAD {
+	    my $sub = $UNIVERSAL::AUTOLOAD;
+	    goto &$sub if $sub =~ /DESTROY/; 
+	    Carp::confess("undefined sub `$sub' called [@_]\n");
+	}
+    };
+    Carp::croak($@) if $@;
+}
+
+#from HTTP::Status
 
 my %StatusCode = (
     100 => 'Continue',
@@ -55,7 +83,7 @@ sub dump {
     $r->content_type("text/html");
     $r->content_language("en");
     $r->no_cache(1);
-    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.16 1997/06/03 03:00:42 dougm Exp $);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.17 1997/07/08 05:37:24 dougm Exp $);
     $r->send_http_header;
     
     return 0 if $r->header_only;   # should not generate a body

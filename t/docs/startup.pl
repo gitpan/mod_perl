@@ -1,3 +1,13 @@
+BEGIN {
+    #./blib/lib:./blib/arch
+    use ExtUtils::testlib;
+
+    use lib './t/docs';
+    require "blib.pl" if -e "./t/docs/blib.pl";
+}
+
+#use Apache::Debug level => 4;
+
 #for testing perl mod_include's
 
 $Access::Cnt = 0;
@@ -9,13 +19,8 @@ $ENV{GATEWAY_INTERFACE} =~ /^CGI-Perl/ or die "GATEWAY_INTERFACE not set!";
 #will be redef'd during tests
 sub PerlTransHandler::handler {-1}
 
-#./blib/lib:./blib/arch
-use ExtUtils::testlib;
-
 #for testing PERL_HANDLER_METHODS
 #see httpd.conf and t/docs/LoadClass.pm
-use lib './t/docs';
-require "blib.pl" if -e "./t/docs/blib.pl";
 
 sub MyClass::method ($$) {
     my($class, $r) = @_;  

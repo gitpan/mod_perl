@@ -5,7 +5,6 @@ use strict;
 
 my $r = CGI::Switch->new;
 warn "Running cgi.pl with $CGI::VERSION";
-warn $r;
 
 my($param) = $r->param('PARAM');
 my($httpupload) = $r->param('HTTPUPLOAD');

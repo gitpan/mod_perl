@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.26 1997/06/03 03:00:42 dougm Exp $
+# $Id: Makefile,v 1.27 1997/07/08 05:37:24 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -133,6 +133,6 @@ tidy:
 	rm -f *.out
 
 clean:	tidy
-	rm -f *.o libmodperl.a perlxsi.c Apache.c
+	rm -f *.o libmodperl.a perlxsi.c Apache.c Constants.c
 
 

@@ -16,7 +16,49 @@ Other contributors are mentioned below.
 
 =over 3
 
-=item 1.00b1
+=item 1.00b2 - 07/07/97
+
+fixed scoping bug in Apache::Registry spotted by Marshall Dudley
+
+append LockFile to t/conf/httpd.conf if SERVER_VERSION >= 1.2.1
+
+add ''s for CC='$(CC)' workaround for bug spotted by David Lloyd and others
+
+added Apache::Debug->import so 'use Apache::Debug level => 4' will:
+-level sets $Apache::Registry::Debug
+-define UNIVERSAL::AUTOLOAD to stop spinning when undefined sub is called
+-Carp::confess instead of die()
+-allocate $^M if $Config{cflags} =~ /EMERGENCY_SBRK/
+
+croak() if should_client_block() to prevent spin into "Out of memory!"
+
+make compatible with 1.2.1 r->read_length change so we don't hang
+on file uploads
+
+can't run 'make test' as root with 1.2.1, if user `nobody' exists,
+use that, otherwise prompt user for `User' and `Group' as suggested by
+Michael Parker   
+
+Andrew Tennant reported that `PassEnv' didn't work.
+we now turn off %ENV magic when clearing %ENV so it does work
+
+win32 stuff:
+-include handy patch for modules.c as there's no win32 Configure script yet
+-fixed mod_perl.h mutex #define broken-ness
+
+the following will now work as expected (building {Apache,Constants}.s[ol]):
+ perl Makefile.PL NO_HTTPD=1 DYNAMIC=1 && make
+thanks to hints from Bowen Dwelle
+
+added Makefile.PL option where 'perl Makefile.PL EVERYTHING=1'
+will enable all features:
+ALL_HOOKS, PERL_SECTIONS, PERL_STACKED_HANDLERS, PERL_METHOD_HANDLERS, PERL_SSI
+
+fixed cgi_to_mod_perl.pod mess
+
+added AIX note from Eric Bartley to the INSTALL doc
+
+=item 1.00b1 - 06/29/97
 
 turning off $^W in Apache::Registry when using Cwd to avoid
 'use of uninitialized variable' warning

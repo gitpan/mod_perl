@@ -22,7 +22,7 @@ the first time a script is accessed by a child server or once again if
 the file is updated on disk.
 
 Although it may be all you need, a speedy CGI replacement is only a
-small part of this project. Callback hooks are in place for each stage
+small part of this project.  Callback hooks are in place for each stage
 of a request.  Apache-Perl modules may step in during the handler,
 header parser, uri translate, authentication, authorization, access,
 type check, fixup, logger and cleanup stages of a request.     

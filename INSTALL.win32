@@ -62,11 +62,13 @@ select "Insert -> Files into Project"
 
 browse and select C:\perl\lib\Core\perl.lib
 
-select "Build -> Settings ..." and add:
+select "Build -> Settings ...Link" and add:
 
  /nodefaultlib:"LIBC"
 
-edit modules.c, adding:
+
+apply the patch "nt-modules.pat" to nt/modules.c
+or edit nt/modules.c, adding:
 
   extern module perl_module;
 
@@ -77,3 +79,11 @@ select "Build -> Build apache.exe"
 Be sure that 'C:\perl\bin' is in your path so apache can find perl.dll
 
 =back
+
+=head1 NOTES
+
+mod_perl-win32 is considered alpha, an alpha version of apache with 
+win32 support has not even been officially released at the time of
+this writing.  
+
+this file will get much smaller once apache has a mod_dll 
