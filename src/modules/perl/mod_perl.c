@@ -948,13 +948,24 @@ void PERL_CHILD_EXIT_HOOK(server_rec *s, pool *p)
 }
 #endif
 
+static int do_proxy (request_rec *r)
+{
+    return 
+	!(r->parsed_uri.hostname
+	  && strEQ(r->parsed_uri.scheme, ap_http_method(r))
+	  && ap_matches_request_vhost(r, r->parsed_uri.hostname,
+				      r->parsed_uri.port_str ? 
+				      r->parsed_uri.port : 
+				      ap_default_port(r)));
+}
+
 #ifdef PERL_POST_READ_REQUEST
 int PERL_POST_READ_REQUEST_HOOK(request_rec *r)
 {
     dSTATUS;
     dPSRV(r->server);
 #if MODULE_MAGIC_NUMBER > 19980270
-    if(r->parsed_uri.scheme && r->parsed_uri.hostname) {
+    if(r->parsed_uri.scheme && r->parsed_uri.hostname && do_proxy(r)) {
 	r->proxyreq = 1;
 	r->uri = r->unparsed_uri;
     }
@@ -1612,6 +1623,7 @@ callback:
     SPAGAIN;
 
     if(perl_eval_ok(r->server) != OK) {
+	dTHRCTX;
 	MP_STORE_ERROR(r->uri, ERRSV);
 	if(!perl_sv_is_http_code(ERRSV, &status))
 	    status = SERVER_ERROR;
@@ -1641,8 +1653,11 @@ callback:
     MP_TRACE_g(fprintf(stderr, "perl_call_handler: SVs = %5d, OBJs = %5d\n", 
 	    (int)sv_count, (int)sv_objcount));
 
-    if(SvMAGICAL(ERRSV))
-       sv_unmagic(ERRSV, 'U'); /* Apache::exit was called */
+    {
+	dTHRCTX;
+	if(SvMAGICAL(ERRSV))
+	    sv_unmagic(ERRSV, 'U'); /* Apache::exit was called */
+    }
 
     return status;
 }

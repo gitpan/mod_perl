@@ -131,6 +131,7 @@ my(@do_clean) = qw{
    t/report
    t/httpd
    apaci/find_source
+   apaci/apxs_cflags
    apaci/mod_perl.config
 };
 #t/conf/httpd.conf
@@ -147,6 +148,7 @@ rmtree "t/docs/stacked", 0, 0;
 gen_script("t/net/perl/cgi.pl");
 gen_script("t/report");
 gen_script("apaci/find_source");
+gen_script("apaci/apxs_cflags");
 write_version_h("src/modules/perl");
 
 my(@test_pre_init) = qq(
@@ -357,12 +359,12 @@ if($USE_APXS) {
     if(-e $USE_APXS and !(-d _)) {
         $WITH_APXS = $USE_APXS;
     }
-    elsif($USE_APXS and $APACHE_PREFIX) {
+    if(not -x $WITH_APXS and $USE_APXS and $APACHE_PREFIX) {
 	for (qw(sbin bin)) {
 	    last if -e ($WITH_APXS = "$APACHE_PREFIX/$_/apxs");
 	}
     }
-    unless ($WITH_APXS) {
+    unless (-x $WITH_APXS) {
 	chomp($WITH_APXS = `which apxs`);
     }
 
@@ -851,6 +853,8 @@ unless (-e "t/net/config.pl") {
     cp "t/net/config.pl.dist", "t/net/config.pl";
 }
 
+write_my_config($APACHE_SRC);
+
 unless($Is_Win32 or -e "t/conf/httpd.conf" or ($NO_HTTPD && !$PREP_HTTPD)) {
     init_tests_and_config();
 }
@@ -999,7 +1003,6 @@ PerlHandler Stacked::one Stacked::two Stacked::three Stacked::four
 EOF
 }
 
-write_my_config($APACHE_SRC);
 {
     (my $pmv = $VERSION) =~ s/_//g;
     $pmv =~ s/-dev$//;
@@ -2017,7 +2020,7 @@ EOF
 
     gdbm_check();
 
-    if ($USE_DSO and $] < 5.005_56 and 
+    if (($USE_DSO or $USE_APXS) and $] < 5.005_56 and 
 	$^O eq 'solaris' and $Config{'usemymalloc'} eq 'y') 
       {
 	  phat_warn(<<EOF);

@@ -8,6 +8,30 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.22 - March 22, 2000
+
+proxy support fixed wrt RFC2068, thanks to Benjamin Elijah
+Griffin for the spot
+
+set Apache::Resource::DEFAULT_RLIMIT_AS (address space) to 64Mb
+[Kevin Murphy <kevin@boojiboy.eorbit.net>]
+
+Bundle::Apache will now install Bundle::LWP before mod_perl
+[Aaron Johnson <solution@gina.net>]
+
+support Apache::FakeRequest::args in a list context
+[Michael Finke <mfinke@apollo.screamdesign.com>]
+
+compile fixes for 5.6 + -Duse5005threads
+[Lincoln Stein <lstein@cshl.org>]
+
+log to parms->server instead of stderr if PerlRequire fails
+
+make sure lib/Apache/MyConfig.pm is written before used
+thanks to Albert Chin for the spot
+
+fixup the output of apxs -q CFLAGS to preserve quoting (again)
+
 =item 1.21_03 - March 15, 2000
 
 removed the generated apaci/mod_perl.config from MANIFEST

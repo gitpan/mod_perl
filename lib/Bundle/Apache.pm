@@ -1,6 +1,6 @@
 package Bundle::Apache;
 
-$VERSION = '1.01';
+$VERSION = '1.02';
 
 1;
 
@@ -16,17 +16,17 @@ C<perl -MCPAN -e 'install Bundle::Apache'>
 
 =head1 CONTENTS
 
-Apache - Perl interface to Apache server API
+MIME::Base64       - Used in authentication headers
 
-ExtUtils::Embed - Needed to build httpd
+Digest::MD5        - Needed to do Digest authentication
 
-MIME::Base64 - Needed for LWP
+URI 0.10           - There are URIs everywhere
 
-URI::URL - Needed for LWP
+Net::FTP 2.00      - If you want ftp://-support
 
-LWP - Web client to run mod_perl tests
+HTML::HeadParser   - To get the correct $res->base
 
-HTML::TreeBuilder - Used for Apache::SSI
+LWP                - The reason why you need the modules above
 
 Devel::Symdump - Symbol table browsing with Apache::Status
 
@@ -35,6 +35,8 @@ Data::Dumper - Used by Apache::PerlSections->dump
 CGI - CGI.pm
 
 Tie::IxHash - For order in <Perl> sections
+
+Apache - Perl interface to Apache server API
 
 Apache::DBI   - Wrapper around DBI->connect to transparently maintain persistent connections
 
