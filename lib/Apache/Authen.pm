@@ -10,10 +10,11 @@ use HTTPD::UserAdmin ();
 
 sub handler {
     my($self, $r, $attr) = @_;
-    my($sent_pwd, $passwd);
-    if($res = $r->get_basic_auth_pw($sent_pwd)) {
-	return $res; #decline if not Basic
-    }
+    my($res, $sent_pwd, $passwd);
+
+    ($res, $sent_pwd) = $r->get_basic_auth_pw;
+    return $res if $res; #decline if not Basic
+    
     my $user = $r->connection->user;
 
     my $u = HTTPD::UserAdmin->new(%$attr);

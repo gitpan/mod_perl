@@ -199,10 +199,7 @@ extern "C" {
 #define PERL_LOGGER_CREATE(s) s->PerlLogHandler = NULL
 #endif
 
-module perl_fast_module;
 
-void xs_init _((void));
-void perl_set_request_rec(request_rec *);
 
 typedef struct {
    char *PerlScript;
@@ -224,3 +221,26 @@ typedef struct {
    int setup_env;
 } perl_dir_config;
 
+extern module perl_fast_module;
+
+/* prototypes */
+
+int perl_fast_handler(request_rec *r);
+void perl_init (server_rec *s, pool *p);
+void *create_perl_dir_config (pool *p, char *dirname);
+void *create_perl_server_config (pool *p, server_rec *s);
+int perl_translate(request_rec *r);
+int perl_authenticate(request_rec *r);
+int perl_authorize(request_rec *r);
+int perl_access(request_rec *r);
+int perl_type_checker(request_rec *r);
+int perl_fixup(request_rec *r);
+int perl_logger(request_rec *r);
+char *set_perl_script (cmd_parms *parms, void *dummy, char *arg);
+char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg);
+char *set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val);
+char *perl_sendheader_on (cmd_parms *cmd, void *rec, int arg);
+char *perl_set_env_on (cmd_parms *cmd, void *rec, int arg);
+char *set_perl_trans (cmd_parms *parms, void *dummy, char *arg);
+void xs_init _((void));
+void perl_set_request_rec(request_rec *);

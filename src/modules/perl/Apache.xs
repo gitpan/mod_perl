@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.30 1996/10/17 03:35:47 dougm Exp $ */
+/* $Id: Apache.xs,v 1.32 1996/10/21 01:35:55 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -336,20 +336,21 @@ void
 note_basic_auth_failure(r)
 	Apache r
 
-int
-get_basic_auth_pw (r, pw)
+void
+get_basic_auth_pw(r)
     Apache r
-    SV *pw
 
-    CODE:
+    PPCODE:
     {
-    char *sent_pw;
-    RETVAL = get_basic_auth_pw(r, &sent_pw);
-    sv_setpv(pw, sent_pw);
+    char *sent_pw = NULL;
+    int ret;
+    ret = get_basic_auth_pw(r, &sent_pw);
+    XPUSHs(sv_2mortal((SV*)newSViv(ret)));
+    if(ret == OK)
+	XPUSHs(sv_2mortal((SV*)newSVpv(sent_pw, 0)));
+    else
+	XPUSHs(&sv_undef);
     }
-
-    OUTPUT:
-    RETVAL
 
 void
 send_http_header(r)
@@ -467,7 +468,7 @@ cgi_env(r)
 
     if (tz!= NULL) {
 	EXTEND(sp, 2);
-	PUSHs(sv_2mortal((SV*)newSVpv("TZ", strlen("TZ"))));
+	PUSHs(sv_2mortal((SV*)newSVpv("TZ", 2)));
 	PUSHs(sv_2mortal((SV*)newSVpv(tz, strlen(tz))));
     }
     for (i = 0; i < env_arr->nelts; ++i) {

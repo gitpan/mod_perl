@@ -15,6 +15,43 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.83_09
+
+fixed bug with get_basic_auth_pw spotted by Patrick Kane <modus@enews.com>
+
+=item 0.83_08
+
+get_basic_auth_pw now returns the $send_pw, rather that setting it,
+see Apache.pm docs
+ 
+applied patch from Andreas with the following changes:
+
+1) regex directory added in Constants/Makefile.PL. Current apache
+   always needs -Iregex, that means for us an additional
+   -I$httpd/regex. I think, they should
+
+    #include <regex/something.h>
+
+2) Assorted comments added to INSTALL, especially
+
+  * FileHandle bug explained as being a 5.003 bug (not "current")
+
+  * Configuration/Configuration.tmpl relation explained
+
+  * && instead of ; to separate commands is a must in Makefiles
+
+  * Gisle's hint about the default seems very important to me, so is
+    there again.
+
+3) Drops the deprecated mod_alias patch from the whole distribution
+
+4) A whitespace patch for src/modules/perl/Makefile
+
+5) The regex directory also for src/modules/perl/Makefile
+
+6) Shuffling of code between mod_perl_fast.c and mod_perl.h until it
+   fits the bill, who knows why :-0
+
 =item 0.83_07
 
 added the missing src/modules/perl/Makefile (again)

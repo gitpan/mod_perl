@@ -27,12 +27,14 @@ The perl modules under lib/ can be installed by saying (in this current director
   make
   make install
 
-*** NOTE ***
-This install includes the module Apache::Registry, which uses the standard
-module 'FileHandle'.  There is a bug in the current version of this module,
-we suggest you apply the patch 'FileHandle.patch' to fix the problem
-until it is fixed in the standard distribution of Perl.
-Although, it is a strange bug, you might not even see it without the patch...
+This install includes the module Apache::Registry, which uses the
+standard module 'FileHandle'.  There was a bug in the version of this
+module, that came with perl5.003, so if your perl is not younger than
+5.003 we suggest you apply the patch 'FileHandle.patch' to fix the
+problem until it is fixed in the standard distribution of Perl.
+Although, it is a strange bug, you might not even see it without the
+patch...
+
  
 Build apache
 ------------
@@ -42,7 +44,9 @@ Copy the source files into the apache build directory:
 
 	cp -r src/modules/perl/  apache_xxx/src/modules/
 
-Edit apache_xxx/src/Configuration:
+Edit apache_xxx/src/Configuration (if you don't have Configuration
+yet, this should be a copy of Configuration.tmpl in the same
+directory):
 
 For mod_perl add:
 
@@ -62,7 +66,7 @@ Otherwise, edit apache_xxx/src/Makefile.tmpl adding:
 
 ---%<----
 
-#only for apache versions < 1.2
+#next line only for apache versions < 1.2
 #RANLIB=ranlib
 
 PERL=/usr/local/bin/perl
@@ -79,8 +83,9 @@ modules/perl/libmodperl.a:
 #	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS) $(PERL_LD_OPTS)
 ---%<----
 
-You may also wish to edit the on/off switches for callback hooks during 
-request stages in src/modules/perl/Makefile
+You may also wish to edit the on/off switches for callback hooks
+during request stages in src/modules/perl/Makefile. The default is
+that most callbacks are disabled.
 
 Follow the Apache install docs from there.
 

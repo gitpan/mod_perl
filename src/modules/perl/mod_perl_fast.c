@@ -50,13 +50,69 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.25 1996/10/14 03:34:51 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.26 1996/10/20 17:15:51 dougm Exp $ */
 
 #include "mod_perl.h"
 
 static int avoid_first_alloc_hack = 0;
 
 static PerlInterpreter *perl = NULL;
+
+static command_rec perl_cmds[] = {
+  { "PerlScript", set_perl_script,
+    NULL,
+    RSRC_CONF, TAKE1, "A Perl script name" },
+  { "PerlModule", push_perl_modules,
+    NULL,
+    RSRC_CONF, ITERATE, "List of Perl modules" },
+  { "PerlSetVar", set_perl_var,
+    NULL,
+    OR_ALL, TAKE2, "Perl config var and value" },
+  { "PerlSendHeader", perl_sendheader_on,
+    NULL,
+    OR_ALL, FLAG, "Tell mod_perl_fast to send basic_http_header" },
+  { "PerlSetupEnv", perl_set_env_on,
+    NULL,
+    OR_ALL, FLAG, "Tell mod_perl_fast to setup %ENV by default" },
+  { "PerlHandler", set_string_slot,
+    (void*)XtOffsetOf(perl_dir_config, PerlHandler),
+    OR_ALL, TAKE1, "the Perl handler routine name" },
+  { PERL_TRANS_CMD_ENTRY },
+  { PERL_AUTHEN_CMD_ENTRY },
+  { PERL_AUTHZ_CMD_ENTRY },
+  { PERL_ACCESS_CMD_ENTRY },
+  { PERL_TYPE_CMD_ENTRY },
+  { PERL_FIXUP_CMD_ENTRY },
+  { PERL_LOGGER_CMD_ENTRY },
+  { NULL }
+};
+
+static handler_rec perl_fast_handlers [] = {
+   { "httpd/fast-perl", perl_fast_handler },
+   { PERL_APACHE_SSI_TYPE, perl_fast_handler },
+   { "fast-perl", perl_fast_handler },
+   { "perl-script", perl_fast_handler },
+   { NULL }
+};
+
+module perl_fast_module = {
+   STANDARD_MODULE_STUFF,
+   perl_init,                 /* initializer */
+   create_perl_dir_config,    /* create per-directory config structure */
+   NULL,                      /* merge per-directory config structures */
+   create_perl_server_config, /* create per-server config structure */
+   NULL,                      /* merge per-server config structures */
+   perl_cmds,                 /* command table */
+   perl_fast_handlers,        /* handlers */
+   PERL_TRANS_HOOK,           /* translate_handler */
+   PERL_AUTHEN_HOOK,          /* check_user_id */
+   PERL_AUTHZ_HOOK,           /* check auth */
+   PERL_ACCESS_HOOK,          /* check access */
+   PERL_TYPE_HOOK,            /* type_checker */
+   PERL_FIXUP_HOOK,           /* pre-run fixups */
+   PERL_LOGGER_HOOK,          /* logger */
+};
+
 
 void perl_init (server_rec *s, pool *p)
 {
@@ -188,9 +244,9 @@ int perl_fast_handler(request_rec *r)
 int PERL_TRANS_HOOK(request_rec *r)
 {
   int status = DECLINED;
-  perl_server_config *cld = get_module_config (r->server->module_config,
+  perl_server_config *cls = get_module_config (r->server->module_config,
 					       &perl_fast_module);   
-  PERL_CALLBACK_RETURN("translate", cld->PerlTransHandler);
+  PERL_CALLBACK_RETURN("translate", cls->PerlTransHandler);
 }
 #endif
 
@@ -338,59 +394,3 @@ char *set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val)
   CTRACE(stderr, "set_perl_var: '%s' = '%s'\n", key, val);
   return NULL;
 }
-  
-command_rec perl_cmds [] = {
-  { "PerlScript", set_perl_script,
-    NULL,
-    RSRC_CONF, TAKE1, "A Perl script name" },
-  { "PerlModule", push_perl_modules,
-    NULL,
-    RSRC_CONF, ITERATE, "List of Perl modules" },
-  { "PerlSetVar", set_perl_var, 
-    NULL,  
-    OR_ALL, TAKE2, "Perl config var and value" },
-  { "PerlSendHeader", perl_sendheader_on,
-    NULL, 
-    OR_ALL, FLAG, "Tell mod_perl_fast to send basic_http_header" },
-  { "PerlSetupEnv", perl_set_env_on,
-    NULL, 
-    OR_ALL, FLAG, "Tell mod_perl_fast to setup %ENV by default" },
-  { "PerlHandler", set_string_slot, 
-    (void*)XtOffsetOf(perl_dir_config, PerlHandler), 
-    OR_ALL, TAKE1, "the Perl handler routine name" },
-  { PERL_TRANS_CMD_ENTRY },
-  { PERL_AUTHEN_CMD_ENTRY },
-  { PERL_AUTHZ_CMD_ENTRY },
-  { PERL_ACCESS_CMD_ENTRY },
-  { PERL_TYPE_CMD_ENTRY },
-  { PERL_FIXUP_CMD_ENTRY },
-  { PERL_LOGGER_CMD_ENTRY },
-  { NULL }
-};
-
-handler_rec perl_fast_handlers [] = {
-   { "httpd/fast-perl", perl_fast_handler },
-   { PERL_APACHE_SSI_TYPE, perl_fast_handler },
-   { "fast-perl", perl_fast_handler },
-   { "perl-script", perl_fast_handler },
-   { NULL }
-};
-
-module perl_fast_module = {
-   STANDARD_MODULE_STUFF,
-   perl_init,			/* initializer */
-   create_perl_dir_config,	/* create per-directory config structure */
-   NULL, 	                /* merge per-directory config structures */
-   create_perl_server_config,	/* create per-server config structure */
-   NULL,			/* merge per-server config structures */
-   perl_cmds,			/* command table */
-   perl_fast_handlers,		/* handlers */
-   PERL_TRANS_HOOK,	        /* translate_handler */
-   PERL_AUTHEN_HOOK,		/* check_user_id */
-   PERL_AUTHZ_HOOK,             /* check auth */
-   PERL_ACCESS_HOOK,	        /* check access */
-   PERL_TYPE_HOOK,		/* type_checker */
-   PERL_FIXUP_HOOK,		/* pre-run fixups */
-   PERL_LOGGER_HOOK,	        /* logger */
-};
-

@@ -320,11 +320,13 @@ $r->no_cache() attributes (described below) and then append the
 headers defined by $r->header_out (or $r->err_header_out if status
 indicates an error).
 
-=item $r->get_basic_auth_pw( $sent_pwd )
+=item $r->get_basic_auth_pw
 
 If the current request is protected by Basic authentication, 
-this method will return 0 , otherwise -1.  
-C<$sent_pwd> will be set to the decoded password sent by the client.
+this method will return 0, otherwise -1.  
+The second return value will be the decoded password sent by the client.
+
+    ($ret, $sent_pw) = $r->get_basic_auth_pw;
 
 =item $r->note_basic_auth_failure
 

@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.11 1996/10/15 13:02:05 dougm Exp $
+# $Id: Makefile,v 1.12 1996/10/20 17:15:51 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -81,14 +81,13 @@ PERL_STATIC_EXTS = -std
 XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- $(PERL_STATIC_EXTS) Apache`
 LD_OPTS = `$(EXTUTILS_EMBED) -e ccdlflags -e ldopts -- $(PERL_STATIC_EXTS)`
 
+CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
+
 # AUX_CFLAGS comes from higher level Makefile
-CFLAGS=-I. -I$(INCDIR) $(AUX_CFLAGS) $(PERL_CCFLAGS)
+CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex $(AUX_CFLAGS) $(PERL_CCFLAGS)
 
 default:	$(LIB)
 
-ldopts:
-	@echo $(LD_OPTS)
-	
 perlxsi.c:
 	$(XS_INIT) 
 
