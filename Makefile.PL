@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.01";
+$VERSION = "1.02";
 
 use subs qw(_prompt iedit asrc);
 
@@ -49,6 +49,8 @@ my %SSL = (
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
             <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
+
+iedit "t/net/perl/cgi.pl", "s:^(#!.*perl):#!$Config{'perlpath'}:";
 
 #soes yous can try out the zamples
 unless (-l "t/net/perl/eg") {

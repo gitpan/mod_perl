@@ -3,7 +3,7 @@ use 5.004;
 use strict;
 
 BEGIN {
-    $mod_perl::VERSION = "1.01";
+    $mod_perl::VERSION = "1.02";
     $ENV{MOD_PERL} = $mod_perl::VERSION;
     $ENV{GATEWAY_INTERFACE} = "CGI-Perl/1.1";
 }
