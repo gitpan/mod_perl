@@ -1,14 +1,14 @@
 #Configuration directives specific to mod_perl
-ServerRoot ./t
+ServerRoot /opt/www
 ServerName localhost
-DocumentRoot /afs/ri/project/web/src/servers/mod_perl-0.95_03/t/docs
+DocumentRoot docs
 
 #mod_perl stuff
-PerlScript ./t/docs/startup.pl
+PerlScript t/docs/startup.pl
 
 PerlTaintCheck On
 
-Alias /perl/ ./t/net/perl/
+Alias /perl/ /opt/www/perl/
 Port  8529
 
 <Perl>
@@ -54,11 +54,5 @@ $Location{"/~dougm/"} = {
 
 </Perl>
 
-ErrorLog /tmp/mod_perl_error_log
-PidFile  /tmp/mod_perl_httpd.pid
-AccessConfig /dev/null
-ResourceConfig /tmp/mod_perl_srm.conf
-TypesConfig /dev/null
-TransferLog /dev/null
-ScoreBoardFile /dev/null
+
 

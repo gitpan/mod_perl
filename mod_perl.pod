@@ -114,7 +114,7 @@ By default, these hooks are disabled at compile time, see the INSTALL
 document for information on enabling these hooks.
 The following configuration directives take one argument, which is the name
 of the subroutine to call.  If the value is not a subroutine name, mod_perl
-assumes it is a class name which implements a 'handler' subroutine.
+assumes it is a package name which implements a 'handler' subroutine.
 
     PerlInitHandler
     PerlTransHandler    
@@ -150,7 +150,7 @@ Under CGI the Perl hash C<%ENV> is magical in that it inherits
 environment variables from the parent process and will set them should
 a process spawn a child.  However, with mod_perl we're in the parent
 process that would normally setup the common environment variables
-before spawning a CGI process.  Therefore, mod_perl must feed this
+before spawning a CGI process.  Therefore, mod_perl must feed these
 variables to C<%ENV> directly.  Normally, this does not happen until
 the response stage of a request when C<PerlHandler> is called.  If you
 wish to set variables that will be available before then, such as for
@@ -261,8 +261,8 @@ keeping the connection open for the lifetime of a server process,
 establishing it during the script's first request for that process.
 
 It's recommended that you use one of the Apache::* database connection
-wrappers.  Currently for DBI users there is L<Apache::DBI> and for
-Sybase users L<Apache::Sybase::DBlib>.  These modules hide the
+wrappers.  Currently for DBI users there is C<Apache::DBI> and for
+Sybase users C<Apache::Sybase::DBlib>.  These modules hide the
 peculiar code example above.  In addition, different scripts may share
 a connection, minimizing resource consumption.  Example:
 
@@ -273,7 +273,7 @@ Although B<$dbh> shown here will go out of scope when the script ends,
 the Apache::DBI module's reference to it does not, keep the connection
 open.
 
-=item STACKED HANDLERS
+=head1 STACKED HANDLERS
 
 With the mod_perl stacked handlers mechanism, it is possible for more
 than one Perl*Handler to be defined and run during each stage of a 
@@ -460,21 +460,108 @@ classes:
 
  PerlHandler My->method
 
-In this case, the 'My' package inherits this method from 'BaseClass'.
+In this case, the 'My' class inherits this method from 'BaseClass'.
 
 To build in this feature, configure with:
 
  % perl Makefile.PL PERL_METHOD_HANDLERS=1 [PERL_FOO_HOOK=1,etc]
+
+=head1 PERL SECTIONS
+
+With <Perl></Perl> sections, it is possible to configure your server
+entirely in Perl.   
+
+<Perl> sections can contain *any* and as much Perl code as you
+wish.  These sections are compiled into a special package who's symbol
+table mod_perl can then walk and grind the names and values of Perl
+variables/structures through the Apache core config gears.    Most of the configurations
+directives can be represented as C<$Scalars> or C<@Lists>.  A C<@List>
+inside these sections is simply converted into a single-space
+delimited string for you inside.  Here's an example:
+
+ #httpd.conf
+ <Perl>
+ @PerlModule = qw(Mail::Send Devel::Peek);
+
+ #run the server as whoever starts it
+ $User  = getpwuid($>) || $>;
+ $Group = getgrgid($)) || $); 
+
+ $ServerAdmin = $User;
+
+ </Perl>
+
+Block sections such as <Location></Location> are represented in a
+C<%Hash>, e.g.:
+
+ $Location{"/~dougm/"} = {
+     AuthUserFile => '/tmp/htpasswd',
+     AuthType => 'Basic',
+     AuthName => 'test',
+     DirectoryIndex => [qw(index.html index.htm)],	
+     Limit => {
+	 METHODS => 'GET POST',
+	 require => 'user dougm',
+     },
+ };
+
+Other section counterparts include C<%VirtualHost>, C<%Directory> and
+C<%Files>. 
+
+These are somewhat boring examples, but they should give you the basic
+idea.  You can mix in any Perl code your heart desires.
+See eg/httpd.conf.pl and eg/perl_sections.txt for some examples.
+
+Currently for <Perl> sections to work, the C<PerlScript> configuration
+directive must be defined, C</dev/null> will do just fine.
+
+To configure this feature build with 
+ 'perl Makefile.PL PERL_SECTIONS=1'
+
+=head1 mod_perl and mod_include integration
+
+As of apache 1.2b11, adding -DUSE_PERL_SSI to your Configuration's
+EXTRA_CFLAGS will enable mod_include handling of Perl callbacks.
+
+A `sub' key value may be anything a Perl*Handler can be:
+subroutine name, package name (defaults to package::handler),
+Class->method call or anoymous sub {}
+
+Example:
+
+ Child <!--#perl sub="sub {print $$}" --> accessed
+ <!--#perl sub="sub {print ++$Access::Cnt }" --> times. <br>
+
+ <!--#perl sub="Package::handler" arg="one" arg="two" -->
+
+You can also use 'virtual include' to include Apache::Registry scripts
+of course.  However, using #perl will save the overhead of making
+Apache go through the motions of creating/destroying a subrequest and
+making all the necessary access checks to see that the request would
+be allowed outside of a 'virtual include' context.
+
+If you're interested in sprinkling Perl code inside your HTML
+documents, you'll also want to look at the Apache::Embperl,
+Apache::ePerl and Apache::SSI modules. 
 
 =head1 WARNINGS
 
 Your scripts *will not* run from the command line (yet) unless you use
 CGI::Switch and no direct calls to Apache->methods.
 
+Perl's exit() built-in function cannot be used in mod_perl scripts.
+The Apache::exit should be used instead, however, it is not 100%
+reliable.  Your servers and your code are better off if they are
+stuctured such that they do not need to use exit().
+
+If you wish to use a module that is normally linked static with your
+Perl, it must be listed in static_ext in Perl's Config.pm to be linked
+with httpd during the mod_perl build.
+
 =head1 SUPPORT
 
 For comments, questions, bug-reports, announcements, etc., send mail
-to majordomo@listproc.itribe.net with the string "subscribe modperl"
+to listserv@listproc.itribe.net with the string "subscribe modperl"
 in the body.  
 
 =head1 AUTHOR

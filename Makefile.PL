@@ -6,13 +6,14 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath rmtree);
 use Cwd;
 
-$VERSION = "0.98_05";
+$VERSION = "0.98_08";
 #
 # Check if Readline is installed
 #
 
 use subs qw(_prompt);
 
+report_setup();
 readline_setup();        
 #
 # Check if knwon config
@@ -28,6 +29,10 @@ else {
 }
 
 my $PWD = cwd;
+my %SSL = (
+    "apache_ssl.c" => "Ben-SSL",
+    "mod_ssl.h"   => "Stronghold",
+);
 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
@@ -76,7 +81,8 @@ $ALL_HOOKS  = 0;
 $APACHE_SRC = "";
 $PERL_SECTIONS = 0;
 $ADD_VERSION = 1;
-$STATIC = 0;
+$STATIC = 1;
+$DYNAMIC = 0;
 
 #callback hooks
 @callback_hooks = qw{
@@ -92,16 +98,16 @@ $callback_alias{PERL_INIT} = "PERL_HEADER_PARSER";
 $callback_alias{PERL_CLEANUP} = "PERL_LOG";
 %callback_hooks = map { $_,0 } @callback_hooks;
 $callback_hooks{PERL_HANDLER} = 1; #PerlHandler always on
-#$callback_hooks{PERL_CLEANUP} = 1;
-#$callback_hooks{PERL_TRANS}   = 1;
 %cant_hook = ();
 
 while($_ = shift) {
     ($k,$v) = split /=/;
-    $v ||= 1;
+    $v = 1 unless defined $v;
     ${$k} = $v, next if defined ${$k};
     $callback_hooks{$k} = $v if exists $callback_hooks{$k};
 }
+
+$STATIC = 0 if $DYNAMIC;
 
 for (keys %callback_alias) {
     $callback_hooks{$callback_alias{$_}}++ 
@@ -116,7 +122,8 @@ if($ALL_HOOKS) {
 }
 
 foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
-		  <../apache*/src>, <../stronghold*/src>, <../src>, <./src>) 
+		  <../apache*/src>, <../stronghold*/src>, 
+    <../src>, <./src>) 
 {
     next unless -d $src_dir;
     next if $seen{$src_dir}++;
@@ -198,7 +205,7 @@ foreach $adir (@adirs) {
 	    cp $conf, "src/Configuration";
 	    $conf = "src/Configuration";
 
-	    if ($ADD_VERSION) {
+	    if ($ADD_VERSION and not is_ssl()) {
 		my $inc = " -I$Config{archlibexp}/CORE -I./";
 		system $^X, "-pi", "-e",  
 		q{next unless /EXTRA_CFLAGS\s*=/;}.
@@ -263,7 +270,7 @@ EOT
 }
 
 unless ($NO_HTTPD) {
-    ++$STATIC if $Config{osname} =~ /^(aix)$/i;
+    ++$STATIC if $Config{osname} =~ /^(aix|svr4|unixware)$/i;
 
     if($no_header_parser{$APACHE_SRC}) {
 	$callback_hooks{PERL_HEADER_PARSER} = 0;
@@ -293,9 +300,14 @@ unless ($NO_HTTPD) {
     system $^X, "-pi~", "-e", 
     "s/^#TRACE/TRACE/", "$APACHE_SRC/modules/perl/Makefile" if $PERL_TRACE;
 
-    system $^X, "-pi~", "-e", 
-    "s/^#APACHE_SSL/APACHE_SSL/",
-    "$APACHE_SRC/modules/perl/Makefile" if is_ssl();
+    my $ssl_name = is_ssl();
+    if($ssl_name) {
+	print "I see you are building with $ssl_name,\nI'll set the SSL flags in mod_perl's Makefile\n";
+
+	system $^X, "-pi~", "-e", 
+	"s/^#APACHE_SSL/APACHE_SSL/",
+	"$APACHE_SRC/modules/perl/Makefile";
+    }
 
     my $p54 = "-DHAVE_PERL_5__4" if $] > 5.00398;
     my $edit_note = quotemeta(<<EOF);
@@ -430,9 +442,11 @@ The missing modules can be obtained from CPAN.  Visit
 
 EOT
 
+
 sub is_ssl {
-    for (qw(apache_ssl.c mod_ssl.h)) {
-	return 1 if -e "$APACHE_SRC/$_";
+    for (keys %SSL) {
+	#warn "looking for $APACHE_SRC/$_\n";
+	return $SSL{$_} if -e "$APACHE_SRC/$_";
     }
     return 0;
 }
@@ -475,7 +489,7 @@ WriteMakefile(
         APACHE_SRC => $APACHE_SRC,
 	ARCHNAME => $Config{archname},
 	PERL_VERSION => $]+0,
-	HTTPD => $IsBenSSL ? "httpsd" : "httpd",
+	HTTPD => (is_ssl() ? "httpsd" : "httpd"),
 	PORT => $PORT,
     },
     dist    => {
@@ -505,7 +519,7 @@ sub MY::clean {
 sub MY::top_targets {
     my $self = shift;
     my $string = $self->MM::top_targets;
-    return $string unless $APACHE_SRC;
+    return $string unless $APACHE_SRC and -f "$APACHE_SRC/Configuration";
     if(-e "$APACHE_SRC/http_main.c" and !$NO_HTTPD) {
         $string =~ s/(pure_all\s+::\s+)(.*)/$1 apache_httpd $2/;
     }
@@ -569,6 +583,8 @@ run_tests:
 
 test:	start_httpd run_tests kill_httpd
 
+test_report:
+	make test | t/report
 );
 }
 
@@ -592,7 +608,7 @@ sub httpd_version {
 	    #print STDERR "match ($fserver,$fversion,$frest)\n";  
 	    if($fserver eq "Ben-SSL") {
 		$extra = $fserver;
-		print STDERR "I see $fserver/$fversion, ok\n";
+		#print STDERR "I see $fserver/$fversion, ok\n";
 		next;
 	    }
 
@@ -645,6 +661,8 @@ sub setup_for_static {
 
     for (qw(Apache Constants)) {
 	cp "${_}/${_}.xs", $d;
+    }
+    for (qw(Apache)) {
 	rename "${_}/${_}.xs", "${_}/${_}.xs.disabled";
     }
 
@@ -690,4 +708,13 @@ sub readline_setup {
 EOT
     }
 }
-    
+
+sub report_setup {
+    local(*IN,*OUT);
+    open IN, "t/report.PL" or die;
+    open OUT, ">t/report" or die;
+    print OUT "#!$Config{perlpath}\n", join '', <IN>;
+    close OUT;
+    close IN;
+    chmod 0755 => "t/report";
+}

@@ -10,7 +10,7 @@ How to build, test, configure and install mod_perl
 
 =over 3
 
-Apache version 1.1.x+1.3.ssl, 1.1.x or 1.2b9+
+Apache version 1.1.x or 1.2b9+ 
 
 Perl version 5.003 or higher
 
@@ -60,6 +60,7 @@ By default, all callback hooks except for PerlHandler are turned off.
 You may edit src/modules/perl/Makefile, or enable when running Makfile.PL
 Possible arguments are:
 
+  PERL_INIT
   PERL_TRANS
   PERL_AUTHEN
   PERL_AUTHZ
@@ -67,6 +68,11 @@ Possible arguments are:
   PERL_TYPE
   PERL_FIXUP
   PERL_LOG
+  PERL_CLEANUP
+  
+  PERL_STACKED_HANDLERS
+  PERL_METHOD_HANDLERS
+  PERL_SECTIONS
 
 Example to enable PerlAuthenHandler and PerlFixupHandler:
  
@@ -81,6 +87,7 @@ To enable tracing set PERL_TRACE=1
   perl Makefile.PL PERL_TRACE=1
  
 =back
+
 
 =head1 Testing mod_perl
 
@@ -116,7 +123,7 @@ Tests are run with 'SSLDisable'
 =over 3
 
 ** Only if you did not let Makefile.PL take care of this already **
-
+ 
 =item mod_perl source files
 
 Copy the source files into the apache build directory:
@@ -144,6 +151,39 @@ Add the following to EXTRA_LIBS:
 	EXTRA_LIBS=`perl -MExtUtils::Embed -e ldopts`
 
 Follow the apache install docs from there
+
+=back
+
+=head1 Configuring and building with Stronghold
+
+=over3
+
+You must first build and install Stronghold without mod_perl,
+following Stronghold's install procedure.
+
+Then, you may rebuild following the instructions above to:
+
+ Build and install mod_perl
+
+  or
+
+ Building apache and mod_perl by hand
+
+I you are configuring by hand, be sure to edit
+src/modules/perl/Makefile and uncomment #APACHE_SSL
+
+For Solaris 2.5 users, there has been a report related to the REGEX
+that comes with Stronghold, after building Apache with mod_perl would
+produce core dumps. 
+To get around this:
+
+In STRONGHOLD/src/Configuration, Change:
+
+  Rule WANTHSREGEX=default
+
+To:
+
+  Rule WANTHSREGEX=no
 
 =back
 
@@ -201,6 +241,20 @@ module, that came with perl5.003, so if your perl is not younger than
 problem until it is fixed in the standard distribution of Perl.
 Although, it is a strange bug, you might not even see it without the
 patch...
+
+=item Perl Static Extensions
+
+If you wish to use a module that is normally linked static with your
+Perl, it must be listed in static_ext in Perl's Config.pm to be linked
+with httpd during the mod_perl build.
+
+To list your static extensions, run this command:
+
+ perl -V:static_ext
+
+If your module is not listed, add it to this line in Config.pm:
+
+ static_ext=' '
 
 =item more info
 

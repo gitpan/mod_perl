@@ -56,7 +56,7 @@
 void mod_perl_dir_env(perl_dir_config *cld)
 {
     if(cld->has_env) {
-      table_entry *elts = (table_entry *)cld->env->elts;
+	table_entry *elts = (table_entry *)cld->env->elts;
 	int i;
 	HV *env = PerlEnvHV; 
 	for (i = 0; i < cld->env->nelts; ++i) {

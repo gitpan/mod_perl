@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.56 1997/05/23 00:02:45 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.55 1997/05/19 22:25:31 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -845,7 +845,7 @@ void perl_setup_env(request_rec *r)
 	hv_store(cgienv, "TZ", 2, newSVpv(tz,0), 0);
     
     for (i = 0; i < env_arr->nelts; ++i) {
-	if (strnEQ("Authorization", elts[i].key, 13)) continue;
+	if (strnEQ("HTTP_AUTHORIZATION", elts[i].key, 18)) continue;
 	if (!elts[i].key) continue;
 	klen = strlen(elts[i].key);  
 	hv_store(cgienv, elts[i].key, klen,

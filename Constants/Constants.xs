@@ -530,8 +530,11 @@ SERVER_VERSION()
 char *
 SERVER_SUBVERSION()
    CODE: 
+#ifdef SERVER_SUBVERSION
     RETVAL = SERVER_SUBVERSION;
-
+#else
+    RETVAL = "mod_perl/x.xx";
+#endif
    OUTPUT:
    RETVAL
 

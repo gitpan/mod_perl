@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.25 1997/05/19 22:25:31 dougm Exp $
+# $Id: Makefile,v 1.12 1996/10/20 17:15:51 dougm Exp dougm $
 #
 
 #__ORIGINAL__
@@ -87,7 +87,7 @@ PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
 #STATIC_EXTS = Apache Apache::Constants
 
 #TRACE = -DPERL_TRACE
-#APACHE_SSL = -DAPACHE_SSL
+#APACHE_SSL = -DAPACHE_SSL -I../../../ssl/include
 PERL=/opt/perl5/bin/perl
 PERL_STATIC_EXTS =
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`

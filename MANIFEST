@@ -9,6 +9,7 @@ Makefile.PL
 README
 apache-modlist.html
 mod_perl.pod
+eg/perl_sections.txt
 eg/cgi-pm.pl
 eg/file_upload.pl
 eg/startup.pl
@@ -31,10 +32,11 @@ src/modules/perl/config.c
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/Makefile
+t/report.PL
 t/README
 t/TEST
 t/conf/httpd.conf-dist
-t/conf/httpd.conf.pl
+eg/httpd.conf.pl
 t/conf/mod_perl_srm.conf
 t/constants/export.t
 t/net/config.pl.dist

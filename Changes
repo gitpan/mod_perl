@@ -16,6 +16,27 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.98_07
+
+STATIC=1 is the default now, you make choose DYNAMIC=1
+
+force STATIC=1 if $Config{osname} =~ /svr4/; #unixware
+
+documented mod_perl+mod_include integration in mod_perl.pod
+
+Constants.xs will now make due if SERVER_SUBVERSION is not defined
+
+still build Constants.s[ol] even if we've configured with STATIC=1
+
+=item 0.98_06
+
+smoothed out Stronghold configuration bumps with help from 
+Ted Corning <ted@newscorp.com>.  (see updated INSTALL)
+
+documented <Perl> sections in mod_perl.pod
+
+added eg/perl_sections.txt from Rob
+
 =item 0.98_05
 
 applied fix from Brian Millett so Makefile.PL can deal with Ben-SSL-1.2
