@@ -50,20 +50,23 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.49 1997/04/02 04:36:03 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.50 1997/04/23 02:29:32 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
  * feathers so it could fly and journey to once unknown worlds.
  * And so it was done...
  */
-#define CORE_PRIVATE
+#define CORE_PRIVATE 
 #include "mod_perl.h"
 
 static IV mp_request_rec;
 static int seqno = 0;
 static int avoid_alloc_hack = 0;
 static int perl_is_running = 0;
+static int sent_header = 0;
+static int dir_cleanups = 0;
+static int stack_cleanups = 0;
 static PerlInterpreter *perl = NULL;
 #ifdef PERL_STACKED_HANDLERS
 static HV *stacked_handlers = Nullhv;
@@ -92,6 +95,9 @@ static command_rec perl_cmds[] = {
     { "PerlSendHeader", perl_cmd_sendheader,
       NULL,
       OR_ALL, FLAG, "Tell mod_perl to send basic_http_header" },
+    { "PerlNewSendHeader", perl_cmd_new_sendheader,
+      NULL,
+      OR_ALL, FLAG, "Tell mod_perl to parse and send HTTP headers" },
     { "PerlSetupEnv", perl_cmd_env,
       NULL,
       OR_ALL, FLAG, "Tell mod_perl to setup %ENV by default" },
@@ -325,6 +331,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	errmsg = handle_command(cmd, dummy, line);
 	CTRACE(stderr, "handle_command (%s): %s\n", line, errmsg);
     }
+    SvREFCNT_dec(code);
     hv_undef(symtab);
     return NULL;
 }
@@ -456,6 +463,7 @@ void *perl_merge_dir_config (pool *p, void *basev, void *addv)
     new->vars = overlay_tables(p, add->vars, base->vars);
     new->setup_env = add->setup_env ? add->setup_env : base->setup_env;
     new->sendheader = add->sendheader ? add->sendheader : base->sendheader;
+    new->new_sendheader = add->new_sendheader ? add->new_sendheader : base->new_sendheader;
     new->PerlHandler = add->PerlHandler ? add->PerlHandler : base->PerlHandler;
 
 #ifdef PERL_ACCESS
@@ -537,6 +545,12 @@ void *create_perl_server_config (pool *p, server_rec *s)
     return (void *)cls;
 }
 
+int mod_perl_sent_header(SV *self, int val)
+{
+    if(val) sent_header = val;
+    return sent_header;
+}
+
 int perl_handler(request_rec *r)
 {
     int status = OK;
@@ -555,6 +569,8 @@ int perl_handler(request_rec *r)
 	error_log2stderr(r->server);
 #endif
 
+    /*don't do anything special unless PerlNewSendHeader*/ 
+    sent_header = (cld->new_sendheader ? 0 : 1); 
     if(cld->sendheader) {
 	CTRACE(stderr, "mod_perl sending basic_http_header...\n");
 	basic_http_header(r);
@@ -641,12 +657,27 @@ int PERL_LOG_HOOK(request_rec *r)
 					      &perl_module);   
     PERL_CALLBACK_RETURN("PerlLogHandler", cld->PerlLogHandler);
     rstatus = status;
-#ifdef PERL_CLEANUP
-    PERL_CALLBACK_RETURN("PerlCleanupHandler", cld->PerlCleanupHandler);
-#endif
     return rstatus;
 }
 #endif
+
+void perl_cleanup_handler(void *data)
+{
+    request_rec *r = perl_request_rec(NULL);
+    PERL_CMD_TYPE *cb = PERL_CMD_INIT;
+    int status = DECLINED;
+
+    if(data) {
+	CTRACE(stderr, "running perl_cleanup_handler for dirs\n"); 
+	dir_cleanups = 0;
+	cb = ((perl_dir_config *)data)->PerlCleanupHandler;
+    }
+    else {
+	CTRACE(stderr, "running perl_cleanup_handler for dynamic stack\n"); 
+	stack_cleanups = 0;
+    }
+    PERL_CALLBACK_RETURN("PerlCleanupHandler", cb);
+}
 
 #ifdef PERL_HEADER_PARSER
 int PERL_HEADER_PARSER_HOOK(request_rec *r)
@@ -665,19 +696,26 @@ int PERL_HEADER_PARSER_HOOK(request_rec *r)
 }
 #endif
 
-#ifdef PERL_HANDLER_METHODS
-int perl_handler_ismethod(SV *sub)
+#ifdef PERL_METHOD_HANDLERS
+int perl_handler_ismethod(HV *class, char *sub)
 {
     CV *cv;
     HV *stash;
     GV *gv;
+    SV *sv;
+    int is_method=0;
 
-    if(!(cv = sv_2cv(sub, &stash, &gv, FALSE)))
-	cv = GvCV(gv_fetchmethod(NULL, SvPV(sub,na)));
+    if(!sub) return 0;
+    sv = newSVpv(sub,0);
+    if(!(cv = sv_2cv(sv, &stash, &gv, FALSE)))
+	cv = GvCV(gv_fetchmethod(class, sub));
 
     if (cv && SvPOK(cv)) 
-	return(strEQ(SvPVX(cv), "$$"));
-    return 0;
+	is_method = strnEQ(SvPVX(cv), "$$", 2);
+    CTRACE(stderr, "checking if `%s' is a method...%s\n", 
+	   sub, (is_method ? "yes" : "no"));
+    SvREFCNT_dec(sv);
+    return is_method;
 }
 #endif
 
@@ -697,7 +735,7 @@ int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers)
 	    }
 	    else {
 		CTRACE(stderr, "%s handlers stack undef, creating\n", key);
-		handlers = (AV*)sv_2mortal((SV*)newAV());
+		handlers = newAV();
 	    }
 	    do_store = 1;
 	}
@@ -715,9 +753,26 @@ int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers)
 
 	SvREFCNT_inc((SV*)sub);
 	av_push(handlers, sub);
-	if(do_store)
+	if(do_store) {
 	    hv_store(stacked_handlers, key, SvCUR(hook), 
 		     (SV*)newRV((SV*)handlers), 0);
+
+	    if(strnEQ(key, "PerlCleanupHandler", 18)) {
+		request_rec *r;
+		if(sv_isa(self, "Apache")) {
+		    IV tmp = SvIV((SV*)SvRV(self));
+		    r = (Apache)tmp;
+		}
+		else
+		    r = perl_request_rec(NULL);
+		if(!stack_cleanups) {
+		    register_cleanup(r->pool, NULL,
+				     perl_cleanup_handler, NULL);
+		    ++stack_cleanups;
+		}
+		CTRACE(stderr, "registering PerlCleanupHandler\n");
+	    }
+	}
 	return 1;
     }
     return 0;
@@ -732,14 +787,17 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 
     if(handlers == Nullav) {
 	svp = hv_fetch(stacked_handlers, hook, hook_len, 0);
-	if(!svp || !SvTRUE(*svp) || !SvROK(*svp)) return DECLINED;
+	if(!svp || !SvTRUE(*svp) || !SvROK(*svp)) {
+	    CTRACE(stderr, "`%s' stack is empty\n", hook);
+	    return DECLINED;
+	}
 	handlers = (AV*)SvRV(*svp);
 	do_clear = 1;
     }
 
     CTRACE(stderr, "%s av_len = %d\n", hook, (int)av_len(handlers));
     for(i=0; i<=av_len(handlers); i++) {
-#ifdef PERL_HANDLER_METHODS
+#ifdef PERL_METHOD_HANDLERS
 	int is_method=0;
 #endif
 	char *imp = NULL;
@@ -755,71 +813,19 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 	if(!(sub = *av_fetch(handlers, i, FALSE))) {
 	    CTRACE(stderr, "sub not defined!\n");
 	}
+	else {
+	    if(!SvTRUE(sub)) {
+		CTRACE(stderr, "sub undef!  skipping callback...\n");
+		continue;
+	    }
+	    status = perl_call(sub, r);
 
-	if(SvTYPE(sub) == SVt_PV) {
-	    class = newSVsv(sub);
-	    imp = SvPV(sub,na);
-	    if(!perl_get_cv(imp, FALSE) || 
-	       !GvCV(gv_fetchmethod(NULL, imp)))
-	       { 
-		   if(!gv_stashpv(imp, FALSE)) {
-		       perl_require_module(imp, r->server);
-		   }
-		   sv_catpv(sub, "::handler");
-		   CTRACE(stderr, 
-			  "perl_call: defaulting to `%s::handler'\n", imp);
-#ifdef PERL_HANDLER_METHODS
-		   is_method = perl_handler_ismethod(sub);
-#endif
-	       }
+	    if((status != OK) && (status != DECLINED)) {
+		if(do_clear)
+		    av_clear(handlers);	
+		return status;
+	    }
 	}
-
-
-	ENTER;
-	SAVETMPS;
-	PUSHMARK(sp);
-#ifdef PERL_HANDLER_METHODS
-	if(is_method)
-	    XPUSHs(class);
-#endif
-	XPUSHs((SV*)perl_bless_request_rec(r)); 
-	PUTBACK;
-	    
-	/* use G_EVAL so we can trap errors */
-#ifdef PERL_HANDLER_METHODS
-        if(is_method)
-	    count = perl_call_method("handler", G_EVAL | G_SCALAR);
-	else
-#endif
-	    count = perl_call_sv(sub, G_EVAL | G_SCALAR);
-
-	SPAGAIN;
-
-	if(perl_eval_ok(r->server) != OK) {
-	    if(do_clear)
-		av_clear(handlers);	
-	    return SERVER_ERROR;
-	}
-	if(count != 1) {
-	    log_error("perl_call did not return a status arg, assuming OK",
-		      r->server);
-	    status = OK;
-	}
-	status = POPi;
-
-	if((status == 1) || (status == 200) || (status > 600)) 
-	    status = OK; 
-      
-	PUTBACK;
-	FREETMPS;
-	LEAVE;
-
-	if((status != OK) && (status != DECLINED)) {
-	    if(do_clear)
-		av_clear(handlers);	
-	    return status;
-	}
-
     }
     if(do_clear)
 	av_clear(handlers);	
@@ -828,7 +834,10 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 
 #define PERL_CMD_PUSH_HANDLERS(hook, cmd) \
 { \
-    if(!cmd) cmd = newAV(); \
+    if(!cmd) { \
+        cmd = newAV(); \
+	CTRACE(stderr, "init `%s' stack\n", hook); \
+    } \
     CTRACE(stderr, "perl_cmd_push_handlers: @%s, '%s'\n", hook, arg); \
     mod_perl_push_handlers(&sv_yes, newSVpv(hook,0), newSVpv(arg,0), cmd); \
     return NULL; \
@@ -842,33 +851,115 @@ int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers)
     return 0;
 }
 
-int perl_call(char *imp, request_rec *r)
+#define PERL_CMD_PUSH_HANDLERS(hook, cmd) \
+cmd = arg; \
+return NULL
+
+#endif
+
+/* XXX this still needs work, getting there... */
+int perl_call(SV *sv, request_rec *r)
 {
-    int count, status, is_method;
-    SV *sv = newSVpv(imp,0);
+    int count, status, is_method=0;
     dSP;
+    HV *stash = Nullhv;
+    SV *class = newSVsv(sv);
+    CV *cv;
+    char *method;
+    int defined_sub = 0;
+
+    if(SvTYPE(sv) == SVt_PV) {
+	char *imp = SvPV(class,na);
+
+#ifdef PERL_METHOD_HANDLERS
+ 	char *end_class = NULL;
+
+	if (end_class = strstr(imp, "->")) {
+	    end_class[0] = '\0';
+	    class = newSVpv(imp, 0);
+	    end_class[0] = ':';
+	    end_class[1] = ':';
+	    method = &end_class[2];
+	    imp = method;
+	    ++is_method;
+	}
+	else
+	    method = "handler";
+
+	if(class) stash = gv_stashpv(SvPV(class,na),FALSE);
+	   
+	CTRACE(stderr, "perl_call: class=`%s'\n", SvPV(class,na));
+	CTRACE(stderr, "perl_call: imp=`%s'\n", imp);
+	CTRACE(stderr, "perl_call: method=`%s'\n", method);
+	CTRACE(stderr, "perl_call: stash=`%s'\n", stash?HvNAME(stash):"unknown");
+
+#endif
 
     /* if a Perl*Handler is not a defined function name,
      * default to the class implementor's handler() function
      * attempt to load the class module if it is not already
      */
-    if(!perl_get_cv(imp, FALSE) || !GvCV(gv_fetchmethod(NULL, imp))) { 
-	if(!gv_stashpv(imp, FALSE)) {
-	    CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
-	    perl_require_module(imp, r->server);
+	if(!imp) imp = SvPV(sv,na);
+	if(!stash) stash = gv_stashpv(imp,FALSE);
+	if(!is_method)
+	    defined_sub = (cv = perl_get_cv(imp, FALSE)) ? TRUE : FALSE;
+#ifdef PERL_METHOD_HANDLERS
+	if(!defined_sub && stash) {
+	    CTRACE(stderr, 
+		   "perl_call: trying method lookup on `%s' in class `%s'...", 
+		   method, HvNAME(stash));
+	    /* XXX Perl caches method lookups internally, 
+	     * should we cache this lookup?
+	     */
+	    if(cv = GvCV(gv_fetchmethod(stash, method))) {
+		CTRACE(stderr, "found\n");
+		is_method = perl_handler_ismethod(stash, method);
+	    }
+	    else {
+		CTRACE(stderr, "not found\n");
+	    }
 	}
-	sv_catpv(sv, "::handler");
-	CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
-    }
-#ifdef PERL_HANDLER_METHODS
-    is_method = perl_handler_ismethod(sv);
 #endif
+
+	if(!stash && !defined_sub) {
+	    CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
+	    if(perl_require_module(imp, r->server) == OK)
+		stash = gv_stashpv(imp,FALSE);
+#ifdef PERL_METHOD_HANDLERS
+	    if(stash) /* check again */
+		is_method = perl_handler_ismethod(stash, method);
+#endif
+	}
+	
+	if(!is_method && !defined_sub) {
+	    if(!strnEQ(imp,"OK",2) && !strnEQ(imp,"DECLINED",8)) { /*XXX*/
+		CTRACE(stderr, 
+		       "perl_call: defaulting to %s::handler\n", imp);
+		sv_catpv(sv, "::handler");
+	    }
+	}
+#ifdef PERL_STACKED_HANDLERS
+ 	if(!is_method && defined_sub) { /* cache it */
+	    CTRACE(stderr, "perl_call: caching sub `%s'\n", SvPV(sv,na));
+	    SvREFCNT_dec(sv);
+ 	    sv = (SV*)newRV((SV*)cv); /* let newRV inc the refcnt */
+	}
+#endif
+    }
+    else {
+	CTRACE(stderr, "perl_call: handler is a cached CV\n");
+    }
+
     ENTER;
     SAVETMPS;
     PUSHMARK(sp);
-#ifdef PERL_HANDLER_METHODS
+#ifdef PERL_METHOD_HANDLERS
     if(is_method)
-	XPUSHs(sv_2mortal(newSVpv(imp,0)));
+	XPUSHs(sv_2mortal(class));
+    else
+	SvREFCNT_dec(class);
+#else
+    SvREFCNT_dec(class);
 #endif
     XPUSHs((SV*)perl_bless_request_rec(r)); 
     PUTBACK;
@@ -877,9 +968,9 @@ int perl_call(char *imp, request_rec *r)
     perl_set_pid;
 
     /* use G_EVAL so we can trap errors */
-#ifdef PERL_HANDLER_METHODS
+#ifdef PERL_METHOD_HANDLERS
     if(is_method)
-	count = perl_call_method("handler", G_EVAL | G_SCALAR);
+	count = perl_call_method(method, G_EVAL | G_SCALAR);
     else
 #endif
 	count = perl_call_sv(sv, G_EVAL | G_SCALAR);
@@ -907,12 +998,6 @@ int perl_call(char *imp, request_rec *r)
 
     return status;
 }
-
-#define PERL_CMD_PUSH_HANDLERS(hook, cmd) \
-cmd = arg; \
-return NULL
-
-#endif
 
 CHAR_P perl_cmd_header_parser_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg)
 {
@@ -969,6 +1054,11 @@ CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg
 
 CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg)
 {
+    if(!dir_cleanups) {
+	register_cleanup(parms->pool, (void*)rec, 
+			 perl_cleanup_handler, NULL);
+	++dir_cleanups;
+    }
     PERL_CMD_PUSH_HANDLERS("PerlCleanupHandler", rec->PerlCleanupHandler);
 }
 
@@ -1019,6 +1109,11 @@ CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg)
 
 CHAR_P perl_cmd_sendheader (cmd_parms *cmd, void *rec, int arg) {
     ((perl_dir_config *)rec)->sendheader = arg;
+    return NULL;
+}
+
+CHAR_P perl_cmd_new_sendheader (cmd_parms *cmd, void *rec, int arg) {
+    ((perl_dir_config *)rec)->new_sendheader = arg;
     return NULL;
 }
 
@@ -1268,6 +1363,22 @@ int perl_hook(char *name)
 	case 'L':
 	    if (strEQ(name, "Log")) 
 #ifdef PERL_LOG
+		return 1;
+#else
+	return 0;    
+#endif
+	break;
+	case 'M':
+	    if (strEQ(name, "MethodHandlers")) 
+#ifdef PERL_METHOD_HANDLERS
+		return 1;
+#else
+	return 0;    
+#endif
+	break;
+	case 'S':
+	    if (strEQ(name, "StackedHandlers")) 
+#ifdef PERL_STACKED_HANDLERS
 		return 1;
 #else
 	return 0;    

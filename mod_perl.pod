@@ -122,21 +122,6 @@ assumes it is a class name which implements a 'handler' subroutine.
     PerlLogHandler
     PerlHeaderParser (requires apache1.2b5 or higher)
 
-Two subroutines 'OK' and 'DECLINED' are defined when the server starts to
-help you configure nested Perl*Handlers.  Example, let's say you want to 
-configure a default PerlLogHandler and turn it off for certain 
-sub-directories or files.
-
- <Location />
- PerlLogHandler MyLogger
- ....
- </Location> 
-
- #don't log requests for gif files
- <Files *.gif>
- PerlLogHandler DECLINED
- </Files>
-
 =head1 I/O 
 
 Apache's i/o is not stream oriented.  So, unless you have perl version

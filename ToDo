@@ -3,6 +3,8 @@ in no particular order:
 
 get rid of basic_http_header usage
 
+make sure we can handle graceful restart
+
 rework PerlCleanupHandler to use register_cleanup() instead of logger slot
 
 extend $r->notes method so we can store arbitrary Perl structures
@@ -30,7 +32,6 @@ which will be passed to the handler as arguments, e.g.
  PerlHandler FooPackage [One Two Three]
  (calls &FooPackage::handler($r, "One", "Two", "Three");
 
-
 complete <Perl></Perl> configuration section 
 
 if Perl*Handler's are prototyped with $$ call it as a method?
@@ -46,6 +47,8 @@ explore mechanisms for sharing database connections amoung server children
 figure out how to route request to specific child to maintain state
 
 call $r->rflush if $| is non-zero?
+
+find a good way to make Apache::exit override CORE::exit no matter where we are
 
 find good ways to decrease size of httpd (perl-runtime!)
 

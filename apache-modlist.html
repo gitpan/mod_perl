@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern, 14-Apr-1997 -->
+<!-- Changed by: Doug MacEachern, 22-Apr-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.18 $ $Date: 1997/04/16 03:44:46 $</i>
+<br><i> $Revision: 1.19 $ $Date: 1997/04/23 02:29:32 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -83,6 +83,7 @@ AgentDeny	bdpf	Deny abusive User-Agents		ROBH
 
 * PerlAuthenHandler's
 DCELogin	bdpf	Obtain a DCE login context		DOUGM
+AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
 AuthenDBI	bmpO	Authenticate via Perl's DBI		SKANE
 Authen		bmpf	Perl Apache authentication utilities	SKANE
 AuthenDBIConnectbdpf	Authenticate to backend database 	JGROV
@@ -120,6 +121,7 @@ Options		Rmpf	Import Apache::Constants 'options'	APML
 Debug		Rmpf	mod_perl debugging utilities		APML
 Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 ModuleConfig	cmcO	Interface to configuration API		DOUGM
+Session		cmpf	Maintain client <-> httpd session/state	APML
 
 </pre>
 <a name="where">

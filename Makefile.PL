@@ -3,10 +3,10 @@ use Config;
 use FileHandle ();
 use File::Basename qw(dirname);
 use File::Copy qw(cp);
-use File::Path qw(mkpath);
+use File::Path qw(mkpath rmtree);
 use Cwd;
 
-$VERSION = "0.97";
+$VERSION = "0.97_01";
 #
 # Check if Readline is installed
 #
@@ -24,8 +24,10 @@ if ($@ eq '') {
        my ($prompt, $default) = @_ ;
 
        $_ = $term -> readline ("$prompt [$default] ") ;
-       if (!/^\s*$/)
-           {return $_ ;}
+       if (!/^\s*$/) {
+	   s/\s+$//;
+	   return $_ ;
+       }
        else {
 	   if ($_ eq "") {
 	       return $default ;
@@ -86,6 +88,7 @@ my(@do_clean) = qw{
 #t/net/config.pl
 
 for(@do_clean) { unlink $_ }
+rmtree "t/docs/stacked", 0, 0;
 
 my(@test_pre_init) = qq(
 test_pre_init:
@@ -117,12 +120,12 @@ $ADD_VERSION = 0;
    PERL_LOG PERL_HEADER_PARSER
    PERL_INIT PERL_CLEANUP
    PERL_STACKED_HANDLERS 
+   PERL_METHOD_HANDLERS
 };
-@callback_alias{qw(PERL_INIT PERL_CLEANUP)} = qw{
-    PERL_HEADER_PARSER PERL_LOG
-};
+$callback_alias{PERL_INIT} = "PERL_HEADER_PARSER";
 %callback_hooks = map { $_,0 } @callback_hooks;
 $callback_hooks{PERL_HANDLER} = 1; #PerlHandler always on
+$callback_hooks{PERL_CLEANUP} = 1;
 %cant_hook = ();
 
 while($_ = shift) {
@@ -320,6 +323,10 @@ unless ($NO_HTTPD) {
 	push @test_pre_init, 
 	"\t", '$(CP) t/conf/mod_perl_srm.conf /tmp', "\n";
     }
+    unless (-l "t/httpd") {
+	system "$Config{lns} $APACHE_SRC/httpd t/httpd";
+    }
+    write_extra_tests();
 }
 
 unless (-e "t/net/config.pl") {
@@ -402,6 +409,33 @@ The missing modules can be obtained from CPAN.  Visit
 <URL:http://www.perl.com/CPAN/> to find a CPAN site near you.
 
 EOT
+
+sub write_extra_tests {
+    return unless 
+	$callback_hooks{PERL_STACKED_HANDLERS} 
+    and $callback_hooks{PERL_FIXUP};
+    local *FH;
+    my $meth_test;
+    if($callback_hooks{PERL_METHOD_HANDLERS}) {
+	$meth_test = <<'EOF';
+#see startup.pl
+PerlFixupHandler MyClass->method 
+PerlFixupHandler MyClass 
+PerlFixupHandler LoadClass
+PerlFixupHandler LoadClass->method
+EOF
+    }
+    my $dir = "t/docs/stacked";
+    mkdir $dir, 0755;
+    cp "t/docs/test.html", $dir;
+    open FH, ">$dir/.htaccess";
+    print FH <<EOF;
+    $meth_test
+PerlFixupHandler  OK DECLINED MyClass::method
+EOF
+        close FH;
+}
+
 
 WriteMakefile(
     NAME    => "mod_perl",

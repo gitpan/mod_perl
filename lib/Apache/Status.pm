@@ -1,5 +1,6 @@
 package Apache::Status;
 use strict;
+eval { use Devel::Symdump (); };
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -57,7 +58,6 @@ EOF
 
 sub symdump {
     my($package) = @_;
-    require Devel::Symdump;
     my $sob = Devel::Symdump->rnew($package);
     return $sob->as_HTML($package);
 }

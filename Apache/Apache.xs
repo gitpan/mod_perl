@@ -53,7 +53,7 @@
 #include "mod_perl.h"
 #include "http_conf_globals.h"
 
-/* $Id: Apache.xs,v 1.49 1997/04/16 03:44:46 dougm Exp $ */
+/* $Id: Apache.xs,v 1.50 1997/04/23 02:29:32 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -72,6 +72,11 @@ max_requests_per_child(...)
     OUTPUT:
     RETVAL
 
+int
+mod_perl_sent_header(self, val=0)
+    SV *self
+    int val
+    
 #include "scoreboard.h"
 
 int
@@ -173,12 +178,11 @@ exit(...)
 
     /* make sure we log the transaction, etc. */
     PERL_EXIT_CLEANUP;
-
+    bflush(r->connection->client);
     if (r &&  r->connection
 	&& !r->connection->aborted
 	&&  r->connection->client
 	&& (r->connection->client->fd >= 0)) {
-	bflush(r->connection->client);
 	bclose(r->connection->client);
     }
 
@@ -258,7 +262,6 @@ kill_timeout(r)
 void
 reset_timeout(r)
     Apache     r
-
 
 #functions from http_core.c
 
@@ -341,6 +344,17 @@ document_root(r)
 
     CODE:
     RETVAL = (char *)document_root(r);
+
+    OUTPUT:
+    RETVAL
+
+char *
+server_root_relative(r, name)
+    Apache    r
+    char *name
+
+    CODE:
+    RETVAL = (char *)server_root_relative(r->pool, name);
 
     OUTPUT:
     RETVAL
@@ -1220,7 +1234,7 @@ PROTOTYPES: DISABLE
 #  short port;                    /* for redirects, etc. */
 
 char *
-server_admin(server)
+server_admin(server, ...)
     Apache::Server	server
 
     CODE:
@@ -1240,11 +1254,14 @@ server_hostname(server)
     RETVAL
 
 short
-port(server)
+port(server, ...)
     Apache::Server	server
 
     CODE:
     RETVAL = server->port;
+
+    if(items > 1)
+        server->port = (short)SvIV(ST(1));
 
     OUTPUT:
     RETVAL
@@ -1294,4 +1311,8 @@ names(server)
     OUTPUT:
     RETVAL
 
+int
+make_child(server_conf, child_num)
+    Apache::Server	server_conf
+    int child_num
 

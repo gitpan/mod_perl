@@ -7,7 +7,17 @@ $perldir      = "/perl";
 
 {
     package main;
+    require LWP::UserAgent;
+
     sub test { print $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n" }
+    sub fetch ($$) {
+	my $ua = shift;
+	my $url = new URI::URL(shift);
+	my $request = new HTTP::Request('GET', $url);
+	my $response = $ua->request($request, undef, undef);
+	$response->content;
+    }
+
     # avoid -w warning
     sub dummy_sub { return($net::httpserver, $net::perldir) };
 }

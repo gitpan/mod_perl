@@ -16,6 +16,54 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.97_01 - 04/22/97
+
+added experimental `PerlNewSendHeader' config directive
+works like `PerlSendHeader', but scans headers for special
+headers like Location:, Status:, etc.
+simply uses a C global variable `sent_header', if true, sends
+data asis to client, otherwise calls $r->send_cgi_header 
+currently, does not work with sfio (yet) and this only works if a
+single print statement sends  the headers like so:
+
+ print "Status: 302\n", 
+       "Location: http://www.somewhere.com/\n",
+       "Content-type: text/html\n\n";
+
+"fixed" new preg* clashes w/ 1.2b9-dev spotted by Dean Gaudet
+
+reworked callback mechanism a bit:
+- folded duplicate code in run_stacked_handlers() + perl_call()
+- gv_fetchmethod called only if -DPERL_METHOD_HANDLERS
+- perl_handler_ismethod now() uses class stash in gv_fetchmethod
+- cache CV from perl_get_cv lookup if -DPERL_STACKED_HANDLERS
+- included patch from Eric Bartley so we can say:
+  `Class->method' in Perl*Handler's if -DPERL_METHOD_HANDLERS
+- fixed bug spotted by Rob Hartill so Perl*Handler (OK|DECLINED) work again
+- added minimal tests for stacked handlers and method handlers
+- PERL_METHOD_HANDLERS=1 can be set when running Makefile.PL
+
+PerlCleanupHandler now uses register_cleanup underneath, 
+instead of abusing the logger slot. 
+PerlCleanupHandler is enabled by default
+
+added PRINTF for tie'd STDOUT
+
+detached Apache.o from httpd, now a dynamic extension. here's why:
+- shinks httpd size 
+- possible to 'use Apache ()' outside of httpd 
+  (very few methods will work though!)
+- once mod_perl.c settles it will be possible to upgrade mod_perl 
+  without rebuilding httpd!
+
+added $r->server_root_relative function
+
+Apache::Status has 2 new menu items (need Devel::Symdump 1.99_01+):
+ - "Inheritance Tree"
+ - "ISA Tree" 
+
+added new CGI.pm tests from Andreas
+
 =item 0.97 - 04/15/97
 
 don't add mod_perl/x.xx to Server: unless 'perl Makefile.PL ADD_VERSION=1'

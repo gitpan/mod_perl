@@ -2,10 +2,11 @@ package Apache;
 use strict;
 use vars qw($VERSION @ISA @EXPORT_OK);
 use Apache::Constants qw(OK);
+use DynaLoader ();
 
-@ISA = qw(Exporter);
+@ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(exit warn);
-$VERSION = "1.11";
+$VERSION = "1.12";
 $Apache::CRLF = "\015\012";
 
 bootstrap Apache $VERSION;
@@ -85,9 +86,15 @@ sub READLINE {
 *PRINT = \&print;
 sub print {
     my($r) = shift;
-    $r->hard_timeout("Apache->print");
-    $r->write_client(@_);
-    $r->kill_timeout;
+    if(!$r->sent_header) {
+	$r->send_cgi_header(join '', @_);
+	$r->sent_header(1);
+    }
+    else {
+	$r->hard_timeout("Apache->print");
+	$r->write_client(@_);
+	$r->kill_timeout;
+    }
 }
 
 sub send_cgi_header {
@@ -129,7 +136,8 @@ sub send_cgi_header {
 		$r->header_out($key,$val);
 		next;
 	    }
-	} else {
+	}
+	else {
 	    warn "Illegal header '$_'";
 	}
     }

@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.21 1997/04/01 04:15:11 dougm Exp $
+# $Id: Makefile,v 1.22 1997/04/23 02:29:32 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -74,15 +74,16 @@ PERL_HEADER_PARSER = -DNO_PERL_HEADER_PARSER
 
 PERL_STACKED_HANDLERS = -DNO_PERL_STACKED_HANDLERS
 PERL_SECTIONS = -DNO_PERL_SECTIONS
+PERL_METHOD_HANDLERS = -DNO_PERL_METHOD_HANDLERS
 
 PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOG) \
 $(PERL_HEADER_PARSER) $(PERL_INIT) $(PERL_CLEANUP) \
-$(PERL_STACKED_HANDLERS) $(PERL_SECTIONS)
+$(PERL_STACKED_HANDLERS) $(PERL_SECTIONS) $(PERL_METHOD_HANDLERS)
 
 #TRACE = -DPERL_TRACE
 PERL=/opt/perl5.003/bin/perl
-PERL_STATIC_EXTS = Apache 
+PERL_STATIC_EXTS =
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
@@ -103,7 +104,7 @@ perlxsi.c:
 Apache.c: Apache.xs
 	$(PERL) $(PERL5LIB)/ExtUtils/xsubpp -typemap $(PERL5LIB)/ExtUtils/typemap Apache.xs >Apache.c
 
-PERLSRC=mod_perl.c perlxsi.c Apache.c
+PERLSRC=mod_perl.c perlxsi.c
 
 OBJS=$(PERLSRC:.c=.o)
 

@@ -1,5 +1,5 @@
 
-
+use ExtUtils::testlib;
 BEGIN { require "net/config.pl"; }
 require LWP::UserAgent;
 
@@ -7,7 +7,7 @@ require LWP::UserAgent;
 #generating a hook::handler() for each and writing t/docs/.htaccess
 #next request invokes each handler, each appending to t/docs/hooks.txt
 @urls = ("$net::perldir/hooks.pl", "/test.html");
-
+push @urls, qw(/stacked/test.html) if -d "../docs/stacked";
 
 my $ua = new LWP::UserAgent;    # create a useragent to test
 
@@ -27,7 +27,7 @@ foreach $loc (@urls) {
 
     print "$str\n";
 
-    #test ++$i, ($response->is_success);
+    die "$str\n" unless $response->is_success;
     $hook_tests = $response->content if $response->content =~ /^\d+$/;
 }
 

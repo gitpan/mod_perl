@@ -6,6 +6,8 @@
  * expanded to Perl_foo
  * but some cause conflict when expanded in other headers files
  */
+#undef pregexec
+#undef pregfree
 #undef pregcomp
 #undef setregid
 #undef setreuid
@@ -66,17 +68,19 @@ typedef server_rec  * Apache__Server;
 #ifndef NO_PERL_STACKED_HANDLERS
 #define PERL_STACKED_HANDLERS
 #endif
-
+#ifndef NO_PERL_METHOD_HANDLERS
+#define PERL_METHOD_HANDLERS
+#endif
 #ifndef NO_PERL_SECTIONS
 #define PERL_SECTIONS
 #endif
 
 #ifdef PERL_STACKED_HANDLERS
 #define PERL_TAKE ITERATE
-#define CMD_INIT  Nullav
-#define CMD_TYPE  AV
+#define PERL_CMD_INIT  Nullav
+#define PERL_CMD_TYPE  AV
 
-#define mod_perl_can_stack_handlers(sv) (SvTRUE(self) && 1)
+#define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 1)
 
 #define PERL_CALLBACK_RETURN(h,name) \
 perl_set_pid; \
@@ -85,6 +89,7 @@ if((status != OK) && (status != DECLINED)) { \
     CTRACE(stderr, "%s handlers returned %d\n", h, status); \
 } \
 else if(name != Nullav) { \
+    CTRACE(stderr, "running stacked handlers...\n"); \
     status = perl_run_stacked_handlers(h, r, name); \
 } \
 perl_clear_env; \
@@ -94,14 +99,16 @@ CTRACE(stderr, "%s handlers returned %d\n", h, status)
 #else
 
 #define PERL_TAKE TAKE1
-#define CMD_INIT  NULL
-#define CMD_TYPE  char
+#define PERL_CMD_INIT  NULL
+#define PERL_CMD_TYPE  char
 
-#define mod_perl_can_stack_handlers(sv) (SvTRUE(self) && 0)
+#define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 0)
 
 #define PERL_CALLBACK_RETURN(h,name) \
 if(name != NULL) { \
-    status = perl_call(name, r); \
+    SV *sv = newSVpv(name,0); \
+    status = perl_call(sv, r); \
+    SvREFCNT_dec(sv); \
     CTRACE(stderr, "perl_call %s '%s' returned: %d\n", h,name,status); \
 } \
 else { \
@@ -189,7 +196,7 @@ PERL_READ_CLIENT
     NULL,	 \
     RSRC_CONF, PERL_TAKE, "the Perl Translation handler routine name"  
 
-#define PERL_TRANS_CREATE(s) s->PerlTransHandler = CMD_INIT
+#define PERL_TRANS_CREATE(s) s->PerlTransHandler = PERL_CMD_INIT
 #else
 #define PERL_TRANS_HOOK NULL
 #define PERL_TRANS_CMD_ENTRY NULL
@@ -206,7 +213,7 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Authentication handler routine name"
 
-#define PERL_AUTHEN_CREATE(s) s->PerlAuthenHandler = CMD_INIT
+#define PERL_AUTHEN_CREATE(s) s->PerlAuthenHandler = PERL_CMD_INIT
 #else
 #define PERL_AUTHEN_HOOK NULL
 #define PERL_AUTHEN_CMD_ENTRY NULL
@@ -222,7 +229,7 @@ PERL_READ_CLIENT
 "PerlAuthzHandler", perl_cmd_authz_handlers, \
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Authorization handler routine name" 
-#define PERL_AUTHZ_CREATE(s) s->PerlAuthzHandler = CMD_INIT
+#define PERL_AUTHZ_CREATE(s) s->PerlAuthzHandler = PERL_CMD_INIT
 #else
 #define PERL_AUTHZ_HOOK NULL
 #define PERL_AUTHZ_CMD_ENTRY NULL
@@ -239,7 +246,7 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Access handler routine name" 
 
-#define PERL_ACCESS_CREATE(s) s->PerlAccessHandler = CMD_INIT
+#define PERL_ACCESS_CREATE(s) s->PerlAccessHandler = PERL_CMD_INIT
 #else
 #define PERL_ACCESS_HOOK NULL
 #define PERL_ACCESS_CMD_ENTRY NULL
@@ -258,7 +265,7 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Type check handler routine name" 
 
-#define PERL_TYPE_CREATE(s) s->PerlTypeHandler = CMD_INIT
+#define PERL_TYPE_CREATE(s) s->PerlTypeHandler = PERL_CMD_INIT
 #else
 #define PERL_TYPE_HOOK NULL
 #define PERL_TYPE_CMD_ENTRY NULL
@@ -275,16 +282,11 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Fixup handler routine name" 
 
-#define PERL_FIXUP_CREATE(s) s->PerlFixupHandler = CMD_INIT
+#define PERL_FIXUP_CREATE(s) s->PerlFixupHandler = PERL_CMD_INIT
 #else
 #define PERL_FIXUP_HOOK NULL
 #define PERL_FIXUP_CMD_ENTRY NULL
 #define PERL_FIXUP_CREATE(s)
-#endif
-
-/* turn on by default now */
-#ifdef NO_PERL_LOG
-#undef NO_PERL_LOG
 #endif
 
 #ifndef NO_PERL_LOG
@@ -297,13 +299,14 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Log handler routine name" 
 
-#define PERL_LOG_CREATE(s) s->PerlLogHandler = CMD_INIT
+#define PERL_LOG_CREATE(s) s->PerlLogHandler = PERL_CMD_INIT
 #else
 #define PERL_LOG_HOOK NULL
 #define PERL_LOG_CMD_ENTRY NULL
 #define PERL_LOG_CREATE(s) 
 #endif
 
+#undef PERL_CLEANUP
 #ifndef NO_PERL_CLEANUP
 #define PERL_CLEANUP
 
@@ -314,7 +317,7 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Cleanup handler routine name" 
 
-#define PERL_CLEANUP_CREATE(s) s->PerlCleanupHandler = CMD_INIT
+#define PERL_CLEANUP_CREATE(s) s->PerlCleanupHandler = PERL_CMD_INIT
 #else
 #define PERL_CLEANUP_HOOK NULL
 #define PERL_CLEANUP_CMD_ENTRY NULL
@@ -331,7 +334,7 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Init handler routine name" 
 
-#define PERL_INIT_CREATE(s) s->PerlInitHandler = CMD_INIT
+#define PERL_INIT_CREATE(s) s->PerlInitHandler = PERL_CMD_INIT
 #else
 #define PERL_INIT_HOOK NULL
 #define PERL_INIT_CMD_ENTRY NULL
@@ -348,7 +351,7 @@ PERL_READ_CLIENT
     NULL, \
     OR_ALL, PERL_TAKE, "the Perl Header Parser handler routine name" 
 
-#define PERL_HEADER_PARSER_CREATE(s) s->PerlHeaderParserHandler = CMD_INIT
+#define PERL_HEADER_PARSER_CREATE(s) s->PerlHeaderParserHandler = PERL_CMD_INIT
 #else
 #define PERL_HEADER_PARSER_HOOK NULL
 #define PERL_HEADER_PARSER_CMD_ENTRY NULL
@@ -360,23 +363,24 @@ typedef struct {
     char **PerlModules;
     int  NumPerlModules;
     int  PerlTaintCheck;
-    CMD_TYPE   *PerlTransHandler;
+    PERL_CMD_TYPE   *PerlTransHandler;
     int  PerlWarn;
 } perl_server_config;
 
 typedef struct {
-    CMD_TYPE *PerlHandler;
-    CMD_TYPE *PerlAuthenHandler;
-    CMD_TYPE *PerlAuthzHandler;
-    CMD_TYPE *PerlAccessHandler;
-    CMD_TYPE *PerlTypeHandler;
-    CMD_TYPE *PerlFixupHandler;
-    CMD_TYPE *PerlLogHandler;
-    CMD_TYPE *PerlCleanupHandler;
-    CMD_TYPE *PerlHeaderParserHandler;
-    CMD_TYPE *PerlInitHandler;
+    PERL_CMD_TYPE *PerlHandler;
+    PERL_CMD_TYPE *PerlAuthenHandler;
+    PERL_CMD_TYPE *PerlAuthzHandler;
+    PERL_CMD_TYPE *PerlAccessHandler;
+    PERL_CMD_TYPE *PerlTypeHandler;
+    PERL_CMD_TYPE *PerlFixupHandler;
+    PERL_CMD_TYPE *PerlLogHandler;
+    PERL_CMD_TYPE *PerlCleanupHandler;
+    PERL_CMD_TYPE *PerlHeaderParserHandler;
+    PERL_CMD_TYPE *PerlInitHandler;
     table *vars;
     int  sendheader;
+    int  new_sendheader;
     int setup_env;
 } perl_dir_config;
 
@@ -386,8 +390,8 @@ extern module perl_module;
 int multi_log_transaction(request_rec *r);
 int basic_http_header(request_rec *r);
 /* prototypes */
-int perl_handler_ismethod(SV *sub);
-int perl_call(char *imp, request_rec *r);
+int perl_handler_ismethod(HV *class, char *sub);
+int perl_call(SV *sv, request_rec *r);
 int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 int perl_handler(request_rec *r);
@@ -410,6 +414,7 @@ CHAR_P perl_cmd_script (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_var(cmd_parms *cmd, void *rec, char *key, char *val);
 CHAR_P perl_cmd_sendheader (cmd_parms *cmd, void *rec, int arg);
+CHAR_P perl_cmd_new_sendheader (cmd_parms *cmd, void *rec, int arg);
 CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_env (cmd_parms *cmd, void *rec, int arg);
@@ -431,6 +436,7 @@ void xs_init (void);
 #else
 void xs_init _((void));
 #endif
+int mod_perl_sent_header(SV *self, int val);
 int mod_perl_seqno(void);
 int perl_hook(char *name);
 request_rec *perl_request_rec(request_rec *);
@@ -442,4 +448,4 @@ void perl_setup_env(request_rec *r);
 SV  *perl_bless_request_rec(request_rec *); 
 void perl_set_request_rec(request_rec *); 
 int mp_void_fprintf(FILE *, const char *, ...);
-
+void perl_cleanup_handler(void *data);
