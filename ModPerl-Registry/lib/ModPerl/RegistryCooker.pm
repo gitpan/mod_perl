@@ -15,15 +15,20 @@ no warnings qw(redefine); # XXX, this should go away in production!
 
 our $VERSION = '1.99';
 
-use Apache::compat ();
-
 use Apache::Response ();
 use Apache::RequestRec ();
-use Apache::Log;
-use Apache::Const -compile => qw(:common &OPT_EXECCGI);
-use File::Spec::Functions ();
+use Apache::RequestIO ();
+use Apache::Log ();
+use Apache::Access ();
+
+use APR::Table ();
+
 use ModPerl::Util ();
 use ModPerl::Global ();
+
+use File::Spec::Functions ();
+
+use Apache::Const -compile => qw(:common &OPT_EXECCGI);
 
 unless (defined $ModPerl::Registry::MarkLine) {
     $ModPerl::Registry::MarkLine = 1;
@@ -60,7 +65,6 @@ use constant MTIME     => 3;
 use constant PACKAGE   => 4;
 use constant CODE      => 5;
 use constant STATUS    => 6;
-use constant CLASS     => 7;
 
 #########################################################################
 # OS specific constants
@@ -77,6 +81,9 @@ use constant TRUE  => sub { 1 };
 use constant FALSE => sub { 0 };
 
 
+use constant NAMESPACE_ROOT => 'ModPerl::ROOT';
+
+
 #########################################################################
 # func: new
 # dflt: new
@@ -88,21 +95,20 @@ use constant FALSE => sub { 0 };
 
 sub new {
     my($class, $r) = @_;
-    my $o = bless [], $class;
-    $o->init($r);
-    return $o;
+    my $self = bless [], $class;
+    $self->init($r);
+    return $self;
 }
 
 #########################################################################
 # func: init
 # dflt: init
-# desc: initializes the data object's fields: CLASS REQ FILENAME URI
+# desc: initializes the data object's fields: REQ FILENAME URI
 # args: $r - Apache::Request object
 # rtrn: nothing
 #########################################################################
 
 sub init {
-    $_[0]->[CLASS]    = ref $_[0];
     $_[0]->[REQ]      = $_[1];
     $_[0]->[URI]      = $_[1]->uri;
     $_[0]->[FILENAME] = $_[1]->filename;
@@ -121,68 +127,73 @@ sub init {
 #       __PACKAGE__, which is tied to the file)
 #########################################################################
 
-sub handler {
+sub handler : method {
     my $class = (@_ >= 2) ? shift : __PACKAGE__;
     my $r = shift;
-    $class->new($r)->default_handler();
+    return $class->new($r)->default_handler();
 }
 
 #########################################################################
 # func: default_handler
 # dflt: META: see above
 # desc: META: see above
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: handler's response status
 # note: that's what most sub-class handlers will call
 #########################################################################
 
 sub default_handler {
-    my $o = shift;
+    my $self = shift;
 
-    $o->make_namespace;
+    $self->make_namespace;
 
-    if ($o->should_compile) {
-        my $rc = $o->can_compile;
+    if ($self->should_compile) {
+        my $rc = $self->can_compile;
         return $rc unless $rc == Apache::OK;
-        $rc = $o->convert_script_to_compiled_handler;
+        $rc = $self->convert_script_to_compiled_handler;
         return $rc unless $rc == Apache::OK;
     }
 
-    return $o->run;
+    # handlers shouldn't set $r->status but return it
+    my $old_status = $self->[REQ]->status;
+    my $rc = $self->run;
+    my $new_status = $self->[REQ]->status($old_status);
+
+    return ($rc != Apache::OK) ? $rc : $new_status;
 }
 
 #########################################################################
 # func: run
 # dflt: run
 # desc: executes the compiled code
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: execution status (Apache::?)
 #########################################################################
 
 sub run {
-    my $o = shift;
+    my $self = shift;
 
-    my $r       = $o->[REQ];
-    my $package = $o->[PACKAGE];
+    my $r       = $self->[REQ];
+    my $package = $self->[PACKAGE];
 
-    $o->set_script_name;
-    $o->chdir_file;
+    $self->set_script_name;
+    $self->chdir_file;
 
     my $rc = Apache::OK;
     my $cv = \&{"$package\::handler"};
 
     { # run the code and preserve warnings setup when it's done
         no warnings;
-        eval { $rc = &{$cv}($r, @_) };
-        $o->[STATUS] = $rc;
+        eval { $rc = $cv->($r, @_) };
+        $self->[STATUS] = $rc;
         ModPerl::Global::special_list_call(END => $package);
     }
 
-    $o->flush_namespace;
+    $self->flush_namespace;
 
-    #$o->chdir_file("$Apache::Server::CWD/");
+    #XXX: $self->chdir_file("$Apache::Server::CWD/");
 
-    if ( ($rc = $o->error_check) != Apache::OK) {
+    if ( ($rc = $self->error_check) != Apache::OK) {
         return $rc;
     }
 
@@ -195,66 +206,78 @@ sub run {
 # func: can_compile
 # dflt: can_compile
 # desc: checks whether the script is allowed and can be compiled
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: $rc - return status to forward
 # efct: initializes the data object's fields: MTIME
 #########################################################################
 
 sub can_compile {
-    my $o = shift;
-    my $r = $o->[REQ];
+    my $self = shift;
+    my $r = $self->[REQ];
 
-    unless (-r $r->finfo && -s _) {
-        $r->log_error("$$: $o->[FILENAME] not found or unable to stat");
+    unless (-r $r->my_finfo && -s _) {
+        $self->log_error("$self->[FILENAME] not found or unable to stat");
 	return Apache::NOT_FOUND;
     }
 
     return Apache::DECLINED if -d _;
 
-    $o->[MTIME] = -M _;
+    $self->[MTIME] = -M _;
 
     unless (-x _ or IS_WIN32) {
-        $r->log_reason("file permissions deny server execution",
-                       $o->[FILENAME]);
+        $r->log_error("file permissions deny server execution",
+                       $self->[FILENAME]);
         return Apache::FORBIDDEN;
     }
 
     if (!($r->allow_options & Apache::OPT_EXECCGI)) {
-        $r->log_reason("Options ExecCGI is off in this directory",
-                       $o->[FILENAME]);
+        $r->log_error("Options ExecCGI is off in this directory",
+                       $self->[FILENAME]);
         return Apache::FORBIDDEN;
     }
 
-    $o->debug("can compile $o->[FILENAME]") if DEBUG & D_NOISE;
+    $self->debug("can compile $self->[FILENAME]") if DEBUG & D_NOISE;
 
     return Apache::OK;
 
+}
+#########################################################################
+# func: namespace_root
+# dflt: namespace_root
+# desc: define the namespace root for storing compiled scripts
+# args: $self - registry blessed object
+# rtrn: the namespace root
+#########################################################################
+
+sub namespace_root {
+    my $self = shift;
+    join '::', NAMESPACE_ROOT, ref($self);
 }
 
 #########################################################################
 # func: make_namespace
 # dflt: make_namespace
 # desc: prepares the namespace
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: the namespace
 # efct: initializes the field: PACKAGE
 #########################################################################
 
 sub make_namespace {
-    my $o = shift;
+    my $self = shift;
 
-    my $package = $o->namespace_from;
+    my $package = $self->namespace_from;
 
     # Escape everything into valid perl identifiers
     $package =~ s/([^A-Za-z0-9_])/sprintf("_%2x", unpack("C", $1))/eg;
 
     # make sure that the sub-package doesn't start with a digit
-    $package = "_$package";
+    $package =~ s/^(\d)/_$1/;
 
     # prepend root
-    $package = $o->[CLASS] . "::Cache::$package";
+    $package = $self->namespace_root() . "::$package";
 
-    $o->[PACKAGE] = $package;
+    $self->[PACKAGE] = $package;
 
     return $package;
 }
@@ -263,7 +286,7 @@ sub make_namespace {
 # func: namespace_from
 # dflt: namespace_from_filename
 # desc: returns a partial raw package name based on filename, uri, else
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: a unique string
 #########################################################################
 
@@ -271,22 +294,22 @@ sub make_namespace {
 
 # return a package name based on $r->filename only
 sub namespace_from_filename {
-    my $o = shift;
+    my $self = shift;
 
     my ($volume, $dirs, $file) = 
-        File::Spec::Functions::splitpath($o->[FILENAME]);
+        File::Spec::Functions::splitpath($self->[FILENAME]);
     my @dirs = File::Spec::Functions::splitdir($dirs);
-    return join '_', ($volume||''), @dirs, $file;
+    return join '_', grep { defined && length } $volume, @dirs, $file;
 }
 
 # return a package name based on $r->uri only
 sub namespace_from_uri {
-    my $o = shift;
+    my $self = shift;
 
-    my $path_info = $o->[REQ]->path_info;
-    my $script_name = $path_info && $o->[URI] =~ /$path_info$/ ?
-	substr($o->[URI], 0, length($o->[URI]) - length($path_info)) :
-	$o->[URI];
+    my $path_info = $self->[REQ]->path_info;
+    my $script_name = $path_info && $self->[URI] =~ /$path_info$/ ?
+	substr($self->[URI], 0, length($self->[URI]) - length($path_info)) :
+	$self->[URI];
 
     $script_name =~ s:/+$:/__INDEX__:;
 
@@ -297,47 +320,47 @@ sub namespace_from_uri {
 # func: convert_script_to_compiled_handler
 # dflt: convert_script_to_compiled_handler
 # desc: reads the script, converts into a handler and compiles it
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: success/failure status
 #########################################################################
 
 sub convert_script_to_compiled_handler {
-    my $o = shift;
+    my $self = shift;
 
-    $o->debug("Adding package $o->[PACKAGE]") if DEBUG & D_NOISE;
+    $self->debug("Adding package $self->[PACKAGE]") if DEBUG & D_NOISE;
 
     # get the script's source
-    $o->read_script;
+    $self->read_script;
 
     # convert the shebang line opts into perl code
-    $o->rewrite_shebang;
+    $self->rewrite_shebang;
 
     # mod_cgi compat, should compile the code while in its dir, so
     # relative require/open will work.
-    $o->chdir_file;
+    $self->chdir_file;
 
-#    undef &{"$o->[PACKAGE]\::handler"}; unless DEBUG & D_NOISE; #avoid warnings
-#    $o->[PACKAGE]->can('undef_functions') && $o->[PACKAGE]->undef_functions;
+#    undef &{"$self->[PACKAGE]\::handler"}; unless DEBUG & D_NOISE; #avoid warnings
+#    $self->[PACKAGE]->can('undef_functions') && $self->[PACKAGE]->undef_functions;
 
-    my $line = $o->get_mark_line;
+    my $line = $self->get_mark_line;
 
-    $o->strip_end_data_segment;
+    $self->strip_end_data_segment;
 
     my $eval = join '',
                     'package ',
-                    $o->[PACKAGE], ";",
+                    $self->[PACKAGE], ";",
                     "sub handler {\n",
                     $line,
-                    ${ $o->[CODE] },
+                    ${ $self->[CODE] },
                     "\n}"; # last line comment without newline?
 
     my %orig_inc = %INC;
 
-    my $rc = $o->compile(\$eval);
+    my $rc = $self->compile(\$eval);
     return $rc unless $rc == Apache::OK;
-    $o->debug(qq{compiled package \"$o->[PACKAGE]\"}) if DEBUG & D_NOISE;
+    $self->debug(qq{compiled package \"$self->[PACKAGE]\"}) if DEBUG & D_NOISE;
 
-    #$o->chdir_file("$Apache::Server::CWD/");
+    #$self->chdir_file("$Apache::Server::CWD/");
 
     # %INC cleanup in case .pl files do not declare package ...;
     for (keys %INC) {
@@ -350,67 +373,59 @@ sub convert_script_to_compiled_handler {
 #	$r->child_terminate if lc($opt) eq "on";
 #    }
 
-    $o->cache_it;
+    $self->cache_it;
 
     return $rc;
+}
+
+#########################################################################
+# func: cache_table
+# dflt: cache_table_common
+# desc: return a symbol table for caching compiled scripts in
+# args: $self - registry blessed object (or the class name)
+# rtrn: symbol table
+#########################################################################
+
+*cache_table = \&cache_table_common;
+
+sub cache_table_common {
+    \%ModPerl::RegistryCache;
+}
+
+
+sub cache_table_local {
+    my $self = shift;
+    my $class = ref($self) || $self;
+    no strict 'refs';
+    \%$class;
 }
 
 #########################################################################
 # func: cache_it
 # dflt: cache_it
 # desc: mark the package as cached by storing its modification time
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: nothing
 #########################################################################
 
 sub cache_it {
-    my $o = shift;
-    no strict 'refs';
-    ${ $o->[CLASS] }->{ $o->[PACKAGE] }{mtime} = $o->[MTIME];
+    my $self = shift;
+    $self->cache_table->{ $self->[PACKAGE] }{mtime} = $self->[MTIME];
 }
 
-#########################################################################
-# func: uncache_myself
-# dflt: uncache_myself
-# desc: unmark the package as cached by forgetting its modification time
-# args: none
-# rtrn: nothing
-# note: this is a function and not a method, it should be called from
-#       the registry script, and using the caller() method we figure
-#       out the package the script was compiled into
-
-#########################################################################
-
-sub uncache_myself {
-    my $package = scalar caller;
-    # guess the registry class from the first two package segments
-    # XXX: this will break if someone creates a registry class which
-    # is not X::Y, but this function was written for the tests.
-    my($class) = $package =~ /([^:]+::[^:]+)/;
-    warn "cannot figure out class name from $package", 
-        return unless defined $class;
-    no strict 'refs';
-    if (exists ${$class}->{$package} && exists ${$class}->{$package}{mtime}) {
-        delete ${$class}->{$package}{mtime};
-    }
-    else {
-        warn "cannot find ${class}->{$package}{mtime}";
-    }
-}
 
 #########################################################################
 # func: is_cached
 # dflt: is_cached
 # desc: checks whether the package is already cached
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: TRUE if cached,
 #       FALSE otherwise
 #########################################################################
 
 sub is_cached {
-    my $o = shift;
-    no strict 'refs';
-    exists ${$o->[CLASS]}->{ $o->[PACKAGE] }{mtime};
+    my $self = shift;
+    exists $self->cache_table->{ $self->[PACKAGE] }{mtime};
 }
 
 
@@ -418,7 +433,7 @@ sub is_cached {
 # func: should_compile
 # dflt: should_compile_once
 # desc: decide whether code should be compiled or not
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: TRUE if should compile
 #       FALSE otherwise
 # efct: sets MTIME if it's not set yet
@@ -429,11 +444,10 @@ sub is_cached {
 # return false only if the package is cached and its source file
 # wasn't modified
 sub should_compile_if_modified {
-    my $o = shift;
-    $o->[MTIME] ||= -M $o->[REQ]->finfo;
-    no strict 'refs';
-    !($o->is_cached && 
-      ${$o->[CLASS]}->{ $o->[PACKAGE] }{mtime} <= $o->[MTIME]);
+    my $self = shift;
+    $self->[MTIME] ||= -M $self->[REQ]->my_finfo;
+    !($self->is_cached && 
+      $self->cache_table->{ $self->[PACKAGE] }{mtime} <= $self->[MTIME]);
 }
 
 # return false if the package is cached already
@@ -445,22 +459,22 @@ sub should_compile_once {
 # func: flush_namespace
 # dflt: NOP (don't flush)
 # desc: flush the compiled package's namespace
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: nothing
 #########################################################################
 
 *flush_namespace = \&NOP;
 
 sub flush_namespace_normal {
-    my $o = shift;
+    my $self = shift;
 
-    $o->debug("flushing namespace") if DEBUG & D_NOISE;
+    $self->debug("flushing namespace") if DEBUG & D_NOISE;
 
     no strict 'refs';
-    my $tab = \%{ $o->[PACKAGE] . '::' };
+    my $tab = \%{ $self->[PACKAGE] . '::' };
 
     for (keys %$tab) {
-        my $fullname = join '::', $o->[PACKAGE], $_;
+        my $fullname = join '::', $self->[PACKAGE], $_;
         # code/hash/array/scalar might be imported make sure the gv
         # does not point elsewhere before undefing each
         if (%$fullname) {
@@ -479,7 +493,7 @@ sub flush_namespace_normal {
         if (defined &$fullname) {
             no warnings;
             local $^W = 0;
-            if (my $p = prototype $fullname) {
+            if (defined(my $p = prototype $fullname)) {
                 *{$fullname} = eval "sub ($p) {}";
             }
             else {
@@ -500,17 +514,17 @@ sub flush_namespace_normal {
 # func: read_script
 # dflt: read_script
 # desc: reads the script in
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: nothing
 # efct: initializes the CODE field with the source script
 #########################################################################
 
 # reads the contents of the file
 sub read_script {
-    my $o = shift;
+    my $self = shift;
 
-    $o->debug("reading $o->[FILENAME]") if DEBUG & D_NOISE;
-    $o->[CODE] = $o->[REQ]->slurp_filename;
+    $self->debug("reading $self->[FILENAME]") if DEBUG & D_NOISE;
+    $self->[CODE] = $self->[REQ]->my_slurp_filename;
 }
 
 #########################################################################
@@ -518,23 +532,25 @@ sub read_script {
 # dflt: rewrite_shebang
 # desc: parse the shebang line and convert command line switches
 #       (defined in %switches) into a perl code.
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: nothing
 # efct: the CODE field gets adjusted
 #########################################################################
 
 my %switches = (
    'T' => sub {
-       Apache::warn("T switch is ignored, ".
-		    "enable with 'PerlSwitches -T' in httpd.conf\n")
-	   unless $Apache::__T; "";
+# XXX: need to have $Apache::__T set by the core on PerlSwitches -T
+#       Apache::warn("T switch is ignored, ",
+#                    "enable with 'PerlSwitches -T' in httpd.conf\n")
+#             unless $Apache::__T; 
+       "";
    },
    'w' => sub { "use warnings;\n" },
 );
 
 sub rewrite_shebang {
-    my $o = shift;
-    my($line) = ${ $o->[CODE] } =~ /^(.*)$/m;
+    my $self = shift;
+    my($line) = ${ $self->[CODE] } =~ /^(.*)$/m;
     my @cmdline = split /\s+/, $line;
     return unless @cmdline;
     return unless shift(@cmdline) =~ /^\#!/;
@@ -548,14 +564,14 @@ sub rewrite_shebang {
 	    $prepend .= &{$switches{$_}};
 	}
     }
-    ${ $o->[CODE] } =~ s/^/$prepend/ if $prepend;
+    ${ $self->[CODE] } =~ s/^/$prepend/ if $prepend;
 }
 
 #########################################################################
 # func: set_script_name
 # dflt: set_script_name
 # desc: set $0 to the script's name
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: nothing
 #########################################################################
 
@@ -567,7 +583,7 @@ sub set_script_name {
 # func: chdir_file
 # dflt: NOP
 # desc: chdirs into $dir
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 #       $dir - a dir 
 # rtrn: nothing (?or success/failure?)
 #########################################################################
@@ -575,29 +591,28 @@ sub set_script_name {
 *chdir_file = \&NOP;
 
 sub chdir_file_normal {
-    my($o, $dir) = @_;
-    # $o->[REQ]->chdir_file($dir ? $dir : $o->[FILENAME]);
+    my($self, $dir) = @_;
+    # $self->[REQ]->chdir_file($dir ? $dir : $self->[FILENAME]);
 }
 
 #########################################################################
 # func: get_mark_line
 # dflt: get_mark_line
 # desc: generates the perl compiler #line directive
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: returns the perl compiler #line directive
 #########################################################################
 
 sub get_mark_line {
-    my $o = shift;
-    # META: shouldn't this be $o->[CLASS]?
-    $ModPerl::Registry::MarkLine ? "\n#line 1 $o->[FILENAME]\n" : "";
+    my $self = shift;
+    $ModPerl::Registry::MarkLine ? "\n#line 1 $self->[FILENAME]\n" : "";
 }
 
 #########################################################################
 # func: strip_end_data_segment
 # dflt: strip_end_data_segment
-# desc: remove the trailing non-code from $o->[CODE]
-# args: $o - registry blessed object
+# desc: remove the trailing non-code from $self->[CODE]
+# args: $self - registry blessed object
 # rtrn: nothing
 #########################################################################
 
@@ -611,19 +626,19 @@ sub strip_end_data_segment {
 # func: compile
 # dflt: compile
 # desc: compile the code in $eval
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 #       $eval - a ref to a scalar with the code to compile
 # rtrn: success/failure
 #########################################################################
 
 sub compile {
-    my($o, $eval) = @_;
+    my($self, $eval) = @_;
 
-    my $r = $o->[REQ];
+    my $r = $self->[REQ];
 
-    $o->debug("compiling $o->[FILENAME]") if DEBUG && D_COMPILE;
+    $self->debug("compiling $self->[FILENAME]") if DEBUG && D_COMPILE;
 
-    ModPerl::Global::special_list_clear(END => $o->[PACKAGE]);
+    ModPerl::Global::special_list_clear(END => $self->[PACKAGE]);
 
     ModPerl::Util::untaint($$eval);
     {
@@ -633,23 +648,21 @@ sub compile {
         eval $$eval;
     }
 
-    return $o->error_check;
+    return $self->error_check;
 }
 
 #########################################################################
 # func: error_check
 # dflt: error_check
 # desc: checks $@ for errors
-# args: $o - registry blessed object
+# args: $self - registry blessed object
 # rtrn: Apache::SERVER_ERROR if $@ is set, Apache::OK otherwise
 #########################################################################
 
 sub error_check {
-    my $o = shift;
+    my $self = shift;
     if ($@ and substr($@,0,4) ne " at ") {
-	$o->[REQ]->log_error("$$: $o->[CLASS]: `$@'");
-	$@{$o->[REQ]->uri} = $@;
-	#$@ = ''; #XXX fix me, if we don't do this Apache::exit() breaks	
+	$self->log_error($@);
 	return Apache::SERVER_ERROR;
     }
     return Apache::OK;
@@ -682,8 +695,74 @@ sub install_aliases {
 ### helper methods
 
 sub debug {
-    my $o = shift;
-    $o->[REQ]->log_error("$$: $o->[CLASS]: " . join '', @_);
+    my $self = shift;
+    my $class = ref $self;
+    $self->[REQ]->log_error("$$: $class: " . join '', @_);
+}
+
+sub log_error {
+    my($self, $msg) = @_;
+    my $class = ref $self;
+
+    $self->[REQ]->log_error("$$: $class: $msg");
+    $self->[REQ]->notes->set('error-notes' => $msg);
+    $@{$self->[URI]} = $msg;
+}
+
+#########################################################################
+# func: uncache_myself
+# dflt: uncache_myself
+# desc: unmark the package as cached by forgetting its modification time
+# args: none
+# rtrn: nothing
+# note: this is a function and not a method, it should be called from
+#       the registry script, and using the caller() method we figure
+#       out the package the script was compiled into
+
+#########################################################################
+
+# this is a function should be called from the registry script, and
+# using the caller() method we figure out the package the script was
+# compiled into and trying to uncache it.
+#
+# it's currently used only for testing purposes and not a part of the
+# public interface. it expects to find the compiled package in the
+# symbol table cache returned by cache_table_common(), if you override
+# cache_table() to point to another function, this function will fail.
+sub uncache_myself {
+    my $package = scalar caller;
+    my($class) = __PACKAGE__->cache_table_common();
+
+    unless (defined $class) {
+        Apache->warn("$$: cannot figure out cache symbol table for $package");
+        return;
+    }
+
+    if (exists $class->{$package} && exists $class->{$package}{mtime}) {
+        Apache->warn("$$: uncaching $package\n") if DEBUG & D_COMPILE;
+        delete $class->{$package}{mtime};
+    }
+    else {
+        Apache->warn("$$: cannot find $package in cache");
+    }
+}
+
+
+# XXX: these should go away when finfo() and slurp_filename() are
+# ported to 2.0 (don't want to depend on compat.pm)
+sub Apache::RequestRec::my_finfo {
+    my $r = shift;
+    stat $r->filename;
+    \*_;
+}
+
+sub Apache::RequestRec::my_slurp_filename {
+    my $r = shift;
+    open my $fh, $r->filename;
+    local $/;
+    my $data = <$fh>;
+    close $fh;
+    return \$data;
 }
 
 

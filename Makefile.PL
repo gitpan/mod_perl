@@ -2,7 +2,7 @@ use 5.006;
 use strict;
 use warnings FATAL => 'all';
 
-my $min_httpd_version = '2.0.36';
+my $min_httpd_version = '2.0.35';
 
 my($old_modperl_version, $old_modperl_pm);
 
@@ -166,6 +166,8 @@ sub configure {
 
     printf "Configuring Apache/%s mod_perl/%s Perl/v%vd\n",
       $httpd_version, $VERSION, $^V;
+
+    my $apr_config = $build->get_apr_config; #cache it
 
     for (@{ clean_files() }) {
         debug "unlink...$_" if -e $_ && unlink;

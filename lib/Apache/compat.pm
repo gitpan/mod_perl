@@ -1,6 +1,7 @@
 package Apache::compat;
 
 use strict;
+use warnings FATAL => 'all';
 
 #1.xx compat layer
 #some of this will stay as-is
@@ -92,6 +93,7 @@ sub untaint {
 
 sub module {
     require Apache::Module;
+    die 'Usage: Apache->module($name)' if @_ != 2;
     return Apache::Module::loaded($_[1]);
 }
 
@@ -124,6 +126,8 @@ sub export {}
 sub SERVER_VERSION { Apache::get_server_version() }
 
 package Apache::RequestRec;
+
+use Apache::Const -compile => qw(REMOTE_NAME);
 
 #no longer exist in 2.0
 sub soft_timeout {}
@@ -196,6 +200,12 @@ sub register_cleanup {
 
 sub post_connection {
     shift->connection->pool->cleanup_register(@_);
+}
+
+sub get_remote_host {
+    my($r, $type) = @_;
+    $type = Apache::REMOTE_NAME unless defined $type;
+    $r->connection->get_remote_host($type, $r->dir_config);
 }
 
 sub parse_args {

@@ -483,6 +483,13 @@ static void modperl_hook_child_init(apr_pool_t *p, server_rec *s)
                               apr_pool_cleanup_null);
 }
 
+/* api change in 2.0.40-ish */
+#if (MODULE_MAGIC_NUMBER_MAJOR >= 20020628)
+#   define MP_FILTER_HANDLER(f) f, NULL
+#else
+#   define MP_FILTER_HANDLER(f) f
+#endif
+
 void modperl_register_hooks(apr_pool_t *p)
 {
     ap_hook_pre_config(modperl_hook_pre_config,
@@ -507,19 +514,19 @@ void modperl_register_hooks(apr_pool_t *p)
                           NULL, NULL, APR_HOOK_LAST);
 
     ap_register_output_filter(MP_FILTER_REQUEST_OUTPUT_NAME,
-                              modperl_output_filter_handler,
+                              MP_FILTER_HANDLER(modperl_output_filter_handler),
                               AP_FTYPE_RESOURCE);
 
     ap_register_input_filter(MP_FILTER_REQUEST_INPUT_NAME,
-                             modperl_input_filter_handler,
+                             MP_FILTER_HANDLER(modperl_input_filter_handler),
                              AP_FTYPE_RESOURCE);
 
     ap_register_output_filter(MP_FILTER_CONNECTION_OUTPUT_NAME,
-                              modperl_output_filter_handler,
+                              MP_FILTER_HANDLER(modperl_output_filter_handler),
                               AP_FTYPE_CONNECTION);
 
     ap_register_input_filter(MP_FILTER_CONNECTION_INPUT_NAME,
-                             modperl_input_filter_handler,
+                             MP_FILTER_HANDLER(modperl_input_filter_handler),
                              AP_FTYPE_CONNECTION);
 
     ap_hook_pre_connection(modperl_hook_pre_connection,
@@ -647,8 +654,8 @@ int modperl_response_handler_cgi(request_rec *r)
     MP_dDCFG;
     GV *h_stdin, *h_stdout;
     int retval;
-#ifdef USE_ITHREADS
     MP_dRCFG;
+#ifdef USE_ITHREADS
     pTHX;
     modperl_interp_t *interp;
 #endif
@@ -701,6 +708,13 @@ int modperl_response_handler_cgi(request_rec *r)
 
     /* flush output buffer after interpreter is putback */
     modperl_response_finish(r);
+
+    switch (rcfg->status) {
+      case HTTP_MOVED_TEMPORARILY:
+        /* set by modperl_cgi_header_parse */
+        retval = HTTP_MOVED_TEMPORARILY;
+        break;
+    }
 
     return retval;
 }

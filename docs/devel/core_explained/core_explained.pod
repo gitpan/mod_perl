@@ -104,6 +104,11 @@ during C<perl Makefile.PL> to generate the XS code in the I<./WrapXS/>
 directory by the xs_generate() function. This XS code is combined of
 the Apache API Perl glue and mod_perl specific extensions.
 
+If you need to skip certain unwanted C defines from being picked by
+the source scanning you can add them to the array
+C<$Apache::ParseSource::defines_unwanted> in
+I<lib/Apache/ParseSource.pm>.
+
 Notice that I<source_scan> target is normally not run during the
 project build process, since the source scanning is not stable yet,
 therefore everytime the map files change, C<make source_scan> should
@@ -987,8 +992,8 @@ In all other cases use normal functions.
 =head2 Adding Typemaps for new C Data Types
 
 Sometimes when a new interface is added it may include C data types
-for which we don't yet have a Perl typemap. In such a case, the first
-thing to do is to provide the required typemaps.
+for which we don't have corresponding XS typemaps yet. In such a case,
+the first thing to do is to provide the required typemaps.
 
 Let's add a prototype for the I<typedef struct scoreboard> data type
 defined in I<httpd-2.0/include/scoreboard.h>.

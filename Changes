@@ -8,6 +8,48 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.99_05 - August 20, 2002
+
+fix PerlOptions +ParseHeaders to only parse once per-request
+
+add external redirects Registry tests [Stas Bekman]
+
+get rid of the compat layer in ModPerl-Registry [Stas Bekman]
+
+ModPerl::RegistryLoader is now fully operational and tested [Stas Bekman]
+
+Registry method handlers are now working [Stas Bekman]
+
+core Registry packages all compile the scripts into
+ModPerl::RegistryROOT:: namespace and cache them in
+%ModPerl::RegistryCache. Both overridable by the sub-classes. [Stas Bekman]
+
+compat tests were split into groups by functionality, send_fd test
+moved to compat.  [Stas Bekman]
+
+added $c->get_remote_host and a compat wrapper $r->get_remote_host +
+tests [Stas Bekman]
+
+adjust the build system to support mod_perl build from the source
+tree. [Stas Bekman]
+
+ModPerl::RegistryCooker syncs with mod_perl 1.0's registry:
+ - prototypes defined checks in flush_namespace 
+                            [Yair Lenga <yair.lenga@citigroup.com>]
+ - set error-notes on error [Geoff Young <geoff@modperlcookbook.org>]
+ - preserve status in Registry scripts [Geoff Young <geoff@modperlcookbook.org>]
+
+apr_table_t is now an opaque type, use apr_table_elts() to get the array
+record [Stas Bekman]
+
+add support for redirects with PerlOptions +ParseHeaders
+
+backport to 2.0.35
+
+adjust to filter register api change
+
+added APR::ThreadMutex module
+
 =item 1.99_04 - June 21, 2002
 
 various APR PerlIO updates [Stas Bekman]

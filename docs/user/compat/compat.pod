@@ -355,6 +355,13 @@ them, add:
 
   use Apache::SubRequest;
 
+=head2 C<$r-E<gt>get_remote_host>
+
+C<$r-E<gt>get_remote_host> has been renamed and moved into the package
+C<L<Apache::Connection>>:
+
+  use Apache::Connection;
+  $r->connection->get_remote_host();
 
 =head2 C<$r-E<gt>content>
 
@@ -739,9 +746,18 @@ C<Apache::Table> has been renamed to C<APR::Table>.
 
 =head1 C<Apache::StatINC>
 
-C<Apache::StatINC> has been replaced by C<Apache::Reload>.
+C<Apache::StatINC> has been replaced by C<Apache::Reload>, which works
+for both mod_perl generations. To migrate to C<Apache::Reload> simply
+replace:
 
+  PerlInitHandler Apache::StatINC
 
+with:
+
+  PerlInitHandler Apache::Reload
+
+However C<Apache::Reload> provides an extra functionality, covered in
+the module's manpage.
 
 =head1 Maintainers
 

@@ -8,9 +8,59 @@ This chapter provides an indepth mod_perl 2.0 installation coverage.
 
 =head1 Prerequisites
 
-Lots of prerequisites
+The mod_perl 2.0 prerequisites are:
+
+=over
+
+=item * Apache
+
+Apache 2.0 is required. mod_perl 2.0 B<does not> work with Apache 1.3.
+
+=item * Perl
+
+=over
+
+=item prefork MPM
+
+Requires at least Perl version 5.6.0. But we strongly suggest to use
+at least version 5.6.1, since 5.6.0 is quite buggy.
+
+You don't need to have threads-support enabled in Perl. If you do have
+it, it B<must> be I<ithreads> and not I<5005threads>! If you have:
+
+  % perl5.8.0 -V:use5005threads
+  use5005threads='define';
+
+you must rebuild Perl without threads enabled or with
+C<-Dusethreads>. Remember that threads support slows things down, so
+don't enable it unless you really need it.
+
+=item threaded MPMs
+
+Require at least Perl version 5.8.0 with ithreads support
+built-in. That means that it should report:
+
+  % perl5.8.0 -V:useithreads -V:usemultiplicity
+  useithreads='define';
+  usemultiplicity='define';
+
+If that's not what you see rebuild Perl with C<-Dusethreads>.
+
+=back
+
+=back
+
+
+
+
+
 
 =head1 Installing from Source
+
+First of all:
+
+  Apache 2.0 doesn't work with mod_perl 1.0.
+  Apache 1.0 doesn't work with mod_perl 2.0.
 
 XXX: For Win32 specific installation doc here.
 
@@ -73,31 +123,36 @@ with CPAN.pm shell:
 =head2 Create the build environment
 
    % cd modperl-2.0
-   % perl Makefile.PL MP_AP_PREFIX=/home/stas/src/httpd-2.0.xx
+   % perl Makefile.PL MP_AP_PREFIX=/home/stas/httpd/prefork \
+     MP_INST_APACHE2=1
    % make
 
-I<options> an optional list of (key,value) pairs.
+XXX: MP_INST_APACHE2=1 should become the default
+
+I<options> an optional list of (key,value) pairs.  Usually you need to
+use only the C<L<MP_AP_PREFIX|/MP_AP_PREFIX>> option to complete the
+build. This and other options are discussed in the following sections.
+
+=head3 Boolean Build Options
 
 The following options are boolean and can be set with C<MP_XXX=1> or
 unset with C<MP_XXX=0>, where XXX is the name of the option.
 
-=over 4
-
-=item MP_PROMPT_DEFAULT
+=head4 MP_PROMPT_DEFAULT
 
 Accept default values for all would-be prompts.
 
-=item MP_GENERATE_XS
+=head4 MP_GENERATE_XS
 
 Generate XS code from parsed source headers in I<xs/tables/$httpd_version>.
 Default is 1, set to 0 to disable.
 
-=item MP_USE_DSO
+=head4 MP_USE_DSO
 
 Build mod_perl as a DSO (I<mod_perl.so>). This is the default. It'll
 be turned off if C<MP_USE_STATIC=1> is used.
 
-=item MP_USE_STATIC
+=head4 MP_USE_STATIC
 
 Build static mod_perl (I<mod_perl.a>). This is the default. It'll be
 turned off if C<MP_USE_DSO=1> is used.
@@ -129,19 +184,19 @@ META: The following is not implemented yet.
   to have this stuff buried and tangled like it is in 1.x
 
 
-=item MP_STATIC_EXTS
+=head4 MP_STATIC_EXTS
 
 Build C<Apache::*.xs> as static extensions.
 
-=item MP_USE_GTOP
+=head4 MP_USE_GTOP
 
 Link with I<libgtop> and enable I<libgtop> reporting.
 
-=item MP_DEBUG
+=head4 MP_DEBUG
 
 Turn on debugging (C<-g -lperld>) and tracing.
 
-=item MP_MAINTAINER
+=head4 MP_MAINTAINER
 
 Enable maintainer compile mode, which sets C<MP_DEBUG=1> and adds the
 following C<gcc> flags:
@@ -153,21 +208,20 @@ following C<gcc> flags:
 To use this mode Apache must be build with
 C<--enable-maintainer-mode>.
 
-=item MP_TRACE
+=head4 MP_TRACE
 
 Enable tracing
 
-=item MP_INST_APACHE2
+=head4 MP_INST_APACHE2
 
 Install all the I<*.pm> modules relative to the I<Apache2/> directory.
 
-=back
 
-Non-Boolean options: set them with MP_XXX=value.
+=head3 Non-Boolean Build Options
 
-=over 4
+set the non-boolen options with MP_XXX=value.
 
-=item MP_APXS
+=head4 MP_APXS
 
 Path to C<apxs>. For example if you've installed Apache 2.0 under
 I</home/httpd/httpd-2.0> as DSO, the default location would be
@@ -175,16 +229,33 @@ I</home/httpd/httpd-2.0/bin/apxs>.
 
 META: this option most likely will go away, use MP_AP_PREFIX
 
-=item MP_AP_PREFIX
+=head4 MP_AP_PREFIX
 
-Apache installation prefix, under which the Apache I<include/>
-directory can be found. If Apache is not installed yet, you can point
-to the source directory. For example if you've have installed Apache
-2.0 in C<\Apache2> on Win32, you should use:
+Apache installation prefix, under which the I<include/> directory with
+Apache C header files can be found. For example if you've have
+installed Apache 2.0 in directory I<\Apache2> on Win32, you should
+use:
 
   MP_AP_PREFIX=\Apache2
 
-=item MP_CCOPTS
+If Apache is not installed yet, you can point to the Apache 2.0 source
+directory, but only after you've built or configured Apache in it. For
+example:
+
+  MP_AP_PREFIX=/home/stas/apache.org/httpd-2.0
+
+Though in this case C<make test> won't automatically find C<httpd>,
+therefore you should run C<t/TEST> instead and pass the location of
+C<apxs> or C<httpd>, e.g.:
+
+  % t/TEST -apxs /home/stas/httpd/prefork/bin/apxs
+
+or
+
+  % t/TEST -httpd /home/stas/httpd/prefork/bin/httpd
+
+
+=head4 MP_CCOPTS
 
 Add to compiler flags, e.g.:
 
@@ -193,25 +264,23 @@ Add to compiler flags, e.g.:
 (Notice that C<-Werror> will work only with the Perl version 5.7 and
 higher.)
 
-=item MP_OPTIONS_FILE
+=head4 MP_OPTIONS_FILE
 
 Read build options from given file. e.g.:
 
   MP_OPTIONS_FILE=~/.my_mod_perl2_opts
 
-=back
 
-mod_perl specific compiler options:
 
-=over 4
+=head3 mod_perl-specific Compiler Options
 
-=item -DMP_IOBUFSIZE
+=head4 -DMP_IOBUFSIZE
 
 Change the default mod_perl's 8K IO buffer size, e.g. to 16K:
 
   MP_CCOPTS=-DMP_IOBUFSIZE=16384
 
-=back
+=head3 Options File
 
 Options can also be specified in the file I<makepl_args.mod_perl2> or
 I<.makepl_args.mod_perl2>. The file can be placed under C<$ENV{HOME}>,
@@ -251,7 +320,7 @@ warnings, from the rest of the notifications.
 
   % make test
 
-L<Apache::Test Framework|devel::testing::testing> document covers the
+L<Apache::Test Framework|docs::general::testing::testing> document covers the
 C<make test> suite.
 
 META: probably need to link directly to the 'Running Tests' section.
