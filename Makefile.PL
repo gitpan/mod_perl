@@ -3,7 +3,7 @@ use Config;
 use FileHandle ();
 use Cwd;
 
-$VERSION = "0.87";
+$VERSION = "0.88";
 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
@@ -120,7 +120,7 @@ EOT
     }
     unless ($NO_HTTPD) {
 	my $dash_make;
-	$dash_make = " -make ".cwd()."src/$mft_map{$adir}"
+	$dash_make = " -make ".cwd()."/src/$mft_map{$adir}"
 	    if $HAS_DASH_MAKE;
 	print STDERR "(cd $adir; ./Configure${dash_make})\n";
 	system "(cd $adir; ./Configure${dash_make})"
