@@ -63,7 +63,7 @@ extern "C" {
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.39 1997/01/23 00:07:50 dougm Exp $ */
+/* $Id: Apache.xs,v 1.40 1997/01/28 00:57:21 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -505,7 +505,7 @@ read_client_block(r, buffer, bufsiz)
        buffer = (char*)palloc(r->pool, bufsiz);
        PERL_READ_FROM_CLIENT;
        if ( nrd > 0 ) {
-	 XPUSHs(newSViv((long)nrd));
+	 XPUSHs(sv_2mortal(newSViv((long)nrd)));
 	 sv_setpvn((SV*)ST(1), buffer, nrd);
        } 
        else {

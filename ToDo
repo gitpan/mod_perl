@@ -16,6 +16,9 @@ e.g. #!/usr/local/bin/perl -w
 
 Apache::DBI module for managing persistent database connections
 
+extend Perl*Handler model so they can be stacked
+(e.g. PerlTransHandler OneSub TwoSub RedSub BlueSub)
+
 provide an optional and configurable Safe wrapper around embedded scripts
 
 more tests for the test suite

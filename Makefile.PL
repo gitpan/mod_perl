@@ -3,7 +3,7 @@ use Config;
 use FileHandle ();
 use Cwd;
 
-$VERSION = "0.92";
+$VERSION = "0.93";
 
 my $PWD = cwd;
 
@@ -35,7 +35,6 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
    '1.1.1' => "Makefile.tmpl",
    '1.1.3' => "Makefile.tmpl",
    '1.2'  => "Makefile.tmpl-1.2",
-   '1.2b5' => "Makefile.tmpl-1.2b5",	     
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
 );	     
 
@@ -395,11 +394,9 @@ sub httpd_version {
 	    if($fserver eq "Apache") {
 		($server, $version) = ($fserver, $fversion);
 		if($version == 1.2 and $frest =~ s/^b(\d).*/$1/) {
-		    if($frest < 5) {
-			$no_header_parser{"$version$extra"}++;
-		    }
-		    else {
-			$extra = "b5";
+		    if($frest < 6) {
+			warn "Apache/1.2b$frest is not supported, skipping.\n";
+			return undef;
 		    }
 		    ++$can_dash_make{$dir} if $frest >= 3;
 		}

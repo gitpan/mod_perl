@@ -10,7 +10,7 @@ if ($@) {
     @ISA = qw(CGI::XA);
 }
 
-$VERSION = (qw$Revision: 1.18 $)[1];
+$VERSION = (qw$Revision: 1.19 $)[1];
 
 sub new {
     my($class) = shift;
@@ -25,7 +25,7 @@ sub header {
     my $self = shift;
     my $r = $self->{'.req'};
     $r->basic_http_header;
-    return $self->CGI::XA::header(@hdrs);
+    return $self->CGI::XA::header(@_);
 }		     
 
 sub print {
@@ -53,6 +53,7 @@ sub exit {
 }
 
 package Apache::MultipartBuffer;
+use vars qw(@ISA);
 @ISA = qw(CGI::XA::MultipartBuffer);
 
 sub wouldBlock { undef }

@@ -15,6 +15,16 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.93 
+
+updated Makefile.tmpl-1.2 to be inline with 1.2b6
+
+removed 1.2b5 Makefile.tmpl, 1.2b1..b5 no longer supported
+
+mortalize return value from $r->read_client_block
+
+make Apache::CGI scrict clean thanks to Frank Cringle
+
 =item 0.92 - 01/23/97
 
 fixed core-dump-causing bug spotted by Mike Stok
