@@ -1,53 +1,59 @@
 /* ====================================================================
- * Copyright (c) 1995-1998 The Apache Group.  All rights reserved.
+ * The Apache Software License, Version 1.1
+ *
+ * Copyright (c) 1996-2000 The Apache Software Foundation.  All rights
+ * reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer. 
+ *    notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * 3. All advertising materials mentioning features or use of this
- *    software must display the following acknowledgment:
- *    "This product includes software developed by the Apache Group
- *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ * 3. The end-user documentation included with the redistribution,
+ *    if any, must include the following acknowledgment:
+ *       "This product includes software developed by the
+ *        Apache Software Foundation (http://www.apache.org/)."
+ *    Alternately, this acknowledgment may appear in the software itself,
+ *    if and wherever such third-party acknowledgments normally appear.
  *
- * 4. The names "Apache Server" and "Apache Group" must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission.
+ * 4. The names "Apache" and "Apache Software Foundation" must
+ *    not be used to endorse or promote products derived from this
+ *    software without prior written permission. For written
+ *    permission, please contact apache@apache.org.
  *
- * 5. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by the Apache Group
- *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ * 5. Products derived from this software may not be called "Apache",
+ *    nor may "Apache" appear in their name, without prior written
+ *    permission of the Apache Software Foundation.
  *
- * THIS SOFTWARE IS PROVIDED BY THE APACHE GROUP ``AS IS'' AND ANY
- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE APACHE GROUP OR
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
  * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+ * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Group and was originally based
- * on public domain software written at the National Center for
- * Supercomputing Applications, University of Illinois, Urbana-Champaign.
- * For more information on the Apache Group and the Apache HTTP server
- * project, please see <http://www.apache.org/>.
+ * individuals on behalf of the Apache Software Foundation.  For more
+ * information on the Apache Software Foundation, please see
+ * <http://www.apache.org/>.
  *
+ * Portions of this software are based upon public domain software
+ * originally written at the National Center for Supercomputing Applications,
+ * University of Illinois, Urbana-Champaign.
  */
 
 #include "mod_perl.h"
@@ -230,12 +236,6 @@ SV *mod_perl_tie_table(table *t)
 {
     HV *hv = newHV();
     SV *sv = sv_newmortal();
-
-    /*try to make this quick as possible*/  
-    if(!hv_exists(GvHV(incgv), "Apache/Table.pm", 15)) {
-	utilize(TRUE, start_subparse(FALSE, 0), Nullop, 
-		newSVOP(OP_CONST, 0, newSVpv("Apache/Table.pm",15)), Nullop);
-    }
 
     sv_setref_pv(sv, "Apache::table", (void*)t);
     perl_tie_hash(hv, "Apache::Table", sv);
@@ -568,20 +568,6 @@ int perl_require_module(char *name, server_rec *s)
     return 0;
 }
 
-/* faster than require_module, 
- * used when we're already in an eval context
- */
-void perl_qrequire_module(char *name) 
-{
-    OP *reqop;
-    SV *key = perl_module2file(name);
-    if((key && hv_exists_ent(GvHV(incgv), key, FALSE)))
-	return;
-    reqop = newSVOP(OP_CONST, 0, key);
-    /*reqop->op_private |= OPpCONST_BARE;*/
-    utilize(TRUE, start_subparse(FALSE, 0), Nullop, reqop, Nullop);
-}
-
 void perl_do_file(char *pv)
 {
     SV* sv = sv_newmortal();
@@ -891,3 +877,59 @@ char *ap_cpystrn(char *dst, const char *src, size_t dst_size)
 
 #endif
 
+#if defined(WIN32) && defined(PERL_IS_5_6)
+void
+Perl_do_join(pTHX_ register SV *sv, SV *del, register SV **mark, register SV **sp)
+{
+    SV **oldmark = mark;
+    register I32 items = sp - mark;
+    register STRLEN len;
+    STRLEN delimlen;
+    register char *delim = SvPV(del, delimlen);
+    STRLEN tmplen;
+
+    mark++;
+    len = (items > 0 ? (delimlen * (items - 1) ) : 0);
+    (void)SvUPGRADE(sv, SVt_PV);
+    if (SvLEN(sv) < len + items) {	/* current length is way too short */
+	while (items-- > 0) {
+	    if (*mark && !SvGMAGICAL(*mark) && SvOK(*mark)) {
+		SvPV(*mark, tmplen);
+		len += tmplen;
+	    }
+	    mark++;
+	}
+	SvGROW(sv, len + 1);		/* so try to pre-extend */
+
+	mark = oldmark;
+	items = sp - mark;
+	++mark;
+    }
+
+    if (items-- > 0) {
+	char *s;
+
+	if (*mark) {
+	    s = SvPV(*mark, tmplen);
+	    sv_setpvn(sv, s, tmplen);
+	}
+	else
+	    sv_setpv(sv, "");
+	mark++;
+    }
+    else
+	sv_setpv(sv,"");
+    len = delimlen;
+    if (len) {
+	for (; items > 0; items--,mark++) {
+	    sv_catpvn(sv,delim,len);
+	    sv_catsv(sv,*mark);
+	}
+    }
+    else {
+	for (; items > 0; items--,mark++)
+	    sv_catsv(sv,*mark);
+    }
+    SvSETMAGIC(sv);
+}
+#endif

@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_cgi - running CGI scripts under mod_perl ($Date: 1999/04/27 20:05:58 $)
+Mod_perl_cgi - running CGI scripts under mod_perl ($Date: 2000/03/05 11:57:55 $)
 
 =head1 DESCRIPTION
 
@@ -227,7 +227,7 @@ C<require CGI> will fix it.
 =head2 Do I have to rewrite my legacy code for mod_perl?
 
 If you have CGI code that seems to be fundamentally at odds with
-mod_perl's "compile once, run many" environment, you may be find that
+mod_perl's "compile once, run many" environment, you may find that
 it will work if run under the module C<Apache::PerlRun>.  See the
 documentation of that module, which is included with recent versions
 of mod_perl.

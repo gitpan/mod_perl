@@ -8,6 +8,93 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.23 - April 20, 2000
+
+create test files during Makefile.PL so 'make test' can be run as root
+
+add Apache::FILENO method for 5.6.0+ tied filehandle support
+thanks to Richard Titmuss for the spot
+
+--disable-rule=EXPAT is passed to Apache's configure to avoid
+XML::Parser conflicts
+
+User/Group for 'make test' can be overridden with the environment
+variables APACHE_USER/APACHE_GROUP
+
+fix PerlSetVar inheritance bug
+[Sander van Zoest <sander@vanzoest.com>]
+
+set r->notes("error-notes") to $@ if $@ after a Perl*Handlers is run
+[Doug / Tom Mornini <tmornini@infomania.com>]
+
+added INSTALL.raven
+[Adam Qualset <adam@covalent.net>]
+
+$c->remote_ip($ip) now also sets conn->remote_addr to make
+IP-based access control work correctly
+[Eric Cholet <cholet@logilune.com>]
+
+Apache::URI::port wasn't setting the port correctly, thanks
+to Zeqing Xia for the spot [Eric Cholet <cholet@logilune.com>]
+
+$Apache::Registry::NameWithVirtualHost fix take 2
+(move is_virtual logic from mod_perl.c to Registry.pm)
+[John Hughes <john@Calva.COM>]
+
+added Apache::OPEN method for 5.6.0+ tied filehandle support
+
+Apache::Table is now loaded by default (if enabled), rather than
+autoloading when first needed
+
+$r->document_root can now be modified
+
+upgrade license to apache software license version 1.1
+
+$r->the_request can now be modified
+
+modules/request test fix
+[Rick Myers <rik@sumthin.nu>]
+
+updated dso+aix Perl patch
+[Jens-Uwe Mager <jum@helios.de>]
+
+warn that dso+Perl malloc needs a Perl built with -Ubincompat5005
+
+add Apache::BINMODE stub for 5.6.0 tied filehandle support (fixes cgi.t #4)
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+5.6.0+win32 typedef,prototype clash fixes
+[Randy Kobes <randy@theoryx5.uwinnipeg.ca>]
+
+add $r->server->loglevel() and relevant constants. Suggested
+by Geoffrey Young [Eric Cholet <cholet@logilune.com>]
+
+$Apache::Server::AddPerlVersion uses $^V for Perl/v5.6.0+
+
+update mod_ssl config for 'make test'
+[Stas Bekman <sbekman@stason.org>]
+
+reset the stack pointer after calling perl_require_module() in
+perl_call_handler().  this fix will most likely cure the reports of
+"Can't upgrade that kind of scalar at ..."
+[Ben Cottrell <benco@stockmaster.com>]
+
+workaround use of Perl api functions that are no longer public with
+Perl 5.6.0 + win32, thanks to Randy Kobes for spotting
+
+change $Apache::VERSION check to use a string instead of SvNV, which
+was troublesome with Perl 5.6.0, thanks to Dave Seidel for pinpointing
+
+Apache::src fixup to quiet warnings under Perl 5.004. Thanks to Ken
+Williams for the spot. [ Ask Bjoern Hansen ]
+
+Apache::src::apxs fixups to quiet warnings if apxs doesnt exist or
+httpd is not dso enabled, thanks to Oleg Bartunov and Ville Skyttä for 
+spotting
+
+fix #ifdef SGI_BOOST typo
+[Ville Skyttä <ville@office.popsystems.com>]
+
 =item 1.22 - March 22, 2000
 
 proxy support fixed wrt RFC2068, thanks to Benjamin Elijah

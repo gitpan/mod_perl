@@ -12,6 +12,9 @@
 #add this to srm.conf:
 #PerlRequire scripts/startup.pl
 
+# make sure we are in a sane environment.
+$ENV{MOD_PERL} or die "not running under mod_perl!";
+
 #modify @INC if needed
 #use lib qw(/foo/perl/lib);
 

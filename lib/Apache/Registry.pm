@@ -68,7 +68,7 @@ sub handler {
 
 	$script_name =~ s:/+$:/__INDEX__:;
 
-	if($Apache::Registry::NameWithVirtualHost) {
+	if ($Apache::Registry::NameWithVirtualHost && $r->server->is_virtual) {
 	    my $name = $r->get_server_name;
 	    $script_name = join "", $name, $script_name if $name;
 	}
@@ -173,6 +173,7 @@ sub handler {
 sub compile {
     my $eval = shift;
     Apache->untaint($eval);
+    local $^W = 0;
     eval $eval;
 }
 

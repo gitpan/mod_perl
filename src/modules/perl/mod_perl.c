@@ -1,54 +1,61 @@
 /* ====================================================================
- * Copyright (c) 1995-1998 The Apache Group.  All rights reserved.
+ * The Apache Software License, Version 1.1
+ *
+ * Copyright (c) 1996-2000 The Apache Software Foundation.  All rights
+ * reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer. 
+ *    notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * 3. All advertising materials mentioning features or use of this
- *    software must display the following acknowledgment:
- *    "This product includes software developed by the Apache Group
- *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ * 3. The end-user documentation included with the redistribution,
+ *    if any, must include the following acknowledgment:
+ *       "This product includes software developed by the
+ *        Apache Software Foundation (http://www.apache.org/)."
+ *    Alternately, this acknowledgment may appear in the software itself,
+ *    if and wherever such third-party acknowledgments normally appear.
  *
- * 4. The names "Apache Server" and "Apache Group" must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission.
+ * 4. The names "Apache" and "Apache Software Foundation" must
+ *    not be used to endorse or promote products derived from this
+ *    software without prior written permission. For written
+ *    permission, please contact apache@apache.org.
  *
- * 5. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by the Apache Group
- *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ * 5. Products derived from this software may not be called "Apache",
+ *    nor may "Apache" appear in their name, without prior written
+ *    permission of the Apache Software Foundation.
  *
- * THIS SOFTWARE IS PROVIDED BY THE APACHE GROUP ``AS IS'' AND ANY
- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE APACHE GROUP OR
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
  * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+ * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Group and was originally based
- * on public domain software written at the National Center for
- * Supercomputing Applications, University of Illinois, Urbana-Champaign.
- * For more information on the Apache Group and the Apache HTTP server
- * project, please see <http://www.apache.org/>.
+ * individuals on behalf of the Apache Software Foundation.  For more
+ * information on the Apache Software Foundation, please see
+ * <http://www.apache.org/>.
  *
+ * Portions of this software are based upon public domain software
+ * originally written at the National Center for Supercomputing Applications,
+ * University of Illinois, Urbana-Champaign.
  */
+
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -523,24 +530,25 @@ static void mp_server_notstarting(void *data)
     if(!PERL_IS_DSO) \
         register_cleanup(p, NULL, mp_server_notstarting, mod_perl_noop) 
 
-#define MP_APACHE_VERSION 1.26
+#define MP_APACHE_VERSION "1.26"
 
 void mp_check_version(void)
 {
     I32 i;
     SV *namesv;
     SV *version;
+    STRLEN n_a;
 
     require_Apache(NULL);
 
     if(!(version = perl_get_sv("Apache::VERSION", FALSE)))
 	croak("Apache.pm failed to load!"); /*should never happen*/
-    if(SvNV(version) >= MP_APACHE_VERSION) /*no worries*/
+    if(strEQ(SvPV(version,n_a), MP_APACHE_VERSION)) /*no worries*/
 	return;
 
-    fprintf(stderr, "Apache.pm version %.02f or higher required!\n", 
+    fprintf(stderr, "Apache.pm version %s required!\n", 
 	    MP_APACHE_VERSION);
-    fprintf(stderr, "%s", form("%_ is only version %_\n", 
+    fprintf(stderr, "%s", form("%_ is version %_\n", 
 			       *hv_fetch(GvHV(incgv), "Apache.pm", 9, FALSE),
 			       version));
     fprintf(stderr, 
@@ -576,8 +584,13 @@ void perl_module_init(server_rec *s, pool *p)
 #if HAS_MMN_130
     ap_add_version_component(MOD_PERL_STRING_VERSION);
     if(PERL_RUNNING()) {
+#ifdef PERL_IS_5_6
+	char *version = form("Perl/v%vd", PL_patchlevel);
+#else
+	char *version = form("Perl/%_", perl_get_sv("]", TRUE));
+#endif
 	if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
-	    ap_add_version_component(form("Perl/%_", perl_get_sv("]",TRUE)));
+	    ap_add_version_component(version);
 	}
     }
 #endif
@@ -843,7 +856,6 @@ int perl_handler(request_rec *r)
     dPPDIR;
     dPPREQ;
     dTHR;
-    SV *nwvh = Nullsv;
     GV *gv = gv_fetchpv("SIG", TRUE, SVt_PVHV);
 
     (void)acquire_mutex(mod_perl_mutex);
@@ -865,11 +877,6 @@ int perl_handler(request_rec *r)
 		     (int)sv_count, (int)sv_objcount));
     ENTER;
     SAVETMPS;
-
-    if((nwvh = ApachePerlRun_name_with_virtualhost())) {
-	SAVESPTR(nwvh);
-	sv_setiv(nwvh, r->server->is_virtual);
-    }
 
     if (gv) {
 	save_hptr(&GvHV(gv)); 
@@ -1098,6 +1105,7 @@ static void per_request_cleanup(request_rec *r)
 	cfg->pnotes = Nullhv;
     }
 
+#ifndef WIN32
     sigs = (perl_request_sigsave **)cfg->sigsave->elts;
     for (i=0; i < cfg->sigsave->nelts; i++) {
 	MP_TRACE_g(fprintf(stderr, 
@@ -1107,6 +1115,7 @@ static void per_request_cleanup(request_rec *r)
 			   (unsigned long)sigs[i]->h));
 	rsignal(sigs[i]->signo, sigs[i]->h);
     }
+#endif
 }
 
 void mod_perl_end_cleanup(void *data)
@@ -1554,6 +1563,7 @@ int perl_call_handler(SV *sv, request_rec *r, AV *args)
 	    if(stash) /* check again */
 		is_method = perl_handler_ismethod(stash, method);
 #endif
+	    SPAGAIN; /* reset stack pointer after require() */
 	}
 	
 	if(!is_method && !defined_sub) {
@@ -1625,6 +1635,9 @@ callback:
     if(perl_eval_ok(r->server) != OK) {
 	dTHRCTX;
 	MP_STORE_ERROR(r->uri, ERRSV);
+        if (r->notes) {
+            ap_table_set(r->notes, "error-notes", SvPVX(ERRSV));
+        }
 	if(!perl_sv_is_http_code(ERRSV, &status))
 	    status = SERVER_ERROR;
     }
