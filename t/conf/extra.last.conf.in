@@ -1,0 +1,35 @@
+PerlModule Apache::Module
+
+
+### --------------------------------- ###
+<Perl >
+push @Alias, ['/perl_sections', '@DocumentRoot@'];
+$Location{'/perl_sections'} = {
+	'PerlInitHandler' => 'ModPerl::Test::add_config',
+	'AuthType' => 'Basic',
+	'AuthName' => 'PerlSection',
+	'PerlAuthenHandler' => 'TestHooks::authen',
+	};
+</Perl>
+
+<Perl >
+$Apache::Server::SaveConfig = 1;
+$Location{'/perl_sections_saved'} = {
+	'AuthName' => 'PerlSection',
+	};
+#This is a comment
+$TestDirective::perl::comments="yes";
+</Perl>
+
+### --------------------------------- ###
+Perl $TestDirective::perl::worked="yes";
+
+### --------------------------------- ###
+=pod
+This is some pod data
+=over apache
+PerlSetVar TestDirective__pod_over_worked yes
+=back
+This is some more pod
+=cut
+PerlSetVar TestDirective__pod_cut_worked yes

@@ -1,0 +1,96 @@
+#ifndef MODPERL_PERL_INCLUDES_H
+#define MODPERL_PERL_INCLUDES_H
+
+/* header files for Perl */
+
+#ifndef PERL_NO_GET_CONTEXT
+#   define PERL_NO_GET_CONTEXT
+#endif
+
+#define PERLIO_NOT_STDIO 0
+
+#include "config.h"
+
+/*
+ * sizeof(struct PerlInterpreter) changes #ifdef USE_LARGE_FILES
+ * apache-2.0 cannot be compiled with lfs because of sendfile.h
+ * the PERL_CORE optimization is a no-no in this case
+ */
+#if defined(USE_ITHREADS) && !defined(USE_LARGE_FILES)
+#   define PERL_CORE
+#endif
+
+#ifdef MP_SOURCE_SCAN
+/* XXX: C::Scan does not properly remove __attribute__ within
+ * function prototypes; so we just rip them all out via cpp
+ */
+#   undef __attribute__
+#   define __attribute__(arg)
+
+#   ifdef MP_SOURCE_SCAN_NEED_ITHREADS
+/* just need to have pTHX_ defined for proper prototypes */
+#      define USE_ITHREADS
+#   endif
+#endif
+
+#ifdef WIN32
+#   define uid_t perl_uid_t
+#   define gid_t perl_gid_t
+#   ifdef exit
+#      define perl_exit exit
+#      undef exit
+#   endif
+#endif
+
+#include "EXTERN.h"
+#include "perl.h"
+#include "XSUB.h"
+
+#if defined(WIN32) && defined(USE_LARGE_FILES)
+#   ifdef malloc
+#      define perl_malloc malloc
+#      undef malloc
+#   endif
+#   ifdef free
+#      define perl_free free
+#      undef free
+#   endif
+#endif
+
+#if (PERL_REVISION == 5) && (PERL_VERSION == 6)
+#   define MP_PERL_5_6_x
+#endif
+
+#if defined(MP_PERL_5_6_x) && (PERL_SUBVERSION == 0)
+#   define MP_PERL_5_6_0
+#endif
+
+#if defined(MP_PERL_5_6_x) && (PERL_SUBVERSION == 1)
+#   define MP_PERL_5_6_1
+#endif
+
+#include "modperl_perl_unembed.h"
+
+/* avoiding -Wall warning */
+
+#undef dNOOP
+#define dNOOP extern int __attribute__ ((unused)) Perl___notused
+
+#ifndef G_METHOD
+#   define G_METHOD 64
+#endif
+
+#ifndef PERL_MAGIC_tied
+#   define PERL_MAGIC_tied 'P'
+#endif
+
+#ifndef PERL_MAGIC_ext
+#   define PERL_MAGIC_ext '~'
+#endif
+
+#if defined(__APPLE__) && !defined(PERL_CORE) && !defined(environ)
+#   include <crt_externs.h>
+#   define environ (*_NSGetEnviron())
+#endif
+
+#endif /* MODPERL_PERL_INCLUDES_H */

@@ -1,0 +1,83 @@
+=head1 NAME
+
+Apache::RequestUtil -- Methods for work with Apache::Request object
+
+=head1 SYNOPSIS
+
+  use Apache::RequestUtil;
+
+=head1 DESCRIPTION
+
+C<Apache::RequestUtil> provides the Perl API for Apache request object.
+
+META: complete
+
+=head1 API
+
+Function arguments (if any) and return values are shown in the
+function's synopsis.
+
+=head1 FUNCTIONS
+
+=head2 * Apache-E<gt>request()
+
+
+=head1 METHODS
+
+=head2 new()
+
+=head2 get_server_name()
+
+=head2 get_server_port()
+
+=head2 dir_config()
+
+=head2 get_status_line()
+
+=head2 is_initial_req()
+
+=head2 method_register()
+
+=head2 add_config()
+
+=head2 location()
+
+=head2 location_merge()
+
+=head2 no_cache()
+
+=head2 pnotes()
+
+=head2 set_basic_credentials()
+
+=head2 as_string()
+
+=head2 push_handlers()
+
+  $r->push_handlers(PerlResponseHandler => \&handler);
+  $r->push_handlers(PerlResponseHandler => [\&handler, \&handler2]);
+
+  # XXX: not implemented yet
+  $r->push_handlers(PerlResponseHandler => sub {...});
+
+=head2 add_handlers()
+
+=head2 get_handlers()
+
+=head2 slurp_filename()
+
+  my $ref_content = $r->slurp_filename([$tainted]);
+
+Return a reference to contents of C<$r-E<gt>filename>.
+
+By default the returned data is tainted (if run under C<-T>). If an
+optional C<$tainted> flag is set to zero, the data will be marked as
+non-tainted. Do not set this flag to zero unless you know what you are
+doing, you may create a security hole in your program if you do. For
+more information see the I<perlsec> manpage. If you wonder why this
+option is available, it is used internally by the
+C<L<ModPerl::Registry|docs::2.0::api::ModPerl::Registry>> handler and
+friends, because the CGI scripts that it reads are considered safe
+(you could just as well C<require()> them).
+
+=cut

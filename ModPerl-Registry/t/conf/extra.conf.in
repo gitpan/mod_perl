@@ -1,0 +1,148 @@
+#this file will be Include-d by @ServerRoot@/httpd.conf
+
+# make sure that we test under Taint mode
+PerlSwitches -T
+
+PerlModule Apache2
+
+PerlSwitches -I@ServerRoot@/../lib                  \
+             -I@ServerRoot@/../../Apache-Test/lib   \
+             -I@ServerRoot@/../../lib               \
+             -I@ServerRoot@/../../blib/lib/Apache2  \
+             -I@ServerRoot@/../../blib/arch/Apache2 \
+             -I@ServerRoot@/../../blib/lib          \
+             -I@ServerRoot@/../../blib/arch
+
+# run on startup
+PerlRequire @ServerRoot@/conf/modperl_extra_startup.pl
+
+#### DEVMODE: Remove in production ###
+PerlModule Apache::Reload
+PerlInitHandler Apache::Reload
+PerlSetVar ReloadAll Off
+PerlSetVar ReloadModules "ModPerl::*"
+
+PerlSetVar ModPerl::RegistryCooker::DEBUG 2
+
+PerlModule ModPerl::RegistryCooker
+PerlModule ModPerl::Util
+
+#############################
+### Normal registry setup ###
+#############################
+Alias /registry/         @ServerRoot@/cgi-bin/
+Alias /registry_bb/      @ServerRoot@/cgi-bin/
+Alias /registry_oo_conf/ @ServerRoot@/cgi-bin/
+Alias /perlrun/          @ServerRoot@/cgi-bin/
+
+ScriptAlias /cgi-bin/ @ServerRoot@/cgi-bin/
+
+PerlModule ModPerl::RegistryBB
+<Location /registry_bb>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlResponseHandler ModPerl::RegistryBB
+    PerlOptions +ParseHeaders
+</Location>
+
+PerlModule ModPerl::Registry
+<Location /registry>
+  #  PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlResponseHandler ModPerl::Registry
+    PerlOptions +ParseHeaders
+</Location>
+
+<Location /registry_oo_conf>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlResponseHandler ModPerl::Registry->handler
+    PerlOptions +ParseHeaders
+</Location>
+
+PerlModule ModPerl::PerlRun
+<Location /perlrun>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlResponseHandler ModPerl::PerlRun
+    PerlOptions +ParseHeaders
+</Location>
+
+#######################################
+### Same interpreter registry setup ###
+#######################################
+
+Alias /same_interp/registry/         @ServerRoot@/cgi-bin/
+Alias /same_interp/registry_bb/      @ServerRoot@/cgi-bin/
+Alias /same_interp/registry_oo_conf/ @ServerRoot@/cgi-bin/
+Alias /same_interp/perlrun/          @ServerRoot@/cgi-bin/
+
+PerlModule Apache::TestHandler
+
+<Location /same_interp/registry_bb>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlFixupHandler Apache::TestHandler::same_interp_fixup
+    PerlResponseHandler ModPerl::RegistryBB
+    PerlOptions +ParseHeaders
+</Location>
+
+<Location /same_interp/registry>
+  #  PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlFixupHandler Apache::TestHandler::same_interp_fixup
+    PerlResponseHandler ModPerl::Registry
+    PerlOptions +ParseHeaders
+</Location>
+
+<Location /same_interp/registry_oo_conf>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlFixupHandler Apache::TestHandler::same_interp_fixup
+    PerlResponseHandler ModPerl::Registry->handler
+    PerlOptions +ParseHeaders
+</Location>
+
+<Location /same_interp/perlrun>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlFixupHandler Apache::TestHandler::same_interp_fixup
+    PerlResponseHandler ModPerl::PerlRun
+    PerlOptions +ParseHeaders
+</Location>
+
+### the 404 test ###
+
+Alias /error_document/ @ServerRoot@/cgi-bin/
+<Location /error_document>
+    ErrorDocument 404 /error_document/404.pl
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlResponseHandler ModPerl::Registry
+</Location>
+
+### deflate tests ###
+
+Alias /registry_bb_deflate/ @ServerRoot@/cgi-bin/
+
+#PerlOutputFilterHandler ModPerl::TestFilterDebug::snoop_connection
+PerlModule ModPerl::RegistryBB
+<Location /registry_bb_deflate>
+    PerlOptions +GlobalRequest
+    SetHandler perl-script
+    Options +ExecCGI
+    PerlResponseHandler ModPerl::RegistryBB
+    PerlOptions +ParseHeaders
+    #PerlOutputFilterHandler ModPerl::TestFilterDebug::snoop_request
+    <IfModule mod_deflate.c>
+        SetOutputFilter DEFLATE
+    </IfModule>
+</Location>
