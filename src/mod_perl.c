@@ -59,7 +59,7 @@
  * scripts and you also has more direct contol over the connection
  * back to the client.
  *
- * $Id: mod_perl.c,v 1.14 1996/05/09 19:36:12 dougm Exp $
+ * $Id: mod_perl.c,v 1.15 1996/06/17 20:28:55 dougm Exp $
  */
 
 #include <EXTERN.h>
@@ -89,7 +89,9 @@ int perl_handler(request_rec *r)
   perl_parse(perl, xs_init, 2, argv, NULL);
   
   /* hookup script's STDERR to the error_log */
-  error_log2stderr(r->server);
+  
+  if (r->server->error_log)
+    error_log2stderr(r->server);
 
   /* hookup script's STDIN and STDOUT to the client 
    * doing it this way we don't have to mess with server and client fd's
@@ -100,7 +102,6 @@ int perl_handler(request_rec *r)
   */
 
   perl_set_request_rec(r);
-  perl_apache_bootstrap();
   perl_clear_env();
   perl_run(perl);
 

@@ -18,77 +18,32 @@ This also allows you to initiate persistent connections such as to a database se
 Then, a subroutine in memory is called to handle each request.
 The interpreter is destroyed upon restart or shutdown of the server.
 
-You may choose to use the server API or setup a standard CGI environment.
+This *is not CGI*, your existing scripts will need some changes.
+Apache's i/o is not stream oriented.
+So, you cannot print() to STDOUT from your script, use $r->print() instead.
+Nor can you read() from STDIN, use $r->read() or the $r->content
+methods to read POST data.
+(A clean mechanism is in the works for redirecting your script's streams.)
+See the eg/ directory for and read the documentation in Apache.pm
+for examples.
 
-INSTALLATION
+Your scripts will not run from the command line (yet).
 
-**IMPORTANT**
-Currently, you can only use mod_perl *or* mod_perl_fast.
-Unless you have figured out a way to build perl with -DEMBED *and* -DMULTIPLICITY.
-You may however, build Apache with both modules.
-To "turn off" mod_perl, simply #comment out the AddType httpd/perl .pl
-To "turn off" mod_perl_fast, simply #comment out the PerlScript scriptname.pl in srm.conf
-*************
+For users of CGI.pm, see the Apache::CGI module for compatibility.
+There are modules on the way to support the CGI::* modules as well.
 
-Build with apache1.1b2 or better.
-
-Make sure you have perl version 5.002_01 or better, compiled with -DEMBED
-(this is the default with 5.002_01) otherwise, Apache and Perl fight over namespace.
-You can try with 5.002 and -DEMBED, but it looks like the 'usage' symbols will conflict
-
-Fetch and install Devel::embed from CPAN 
-<URL:http://www.perl.com/cgi-bin/cpan_mod?module=Devel::embed>.
-
-You'll need to use
-the Makefile.tmpl file in this directory, or make changes to your copy.
-
-You'll also need to edit the Configuration file:
-
-For mod_perl add:
-Module perl_module mod_perl.o
-
-For mod_perl_fast add:
-Module perl_fast_module mod_perl_fast.o
-
-Copy the files in this src/ to apache's src/
-
-Follow the Apache install docs from there.
-
-To tell Apache you want mod_perl to handle your scripts:
-AddType httpd/perl .pl
-
-To tell Apache you want mod_perl_fast to handle your scripts:
-AddType httpd/fast-perl .fpl
-
-In srm.conf:
-PerlScript  script_to_load_at_startup.pl
-
-This script will be loaded when the server starts.
-
-In an access.conf <Directory /foo> or .htaccess:
-PerlResponse sub_routine_name
-
-This is the name of the subroutine to call (defined in PerlScript)
-to handle each request.
-
-The perl modules under lib/ can be installed by saying:
-
-  perl Makefile.PL
-  make
-  make install
-
-See Apache.pm on how to use the Perl-Apache API
-See the eg/ directory for an example scripts.
-
-Let me (dougm@osf.org) know how it goes...
+For comments, questions, bug-reports, announcements, etc.,
+send mail to majordomo@listproc.itribe.net
+with the string "subscribe modperl" in the body.
+(Thanks to Mark A. Imbriaco <mark@itribe.net>)
 
 KNOWN BUGS
 
 mod_perl leaks memory,
-this is a problem with perl itself, and is being investigated.
+this is a problem with perl itself, which is being fixed.
 
 mod_perl_fast leaks memory when the server is restarted
-this too is a problem with perl itself, and is being investigated.
+this too is a problem with perl itself, which is being fixed.
 
 Installation needs work.
 

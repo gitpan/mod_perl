@@ -5,7 +5,7 @@ WriteMakefile(
     SKIP      => [qw(static dynamic)], #for now
     'linkext' => {LINKTYPE => '' }, 	      
     NAME	=> "mod_perl",
-    VERSION => "0.60a2",
+    VERSION => "0.60a4",
     MAP_TARGET	=> "httpd",
     OBJECT	=> "",
     depend	=> {

@@ -14,14 +14,13 @@ extern "C" {
 #include "http_protocol.h"
 #include "http_log.h"
 #include "http_main.h"
+#include "http_core.h"
 
-/* $Id: Apache.xs,v 1.15 1996/05/18 16:59:48 dougm Exp dougm $ */
+/* $Id: Apache.xs,v 1.17 1996/06/18 18:19:55 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
-
-#define REMOTE_NAME (1)
 
 /* this mess will go away */
 #ifdef APACHE_1_0
@@ -164,65 +163,33 @@ perl_stdin2client(request_rec *r)
     IoIFP(GvIOp(tmpgv)) = REQUEST_IN;
 }
 
-/* should we? */
-int
-mod_perl_parse_args(char *a)
-{
-  dXSARGS;
-  char *k, *v, *end;
-  int i = 0;
-
-  if(!a) {
-    ST(i) = &sv_undef;
-    return 1;
-  }
- 
-  if((GIMME == G_SCALAR) || !strchr(a, '=')) {
-    ST(i) = sv_2mortal((SV*)newSVpv(a, strlen(a)));
-    return 1;
-  }
-  else {
-    end = a;
-
-    while (*end) {
-      a = end;
-      /* find next '&' character */
-      while (*end && *end != '&')
-	end++;
-
-      if (*end)
-	*end++ = '\0';
-
-      /* split on '=' */
-      k = a;
-      v = a;
-      while (*v && *v != '=')
-	v++;
-      if (*v)
-	*v++ = '\0';
-
-      /* Then we unescape the 'keyword' and the 'value'. */
-      unescape_url(k);
-      unescape_url(v);
-
-      /* XXX: An unescaped %00 might have terminated the string before
-       * we wanted, but there is not easy way to obtain the real unescaped
-       * string length so we ignore this problem for now.
-       */
-      EXTEND(sp, 2);      
-      ST(i++) = sv_2mortal((SV*)newSVpv(k, strlen(k)));
-      ST(i++) = sv_2mortal((SV*)newSVpv(v, strlen(v)));
-       
-    }
-  }
-  PUTBACK;
-  return(i);
-}
-
 MODULE = Apache  PACKAGE = Apache
 
 PROTOTYPES: DISABLE
 
+#httpd.h
+
+char *
+SERVER_VERSION()
+   CODE: 
+   RETVAL = SERVER_VERSION;
+
+   OUTPUT:
+   RETVAL
+     
+char *
+unescape_url(string)
+    char *	string
+
+   CODE:
+   {
+   unescape_url(string);
+   RETVAL = string;
+   }
+
+   OUTPUT:
+   RETVAL
+   
 #functions from http_core.c
 
 char *
@@ -242,6 +209,9 @@ void
 send_http_header(r)
     Apache	r
 
+void
+basic_http_header(r)
+    Apache	r
 
 # Beware that we have changes the order of the arguments for this
 # function.
@@ -260,7 +230,19 @@ read_client_block(r, buffer, bufsiz)
     char    *buffer
     int      bufsiz
 
+    ALIAS:
+    Apache::read = 1
+
+    CODE:
+    {
+      buffer = (char*)palloc(r->pool, bufsiz+1);
+      RETVAL = read_client_block(r, buffer, bufsiz);
+	#ST(0) = sv_newmortal();
+	#sv_setiv(ST(0), (IV)RETVAL);
+    }
+
     OUTPUT:
+    RETVAL
     buffer
 
 int
@@ -517,6 +499,17 @@ method(r)
   
 #  int no_cache;
 
+char *
+header_in(r,key)
+    Apache	r
+    char *key
+
+    CODE:
+    RETVAL = table_get(r->headers_in, key);
+
+    OUTPUT:
+    RETVAL
+
 void
 headers_in(r)
     Apache	r
@@ -668,51 +661,15 @@ path_info(r)
     RETVAL
 
 char *
-args(r)
+query_string(r)
     Apache	r
 
     CODE:
-    {
-    int ret;
+    RETVAL = pstrdup(r->pool, r->args);
 
-    ret = mod_perl_parse_args(pstrdup(r->pool, r->args));
-    XSRETURN(ret);
-    }
+    OUTPUT:
+    RETVAL
 
-#we added this one
-char *
-content(r)
-    Apache	r
-
-    CODE:
-    {
-    char *a, *ct, *lenp;
-    long len, n;
-
-    if (r->method_number == M_POST) {
-	ct = table_get(r->headers_in, "Content-Type");
-	if (ct && strEQ(ct, "application/x-www-form-urlencoded")) {
-	    lenp = table_get(r->headers_in, "Content-Length");
-	    len = lenp ? atoi(lenp) : 0;
-	    if (len) {
-		/* We read the data */
-		a = (char*)palloc(r->pool, len+1);
-		n = read_client_block(r, a, len);
-		if (n != len) {
-		    log_reason("Can't read request form content", r->filename, r);
-                    #return BAD_REQUEST;
-		}
-		a[len] = '\0';
-
-		/* Make this hint to the script so it does not try to read also */
-		table_set(r->headers_in, "Content-Length", "0");
-	    }
-	}
-    }
-    XSRETURN(mod_perl_parse_args(a));
-    }
-
-  
 #  /* Various other config info which may change with .htaccess files
 #   * These are config vectors, with one void* pointer for each module
 #   * (the thing pointed to being the module's business).

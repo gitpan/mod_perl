@@ -2,11 +2,34 @@ package Apache;
 
 #use vars qw($VERSION);
 
-$VERSION = "1.00";
+$VERSION = "1.01";
 
-bootstrap Apache;
+bootstrap Apache $VERSION;
 
-$VERSION;
+sub parse_args {
+    my($wantarray,$string) = @_;
+    if($wantarray) {
+	return map { Apache::unescape_url($_) } split /[=&]/, $string;
+    }
+    $string;
+}
+
+sub content {
+    my($r) = @_;
+    my $ct = $r->header_in("Content-type");
+    return unless $ct eq "application/x-www-form-urlencoded";
+    my $buff;
+    $r->read_client_block($buff, $r->header_in("Content-length"));
+    parse_args(wantarray, $buff);
+}
+
+
+sub args {
+    my($r) = @_;
+    parse_args(wantarray, $r->query_string);
+}
+
+1;
 
 __END__
 
@@ -16,12 +39,12 @@ Apache - Perl interface to the Apache server API
 
 =head1 SYNOPSIS
 
-   use Apache ();
+   require Apache;
 
    #using API
    $req = Apache->request;
 
-   $host = $req->connection->remote_host;
+   $host = $req->get_remote_host;
    $user = $req->connection->user;
 
    $req->content_type("text/html");
@@ -34,12 +57,14 @@ Apache - Perl interface to the Apache server API
    );
 
    ###################
-   #or setup standard CGI   
-
-   %ENV = Apache->request->cgi_env;
+   #or setup a CGI environment  
+   $r = Apache->request;
+   %ENV = $r->cgi_env;
    
-   #NOTE: this is broken right now
-   print (
+   #Apache's i/o is not stream oriented
+   #so you cannot print() to your script's STDOUT
+   #and you cannont read() from STDIN (yet)
+   $r->print (
 	  "Content-type: text/html\n\n",
           "Hey you from $ENV{REMOTE_HOST}! <br>\n",
           "I bet your name is $ENV{REMOTE_USER}. <br>\n",
@@ -135,6 +160,12 @@ Read entity body sent by the client.
    %headers_in = $req->headers_in;
    $req->read_client_block($buf, $headers_in{'Content-length'});
 
+=head2 print()
+
+Friendly alias for read_client_block()
+
+   $req->read($buf, $headers_in{'Content-length'});
+
 =head2 write_client()
 
 Send a list of data to the client.
@@ -187,6 +218,13 @@ Return a %hash of client request headers.
 
   %headers_in = $req->headers_in();
 
+=head2 header_in()
+
+Return the value of a client header.
+
+    $ct = $req->header_in("Content-type");
+
+
 =head2 args()
 
 Return the contents of the query string;
@@ -213,6 +251,13 @@ as the entire body is read from the client.
 
   #split on '&' and '='
   %in = $req->content;
+
+=head2 unescape_url()
+
+Handy function for unescapes.
+
+  Apache::unescape_url($string);
+
 
 =head2 more request info
 

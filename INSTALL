@@ -1,0 +1,94 @@
+INSTALLATION for mod_perl.c, mod_perl_fast.c and Apache.*
+
+**IMPORTANT**
+Currently, you can only use mod_perl *or* mod_perl_fast.
+Unless you have figured out a way to build perl with -DEMBED *and* -DMULTIPLICITY.  (There is will be fixed in the next release of Perl)
+You may however, build Apache with both modules.
+To "turn off" mod_perl, simply #comment out the AddType httpd/perl .pl
+To "turn off" mod_perl_fast, simply #comment out the PerlScript scriptname.pl in srm.conf
+*************
+
+Build with apache1.1b2 or better.
+
+Make sure you have perl version 5.002_01 or better, compiled with -DEMBED
+(this is the default with 5.002_01) otherwise, Apache and Perl fight over namespace.
+Look under CPAN/src/5.0/unsupported/
+
+Fetch and install ExtUtils::embed from CPAN 
+<URL:http://www.perl.com/cgi-bin/cpan_mod?module=ExtUtils::embed>.
+
+You'll need to use the Makefile.tmpl file in this directory for 1.1b4, 
+(Makefile.tmpl.1.1b2 for 1.1b2), or make changes to your copy.
+
+You'll also need to edit the Configuration file:
+
+For mod_perl add:
+Module perl_module mod_perl.o
+
+For mod_perl_fast add:
+Module perl_fast_module mod_perl_fast.o
+
+Copy the files in this src/ to apache's src/
+
+Follow the Apache install docs from there.
+
+*******************************************************
+To tell Apache you want mod_perl to handle your scripts:
+AddType httpd/perl .pl
+
+And that's it.
+*******************************************************
+
+*******************************************************
+To tell Apache you want mod_perl_fast to handle your scripts:
+AddType httpd/fast-perl .fpl
+
+In srm.conf:
+PerlScript  script_to_load_at_startup.pl
+
+This script will be loaded when the server starts.
+
+In an access.conf <Directory /foo> or .htaccess:
+PerlResponse sub_routine_name
+
+This is the name of the subroutine to call (defined in PerlScript)
+to handle each request.
+*******************************************************
+
+*******************************************************
+For *both* mod_perl and mod_perl_fast:
+Your scripts *cannot* be in a ScriptAlias(ed) directory.
+Your scripts *will not* run from the command line (yet).
+*******************************************************
+
+The perl modules under lib/ can be installed by saying:
+
+  perl Makefile.PL
+  make
+  make install
+
+See Apache.pm on how to use the Perl-Apache API
+See the eg/ directory for example scripts.
+
+For comments, questions, bug-reports, announcements, etc.,
+send mail to majordomo@listproc.itribe.net
+with the string "subscribe modperl" in the body.
+(Thanks to Mark A. Imbriaco <mark@itribe.net>)
+
+IF YOU HAVE PROBLEMS
+
+Please send mail to modperl@listproc.itribe.net with the output of:
+
+perl -v; perl -V
+
+Along with:
+
+which module you are trying to use (mod_perl or mod_perl_fast),
+and version of the package.
+
+which script from the eg/ directory you are using.
+(please try a script from there first.)
+
+your apache server version details of your server configuration.
+
+if you get a core dump, please send a backtrace if possible.

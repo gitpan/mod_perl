@@ -1,3 +1,4 @@
+use lib qw(/users/dougm/lib/perl5);
 require Apache;
 require Apache::CGI;
 
@@ -19,7 +20,7 @@ sub response {
 </A>
 END
 
-    $r->print(
+    $r->print( 
 	$query->startform,
 	"What's your name? ", $query->textfield('name'),
         "<P>What's the combination?<P>",
@@ -45,7 +46,7 @@ END
 	);
     }
 
-    $r->print($query->end_html);
+    $r->print($query->end_html, $query->dump);
 
     return 0;
 }

@@ -1,0 +1,17 @@
+Changes
+INSTALL
+MANIFEST
+MANIFEST.SKIP
+Makefile.PL
+Makefile.tmpl
+Makefile.tmpl.1.1b2
+README
+eg/cgi-pm.pl
+eg/mod_perl_eg.pl
+eg/mpf_eg.pl
+lib/Apache.pm
+lib/Apache/CGI.pm
+src/Apache.xs
+src/mod_perl.c
+src/mod_perl_fast.c
+src/typemap

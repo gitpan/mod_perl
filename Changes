@@ -1,3 +1,29 @@
+June 18, 1996
+
+o release 0.60a4
+
+o dropped content and args methods from Apache.xs, moved to Apache.pm
+  The xs implementation was causing problems for some people
+
+o added Apache::unescape_url function
+
+o added $r->header_in method
+
+
+June 17, 1996
+
+o release 0.60a3
+
+o Added read() alias for read_client_block
+
+o Updated Makefile.tmpl to use the renamed ExtUtils::embed
+
+o Fixed various small bugs that were causing big problems
+
+o pid $$ now set in mod_perl_fast, thanks to Alan Beale <agb@openplus.co.uk>
+
+o Added basic_http_header() method 
+
 May 21, 1996
 
 o release 0.60a2

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.12 1996/05/21 20:36:01 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.13 1996/06/17 20:28:55 dougm Exp $ */
 
 #include <EXTERN.h>
 #include <perl.h>
@@ -61,8 +61,13 @@
 #include "http_log.h"
 #include "http_main.h"
 
-static int perl_trace = 0;
-#define CTRACE if(perl_trace > 0) fprintf
+#ifdef PERL_TRACE
+#define CTRACE fprintf
+#else
+#define CTRACE
+#endif
+
+static int avoid_first_alloc_hack = 0;
 
 typedef struct {
    char *PerlScript;
@@ -85,9 +90,13 @@ void perl_init (server_rec *s, pool *p)
   int status;
   perl_server_config *cls = get_module_config (s->module_config,
 					       &perl_fast_module);   
-  
-  /* char *fname = server_root_relative (p, cls->PerlScript); */
   char *fname = cls->PerlScript;
+
+  if(avoid_first_alloc_hack++ == 0)
+    return;
+
+  /* char *fname = server_root_relative (p, cls->PerlScript); */
+
   if (fname == NULL) {
     fprintf(stderr, "mod_perl_fast: Missing 'PerlScript' in srm.conf!\n");
     return;
@@ -122,7 +131,6 @@ void perl_init (server_rec *s, pool *p)
   }
   CTRACE(stderr, "perl_init: perl_parse OK\n");
 
-  /* perl_apache_bootstrap(); */
   perl_clear_env();
   status = perl_run(perl);
   if (status != 0) {
@@ -132,7 +140,8 @@ void perl_init (server_rec *s, pool *p)
   }
   CTRACE(stderr, "perl_init: perl_run OK\n");
 
-  error_log2stderr(s);
+  if (s->error_log)
+    error_log2stderr(s);
 }
 
 void *create_perl_dir_config (pool *p, char *dirname)
@@ -173,7 +182,8 @@ int perl_fast_handler(request_rec *r)
 int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
 {
     int count, status;
-    SV *sv;
+    SV *sv, *tmpgv;
+
     /* hmm, playing with the stack here breaks $r->content and $r->args
     dSP;
     ENTER;
@@ -181,6 +191,11 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
     PUSHMARK(sp);
     PUTBACK;
     */
+
+    /* agb. need to reset $$ */
+    if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
+      sv_setiv(GvSV(tmpgv), (I32)getpid());
+
     /* use G_EVAL so we can trap errors */
     count = perl_call_pv(perlsub, G_EVAL | G_SCALAR);
     
