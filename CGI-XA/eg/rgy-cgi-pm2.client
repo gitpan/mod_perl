@@ -1,0 +1,12 @@
+#!/bin/sh
+# Please edit yourself to your needs for your own benchmarks
+
+perl -MLWP::UserAgent -MURI::URL -e '
+$ua = new LWP::UserAgent;
+$curl = url("http:");
+$curl->query_form(textfield => 12345);
+$req = new HTTP::Request "POST", "http://anna/perl/rgy-cgi-pm2.pl";
+$req->content_type("application/x-www-form-urlencoded");
+$req->content($curl->equery);
+printf "%4d %d\n", ++$counter, time while $ua->request($req)->as_string;
+'

@@ -1,4 +1,4 @@
- 
+  
 README for the Apache/Perl modules
 
 These are Apache modules that embed a perl interpreter in the HTTP
@@ -21,22 +21,27 @@ memory is called to handle each request.  The interpreter is destroyed
 upon restart or shutdown of the server.
 
 This *is not CGI*, your existing scripts will need some changes.
-Apache's i/o is not stream oriented.  So, you cannot print() to STDOUT
-from your script, use $r->print() instead.  Nor can you read() from
-STDIN, use $r->read() or the $r->content methods to read POST data.
-(A clean mechanism is in the works for redirecting your script's
-streams, see experimental Apache::TieHandle module.)  
+Apache's i/o is not stream oriented.  So, by default, you cannot 
+print() to STDOUT from your script, use $r->print() instead.  
+Nor can you read() from STDIN, use $r->read() or the $r->content 
+methods to read POST data.
+As of Perl5.003_02, there are two mechanisms in place for redirecting
+the STDIN and STDOUT streams.  
+See the UsersGuide for more information.
+
 See the eg/ directory and read the documentation in
 Apache.pm for examples.
 
-Your scripts will not run from the command line (yet).
+Your scripts will not run from the command line unless you use the 
+CGI::Switch module.
 
-For users of CGI.pm, see the Apache::CGI module for compatibility.
+For users of CGI.pm, see the Apache::CGI, CGI::XA and CGI::Switch 
+modules.
 There are modules on the way to support the CGI::* modules as well.
 
 It is also possible to write full-blown Apache modules in Perl for
-things such as server side includes.  See the Apache::SSI module as
-an example.
+things such as server side includes.  See the Apache::SSI and 
+Apache::Registry modules as examples.
  
 For comments, questions, bug-reports, announcements, etc., send mail
 to majordomo@listproc.itribe.net with the string "subscribe modperl"
@@ -48,7 +53,7 @@ there is a hypermail archive for this list at:
 http://www.coe.missouri.edu/~faq/lists/modperl/
  
 
-The latest version of this software and other information is availible
+The latest version of this software and other information is available
 at: http://www.osf.org/~dougm/apache/
 
 KNOWN BUGS
@@ -68,11 +73,12 @@ o Apache::Database module or some such to manage
   persistent database connections 
 o Resolve multiple perl interpreter issues.
 o Complete Apache.xs interface
-o Look closer at the TIEHANDLE interface
+o Look closer at the PerlIO and TIEHANDLE interface
 o Provide an optional and configurable Safe wrapper around embedded scripts
   (almost there)
 
-ACKNOWLEGEMENTS - See 'Changes' file
+ACKNOWLEDGEMENTS - See 'Changes' file
+
 
 ---------------------------------------------------------------------------
 

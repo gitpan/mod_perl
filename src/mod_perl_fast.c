@@ -1,5 +1,5 @@
 /* ====================================================================
- * Copyright (c) 1995 The Apache Group.  All rights reserved.
+ * Copyright (c) 1995,1996 The Apache Group.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.18 1996/07/26 19:11:08 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.20 1996/09/06 21:29:41 dougm Exp $ */
 
 #include "httpd.h"
 #include "http_config.h"
@@ -80,6 +80,8 @@ typedef struct {
 
 typedef struct {
    char *PerlHandler;
+   int  sendheader;
+   int setup_env;
 } perl_dir_config;
 
 static PerlInterpreter *perl = NULL;
@@ -117,10 +119,10 @@ void perl_init (server_rec *s, pool *p)
      perror("alloc");
      exit(1);
   }
-  CTRACE(stderr, "perl_init: perl_alloc OK\n");
+  CTRACE(stderr, "perl_init: perl_alloc...ok\n");
   
   perl_construct(perl);
-  CTRACE(stderr, "perl_init: perl_construct OK\n");
+  CTRACE(stderr, "perl_init: perl_construct...ok\n");
 
   argv[0] = argv[2] = NULL;
   if (fname == NULL) {
@@ -138,19 +140,17 @@ void perl_init (server_rec *s, pool *p)
      perror("parse");
      exit(1);
   }
-  CTRACE(stderr, "perl_init: perl_parse OK\n");
+  CTRACE(stderr, "perl_init: perl_parse...ok\n");
 
   for(i = 0; i < cls->NumPerlModules; i++) {
     mod = cls->PerlModules[i];
     module = newSVpv(mod,0);
 
-    if(SvTRUE(module)) {
-      CTRACE(stderr, "Loading Perl module '%s'...", mod); 
-      perl_require_module(module);
-      CTRACE(stderr, "ok\n");
-      if(perl_eval_ok(s) != 0) 
-	fprintf(stderr, "Couldn't load Perl module '%s'\n", mod);
-    }
+    CTRACE(stderr, "Loading Perl module '%s'...", mod); 
+    perl_require_module(module);
+    CTRACE(stderr, "ok\n");
+    if(perl_eval_ok(s) != 0) 
+      fprintf(stderr, "Couldn't load Perl module '%s'\n", mod);
   }
 
   perl_clear_env();
@@ -160,7 +160,7 @@ void perl_init (server_rec *s, pool *p)
      perror("run");
      exit(1);
   }
-  CTRACE(stderr, "perl_init: perl_run OK\n");
+  CTRACE(stderr, "perl_init: perl_run...ok\n");
 
   if (s->error_log)
     error_log2stderr(s);
@@ -194,11 +194,22 @@ int perl_fast_handler(request_rec *r)
   int status = OK;
   perl_dir_config *cld = get_module_config (r->per_dir_config,
 					    &perl_fast_module);   
-  CTRACE(stderr, "content-type: %s\n", r->content_type);
+
   perl_set_request_rec(r);
 
-  if(cld->PerlHandler != NULL)
+  /* hookup STDIN & STDOUT to the client */
+  perl_stdout2client(r);
+  perl_stdin2client(r);
+
+  if(cld->sendheader)
+    basic_http_header(r);
+  if(cld->setup_env)
+    perl_setup_env();
+
+  if(cld->PerlHandler != NULL) {
+    CTRACE(stderr, "calling PerlHandler '%s'\n", cld->PerlHandler);
     status = perl_call(perl, cld->PerlHandler, r->server);
+  }
   else {
     log_error("perl_call failed, must set a PerlHandler", r->server);
     return SERVER_ERROR;
@@ -207,7 +218,7 @@ int perl_fast_handler(request_rec *r)
   if (status == 65535)  /* this is what we get by exit(-1) in perl */
     status = SERVER_ERROR;
 
-  CTRACE(stderr, "status: '%d'\n", status);
+  CTRACE(stderr, "perl_call returned status: '%d'\n", status);
   if((status == 1) || (status == 200)) /* OK */
     status = OK;
 
@@ -217,7 +228,7 @@ int perl_fast_handler(request_rec *r)
 int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
 {
     int count, status;
-    SV *sv, *tmpgv;
+    SV *sv;
 
     dSP;
     ENTER;
@@ -226,8 +237,7 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
     PUTBACK;
     
     /* agb. need to reset $$ */
-    if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
-      sv_setiv(GvSV(tmpgv), (I32)getpid());
+    perl_set_pid();
 
     /* use G_EVAL so we can trap errors */
     count = perl_call_pv(perlsub, G_EVAL | G_SCALAR | G_NOARGS);
@@ -270,6 +280,22 @@ char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
   return NULL;
 }
 
+
+char *perl_sendheader_on (cmd_parms *cmd, void *rec, int arg) {
+  ((perl_dir_config *)rec)->sendheader = arg;
+  return NULL;
+}
+
+char *perl_set_env_on (cmd_parms *cmd, void *rec, int arg) {
+  ((perl_dir_config *)rec)->setup_env = arg;
+  return NULL;
+}
+
+char *set_perl_var(cmd_parms *cmd, void *dummy, char *key, char *val)
+{
+  return NULL;
+}
+  
 command_rec perl_cmds [] = {
   { "PerlScript", set_perl_script,
     NULL,
@@ -283,6 +309,16 @@ command_rec perl_cmds [] = {
   { "PerlHandler", set_string_slot, 
     (void*)XtOffsetOf(perl_dir_config, PerlHandler), 
     OR_ALL, TAKE1, "the Perl handler routine name" },
+  { "PerlSetVar", set_perl_var, 
+    NULL,  
+    OR_ALL, TAKE2, "Perl var and value" },
+  { "PerlSendHeader", perl_sendheader_on,
+    NULL, 
+    OR_ALL, FLAG, "Tell mod_perl_fast to send basic_http_header" },
+  { "PerlSetupEnv", perl_set_env_on,
+    NULL, 
+    OR_ALL, FLAG, "Tell mod_perl_fast to setup %ENV by default" },
+
   { NULL }
 };
 

@@ -59,7 +59,7 @@
  * scripts and you also has more direct contol over the connection
  * back to the client.
  *
- * $Id: mod_perl.c,v 1.16 1996/07/14 23:34:39 dougm Exp $
+ * $Id: mod_perl.c,v 1.17 1996/09/06 21:29:41 dougm Exp $
  */
 
 #include "httpd.h"
@@ -96,10 +96,9 @@ int perl_handler(request_rec *r)
   /* hookup script's STDIN and STDOUT to the client 
    * doing it this way we don't have to mess with server and client fd's
    */
-  /* Hold off on this for now.  
+
   perl_stdout2client(r);
   perl_stdin2client(r);
-  */
 
   perl_set_request_rec(r);
   perl_clear_env();

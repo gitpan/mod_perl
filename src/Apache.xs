@@ -5,6 +5,7 @@ extern "C" {
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+#undef pregcomp
 #ifdef __cplusplus
 }
 #endif
@@ -16,23 +17,22 @@ extern "C" {
 #include "http_main.h"
 #include "http_core.h"
 
-/* $Id: Apache.xs,v 1.20 1996/07/22 00:55:11 dougm Exp $ */
+/* $Id: Apache.xs,v 1.24 1996/09/08 21:54:21 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
 
-/* this mess will go away */
-#ifdef APACHE_1_0
-#define REQUEST_IN  r->connection->request_in
-#define REQUEST_OUT r->connection->client
-#define SEND_TO_CLIENT rprintf(r, "%s", buffer);
-#else
-#define REQUEST_IN  fdopen(r->connection->client->fd_in, "r")
-#define REQUEST_OUT fdopen(r->connection->client->fd, "w")
-#define SEND_TO_CLIENT  bputs(buffer, r->connection->client)
-#endif
+/* this was private in http_protocol.c */
 
+#define SET_BYTES_SENT(r) \
+  do { if (r->sent_bodyct) \
+	  bgetopt (r->connection->client, BO_BYTECT, &r->bytes_sent); \
+  } while (0)
+
+#define SENDN_TO_CLIENT \
+    bwrite(r->connection->client, buffer, n); \
+    SET_BYTES_SENT(r)
 
 /* eh, need a better way */
 #ifdef HIDE_AUTH
@@ -41,8 +41,11 @@ typedef server_rec  * Apache__Server;
 #define SKIP_AUTH_HEADER
 #endif
 
-static int perl_trace = 0;
-#define CTRACE if(perl_trace > 0) fprintf
+#ifdef PERL_TRACE
+#define CTRACE fprintf
+#else
+#define CTRACE
+#endif
 
 static IV perl_apache_request_rec;
 
@@ -61,10 +64,26 @@ void perl_apache_bootstrap()
 }
 
 void
+perl_setup_env()
+{ /* yuck, rework this later */
+  SV *sv = newSV(0);
+  sv_setpv(sv, "%ENV = Apache->request->cgi_env();"); 
+  perl_eval_sv(sv, G_DISCARD);
+}
+
+void
 perl_clear_env()
 {
   /* flush %ENV */
   hv_clear(perl_get_hv("ENV", FALSE));
+}
+
+void
+perl_set_pid()
+{
+  GV *tmpgv;
+  if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
+    sv_setiv(GvSV(tmpgv), (I32)getpid());
 }
 
 int
@@ -154,32 +173,110 @@ int mod_perl_call_method(PerlInterpreter *perl, I32 flags, SV *ref, char *method
     return count;
 }
 
-/* these two are busted for now */
+#ifdef USE_SFIO 
+
+typedef struct {
+   Sfdisc_t     disc;   /* the sfio discipline structure */
+   request_rec	*r;
+} Apache_t;
+
+static int
+sfapachewrite(f, buffer, n, disc)
+Sfio_t* f;      /* stream involved */
+char*           buffer;    /* buffer to read into */
+int             n;      /* number of bytes to send */
+Sfdisc_t*       disc;   /* discipline */        
+{
+    request_rec	*r = ((Apache_t*)disc)->r;
+    CTRACE(stderr, "sfapachewrite: send %d bytes\n", n);
+    SENDN_TO_CLIENT;
+    return n;
+}
+
+static int
+sfapacheread(f, buffer, n, disc)
+Sfio_t* f;      /* stream involved */
+char*           buffer;    /* buffer to read into */
+int             n;      /* number of bytes to read */
+Sfdisc_t*       disc;   /* discipline */        
+{
+    long nrd;
+    request_rec	*r = ((Apache_t*)disc)->r;
+    CTRACE(stderr, "sfapacheread: want %d bytes\n", n);
+    nrd = read_client_block(r, buffer, n);
+    return n;
+}
+
+Sfdisc_t *
+sfdcnewapache(request_rec *r)
+{
+    Apache_t*   disc;
+  
+    if(!(disc = (Apache_t*)malloc(sizeof(Apache_t))) )
+      return (Sfdisc_t *)disc;
+    CTRACE(stderr, "sfdcnewapache(r)\n");
+    disc->disc.readf = sfapacheread; /* (Sfread_f)NULL;  */
+    disc->disc.writef = sfapachewrite;
+    disc->disc.seekf = (Sfseek_f)NULL;
+    disc->disc.exceptf = (Sfexcept_f)NULL;
+    disc->r = r;
+    return (Sfdisc_t *)disc;
+}
+#endif
+
+/* need Perl 5.003_02+, linked with sfio */
 void
 perl_stdout2client(request_rec *r)
 {
+#ifdef USE_SFIO
+    sfdisc(PerlIO_stdout(), SF_POPDISC);
+    sfdisc(PerlIO_stdout(), sfdcnewapache(r));
+#else
+/*  no support for attempts with older versions, play if you like  
     GV *tmpgv;
 
-    tmpgv = gv_fetchpv("STDOUT",FALSE, SVt_PVIO);
+     tmpgv = gv_fetchpv("STDOUT",FALSE, SVt_PVIO);
     GvMULTI_on(tmpgv);
-    IoOFP(GvIOp(tmpgv)) = IoIFP(GvIOp(tmpgv)) = REQUEST_OUT;
+     IoOFP(GvIOp(tmpgv)) = IoIFP(GvIOp(tmpgv)) = r->connection->client;
     setdefout(tmpgv);
-
+*/
+#endif
 }
 
 void
 perl_stdin2client(request_rec *r)
 {
+#ifdef USE_SFIO
+    sfdisc(PerlIO_stdin(), SF_POPDISC);
+    sfdisc(PerlIO_stdin(), sfdcnewapache(r));
+    sfsetbuf(PerlIO_stdin(), NULL, 0);
+#else
+/*
     GV *tmpgv;
 
     tmpgv = gv_fetchpv("STDIN",FALSE, SVt_PVIO);
     GvMULTI_on(tmpgv);
-    IoIFP(GvIOp(tmpgv)) = REQUEST_IN;
+    IoIFP(GvIOp(tmpgv)) = r->connection->request_in;
+*/
+#endif
 }
 
 MODULE = Apache  PACKAGE = Apache
 
 PROTOTYPES: DISABLE
+
+void
+exit(...)
+
+    CODE:
+    {
+    int sts = 0;
+    
+    if(items > 1)
+        sts = (int)SvIV(ST(1));
+
+    exit(sts);
+    }
 
 #httpd.h
 
@@ -224,6 +321,7 @@ is_perlaliased(r)
     OUTPUT:
     RETVAL
  
+
 char *
 get_remote_host(r)
     Apache	r
@@ -265,11 +363,16 @@ read_client_block(r, buffer, bufsiz)
     ALIAS:
     Apache::read = 1
 
-     PPCODE:
+    PPCODE:
      {
        long nrd;
-       buffer = (char*)palloc(r->pool, bufsiz+1);
-       nrd = read_client_block(r, buffer, bufsiz);
+       int extra = 0;
+       buffer = (char*)palloc(r->pool, bufsiz);
+#if MODULE_MAGIC_NUMBER > 19960526
+       setup_client_block(r);
+       extra = 1;
+#endif
+       nrd = read_client_block(r, buffer, bufsiz+extra);
        if ( nrd > 0 ) {
 	 XPUSHs(newSViv((long)nrd));
 	 sv_setpvn((SV*)ST(1), buffer, bufsiz);
@@ -290,12 +393,23 @@ write_client(r, ...)
     {    
     int i;
     char * buffer;
+    STRLEN n;
 
     for(i = 1; i <= items - 1; i++) {
-	buffer = (char *)SvPV(ST(i), na);
-        RETVAL += SEND_TO_CLIENT; 
+       buffer = SvPV(ST(i), n);
+       RETVAL += SENDN_TO_CLIENT;
     }
     }
+
+    
+#functions from http_request.c
+void
+internal_redirect_handler(r, location)
+    Apache	r
+    char *      location
+
+    CODE:
+    internal_redirect_handler(location, r);
 
 #functions from http_log.c
 # Beware, we have changed the order of the arguments for the log_reason()
@@ -499,11 +613,27 @@ status_line(r, ...)
 #  int sent_bodyct;		/* byte count in stream is for body */
 
 char *
-method(r)
+method(r, ...)
     Apache	r
 
     CODE:
     RETVAL = r->method;
+
+    if(items > 1)
+        r->method = pstrdup(r->pool, (char *)SvPV(ST(1), na));
+
+    OUTPUT:
+    RETVAL
+
+int
+method_number(r, ...)
+    Apache	r
+
+    CODE:
+    RETVAL = r->method_number;
+
+    if(items > 1)
+        r->method_number = (int)SvIV(ST(1));
 
     OUTPUT:
     RETVAL
@@ -730,6 +860,13 @@ query_string(r)
 MODULE = Apache  PACKAGE = Apache::Connection
 
 PROTOTYPES: DISABLE
+
+void
+close(conn)
+    Apache::Connection	conn
+
+    CODE:
+    bclose(conn->client);
 
 #  pool *pool;
 #  server_rec *server;

@@ -1,231 +1,284 @@
-July 26, 1996
+=head1 ACKNOWLEDGEMENTS
 
-o release 0.76b1
+Extra Thanks to:
 
-o included Sven Verdoolaege's (experimental) patch for minimal TIEHANDLE
-  support, so we can tie *STDOUT, 'print' instead of '$r->print' that is.
+Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+for *lots* of bug spotting, fixing and patching, 
+Apache::Registry and CGI.pm overhaul efforts (aka CGI::XA & CGI::Switch)
 
-o added (experimental) Apache::TieHandle module
+Gisle Aas <aas@oslonett.no>
+For getting this effort started
 
-o included Chip Salzenberg's FileHandle.pm patch
+Other contributors are mentioned below:
 
-o added UsersGuide document
+=head1 release 0.81 - September 08, 1996
 
-o if no PerlHandler is defined we fail with a SERVER_ERROR
+added Apache::CGI->exit method as suggested by Andreas
 
-o Apache::Registry now checks to make sure uri is not a directory
+items needed for 1.2 are now conditional using MODULE_MAGIC_NUMBER
 
-o applied Apache::Registry patch from Andreas for minor clean-up 
-  and an extra error check
-  
-July 21, 1996
+included Makefile.tmpl.1.2  
 
-o release 0.75a1
+=head1 release 0.80 - September 06, 1996
 
-o added Apache::Registry module contributed by 
-  Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+fix so we can send $strings of binary data to the client
 
-o Apache::SSI now checks ExecCGI option before doing an 'exec'
+fix so we can log bytes sent
 
-o included patch for mod_alias.c to allow for PerlAlias directive
+added Andreas' CGI::XA kit for users of CGI.pm + mod_perl_fast
 
-o added allow_options and is_perlaliased methods to Apache.pm
+added PerlSetupEnv directive
 
-o added Apache::Options module
+added PerlSendHeader directive 
 
-o added Apache::Debug module
+we now take advantage of Perl's new IO abstraction so STDIN and 
+STDOUT are hooked up to the client.
+Thanks to Sven Verdoolaege <skimo@breughel.ufsia.ac.be> for the
+initial patch
 
-o applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> to
-  -fake up a PerlScript if one is not specified
-  -ITERATE over PerlModule directive so it will accept multiple modules
-  -no longer store request_rec in $Apache::Request
-  
-o we now require ExtUtils::Embed as it has been re-named for
-  the standard perl distribution as of 5.003_01
+added $r->connection->close method
 
-July 19, 1996
+added $r->exit method
 
-o release 0.71b1
+applied patch from Rob Hartill <robh@imdb.com> so read_client_block
+works with apache-1.2 changes
 
-o added PERL_CCFLAGS to Makefile.tmpl as suggested by 
-  Lincoln Stein <lstein@genome.wi.mit.edu>
+updated UsersGuide to suggest using configuration that does not
+require patching mod_alias.c, thanks to Rob Hartill <robh@imdb.com> 
 
-o subroutines no longer need to return '0' for OK status, 200 and 1 
-  are 'OK' too.
+added $r->method_number method
 
-o added 'PerlHandler' as replacement for 'PerlResponse',
-  seems like a more appropriate name after Salvador's 
-  'AddHandler' suggestion
+$r->method() now accepts an argument to change the request method 
+(for things like internal re-directs)
 
-o added item to the handler_rec so we can say 'AddHandler'
-  Thanks to Salvador Garcia <sortiz@cfe.gob.mx>
+added send_cgi_header method
 
-o fixed bug with storing 'PerlModule's read from srm.conf
-  Thanks to Salvador Garcia <sortiz@cfe.gob.mx> for the spot and helping with the fix
-  
-o more Makefile.tmpl fixes from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+added internal_redirect_handler method
 
+applied NeXT fix from Andreas
 
-July 14, 1996
+applied patch from Andreas to fix eval error line number 
+in Apache::Registry
 
-o release 0.70b1
+changed Changes file so it can be read with 'perldoc Changes'
 
-o applied patches from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
-  to fix Makefile.tmpl bug, NeXT define troubles, 
-  typos and documentation clean-up
+=head1 release 0.76b2 - August 16, 1996
 
-o Added Apache::SSI module for server side includes
+updated Apache::CGI, now requires CGI.pm 2.22+
 
-o Added 'PerlModule' directive for loading modules in srm.conf
+#undef pregcomp to fix namespace clash with Apache 1.2
 
-o fixed read_client_block bug that was causing trailing garbage to show up
-  on the client for some people. 
-  Thanks to Alan Beale <agb@openplus.co.uk> for the fix.
+added (placeholder for) PerlSetVar directive (need to think about it some more)
 
-June 25, 1996
+applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+to fix bug introduced with perl5.003_01 + IRIX combo
 
-o release 0.60a5
+=head1 release 0.76b1 - July 26, 1996
 
-o fixed bug in mod_perl_fast that was causing bizarre problems for some people
+included Sven Verdoolaege's (experimental) patch for minimal TIEHANDLE
+support, so we can tie *STDOUT, 'print' instead of '$r->print' that is.
 
-June 18, 1996
+added (experimental) Apache::TieHandle module
 
-o release 0.60a4
+included Chip Salzenberg's FileHandle.pm patch
 
-o dropped content and args methods from Apache.xs, moved to Apache.pm
-  The xs implementation was causing problems for some people
+added UsersGuide document
 
-o added Apache::unescape_url function
+if no PerlHandler is defined we fail with a SERVER_ERROR
 
-o added $r->header_in method
+Apache::Registry now checks to make sure uri is not a directory
 
+applied Apache::Registry patch from Andreas for minor clean-up 
+and an extra error check
 
-June 17, 1996
+=head1 release 0.75a1 - July 21, 1996
 
-o release 0.60a3
+added Apache::Registry module contributed by 
+Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
 
-o Added read() alias for read_client_block
+Apache::SSI now checks ExecCGI option before doing an 'exec'
 
-o Updated Makefile.tmpl to use the renamed ExtUtils::embed
+included patch for mod_alias.c to allow for PerlAlias directive
 
-o Fixed various small bugs that were causing big problems
+added allow_options and is_perlaliased methods to Apache.pm
 
-o pid $$ now set in mod_perl_fast, thanks to Alan Beale <agb@openplus.co.uk>
+added Apache::Options module
 
-o Added basic_http_header() method 
+added Apache::Debug module
 
-May 21, 1996
+applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> to
+-fake up a PerlScript if one is not specified
+-ITERATE over PerlModule directive so it will accept multiple modules
+-no longer store request_rec in $Apache::Request
+we now require ExtUtils::Embed as it has been re-named for
+the standard perl distribution as of 5.003_01
 
-o release 0.60a2
 
-o fixed bug in mod_perl_fast.c the caused problems with 
-  $r->content and $r->args
+=head1 release 0.71b1 - July 19, 1996
 
-o Added Apache::CGI module for those who use CGI.pm
+added PERL_CCFLAGS to Makefile.tmpl as suggested by 
+Lincoln Stein <lstein@genome.wi.mit.edu>
 
-o There's now a Makefile.PL (currently for installing perl-only modules).
+subroutines no longer need to return '0' for OK status, 200 and 1 
+are 'OK' too.
 
-May 18, 1996
+added 'PerlHandler' as replacement for 'PerlResponse',
+seems like a more appropriate name after Salvador's 
+'AddHandler' suggestion
 
-o release 0.60a1 - first public release
+added item to the handler_rec so we can say 'AddHandler'
+Thanks to Salvador Garcia <sortiz@cfe.gob.mx>
 
-o Started getting ready for optional Safe wrapper around scripts
+fixed bug with storing 'PerlModule's read from srm.conf
+Thanks to Salvador Garcia <sortiz@cfe.gob.mx> for the spot and helping with the fix
+more Makefile.tmpl fixes from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
 
-o Added $r->get_remote_host() method, putting $r->connection->remote_host back to normal
+=head1 release 0.70b1 - July 14, 1996
 
+applied patches from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+to fix Makefile.tmpl bug, NeXT define troubles, 
+typos and documentation clean-up
 
-May 9, 1996
+Added Apache::SSI module for server side includes
 
-o release 0.50a2
+Added 'PerlModule' directive for loading modules in srm.conf
 
-o new (faster) approach with mod_perl_fast
-  Thanks to John Detloff <detloff@arizona.edu> 
-  for friendly error checking code.
+fixed read_client_block bug that was causing trailing garbage to show up
+n the client for some people. 
+Thanks to Alan Beale <agb@openplus.co.uk> for the fix.
 
-o we now use an Apache.pm file
 
-o moved more code from mod_perl to Apache.xs so mod_perl_fast could share it
+=head1 release 0.60a5 - June 25, 1996
 
-o organized Apache.xs
+fixed bug in mod_perl_fast that was causing bizarre problems for some people
 
-o fixed $r->connection->remote_host 
+=head1 release 0.60a4 - June 18, 1996
 
-o hiding of 'Authorization' header is optional now
+dropped content and args methods from Apache.xs, moved to Apache.pm
+The xs implementation was causing problems for some people
 
-o added 'print' alias to 'write_client'
+added Apache::unescape_url function
 
-o dropped set_ prefix for several methods
+added $r->header_in method
 
-May 1, 1996
 
-o release 0.50a1
+=head1 release 0.60a3 - June 17, 1996
 
-o xs_init now gets linked with us, as generated by Devel::embed
-  so we can bootstrap static extensions (including Apache)
+Added read() alias for read_client_block
 
-o stomped out *main:: variables, moved to Apache.xs as methods
+Updated Makefile.tmpl to use the renamed ExtUtils::embed
 
-o added method 'request' to return the request pointer object
-  And did a typedef request_rec * Apache
-  so we don't need to say @request_recPtr::ISA = 'Apache'; anymore
+Fixed various small bugs that were causing big problems
 
-o added method 'write_client' for sending a @list of data to the client
+pid $$ now set in mod_perl_fast, thanks to Alan Beale <agb@openplus.co.uk>
 
-o added methods that simply access members of request_rec
-  -method
-  -uri
-  -protocol
-  -path_info
-  -filename 
+Added basic_http_header() method 
 
-o added method 'args'
-  when called in a scalar context, it returns the query string
-  when called in a list context, it splits the query_string into key => vairs
 
-o moved parsing code to Apache.xs, and now data is only read when the user
-  asks for it with the content() method.
+=head1 release 0.60a2 - May 21, 1996
 
-o added method 'content'
-  when called in a scalar context, it reads data from the client
-  when called in a list context, it splits the content into key => vairs
+fixed bug in mod_perl_fast.c the caused problems with 
+$r->content and $r->args
 
-o added method 'headers_in' to return a %hash of request headers
-  the 'Authentication' header is not returned
+Added Apache::CGI module for those who use CGI.pm
 
-o added perl_call_argv to Apache->bootstrap ourselves
+There's now a Makefile.PL (currently for installing perl-only modules).
 
-o we now flush the script's %ENV
-  
-o users can set-up a standard CGI %ENV via method $r->cgi_vars
 
-o the script's STDERR in now redirected to the error_log
+=head1 release 0.60a1 - May 18, 1996
 
-o added client_to_stdout and client_to_stdin methods to
-  hookup the script's STDOUT and STDIN
-  ** This is broken right now **
+Started getting ready for optional Safe wrapper around scripts
 
-o added method 'connection' and Apache::Connection class
-  returns a object reference to the request_rec's conn_rec
-  methods availible include:
-  - remote_host
-  - remote_ip
-  - remote_logname
-  - remote_user
-  - auth_type
+Added $r->get_remote_host() method, putting $r->connection->remote_host back to normal
 
-o added method 'server' and Apache::Server class
-  returns a object reference to the request_rec's server_rec
-  methods availible include:
+=head1 release 0.50a2 - May 9, 1996
 
-  - server_admin
-  - server_host
-  - port
+new (faster) approach with mod_perl_fast
+Thanks to John Detloff <detloff@arizona.edu> 
+for friendly error checking code.
 
-o Changes for Apache 1.1x
-  -rprintf to bputs, etc.
+we now use an Apache.pm file
 
+moved more code from mod_perl to Apache.xs so mod_perl_fast could share it
 
-March ?? 1996
+rganized Apache.xs
+
+fixed $r->connection->remote_host 
+
+hiding of 'Authorization' header is optional now
+
+added 'print' alias to 'write_client'
+
+dropped set_ prefix for several methods
+
+=head1 release 0.50a1 - May 1, 1996
+
+xs_init now gets linked with us, as generated by Devel::embed
+so we can bootstrap static extensions (including Apache)
+
+stomped out *main:: variables, moved to Apache.xs as methods
+
+added method 'request' to return the request pointer object
+And did a typedef request_rec * Apache
+so we don't need to say @request_recPtr::ISA = 'Apache'; anymore
+
+added method 'write_client' for sending a @list of data to the client
+
+added methods that simply access members of request_rec
+-method
+-uri
+-protocol
+-path_info
+-filename 
+
+added method 'args'
+when called in a scalar context, it returns the query string
+when called in a list context, it splits the query_string into key => vairs
+
+moved parsing code to Apache.xs, and now data is only read when the user
+asks for it with the content() method.
+
+added method 'content'
+when called in a scalar context, it reads data from the client
+when called in a list context, it splits the content into key => vairs
+
+added method 'headers_in' to return a %hash of request headers
+the 'Authentication' header is not returned
+
+added perl_call_argv to Apache->bootstrap ourselves
+
+we now flush the script's %ENV
+users can set-up a standard CGI %ENV via method $r->cgi_vars
+
+the script's STDERR in now redirected to the error_log
+
+added client_to_stdout and client_to_stdin methods to
+hookup the script's STDOUT and STDIN
+** This is broken right now **
+
+added method 'connection' and Apache::Connection class
+returns a object reference to the request_rec's conn_rec
+methods availible include:
+- remote_host
+- remote_ip
+- remote_logname
+- remote_user
+- auth_type
+
+added method 'server' and Apache::Server class
+returns a object reference to the request_rec's server_rec
+methods availible include:
+
+- server_admin
+- server_host
+- port
+
+Changes for Apache 1.1x
+-rprintf to bputs, etc.
+
+
+=head1 March ?? 1996
+
 Initial version of mod_perl.c and perl_glue.xs
 by Gisle Aas <aas@oslonett.no>
 Thanks for getting this started Gisle!

@@ -1,0 +1,23 @@
+#!/usr/bin/perl -w
+
+use Benchmark;
+use CGI::XA ();
+use CGI ();
+use vars qw($xobj $obj @argnamed @argpos);
+
+@ARGV=qw/just=to silence=stdin/;
+$xobj = CGI::XA->new();
+$obj = CGI->new();
+
+@argnamed = qw/-name ">>>"& VALUE 2 size 3 maxlength 4 override 5/;
+@argpos = ('">>>"&', 2..5);
+
+$loops=1000; # set to one to see the produced string
+
+timethese($loops,{
+cginamed  => q{ $string = $obj->textfield(@argnamed);     print "$string\n" if $loops==1; },
+cgipos    => q{ $string = $obj->textfield(@argpos);       print "$string\n" if $loops==1; },
+fastnamed => q{ $string = $xobj->textfield(@argnamed);    print "$string\n" if $loops==1; },
+fastpos   => q{ $string = $xobj->textfield(@argpos);      print "$string\n" if $loops==1; },
+}
+);

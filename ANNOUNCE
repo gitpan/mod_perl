@@ -1,80 +1,74 @@
 To: modperl@listproc.itribe.net, CGI-Perl@webstorm.com, apache-modules@zyzzyva.com, new-httpd@hyperreal.com
 
-Since the last Apache/Perl announcement (0.70b1), we've moved much closer 
-to making the embedded interpreter transparent to Perl script authors,
-and at the same time, coming in-line with Apache's ExecCGI security policy.  
+release 0.81 - September 08, 1996
 
+I have uploaded the latest version of the Apache/Perl modules to PAUSE.
 While the package is making it's way around CPAN, it is also available at:
-http://www.osf.org/~dougm/apache/mod_perl-0.76b1.tar.gz
+http://www.osf.org/~dougm/apache/
 
-From the Changes file:
+With the new features of this version and Perl's new i/o abstraction, it is
+possible to write scripts running under mod_perl_fast which will look just
+like "normal" CGI scripts.
+
+We are now Apache 1.2 compliant.
+
+From the Changes file (since 0.76b1):
 ------
-July 26, 1996
+added Apache::CGI->exit method as suggested by Andreas
 
-o release 0.76b1
+items needed for 1.2 are now conditional using MODULE_MAGIC_NUMBER
 
-o included Sven Verdoolaege's (experimental) patch for minimal TIEHANDLE
-  support, so we can tie *STDOUT, 'print' instead of '$r->print' that is.
+included Makefile.tmpl.1.2  
 
-o added (experimental) Apache::TieHandle module
+fix so we can send $strings of binary data to the client
 
-o included Chip Salzenberg's FileHandle.pm patch
+fix so we can log bytes sent
 
-o added UsersGuide document
+added Andreas' CGI::XA kit for users of CGI.pm + mod_perl_fast
 
-o if no PerlHandler is defined we fail with a SERVER_ERROR
+added PerlSetupEnv directive
 
-o Apache::Registry now checks to make sure uri is not a directory
+added PerlSendHeader directive 
 
-o applied Apache::Registry patch from Andreas for minor clean-up 
-  and an extra error check
-  
-July 21, 1996
+we now take advantage of Perl's new IO abstraction so STDIN and 
+STDOUT are hooked up to the client.
+Thanks to Sven Verdoolaege <skimo@breughel.ufsia.ac.be> for the
+initial patch
 
-o release 0.75a1
+added $r->connection->close method
 
-o added Apache::Registry module contributed by 
-  Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+added $r->exit method
 
-o Apache::SSI now checks ExecCGI option before doing an 'exec'
+applied patch from Rob Hartill <robh@imdb.com> so read_client_block
+works with apache-1.2 changes
 
-o included patch for mod_alias.c to allow for PerlAlias directive
+updated UsersGuide to suggest using configuration that does not
+require patching mod_alias.c, thanks to Rob Hartill <robh@imdb.com> 
 
-o added allow_options and is_perlaliased methods to Apache.pm
+added $r->method_number method
 
-o added Apache::Options module
+$r->method() now accepts an argument to change the request method 
+(for things like internal re-directs)
 
-o added Apache::Debug module
+added send_cgi_header method
 
-o applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de> to
-  -fake up a PerlScript if one is not specified
-  -ITERATE over PerlModule directive so it will accept multiple modules
-  -no longer store request_rec in $Apache::Request
-  
-o we now require ExtUtils::Embed as it has been re-named for
-  the standard perl distribution as of 5.003_01
+added internal_redirect_handler method
 
-July 19, 1996
+applied NeXT fix from Andreas
 
-o release 0.71b1
+applied patch from Andreas to fix eval error line number 
+in Apache::Registry
 
-o added PERL_CCFLAGS to Makefile.tmpl as suggested by 
-  Lincoln Stein <lstein@genome.wi.mit.edu>
+changed Changes file so it can be read with 'perldoc Changes'
 
-o subroutines no longer need to return '0' for OK status, 200 and 1 
-  are 'OK' too.
+updated Apache::CGI, now requires CGI.pm 2.22+
 
-o added 'PerlHandler' as replacement for 'PerlResponse',
-  seems like a more appropriate name after Salvador's 
-  'AddHandler' suggestion
+#undef pregcomp to fix namespace clash with Apache 1.2
 
-o added item to the handler_rec so we can say 'AddHandler'
-  Thanks to Salvador Garcia <sortiz@cfe.gob.mx>
+added (placeholder for) PerlSetVar directive (need to think about it some more)
 
-o fixed bug with storing 'PerlModule's read from srm.conf
-  Thanks to Salvador Garcia <sortiz@cfe.gob.mx> for the spot and helping with the fix
-  
-o more Makefile.tmpl fixes from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+applied patch from Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
+to fix bug introduced with perl5.003_01 + IRIX combo
 
 ------
 

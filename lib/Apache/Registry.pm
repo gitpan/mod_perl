@@ -5,8 +5,8 @@ use Apache::Options qw(&OPT_EXECCGI);
 require FileHandle;
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.12 1996/07/26 19:11:08 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.12 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.13 1996/09/06 21:29:41 dougm Exp $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.13 $ =~ /(\d+)\.(\d+)/);
 
 #should really just use for developing.
 $Apache::Registry::Debug ||= 0;
@@ -58,11 +58,7 @@ sub handler {
 	    $fh->close;
 
 	    # compile this subroutine into the uniq package name
-	    $eval = qq{package $package;\n};
-	    $eval .= qq{sub handler {
-		$sub;
-		return 0;
-	    }\n1;\n};
+            $eval = qq{package $package; sub handler { $sub; }};
 	    eval $eval;
 	    if ($@) {
 		$r->log_error($@);

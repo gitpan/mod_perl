@@ -1,28 +1,23 @@
-#**** NOTE: Lincoln has made adjustments for us in CGI.pm-2.22a5
-# Once he makes a final release things will be much nicer here....
-
-require Apache;
 require Apache::CGI;
 
 #does the same as tryit.cgi from the CGI.pm distribution
 
 sub response {
-    my $r     = Apache->request;
     my $query = new Apache::CGI $r;
 
-    $r->print(
+    $query->print(
 	$query->header,
         $query->start_html,
     );
 
-    $r->print(<<END);
+    $query->print(<<END);
 <TITLE>A Simple Example</TITLE>
 <A NAME="top">
 <H1>A Simple Example</H1>
 </A>
 END
 
-    $r->print( 
+    $query->print( 
 	$query->startform,
 	"What's your name? ", $query->textfield('name'),
         "<P>What's the combination?<P>",
@@ -41,16 +36,16 @@ END
      );
 
     if ($query->param) {
-	$r->print(
+	$query->print(
             "Your name is <EM>",$query->param(name),"</EM>\n",
             "<P>The keywords are: <EM>",join(", ",$query->param(words)),"</EM>\n",
             "<P>Your favorite color is <EM>",$query->param(color),"</EM>\n",
 	);
     }
 
-    $r->print($query->end_html, $query->dump);
+    $query->print($query->end_html, $query->dump);
 
-    return 0;
+    return 200;
 }
 
 1;

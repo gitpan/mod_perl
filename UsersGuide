@@ -26,17 +26,6 @@ will check to see if 'ExecCGI' is allowed in that directory before
 executing it.
 See the Apache::Registry module for details.
  
-Optionally you may alias a directory to be handled by mod_perl_fast:
-
-    PerlAlias /perl/ /some/directory/ 
-
-NOTE: Currently, you must apply the src/mod_alias.patch to mod_alias.c 
-for this to work.
-
-Now, any file in the PerlAlias'ed directory will be executed by
-mod_perl_fast, just as any file in a ScriptAlias'ed directory will
-be run as a CGI script.
-
 You may perl load modules via
 
     PerlModule Apache::Registry Apache::SSI SomeOther::Module
@@ -56,6 +45,32 @@ This is the name of the subroutine to call to handle each request.
 e.g. 
 in the PerlScript mpf_eg.pl this is "main::handler".
 in the PerlModule Apache::Registry this is "Apache::Registry::handler".
+
+The recommended configuration is as follows:
+
+#srm.conf
+Alias /perl/  /real/path/to/perl-scripts/
+PerlModule Apache::Registry
+
+#access.conf 
+<Location /perl>
+SetHandler perl-script
+PerlHandler Apache::Registry::handler
+Options ExecCGI
+</Location>
+
+By default, mod_perl_fast does not send any headers by itself, however, you
+may wish to change this:
+
+    PerlSendHeader On	
+
+By default, mod_perl_fast does not setup %ENV, you may wish to change this:
+
+    PerlSetupEnv On
+
+With the recommended configuration, these options and Perl linked with sfio 
+(see INSTALL), scripts running under Apache::Registry will look just like 
+"normal" CGI scripts.  See eg/perlio.pl as an example.
 
 WARNINGS
 --------

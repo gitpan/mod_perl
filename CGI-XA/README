@@ -1,0 +1,48 @@
+=head1 DESCRIPTION
+
+I have started with major hacks on top of Lincoln's version 2.23 of
+CGI.pm in order to get rid of both AUTOLOADING and uncontrolled
+global variables.
+
+I release this package as CGI::XA (which stands for "for Apache")
+for a limited audience as a test case.
+
+This software is alpha software and it is not clear if it will be
+supported for a longer time. My preferred solution would be, Lincoln
+accepts all the changes and continues with his excellent work.
+
+=head2 where are the main differences?
+
+    No AUTOLOAD
+    use strict clean
+    no exports
+    no cgi-lib.pl compatibility
+    no "Q" namespace
+    inlined rearrange
+
+This code is faster than Lincoln's too:
+
+Benchmark: timing 1000 iterations of cginamed, cgipos, fastnamed, fastpos...
+  cginamed:  7 secs ( 5.84 usr  0.08 sys =  5.92 cpu)
+    cgipos:  4 secs ( 3.48 usr  0.01 sys =  3.49 cpu)
+ fastnamed:  3 secs ( 3.17 usr  0.01 sys =  3.18 cpu)
+   fastpos:  3 secs ( 2.91 usr  0.01 sys =  2.92 cpu)
+
+The benchmark is done with the script in eg/bench.rearrange
+
+And with the small test script eg/rgy-cgi-pm2.pl (A CGI that runs a
+counter and a time and a textfield, I could run 100 loops in 12
+seconds on an Indy 100 MHz, not a terrific fast machine. The script on
+the other end of the connection is eg/rgy-cgi-pm2.client.
+
+CGI::Switch
+-----------
+
+With this very simple module you can run the identical script from
+your cgi-bin directory as a CGI script and from your perl alias script
+as a apache subroutine. See eg/rgy-cgi-pm2.pl for an example.
+
+
+Enjoy,
+Andreas, 19 Aug, 1996
+

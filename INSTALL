@@ -12,11 +12,12 @@ Prerequisites
 
 You need apache1.1b2 or better.
 
-Make sure you have perl version 5.002_01 or better, compiled with -DEMBED
+Make sure you have perl version 5.002_01 or higher, compiled with -DEMBED
 (this is the default with 5.002_01+ anyway)
 
-Fetch and install ExtUtils::Embed from CPAN 
-<URL:http://www.perl.com/cgi-bin/cpan_mod?module=ExtUtils::Embed>.
+If you do not have Perl version 5.003_01 or higher,
+fetch and install ExtUtils::Embed from CPAN 
+<URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.07.tar.gz>
 
 Build and install the perl part of this module
 ----------------------------------------------
@@ -38,8 +39,9 @@ Build apache
 ------------
 
 To build the apache server, you'll need to use the Makefile.tmpl file
-in this directory for 1.1b4+, (Makefile.tmpl.1.1b2 for 1.1b2), or make
-changes to your copy. So either copy the Makefile.tmpl in this
+in this directory for 1.1b4+, 
+(Makefile.tmpl.1.1b2 for 1.1b2, Makefile.tmpl.1.2 for 1.2), 
+or make changes to your copy. So either copy the Makefile.tmpl in this
 directory to the apache_xxx/src/ directory or edit
 apache_xxx/src/Makefile.tmpl first.
 
@@ -61,6 +63,17 @@ Follow the Apache install docs from there.
 See the 'UsersGuide' file for info on configuring, running
 and writing Apache/Perl scripts and modules.
  
+Using PerlIO
+------------
+When you Configure Perl as of 5.002_02, you will be given the option to
+use sfio rather than stdio.  If you choose this option, STDOUT will be
+hooked up to the client for writing (or print'ing), as will STDIN for
+reading.
+Perl scripts outside of Apache will run as expected.
+See the Perl INSTALL document for more information.
+
+You may also want to look at the Apache::TieHandle module.
+
 Support
 -------
 

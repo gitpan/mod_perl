@@ -1,8 +1,8 @@
 package Apache;
 
-#use vars qw($VERSION);
+use vars qw($VERSION);
 
-$VERSION = "1.02";
+$VERSION = "1.03";
 
 bootstrap Apache $VERSION;
 
@@ -23,10 +23,47 @@ sub content {
     parse_args(wantarray, $buff);
 }
 
-
 sub args {
     my($r) = @_;
     parse_args(wantarray, $r->query_string);
+}
+
+sub send_cgi_header {
+    my($r, $headers) = @_;
+    my $dlm = "\015?\012"; #a bit borrowed from LWP::UserAgent
+    my(@headerlines) = split /$dlm/, $headers;
+    my($key, $val);
+
+    foreach (@headerlines) {
+	if (/^(\S+?):\s*(.*)$/) {
+	    ($key, $val) = ($1, $2);
+	    last unless $key;
+	    if($key eq "Status") {
+		$r->status_line($val);
+		next;
+	    }
+	    elsif($key eq "Location" and $val =~ m,^/,) {
+	   #/* This redirect needs to be a GET no matter what the original
+	   # * method was.
+	   # */
+		$r->method("GET");
+		$r->method_number(0); #M_GET 
+		$r->internal_redirect_handler($val);
+		return 0;
+	    }
+	    elsif($key eq "Content-type") {
+		$r->content_type($val);
+		next;
+	    }
+	    else {
+		$r->header_out($key,$val);
+		next;
+	    }
+	} else {
+	    warn "Illegal header '$_'";
+	}
+    }
+    $r->send_http_header;
 }
 
 1;
@@ -80,7 +117,7 @@ wish to embed a Perl interpreter.
 
 =head1 METHODS
 
-=head2 request()
+=item request()
 
 Create a request object.
 This is really a request_rec * in disguise.
@@ -88,115 +125,127 @@ This is really a request_rec * in disguise.
  $req = Apache->request;
 
 
-=head2 get_remote_host()
+=item get_remote_host()
 
 Lookup the client's hostname, return it if found.
 
  $remote_host = $req->get_remote_host();
 
-=head2 content_type()
+=item content_type()
 
 Get or set the content type being sent to the client.
 
    $type = $req->content_type;
    $req->content_type("text/plain");
 
-=head2 content_encoding()
+=item content_encoding()
 
 Get or set the content encoding.
 
    $enc = $req->content_encoding;
    $req->content_encoding("gzip");
 
-=head2 content_language()
+=item content_language()
 
 Get or set the content language.
 
    $lang = $req->content_language;
    $req->content_language("en");
 
-=head2 status()
+=item status()
 
 Get or set the reply status for the client request.
 
    $code = $req->status; 
    $req->status(200);    
 
-=head2 status_line()
+=item status_line()
 
 Get or set the response status line.
 
    $resp = $req->status_line;
    $req->status_line("HTTP/1.0 200 OK");
 
-=head2 header_out()
+=item header_out()
 
 Change the value of a response header, or create a new one.
 
    $req->header_out("WWW-Authenticate", "Basic");
 
-=head2 err_header_out()
+=item err_header_out()
 
 Change the value of an error response header, or create a new one.
 
    $req->err_headers_out("WWW-Authenticate", "Basic");
 
-=head2 no_cache()
+=item no_cache()
 
 Boolean, on or off.
 
    $req->no_cache(1);
 
-=head2 send_http_header()
+=item basic_http_header()
 
-Send the response line and headers to the client.
+Send the response line along with 'Server' and 'Date' headers.
+  
+=item send_http_header()
+
+Send the response line and all headers to the client.
+(Calls basic_http_header)
 
    $req->send_http_header;
 
-=head2 read_client_block()
+=item internal_redirect_handler()
+
+Redirect to a location in the server's namespace without 
+telling the client.
+
+   $req->internal_redirect_handler("/home/sweet/home.html");
+
+=item read_client_block()
 
 Read entity body sent by the client.
 
    %headers_in = $req->headers_in;
    $req->read_client_block($buf, $headers_in{'Content-length'});
 
-=head2 print()
+=item read()
 
 Friendly alias for read_client_block()
 
    $req->read($buf, $headers_in{'Content-length'});
 
-=head2 write_client()
+=item write_client()
 
 Send a list of data to the client.
 
    $req->write_client(@list_of_data);
 
-=head2 print()
+=item print()
 
 Friendly alias for write_client()
 
    $req->print(@list_of_data);
 
-=head2 send_fd()
+=item send_fd()
 
 Send the contents of a file to the client.
 
    $req->send_fd(FILE_HANDLE);
 
-=head2 log_reason()
+=item log_reason()
 
 The request failed, why??
 
    $req->log_reason("Because I felt like it", $req->filename);
 
-=head2 log_error()
+=item log_error()
 
 Uh, oh.
 
    $req->log_error("Some text that goes in the error_log");
 
-=head2 cgi_env()
+=item cgi_env()
 
 Setup a standard CGI environment.
 
@@ -212,20 +261,32 @@ NOTE:
      #do normal CGI stuff
   }
  	 	
-=head2 headers_in()
+=item send_cgi_header()
+
+Take action on certain headers including 'Status', 'Location' and
+'Content-type' just as mod_cgi does, then calls send_http_header().
+
+    $req->send_cgi_header(<<EOF);
+ Location: /foo/bar
+ Content-type: text/html 
+
+ EOF
+
+
+=item headers_in()
 
 Return a %hash of client request headers.
 
   %headers_in = $req->headers_in();
 
-=head2 header_in()
+=item header_in()
 
 Return the value of a client header.
 
     $ct = $req->header_in("Content-type");
 
 
-=head2 args()
+=item args()
 
 Return the contents of the query string;
 When called in a scalar context, the entire string is returned.
@@ -237,7 +298,7 @@ are returned.
   #split on '&' and '='
   %in = $req->args;
 
-=head2 content()
+=item content()
 
 Return the entity body as read from the client.
 When called in a scalar context, the entire string is returned.
@@ -252,13 +313,13 @@ as the entire body is read from the client.
   #split on '&' and '='
   %in = $req->content;
 
-=head2 unescape_url()
+=item unescape_url()
 
 Handy function for unescapes.
 
   Apache::unescape_url($string);
 
-=head2 allow_options(), is_perlaliased() 
+=item allow_options(), is_perlaliased() 
 
 Methods for checking if it's ok to run a perl script. 
 
@@ -266,7 +327,7 @@ Methods for checking if it's ok to run a perl script.
      $r->log_reason("Options ExecCGI is off in this directory", 
 		    $filename);
 
-=head2 more request info
+=item more request info
 
    $method = $req->method;         #GET, POST, etc.
    $protocol = $req->protocol;     #HTTP/1.x
@@ -274,7 +335,7 @@ Methods for checking if it's ok to run a perl script.
    $script_file = $req->filename;  #the uri->filename translation
    $path_info = $req->path_info;   #path_info
 
-=head2 connection()
+=item connection()
 
 Return an object reference to the request connection.
 This is really a conn_rec * in disguise.
@@ -290,9 +351,12 @@ This is really a conn_rec * in disguise.
  #The authentication scheme used, if any.
  $auth_type = $conn->auth_type;
 
-=head2 server()
+ #close connection to the client
+ $conn->close;
+ 
+=item server()
 
-Return an object reference to the server info .
+Return an object reference to the server info.
 This is really a server_rec * in disguise.
 
  $srv = $req->server; 
@@ -303,7 +367,7 @@ This is really a server_rec * in disguise.
 
 =head1 SEE ALSO
 
- perl(1), Apache::CGI(3), Apache::Debug(3), Apache::Options(3)<
+ perl(1), Apache::Registry(3), Apache::CGI(3), Apache::Debug(3), Apache::Options(3)
 
 =head1 AUTHORS
 
