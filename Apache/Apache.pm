@@ -24,16 +24,14 @@ if (caller eq "CGI::Apache") {
     __PACKAGE__->mod_perl::boot($VERSION);
 }
 
-if($ENV{MOD_PERL} && perl_hook("Sections")) {
+BEGIN {
     *Apache::ReadConfig:: = \%ApacheReadConfig::;
+}
 
-    if(Apache::Constants::MODULE_MAGIC_NUMBER() >= 19971026) {
-	*Apache::httpd_conf = sub {
-	    shift;
-	    push @Apache::ReadConfig::PerlConfig,
-	    map "$_\n", @_;
-	};
-    }
+sub httpd_conf {
+    shift;
+    push @Apache::ReadConfig::PerlConfig,
+      map "$_\n", @_;
 }
 
 sub parse_args {
@@ -911,7 +909,21 @@ and the client should be told not to cache it.
 =item $r->print( @list )
 
 This method sends data to the client with C<$r-E<gt>write_client>, but first
-sets a timeout before sending with C<$r-E<gt>hard_timeout>.
+sets a timeout before sending with C<$r-E<gt>hard_timeout>. This method is
+called instead of CORE::print when you use print() in your mod_perl programs.
+
+This method treats scalar references specially. If an item in @list is a
+scalar reference, it will be dereferenced before printing. This is a
+performance optimization which prevents unneeded copying of large strings,
+and it is subtly different from Perl's standard print() behavior.
+
+Example:
+
+   $foo = \"bar"; print($foo);
+
+The result is "bar", not the "SCALAR(0xDEADBEEF)" you might have expected. If
+you really want the reference to be printed out, force it into a scalar
+context by using C<print(scalar($foo))>.
 
 =item $r->send_fd( $filehandle )
 
@@ -1101,6 +1113,36 @@ Returns true if the specified callback hook is enabled:
    {
        print "$_ hook enabled\n" if Apache::perl_hook($_);
    }  
+
+=back
+
+=head1 GLOBAL VARIABLES
+
+=over 4
+
+=item $Apache::Server::Starting
+
+Set to true when the server is starting.
+
+=item $Apache::Server::ReStarting
+
+Set to true when the server is starting.
+
+=item $Apache::Server::ConfigTestOnly
+
+Set to true when the server is running in configuration test mode
+(C<httpd -t>).
+
+   <Perl>
+    # don't continue if it's a config test!
+    print("Skipping the <Perl> code!\n"),
+    return if $Apache::Server::ConfigTestOnly;
+   
+    print "Running the <Perl> code!\n"
+    # some code here
+   
+   </Perl>
+
 
 =back
 

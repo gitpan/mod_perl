@@ -173,7 +173,6 @@ sub handler {
 sub compile {
     my $eval = shift;
     Apache->untaint($eval);
-    local $^W = 0;
     eval $eval;
 }
 

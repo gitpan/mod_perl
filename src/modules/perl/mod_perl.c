@@ -126,6 +126,9 @@ static command_rec perl_cmds[] = {
     { "PerlSetVar", (crft) perl_cmd_var,
       NULL,
       OR_ALL, TAKE2, "Perl config var and value" },
+    { "PerlAddVar", (crft) perl_cmd_var,
+      (void*)1,
+      OR_ALL, TAKE2, "Perl config var and value" },
     { "PerlSetEnv", (crft) perl_cmd_setenv,
       NULL,
       OR_ALL, TAKE2, "Perl %ENV key and value" },
@@ -732,6 +735,8 @@ void perl_startup (server_rec *s, pool *p)
     perl_tainting_set(s, cls->PerlTaintCheck);
     (void)GvSV_init("Apache::__SendHeader");
     (void)GvSV_init("Apache::__CurrentCallback");
+    if (ap_configtestonly)
+    	GvSV_setiv(GvSV_init("Apache::Server::ConfigTestOnly"), TRUE);
 
     Apache__ServerReStarting(FALSE); /* just for -w */
     Apache__ServerStarting_on();
@@ -1215,8 +1220,15 @@ int perl_handler_ismethod(HV *pclass, char *sub)
 	if (gvp) cv = GvCV(gvp);
     }
 
-    if (cv && SvPOK(cv)) 
+#ifdef CVf_METHOD
+    if (CvFLAGS(cv) & CVf_METHOD) {
+        is_method = 1;
+    }
+#endif
+    if (!is_method && (cv && SvPOK(cv))) {
 	is_method = strnEQ(SvPVX(cv), "$$", 2);
+    }
+
     MP_TRACE_h(fprintf(stderr, "checking if `%s' is a method...%s\n", 
 	   sub, (is_method ? "yes" : "no")));
     SvREFCNT_dec(sv);

@@ -1,4 +1,5 @@
-#! /usr/local/bin/perl
+#!perl
+
 BEGIN { 
     $Is_Win32 = ($^O eq "MSWin32");
     $Is_Cygwin = ($^O =~ m/cygwin/g);
@@ -186,7 +187,7 @@ $EVERYTHING = $EXPERIMENTAL = 0;
 $PERL_DEBUG = "";
 $PERL_DESTRUCT_LEVEL = "";
 $PERL_STATIC_EXTS = "";
-$PERL_EXTRA_CFLAGS = "";
+$PERL_EXTRA_CFLAGS = $] >= 5.006 ? $Config{ccflags} : "";
 $SSLCacheServerPort = 8539;
 $SSL_BASE = ""; 
 $Port = $ENV{HTTP_PORT} || 8529;
@@ -362,9 +363,7 @@ EOF
     }
 }
 
-system_sanity_check();
-
-if($USE_APXS) {
+if ($USE_APXS) {
     if(-e $USE_APXS and !(-d _)) {
         $WITH_APXS = $USE_APXS;
     }
@@ -382,7 +381,10 @@ if($USE_APXS) {
     print "\n";
     ++$NO_HTTPD;
 }
-elsif($USE_APACI) {
+
+system_sanity_check();
+
+if ($USE_APACI) {
     print "Will configure via APACI";
     gen_script("apaci/load_modules.pl");
     if($USE_DSO) {
@@ -1167,6 +1169,7 @@ WriteMakefile(
     #CCDLFLAGS => "$Config{ccdlflags} $EXTRA_CFLAGS", 
     DEFINE => $EXTRA_CFLAGS, 
     macro   => {
+        PERL => $Config{'perlpath'},
 	OPCODE_FILE => "src/opcodes.txt",
         APACHE_ROOT => $APACHE_ROOT,
         APACHE_SRC => $APACHE_SRC,
@@ -1202,7 +1205,7 @@ sub MY::dist_basics {
 
 sub MY::clean {
     my $self = shift;
-    my $string = $self->MM::clean;
+    my $string = $self->MM::clean(@_);
     unless($NO_HTTPD) {
 	my $asrc = asrc($APACHE_SRC, "http_main.c");
 	return $string unless $APACHE_SRC and -e "$asrc/http_main.c";
@@ -2041,6 +2044,7 @@ EOF
 
     gdbm_check();
     malloc_check();
+    uselargefiles_check();
     dynaloader_check();
 
 }
@@ -2071,6 +2075,20 @@ Your Perl is configured to link against libgdbm,
 EOF
        }
     }
+}
+
+sub uselargefiles_check {
+    return unless $] >= 5.006 and $Config{uselargefiles} and $USE_APXS;
+    local $Apache::src::APXS = $WITH_APXS;
+    my $cflags = Apache::src->new->apxs('-q' => 'CFLAGS') || '';
+    return if $cflags =~ /LARGEFILE/;
+
+    phat_warn(<<EOF);
+Your Perl is uselargefiles enabled, but Apache is not, suggestions:
+    *) Rebuild Apache with CFLAGS="-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+    *) Rebuild Perl with Configure -Uuselargefiles
+    *) Let mod_perl build Apache (USE_DSO=1 instead of USE_APXS=1)
+EOF
 }
 
 sub malloc_check {

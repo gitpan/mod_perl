@@ -729,11 +729,21 @@ CHAR_P perl_cmd_var(cmd_parms *cmd, void *config, char *key, char *val)
     MP_TRACE_d(fprintf(stderr, "perl_cmd_var: '%s' = '%s'\n", key, val));
     if (cmd->path) {
         perl_dir_config *rec = (perl_dir_config *) config;
-        table_set(rec->vars, key, val);
+        if (cmd->info) {
+            table_add(rec->vars, key, val);
+        }
+        else {
+            table_set(rec->vars, key, val);
+        }
     }
     else {
         dPSRV(cmd->server);
-        table_set(cls->vars, key, val);
+        if (cmd->info) {
+            table_add(cls->vars, key, val);
+        }
+        else {
+            table_set(cls->vars, key, val);
+        }
     }
     return NULL;
 }
@@ -1178,7 +1188,7 @@ void perl_section_hash_walk(cmd_parms *cmd, void *cfg, HV *hv)
 #define USE_ICASE 0
 #endif
 
-#define SECTION_NAME(n) (cmd->info ? (char *)cmd->info : n)
+#define SECTION_NAME(n) n
 
 #define TRACE_SECTION(n,v) \
     MP_TRACE_s(fprintf(stderr, "perl_section: <%s %s>\n", n, v))
