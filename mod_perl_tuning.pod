@@ -44,7 +44,7 @@ Additions to F<httpd.conf>:
 
  # put mod_perl programs here
  # startup.perl loads all functions that we want to use within mod_perl
- PerlScript /var/www/perllib/startup.perl
+ PerlRequire /var/www/perllib/startup.perl
  <Directory /var/www/docs/programs>
    AllowOverride None
    Options ExecCGI
@@ -86,7 +86,7 @@ Additions to F<httpd.conf>:
    allow from 204.117.82.
  </Location>
 
-Now, you'll notice that I use a C<PerlScript> directive to load in the
+Now, you'll notice that I use a C<PerlRequire> directive to load in the
 file F<startup.perl>.  In that file, I include all of the C<use>
 statements that occur in any of my mod_perl programs (either from the
 programs directory, or the *.perl files).  Here is an example:
@@ -370,5 +370,5 @@ modperl@LISTPROC.ITRIBE.NET first.  There are lots of people there
 that can help.  Also, check the web pages http://perl.apache.org/ and
 http://www.apache.org/ for explanations of the configuration options.
 
-$Revision: 1.12 $
-$Date: 1997/10/31 03:25:20 $
+$Revision: 1.13 $
+$Date: 1997/12/22 08:43:56 $
