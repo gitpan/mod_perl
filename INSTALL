@@ -52,6 +52,9 @@ For mod_perl_fast add:
 
 	Module perl_fast_module	   modules/perl/libmodperl.a	
 
+We suggest you add this entry at the end of the Configuration file if you want your
+callback hooks to have precedence over core handlers.
+
 If you are using the most current public release of apache '1.1.1',
 you can simply copy the src/Makefile.tmpl to apache_xxx/src/Makefile.tmpl
 

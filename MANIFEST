@@ -48,3 +48,4 @@ src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/mod_perl_fast.c
 src/modules/perl/typemap
+src/modules/perl/Makefile
