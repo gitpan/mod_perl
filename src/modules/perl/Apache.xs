@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.60 1997/09/16 00:47:48 dougm Exp $ */
+/* $Id: Apache.xs,v 1.60 1997/09/16 00:47:48 dougm Exp dougm $ */
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -177,8 +177,10 @@ exit(...)
 	    sts = (int)SvIV(ST(0));
     }
     rflush(r);
+#ifndef WIN32
     if(sts == DONE)
         child_terminate(r); /* only 1.3b1+ does this right */
+#endif
     perl_call_halt();
 
 #shutup AutoLoader
@@ -467,7 +469,7 @@ print(r, ...)
     }
     else {
 	CV *cv = GvCV(gv_fetchpv("Apache::write_client", FALSE, SVt_PVCV));
-	hard_timeout("Apache->print", r);
+	hard_timeout("mod_perl: Apache->print", r);
 	PUSHMARK(mark);
 	(void)(*CvXSUB(cv))(cv); /* &Apache::write_client; */
 

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.63 1997/09/16 00:47:48 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.63 1997/09/16 00:47:48 dougm Exp dougm $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -405,6 +405,8 @@ int perl_handler(request_rec *r)
     ENTER;
     SAVETMPS;
 
+    save_hptr(&GvHV(siggv)); 
+
     save_aptr(&endav); 
     endav = Nullav;
 
@@ -757,8 +759,11 @@ void perl_per_request_init(request_rec *r)
     mod_perl_dir_env(cld);
 
     /* PerlSendHeader */
-    if(MP_SENDHDR(cld))
+    if(MP_SENDHDR(cld)) {
 	MP_SENTHDR_off(cld);
+	table_set(r->subprocess_env, 
+		  "PERL_SEND_HEADER", "On");
+    }
     else
 	MP_SENTHDR_on(cld);
 

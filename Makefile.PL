@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.00_02";
+$VERSION = "1.00_03";
 
 use subs qw(_prompt iedit asrc);
 

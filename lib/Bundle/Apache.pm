@@ -24,6 +24,8 @@ LWP::UserAgent - Web client to run mod_perl tests
 
 HTML::TreeBuilder - Used for Apache::SSI
 
+MIME::Base64 - Needed for LWP
+
 Devel::Symdump - Symbol table browsing with Apache::Status
 
 HTTPD::UserAdmin - Apache::Authen stuff

@@ -16,6 +16,21 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.00_03
+
+save %SIG before perl_handler (Apache::Registry) is run, restore
+afterwards as suggested by Randal Schwartz
+
+fixed virutal host/Apache::Registry bug introduced in _02,
+spotted by Ryan A. Whelan
+
+a few win32 fixes:
+- skip uid,gid,etc., in perl_init_ids 
+- fix ApacheModulePerl.dsp for source re-org
+
+if PerlSendHeader is On, the environment variable PERL_SEND_HEADER is
+set to `On'
+
 =item 1.00_02 - 09/15/97
 
 1.3b1 stuff:

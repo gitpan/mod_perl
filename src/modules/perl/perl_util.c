@@ -226,6 +226,7 @@ void mod_perl_init_ids(void)  /* $$, $>, $), etc */
 {
     if(set_ids++) return;
     sv_setiv(GvSV(gv_fetchpv("$", TRUE, SVt_PV)), (I32)getpid());
+#ifndef WIN32
     uid  = (int)getuid(); 
     euid = (int)geteuid(); 
     gid  = (int)getgid(); 
@@ -233,6 +234,7 @@ void mod_perl_init_ids(void)  /* $$, $>, $), etc */
     MP_TRACE(fprintf(stderr, 
 		     "perl_init_ids: uid=%d, euid=%d, gid=%d, egid=%d\n",
 		     uid, euid, gid, egid));
+#endif
 }
 
 int perl_eval_ok(server_rec *s)

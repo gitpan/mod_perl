@@ -6,7 +6,7 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.36 1997/09/16 00:47:48 dougm Exp $
+#$Id: Registry.pm,v 1.36 1997/09/16 00:47:48 dougm Exp dougm $
 $Apache::Registry::VERSION = (qw$Revision: 1.36 $)[1];
 
 $Apache::Registry::Debug ||= 0;
@@ -53,7 +53,7 @@ sub handler {
 		$r->uri;
 
 	my $srv = $r->server;
-	$script_name = join "/", $srv->server_hostname, $script_name
+	$script_name = join "", $srv->server_hostname, $script_name
 	    if $srv->is_virtual;
 
 	# Escape everything into valid perl identifiers

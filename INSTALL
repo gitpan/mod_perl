@@ -183,7 +183,7 @@ apache 1.2.0+ users: no need to modify the Makefile.tmpl for mod_perl
 
 Edit apache_xxx/src/Configuration, and add: 
 
-	Module perl_module	   modules/perl/libmodperl.a
+	Module perl_module	   modules/perl/libperl.a
 
 We suggest you add this entry at the end of the Configuration file if
 you want your callback hooks to have precedence over core handlers. 
