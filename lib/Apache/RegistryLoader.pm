@@ -5,7 +5,7 @@ use strict;
 use Apache::Registry ();
 use Apache::Constants qw(OPT_EXECCGI);
 @Apache::RegistryLoader::ISA = qw(Apache::Registry);
-$Apache::RegistryLoader::VERSION = (qw$Revision: 1.12 $)[1];
+$Apache::RegistryLoader::VERSION = (qw$Revision: 1.13 $)[1];
 
 sub new { 
     my $class = shift;
@@ -24,9 +24,11 @@ sub handler {
 
     #warn "RegistryLoader: uri=$uri, filename=$filename\n";
 
+    (my $guess = $uri) =~ s,^/,,;
+
     my $r = bless {
 	uri => $uri,
-	filename => Apache->server_root_relative($filename || $uri),
+	filename => Apache->server_root_relative($filename || $guess),
     } => ref($self) || $self;
 
     $r->SUPER::handler;
