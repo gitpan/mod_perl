@@ -188,6 +188,12 @@ sub inc {
     for ("src/regex", "$src/os/$os") {
 	push @inc, "-I$_" if -d $_;
     }
+    my $ssl_dir = "$src/../ssl/include";
+    unless (-d $ssl_dir) {
+	eval { require Apache::MyConfig };
+	$ssl_dir = "$Apache::MyConfig::Setup{SSL_BASE}/include";
+    }
+    push @inc, "-I$ssl_dir" if -d $ssl_dir;
     return "@inc";
 }
 

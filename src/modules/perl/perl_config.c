@@ -197,6 +197,7 @@ void mod_perl_pass_env(pool *p, perl_server_config *cls)
         if(val != NULL) {
 	    MP_TRACE_d(fprintf(stderr, "PerlPassEnv: `%s'=`%s'\n", key, val));
 	    hv_store(GvHV(envgv), key, strlen(key), newSVpv(val,0), FALSE);
+	    my_setenv(key, val);
         }
     }
 }    
@@ -465,7 +466,7 @@ CHAR_P perl_cmd_init_handlers (cmd_parms *parms, void *rec, char *arg)
 			       ((perl_dir_config *)rec)->PerlInitHandler);
     }
     else {
-	PERL_CMD_PUSH_HANDLERS("PerlTransHandler", cls->PerlInitHandler);
+	PERL_CMD_PUSH_HANDLERS("PerlInitHandler", cls->PerlInitHandler);
     }
 }
 
@@ -1388,8 +1389,9 @@ CHAR_P perl_section (cmd_parms *parms, void *dummy, const char *arg)
     {
 	dTHR;
 	if(SvTRUE(ERRSV)) {
-	    fprintf(stderr, "Apache::ReadConfig: %s\n", SvPV(ERRSV,na));
-	    return NULL;
+	    MP_TRACE_s(fprintf(stderr, 
+			       "Apache::ReadConfig: %s\n", SvPV(ERRSV,na)));
+	    return SvPV(ERRSV,na);
 	}
     }
 

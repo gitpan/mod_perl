@@ -6,6 +6,54 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.16 - October 2, 1998
+
+Apache::Util::escape_html() now handles `"' and `&'. should also be a
+bit faster now, avoiding a strdup() call
+
+PerlPassEnv/PerlSetEnv will now call my_setenv() so the C enviroment
+array is also updated 
+
+Apache::Registry will return DECLINED if -d $r->filename so 
+DirectoryIndex, etc., will work again
+
+mod_perl now passes 'make test' on BSD/OS 3.1 again. [ Vivek Khera ]
+
+added INSTALL.simple.mod_ssl and SSL_BASE=... Makefile.PL option
+
+Apache::PerlRun::handler changes:
+
+ - PerlRunOnce option
+ - don't localize %INC, just remove new, non-.pm files
+
+fix bug that would hose child if a croak() happened, be it from a
+syntax error, Carp::croak(), etc.  remove child_terminate() hack that
+was blaming the Perl stack being corrupt
+
+Apache::StatINC can now be configured to write debug stuff with
+a PerlSetVar [Ask Bjoern Hansen <ask@netcetera.dk>]
+
+perl_startup() will now check the Apache.pm $VERSION
+
+fixups for building Stronghold 2.4
+
+new Apache::File module
+
+send_fd() will now accept an optional length argument
+
+HTTP_NOT_MODIFED added to Apache::Constants EXPORT_OK, removed
+duplicate HTTP_NOT_ACCEPTABLE entry
+
+if there is a Perl parse error in <Perl> sections, return $@ so Apache
+can properly report the problem 
+
+Apache::PerlRun subclass-able-ness near complete, see new example
+modules Apache::RegistryNG and Apache::RegistryBB
+
+fix compile problem under aix [Ed Hill <ed-hill@uiowa.edu>]
+
+fix 'make test' @INC problem under NT, thanks to Dale Couch
+
 =item 1.15_01 - September 19, 1998
 
 USE_DSO=1 may be fixed on some platforms w/ current 1.3.2-dev

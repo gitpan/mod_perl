@@ -1,8 +1,9 @@
+#! /usr/local/bin/perl
 BEGIN {
     #./blib/lib:./blib/arch
     use ExtUtils::testlib;
 
-    use lib './t/docs';
+    use lib map { "$Apache::Server::CWD/$_" } qw(t/docs blib/lib blib/arch);
     require "blib.pl" if -e "./t/docs/blib.pl";
     $Apache::Server::Starting or warn "Server is not starting !?\n";
     \$Apache::Server::Starting == \$Apache::ServerStarting or 
@@ -10,6 +11,12 @@ BEGIN {
     \$Apache::Server::ReStarting == \$Apache::ServerReStarting or 
 	warn "GV alias broken\n";
 }
+
+# BSD/OS 3.1 gets confused with some dynamically loaded code inside evals,
+# so make sure IO::File is loaded here, rather than later within an eval.
+# this should not harm any other platforms, since IO::File will be used
+# by them anyhow.
+use IO::File ();
 
 use Apache ();
 use Apache::Registry ();
@@ -66,7 +73,7 @@ if($net::callback_hooks{PERL_SAFE_STARTUP}) {
     }
 }
 else {
-    require "./t/docs/rl.pl";
+    require "docs/rl.pl";
 }
 #for testing perl mod_include's
 
@@ -82,7 +89,8 @@ sub PerlTransHandler::handler {-1}
 #for testing PERL_HANDLER_METHODS
 #see httpd.conf and t/docs/LoadClass.pm
 
-use LoadClass ();
+require "docs/LoadClass.pm";
+
 sub MyClass::method ($$) {
     my($class, $r) = @_;  
     #warn "$class->method called\n";
@@ -196,6 +204,31 @@ if(Apache->can_stack_handlers) {
 
 END {
     warn "[notice] END block called for startup.pl\n";
+}
+
+package Apache::Death;
+my $say_ok = <<EOF;
+*** The follow [error] is expected, no cause for alarm ***
+EOF
+
+sub handler {
+    my $r = shift;
+
+    my $args = $r->args || "";
+    if ($args =~ /die/) {
+	warn $say_ok;
+	delete $INC{"badsyntax.pl"};
+	require "badsyntax.pl";  # contains syntax error
+    }
+    if($args =~ /croak/) {
+	warn $say_ok;
+        Carp::croak("Apache::Death");
+    }
+
+    $r->content_type('text/html');
+    $r->send_http_header();
+    print "<h1>Script completed</h1>\n";
+    return 0;
 }
 
 package Destruction;

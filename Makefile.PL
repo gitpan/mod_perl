@@ -77,10 +77,12 @@ $APACHE_SRC_DEFAULT = $@ ?
     $Apache::MyConfig::Setup{Apache_Src} ; 
 
 my $PWD = cwd;
+
 my %SSL = (
     "modules/ssl/apache_ssl.c" => "Ben-SSL",
     "apache_ssl.c" => "Ben-SSL",
     "mod_ssl.h"   => "Stronghold",
+    "modules/modssl" => "Stronghold",
 );
 
 unless (-e "t/docs/test.shtml") {
@@ -148,9 +150,10 @@ $PERL_DESTRUCT_LEVEL = "";
 $PERL_STATIC_EXTS = "";
 $PERL_EXTRA_CFLAGS = "";
 $SSLCacheServerPort = 8539;
+$SSL_BASE = ""; 
 $Port = 8529;
 #so Doug can 'make test' different-builds@sametime/samebox
-if(!$Is_Win32 and $Is_dougm and $$ > 8000 and $$ < 30000) {
+if(!$Is_Win32 and $ENV{RANDOM_PORT} and $$ > 8000 and $$ < 30000) {
     $PORT ||= $$;
     print "I'll use Port $PORT\n";
 }
@@ -175,6 +178,7 @@ $PERL_TABLE_API = 0;
 $PERL_LOG_API = 0;
 $PERL_URI_API = 0;
 $PERL_UTIL_API = 0;
+$PERL_FILE_API = 0;
 $PERL_CONNECTION_API = 1; #these two were split out late in the game
 $PERL_SERVER_API = 1;     #so they are on by default 
 $PERL_RUN_XS = 0;
@@ -197,10 +201,12 @@ PERL_DEFAULT_OPMASK
 PERL_ORALL_OPMASK
 };
 
-my @mp_args = 
+my %PassEnv = map { $_,1 } qw(SSL_BASE);
+
+my @mp_args = (keys %PassEnv,
     qw(EXPERIMENTAL EVERYTHING DO_HTTPD NO_HTTPD CONFIG ADD_MODULE APACHE_PREFIX
        USE_APACI USE_DSO USE_APXS WITH_APXS APACI_ARGS PREP_HTTPD
-       ALL_HOOKS ADD_VERSION STATIC DYNAMIC PORT XS_IMPORT);
+       ALL_HOOKS ADD_VERSION STATIC DYNAMIC PORT XS_IMPORT));
 
 sub is_mp_arg {
     my $arg = shift; 
@@ -229,6 +235,7 @@ sub is_mp_arg {
    PERL_LOG_API
    PERL_URI_API
    PERL_UTIL_API
+   PERL_FILE_API
    PERL_CONNECTION_API
    PERL_SERVER_API
 };
@@ -298,7 +305,24 @@ if($experimental{PERL_DEFAULT_OPMASK} > 1) {
     $PERL_EXTRA_CFLAGS .= " -DPERL_SAFE_STARTUP=1";
 }
 
+for (keys %PassEnv) {
+    $ENV{$_} = $$_ if $$_;
+}
+
 $USE_APACI = 1 if $USE_DSO;
+if($USE_DSO or $USE_APXS and !$DO_HTTPD) {
+    print "*" x 65, $/;
+    print <<EOF;
+* WARNING: mod_perl as a DSO is known to fail on most platforms *
+*          We recommend linking mod_perl static instead         *
+EOF
+    print "*" x 65, $/;
+    my $ans = prompt("Continue?", "n");
+    if($ans =~ /^n$/i) {
+        print "Aborting build process\n";
+        exit;
+    }
+}
 
 if($USE_APXS) {
     if(-e $USE_APXS and !(-d _)) {
@@ -334,7 +358,7 @@ for (keys %callback_alias) {
 if($EVERYTHING) {
     @callback_hooks{qw(PERL_STACKED_HANDLERS PERL_METHOD_HANDLERS)} = (1) x 2;
     for(qw(ALL_HOOKS PERL_SSI PERL_SECTIONS PERL_DIRECTIVE_HANDLERS 
-	   PERL_LOG_API PERL_URI_API PERL_UTIL_API PERL_TABLE_API)) {
+	   PERL_LOG_API PERL_URI_API PERL_UTIL_API PERL_TABLE_API PERL_FILE_API)) {
        $$_ = 1;
     }
 }
@@ -347,7 +371,7 @@ if($ALL_HOOKS) {
 }
 
 if($DYNAMIC) {
-    $PERL_DIRECTIVE_HANDLERS = $PERL_TABLE_API = 
+    $PERL_DIRECTIVE_HANDLERS = $PERL_TABLE_API = $PERL_FILE_API =
 	$PERL_LOG_API = $PERL_URI_API = $PERL_UTIL_API = 1;
 }
 
@@ -419,7 +443,7 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    $USE_APACI = $USE_DSO = 0;
 	    
 	}
-	for (qw(PERL_LOG_API PERL_URI_API PERL_UTIL_API)) {
+	for (qw(PERL_LOG_API PERL_URI_API PERL_UTIL_API PERL_FILE_API)) {
 	    if(($mmn < MMN_130) and $$_) { #1.3.0
 		$$_ = 0;
 		$cant_hook{$_} = "(need 1.3.0 or higher)";
@@ -581,7 +605,7 @@ if($PERL_RUN_XS or $experimental{PERL_RUN_XS} > 1) {
 	print "Sorry, need 1.3.0+ for Apache::PerlRunXS\n";
     }
 }
-for (qw(Log URI Util Connection Server)) {
+for (qw(Log URI Util Connection Server File)) {
     my $s = "PERL_".uc($_)."_API";
     if($$s) {
 	push @xs_modules, "Apache::$_";
@@ -700,25 +724,38 @@ if($APACHE_SRC or $USE_APXS) {
 
 	if($ssl_name =~ /stronghold/i) {
 	    my $skey;
-	    my $conf = "/usr/local/stronghold/conf/httpd.conf";
+	    my $lfile;
+	    my $conf = "$APACHE_SRC/../conf/httpd.conf";
 	    if(-e $conf) {
 		open FH, $conf;
 		while(<FH>) {
+		    chomp;
 		    if(/^StrongholdKey/) {
 			$skey = $_;
 			last;
+		    }
+		    elsif(s/^StrongholdLicenseFile\s+//) {
+			$lfile = $_;
+			unless ($lfile =~ m:^/:) {
+			    $lfile = "$APACHE_SRC/../$lfile";
+			}
 		    }
 		}
 		close FH;
 	    }
 
 	    if($skey) {
-		chomp($StrongholdKey = $skey);
+		$StrongholdKey = $skey;
 		print "Using $skey for 'make test'\n";
+	    }
+	    elsif(-e $lfile) {
+		$StrongholdKey = join " ", 
+		"StrongholdLicenseFile", $lfile;
+		print "Using $StrongholdKey for 'make test'\n";
 	    }
 	    else {
 		print "Before running `make test', ",
-		"you must add your `StrongholdKey' to t/conf/httpd.conf\n"; 
+		"you must add your `StrongholdLicenseFile' to t/conf/httpd.conf\n"; 
 	    }
 	}
 
@@ -1732,7 +1769,8 @@ sub write_my_config {
 package Apache::MyConfig ;
 
 %Setup = (
-   'Apache_Src' => \'$APACHE_SRC\'
+   'Apache_Src' => \'$APACHE_SRC\',
+   'SSL_BASE' => \'$SSL_BASE\',
 );
 
 1;

@@ -31,6 +31,7 @@ PerlSetEnv KeyForPerlSetEnv OK
 #!perl
 use Apache ();
 use Apache::Registry ();
+use Apache::RegistryNG ();
 
 Apache::Server->register_cleanup(sub { 
     warn "Apache::Server registered cleanup called for $$\n";
@@ -121,7 +122,7 @@ for (qw(/perl /cgi-bin /dirty-perl /perl_xs)) {
 
 my @mod_perl = (
     SetHandler  => "perl-script",
-    PerlHandler => "Apache::Registry",
+    PerlHandler => "Apache::RegistryNG->handler",
     Options     => "ExecCGI",
 );
 
@@ -217,6 +218,11 @@ $PerlTransHandler =  "PerlTransHandler::handler";
 $Location{"/chain"} = {
     @mod_perl,
     PerlHandler => [map { "Stacked::$_" } qw(one two three four)],
+};
+
+$Location{"/death"} = {
+    @mod_perl,
+    PerlHandler => "Apache::Death",
 };
 
 </Perl>

@@ -3,9 +3,14 @@ SHORT TERM STUFF (this section should always be empty in a release version!)
                  (well, close to it anyhow)
 ---------------------------------------------------------------------------
 
-- cache method for Apache::PerlRun
+- forking under Apache::Registry, exit vs CORE::exit 
 
-- $ENV{PATH}
+- files that have been created after the server's (child?) startup are
+  being reported with negative age with -M test under Apache::Registry. 
+  The workaround is to add $^T = time; at the beginning of the scripts. But
+  it would be much better if the Apache::Registry will do that 
+
+- turn of strip of httpd during 'make install'
 
 - 'make htmldoc' (Brian Moseley)
 
@@ -263,6 +268,9 @@ OPTIMIZATIONS
 
 - make Apache::RegistryLoader work with RegistryXS
 
+- avoid a copy in PerlRunXS (use SvPVX instead of safemalloc'd copy)
+
 - XS_IMPORT=1 on by default
 
-
+- in places where Apache did a pstrdup, don't use newSVpv(), use
+  newSV()->sv_upgrade()->SvPVX/SvCUR_set to avoid another copy 
