@@ -118,7 +118,7 @@ Returns true if the current request object is for the main request.
 First we will take a look at various methods that can be used to
 retrieve the request parameters sent from the client.
 In the following examples, B<$r> is a request object blessed into the 
-B<Apache> class, obtained by a handler's first parameter or I<Apache->request>.
+B<Apache> class, obtained by a handler's first parameter or I<Apache-E<gt>request>
 
 =over 4
 
@@ -190,20 +190,18 @@ Return the value of a client header.  Can be used like this:
 =item $r->content
 
 The $r->content method will return the entity body read from the
-client.  When called in a scalar context, the entire string is
+client, but only if the request content type is
+C<application/x-www-form-urlencoded>.
+When called in a scalar context, the entire string is
 returned.  When called in a list context, a list of parsed I<key> =>
 I<value> pairs are returned.  *NOTE*: you can only ask for this once,
 as the entire body is read from the client.
-
-B<Note:> This method will do nothing if the request content type is
-not C<application/x-www-form-urlencoded>.
 
 =item $r->read_client_block($buf, $bytes_to_read)
 
 Read from the entity body sent by the client.  Example of use:
 
-  %headers_in = $req->headers_in;
-  $req->read_client_block($buf, $headers_in{'Content-length'});
+  $r->read_client_block($buf, $r->header_in('Content-length'));
 
 =item $r->read($buf, $bytes_to_read)
 
@@ -365,13 +363,14 @@ Get or set the content language.  The content language corresponds to the
 =item $r->status( $integer )
 
 Get or set the reply status for the client request.  The
-B<HTTP::Status> module provide mnemonic names for the status codes.
+B<Apache::Constants> module provide mnemonic names for the status codes.
 
 =item $r->status_line( $string )
 
 Get or set the response status line.  The status line is a string like
-"HTTP/1.0 200 OK", but I am not sure how this relates to the
-$r->status() described above.
+"HTTP/1.0 200 OK" and it will take precedence over the value specified
+using the $r->status() described above.
+
 
 =item $r->header_out( $header, $value )
 
@@ -492,6 +491,7 @@ Handy function for unescapes.
 =head1 SEE ALSO
 
 perl(1),
+Apache::Constants(3),
 Apache::Registry(3),
 Apache::CGI(3),
 Apache::Debug(3),

@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.28 1996/10/14 03:34:51 dougm Exp $ */
+/* $Id: Apache.xs,v 1.29 1996/10/15 13:02:05 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -254,16 +254,6 @@ exit(...)
 
     exit(sts);
     }
-
-#httpd.h
-
-char *
-SERVER_VERSION()
-   CODE: 
-   RETVAL = SERVER_VERSION;
-
-   OUTPUT:
-   RETVAL
      
 char *
 unescape_url(string)

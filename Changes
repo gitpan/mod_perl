@@ -11,6 +11,16 @@ For getting this effort started
 
 Other contributors are mentioned below:
 
+=item 0.83_05
+
+added missing Makefile to src/modules/perl/
+
+turned off PERL_TRACE, oops
+
+moved SERVER_VERSION from Apache.xs to Constants.xs
+
+applied another doc patch to Apache.pm from Gisle
+
 =item 0.83_04
 
 updated INSTALL and UsersGuide documents

@@ -284,3 +284,11 @@ PROTOTYPES: DISABLE
 double
 constant(name)
 	char *		name
+
+char *
+SERVER_VERSION()
+   CODE: 
+   RETVAL = SERVER_VERSION;
+
+   OUTPUT:
+   RETVAL

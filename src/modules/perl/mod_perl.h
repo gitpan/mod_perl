@@ -16,7 +16,6 @@ extern "C" {
 #include "http_main.h"
 #include "http_core.h"
 
-#define PERL_TRACE
 #ifdef PERL_TRACE
 #define CTRACE fprintf
 #else
