@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::TestSSLCA;
 
 use strict;
@@ -38,7 +52,9 @@ my $passin  = "-passin pass:$pass";
 my $passout = "-passout pass:$pass";
 
 # in 0.9.7 s/Email/emailAddress/ in DN
-my $email_field = $version lt "0.9.7" ? "Email" : "emailAddress";
+my $email_field = Apache::Test::normalize_vstring($version) <
+                  Apache::Test::normalize_vstring("0.9.7") ? 
+                  "Email" : "emailAddress";
 
 my $ca_dn = {
     asf => {

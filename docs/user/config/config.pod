@@ -221,9 +221,9 @@ or calls:
 
   $r->subprocess_env;
 
-in a void context (which has the same effect as C<PerlOptions
-+SetupEnv> for the handler that called it), only the following
-environment variables are accessible via C<%ENV>:
+in a void context with no arguments (which has the same effect
+as C<PerlOptions +SetupEnv> for the handler that called it), only
+the following environment variables are accessible via C<%ENV>:
 
 =over
 
@@ -300,6 +300,12 @@ Several special global Perl variables are saved before the handler is
 called and restored afterwards (similar to mod_perl 1.0). This
 includes: C<%ENV>, C<@INC>, C<$/>, C<STDOUT>'s C<$|> and C<END> blocks
 array (C<PL_endav>).
+
+=item *
+
+Entries added to C<%ENV> are passed on to the C<subprocess_env> table,
+and are thus accessible via C<r-E<gt>subprocess_env> during the later
+C<PerlLogHandler> and C<PerlCleanupHandler> phases.
 
 =back
 
@@ -400,8 +406,15 @@ It also provides control over what class of C<PerlInterpreter> is used
 for a C<E<lt>VirtualHostE<gt>> or location configured with
 C<E<lt>LocationE<gt>>, C<E<lt>DirectoryE<gt>>, etc.
 
-Options are enabled by prepending C<+> and disabled with C<->. The
-options include:
+L<$r-E<gt>is_perl_option_enabled($option)|docs::2.0::api::Apache::RequestUtil/C_is_perl_option_enabled_>
+and
+L<$s-E<gt>is_perl_option_enabled($option)|docs::2.0::api::Apache::ServerUtil/C_is_perl_option_enabled_>
+can be used at run-time to check whether a certain C<$option> has been
+enabled. (META: probably need to add/move this to the coding chapter)
+
+Options are enabled by prepending C<+> and disabled with C<->.
+
+The available options are:
 
 =head3 C<Enable>
 
@@ -540,9 +553,12 @@ in our example.
 
 =head3 C<GlobalRequest>
 
-Setup the global C<request_rec> for use with C<Apache-E<gt>request>.
+Setup the global C<L<$r|docs::2.0::api::Apache::RequestRec>> object
+for use with
+C<L<Apache-E<gt>request|docs::2.0::api::Apache::RequestUtil/C_request_>>.
 
-This setting is enabled by default during the PerlResponseHandler
+This setting is enabled by default during the
+C<L<PerlResponseHandler|docs::2.0::user::handlers::http/PerlResponseHandler>>
 phase for sections configured as:
 
   <Location ...>
@@ -679,7 +695,7 @@ When this option is disabled you can still read environment variables
 set by you.  For example when you use the following configuration:
 
   PerlOptions -SetupEnv
-  PerlModule Modperl::Registry
+  PerlModule ModPerl::Registry
   <Location /perl>
     PerlSetEnv TEST hi
     SetHandler perl-script
@@ -693,7 +709,7 @@ and you issue a request for this script:
   --------------
   use Data::Dumper;
   my $r = Apache->request();
-  $r->send_http_header('text/plain');
+  $r->content_type('text/plain');
   print Dumper(\%ENV);
 
 you should see something like this:
@@ -1151,8 +1167,7 @@ Apache specifies other allowed location types which are currently not
 used by the core mod_perl directives and their definition can be found
 in I<include/httpd_config.h> (hint: search for C<RSRC_CONF>).
 
-Also see L<Single Phase's Multiple Handlers
-Behavior|docs::2.0::user::handlers::intro/Single_Phase_s_Multiple_Handlers_Behavior>.
+Also see L<Stacked Handlers|docs::2.0::user::handlers::intro/Stacked_Handlers>.
 
 
 
@@ -1187,11 +1202,11 @@ the previous example:
   </IfDefine>
 
 If you need to access any of the startup defines in the Perl code you
-use C<Apache::exists_config_define>. For example in a startup file you
+use C<Apache::Server::exists_config_define>. For example in a startup file you
 can say:
 
   use Apache::ServerUtil ();
-  if (Apache::exists_config_define("PERLDB")) {
+  if (Apache::Server::exists_config_define("PERLDB")) {
       require Apache::DB;
       Apache::DB->init;
   }
@@ -1199,7 +1214,7 @@ can say:
 For example to check whether the server has been started in a single
 mode use:
 
-  if (Apache::exists_config_define("ONE_PROCESS")) {
+  if (Apache::Server::exists_config_define("ONE_PROCESS")) {
       print "Running in a single mode";
   }
 
@@ -1219,9 +1234,9 @@ running under mod_perl 1.0 or 2.0:
   </IfDefine>
 
 From within Perl code this can be tested with
-C<Apache::exists_config_define()>, for example:
+C<Apache::Server::exists_config_define()>, for example:
 
-  if (Apache::exists_config_define("MODPERL2")) {
+  if (Apache::Server::exists_config_define("MODPERL2")) {
       # some 2.0 specific code
   }
 

@@ -1,3 +1,18 @@
+/* Copyright 2003-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 /* not too long so it won't wrap when posted in email */
@@ -73,12 +88,13 @@ static SV *
 PerlIOApache_getarg(pTHX_ PerlIO *f, CLONE_PARAMS *param, int flags)
 {
     PerlIOApache *st = PerlIOSelf(f, PerlIOApache);
-    SV *sv = newSV(0);
+    SV *sv;
 
     if (!st->r) {
         Perl_croak(aTHX_ "an attempt to getarg from a stale io handle");
     }
     
+    sv = newSV(0);
     sv_setref_pv(sv, "Apache::RequestRec", (void*)(st->r));
 
     MP_TRACE_o(MP_FUNC, "retrieved request_rec obj: 0x%lx", st->r);
@@ -277,15 +293,24 @@ MP_INLINE SSize_t modperl_request_read(pTHX_ request_rec *r,
         rc = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
                             APR_BLOCK_READ, len);
         if (rc != APR_SUCCESS) { 
+            char *error;
             /* if we fail here, we want to just return and stop trying
              * to read data from the client.
              */
             r->connection->keepalive = AP_CONN_CLOSE;
             apr_brigade_destroy(bb);
+
+            if (SvTRUE(ERRSV)) {
+                STRLEN n_a;
+                error = SvPV(ERRSV, n_a);
+            }
+            else {
+                error = modperl_apr_strerror(rc);
+            }
             sv_setpv(ERRSV,
                      (char *)apr_psprintf(r->pool, 
                                           "failed to get bucket brigade: %s",
-                                          modperl_apr_strerror(rc)));
+                                          error));
             return -1;
         }
 

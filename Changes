@@ -1,6 +1,6 @@
 =head1 NAME
 
-Changes - Apache mod_perl change logfile
+Changes - Apache mod_perl changes logfile
 
 =head1 CHANGES
 
@@ -10,7 +10,171 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
-=item 1.99_12 - Decemeber 22, 2003
+=item 1.99_13 - March 8, 2004
+
+respect $ENV{APACHE_TEST_STARTUP_TIMEOUT} settings if any [Stas]
+
+Added tests for issuing subrequests from filters [Geoffrey Young]
+
+Updated to the new Apache License Version 2.0 [Gozer]
+
+Drop the support for making GATEWAY_INTERFACE special. It's not needed
+as $ENV{MOD_PERL}, available in both mod_perl generations, should be
+used to test whether the code is running under mod_perl. [Stas]
+
+Handle correctly the situation when response HTTP headers are printed
+from the handler and the response body starts with \000, which is the
+case with some images like .ico. [Stas]
+
+Apache::PerlSections->dump() and store(filename) [Gozer]
+
+expose $c->keepalive related constants and $c->keepalives counter
+[Stas]
+
+Perl handlers are now guaranteed to run before core C handlers for
+all request phases.  [Geoffrey Young]
+
+Fix the STDIN/OUT overriding process to handle gracefully cases, when
+either or both are closed/bogus (the problem was only with useperlio
+enabled perl) [Stas]
+
+copy apr_table_compress logic from later httpd versions in case mod_perl
+is built against 2.0.46, as mod_perl now requires it internally.  users
+should be aware that 2.0.47 may become the oldest supported httpd version 
+in the near future.  [Geoffrey Young]
+
+Fix the corruption of the httpd process argv[0], caused by $0
+manipulating [Stas]
+
+ModPerl::MethodLookup::lookup_method now handles sub-classed objects
+[Stas]
+
+standard %ENV population with CGI variables and contents of the
+subprocess_env table (such as SetEnv and PassEnv) has been delayed
+until the last possible moment before content-generation runs.
+PerlSetEnv and PerlPassEnv are each an exception to this and are
+placed in both %ENV and the subprocess_env table immediately,
+regardless of the current [+-]SetupEnv setting.
+[Geoffrey Young]
+
+fix PerlAddVar configuration merging [Geoffrey Young]
+
+Anonymous subs are now supported in push_handlers, set_handlers,
+add_input_filter, etc. A fast cached cv is used with non-ithreaded
+perl. A slower deparse/eval approach (via B::Deparse) is used with
+ithreads enabled perls. Further optimizations are planned for the
+latter case. [Stas]
+
+ht_time w/o the pool is now available only via override/restore compat
+API. format_time, has been renamed back to ht_time, and the default
+values for fmt, time and gmt are now supported. [Stas]
+
+it's now possible to push new handlers into the same phase that is
+running at the moment [Stas].
+
+when $r->handler($new_handler) is called from a response phase, it now
+checks that the response handler type is not switched (e.g. from
+'modperl' to 'perl-script') from the currently used one [Stas]
+
+Since Apache::SubProcess is now part of the mp2 API, add
+$r->cleanup_for_exec as a noop in Apache::compat. That function is no
+longer needed in Apache2. [Stas]
+
+When 'perl Makefile.PL PREFIX=/foo/bar' is used and mod_perl 1 is
+found, but at different prefix no longer require
+MP_INST_APACHE2=1. [Stas]
+
+modperl_mgv_resolve now croaks when a module scheduled for autoloading
+fails to load.  AutoLoaded modules shouldn't silently fail. [Stas]
+
+Perl(Input|Output)FilterHandler handlers are now always AutoLoaded, as
+if '+' prefix was used. This must be performed to get the access to
+filter attributes long before the filter itself is executed. [Stas]
+
+APR/Pool.xs has been reimplemented.  The problem with the previous
+implementation is that a dead perl pool object could hijack a newly
+created pool, which didn't belong to that object, but which happened
+to be allocated at the same memory location. The problem is that
+apr_pool_user_data_set/get has no mechanism to check whether the pool
+has changed since it was last assigned to (it does but only in the
+debug mode). It really needs some signature mechanism which can be
+verified that the pool is still the same pool. Since apr_pool doesn't
+have this feature, the reference counting has been reimplemented using
+a plain sv reference. Several new (mainly hijacking) tests which badly
+fail with the previous impelementation have been added. [Stas]
+
+fix calling $r->subprocess_env() in a void context so that it only
+populates %ENV if also called with no arguments.  also, make sure it
+can be called more than once and still populate %ENV.
+[Geoffrey Young]
+
+add APR::Brigade::pool() to allow access to the pool associated with
+the brigade  [Geoffrey Young]
+
+make 't/TEST -startup_timeout secs' working (previously user's value
+was ignored) [Stas]
+
+ModPerl::Registry and friends now support non-parsed headers scripts,
+whose filename =~ /^nph-/, identically to mod_cgi. + test [Stas]
+
+implement APR::Brigade::length() and APR::Brigade::flatten() (the
+latter implements a wrapper for apr_brigade_flatten, but also includes
+an emulation of apr_brigade_pflatten) as [Geoffrey Young]
+
+($r|$s)->add_config() now die if failed (previously returned the
+error) [Stas]
+
+fix context problems in <perl> sections and
+PerlModule/PerlLoadModule/PerlRequre under threaded mpms w/
+PerlOptions +Parent/+Clone in Vhosts + TestVhost::config test. [Stas]
+
+Implemented Apache::get_server_version and Apache::get_server_built
+as constant subroutines [Geoffrey Young]
+
+Moved some functions out of the Apache:: namespace:
+  Apache::unescape_url()       is now Apache::URI::unescape_url()
+  Apache::log_pid()            is now Apache::Log::log_pid()
+  Apache::LOG_MARK()           is now Apache::Log::LOG_MARK()
+[Geoffrey Young]
+
+if MP_AP_PREFIX is used apxs and apr-config from the apache build tree
+won't work, so it can't co-exist with MP_APXS and MP_APR_CONFIG build
+options - ensure that this doesn't happen. [Stas]
+
+server_root_relative() now requires either a valid pool or an $r, $s,
+or $c object as a first argument.  also, the returned result is a
+copy, protecting against cases where the pool would go out of scope
+before the result.  [Geoffrey Young]
+
+Check the success of sysopen in tmpfile() in compat [Geoffrey Young]
+
+make sure DynaLoader is loaded before XSLoader, not only with perl
+5.6.1, but always because of the issues with <Perl> sections are
+loaded from +Parent vhost [Stas]
+
+added ($r|$s)->is_perl_option_enabled($option_name), to test for
+PerlOptions + tests [Stas]
+
+On Solaris add a workaround for xs/APR/APR/Makefile.PL to build
+APR.so, correctly linked against apr and apr-util libs, by addding the
+missing -R paths corresponding to -L flags. EU::MM was adding them via
+LD_RUN_PATH instead of using -R, but since perl's lddflags may have -R
+it overrides LD_RUN_PATH. So explicitly add anything that may go into
+LD_RUN_PATH via -R. Also make sure that -R coming from Apache will
+appear first. [Brad Lanam <bll@gentoo.com>]
+
+'make dist' now generates and picks Apache-Test/META.yml which was
+always reported missing, as it was included in Apache-Test/MANIFEST
+[Stas]
+
+fix the $r->read function to return undef on failure similar to the
+core perl function and make $! available for those who test for read()
+failures. [Stas]
+
+Make sure that pnotes are destroyed after PerlCleanup handlers are
+finished and not before + test. [Stas]
+
+=item 1.99_12 - December 22, 2003
 
 Restore a proper behavior of all Registry handlers, but PerlRun, not
 to reset %INC to forget any .pl files required during the script's

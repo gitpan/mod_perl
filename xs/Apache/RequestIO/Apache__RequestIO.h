@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifdef WIN32
 /* win32 not happy with &PL_sv_no */
 #   define SVNO  newSViv(0)
@@ -95,7 +110,7 @@ apr_size_t mpxs_ap_rprintf(pTHX_ I32 items, SV **MARK, SV **SP)
     /* XXX: we could have an rcfg->sprintf_buffer to reuse this SV
      * across requests
      */
-    sv = newSV(0);
+    sv = sv_newmortal();
     modperl_perl_do_sprintf(aTHX_ sv, items, MARK);
     bytes = SvCUR(sv);
 
@@ -107,8 +122,6 @@ apr_size_t mpxs_ap_rprintf(pTHX_ I32 items, SV **MARK, SV **SP)
                                            SvPVX(sv), &bytes));
     
     mpxs_output_flush(r, rcfg);
-
-    SvREFCNT_dec(sv);
 
     return bytes;
 }  
@@ -209,7 +222,7 @@ apr_status_t mpxs_setup_client_block(request_rec *r)
 #define mpxs_Apache__RequestRec_READ(r, bufsv, len, offset) \
     mpxs_Apache__RequestRec_read(aTHX_ r, bufsv, len, offset)
 
-static long mpxs_Apache__RequestRec_read(pTHX_ request_rec *r,
+static SV* mpxs_Apache__RequestRec_read(pTHX_ request_rec *r,
                                          SV *bufsv, int len,
                                          int offset)
 {
@@ -220,7 +233,10 @@ static long mpxs_Apache__RequestRec_read(pTHX_ request_rec *r,
     }
 
     if (len <= 0) {
-        return 0;
+        sv_setpv(get_sv("!", TRUE),
+                 (char *)apr_psprintf(r->pool,
+                                      "The LENGTH argument can't be negative"));
+        return &PL_sv_undef;
     }
 
     /* XXX: need to handle negative offset */
@@ -237,15 +253,10 @@ static long mpxs_Apache__RequestRec_read(pTHX_ request_rec *r,
         sv_setpvn(bufsv, "", 0);
     }
     else {
-        /* need to return undef according to the read entry, but at
-         * the moment we return IV, so need to change to return SV,
-         * meanwhile just crock */
-        if (SvTRUE(ERRSV)) {
-            (void)modperl_errsv(aTHX_ HTTP_INTERNAL_SERVER_ERROR, r, NULL);
-        }
+        return &PL_sv_undef;
     }
 
-    return total;
+    return newSViv(total);
 }
 
 static MP_INLINE

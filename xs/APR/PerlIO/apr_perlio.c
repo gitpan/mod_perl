@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "modperl_largefiles.h"
 
 #include "mod_perl.h"
@@ -87,6 +102,8 @@ static PerlIO *PerlIOAPR_open(pTHX_ PerlIO_funcs *self,
       case 'r':
         apr_flag = APR_READ;
         break;
+      default:
+        Perl_croak(aTHX_ "unknown open mode: %s", mode);
     }
 
     /* APR_BINARY:   we always do binary read and PerlIO is supposed
@@ -249,6 +266,8 @@ static IV PerlIOAPR_seek(pTHX_ PerlIO *f, Off_t offset, int whence)
       case 2:
         where = APR_END;
         break;
+      default:
+        Perl_croak(aTHX_ "unknown whence mode: %d", whence);
     }
 
     rc = apr_file_seek(st->file, where, &seek_offset);
@@ -451,6 +470,8 @@ PerlIO *apr_perlio_apr_file_to_PerlIO(pTHX_ apr_file_t *file, apr_pool_t *pool,
       case APR_PERLIO_HOOK_READ:
         mode = "r";
         break;
+      default:
+        Perl_croak(aTHX_ "unknown APR_PERLIO type: %d", type);
     };
     
     PerlIO_apply_layers(aTHX_ f, mode, layers);

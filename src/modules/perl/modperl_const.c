@@ -1,20 +1,34 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 #include "modperl_const.h"
 
 typedef SV *(*constants_lookup)(pTHX_ const char *);
 typedef const char ** (*constants_group_lookup)(const char *);
 
-static SV *new_constsub(pTHX_ constants_lookup lookup,
+static void new_constsub(pTHX_ constants_lookup lookup,
                         HV *caller_stash, HV *stash,
                         const char *name)
 {
     int name_len = strlen(name);
     GV **gvp = (GV **)hv_fetch(stash, name, name_len, TRUE);
-    SV *val;
 
     /* dont redefine */
     if (!isGV(*gvp) || !GvCV(*gvp)) {
-        val = (*lookup)(aTHX_ name);
+        SV *val = (*lookup)(aTHX_ name);
 
 #if 0
         fprintf(stderr, "newCONSTSUB(%s, %s, %d)\n",
@@ -38,8 +52,6 @@ static SV *new_constsub(pTHX_ constants_lookup lookup,
 
         GvCV(alias) = GvCV(*gvp);
     }
-
-    return val;
 }
 
 int modperl_const_compile(pTHX_ const char *classname,

@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::TestConfig; #not TestConfigC on purpose
 
 use strict;
@@ -40,7 +54,8 @@ sub cmodule_find {
         my $wanted = $1;
         (my $current) = $self->{server}->{version} =~ m:^Apache/(\d\.\d+\.\d+):;
 
-        if ($current lt $wanted) {
+        if (Apache::Test::normalize_vstring($current) < 
+            Apache::Test::normalize_vstring($wanted)) {
             my $reason = "requires Apache version $wanted";
             $self->{cmodules_disabled}->{$mod} = $reason;
             notice "$mod $reason, skipping.";
@@ -122,13 +137,13 @@ sub cmodules_write_makefiles {
 
     for my $dir (@dirs) {
         for my $targ (@targets) {
-            print $fh "$dir-$targ:\n\t-cd $dir && \$(MAKE) $targ\n\n";
+            print $fh "$dir-$targ:\n\tcd $dir && \$(MAKE) $targ\n\n";
         }
 
         my $lib = $self->cmodules_build_so($dir);
         my $cfile = "$dir/mod_$dir.c";
         push @libs, "$dir/$lib";
-        print $fh "$libs[-1]: $cfile\n\t-cd $dir && \$(MAKE) $lib\n\n";
+        print $fh "$libs[-1]: $cfile\n\tcd $dir && \$(MAKE) $lib\n\n";
     }
 
     for my $targ (@targets) {
@@ -152,7 +167,7 @@ sub cmodules_write_makefile_default {
 
     my $dversion = $self->server->dversion;
     my $name = $mod->{name};
-    my $makefile = "$mod->{dir}/Makefile";
+    my $makefile = catfile $mod->{dir}, 'Makefile';
     debug "writing $makefile";
 
     my $lib = $self->cmodules_build_so($name);
@@ -166,6 +181,48 @@ all: $lib
 
 $lib: $name.c
 	\$(APXS) $dversion -I$self->{cmodules_dir} -c $name.c
+
+clean:
+	-rm -rf $name.o $name.lo $name.slo $name.la .libs
+EOF
+
+    close $fh or die "close $makefile: $!";
+}
+
+sub cmodules_write_makefile_aix {
+    my($self, $mod) = @_;
+
+    my $dversion = $self->server->dversion;
+    my $name = $mod->{name};
+    my $makefile = catfile $mod->{dir}, 'Makefile';
+    my $apxsflags = '';
+
+    if ($dversion =~ 'APACHE1') {
+        $apxsflags = "-Wl,-bE:$name.exp";
+        my $expfile = catfile $mod->{dir}, "$name.exp";
+        if (! -f $expfile) {
+            my $fh = Symbol::gensym();
+            $name =~ /^mod_(\w+)(?:\.c)?$/;
+            my $sym = $1 . '_module';
+            open $fh, ">$expfile" or die "open $expfile: $!";
+            print $fh "$sym\n";
+            close $fh;
+        }
+    }
+    debug "writing $makefile";
+
+    my $lib = $self->cmodules_build_so($name);
+
+    my $fh = Symbol::gensym();
+    open $fh, ">$makefile" or die "open $makefile: $!";
+
+    print $fh <<EOF;
+APXS=$self->{APXS}
+APXSFLAGS=$apxsflags
+all: $lib
+
+$lib: $name.c
+	\$(APXS) $dversion -I$self->{cmodules_dir} \$(APXSFLAGS) -c $name.c
 
 clean:
 	-rm -rf $name.o $name.lo $name.slo $name.la .libs
@@ -210,6 +267,9 @@ sub cmodules_make {
     my $cmd = "cd $self->{cmodules_dir} && $Config{make} $targ";
     debug $cmd;
     system $cmd;
+    if ($?) {
+        die "Failed to build c-modules";
+    }
 }
 
 sub cmodules_compile {

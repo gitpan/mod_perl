@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef MODPERL_MGV_H
 #define MODPERL_MGV_H
 
@@ -7,8 +22,6 @@ int modperl_mgv_equal(modperl_mgv_t *mgv1,
                       modperl_mgv_t *mgv2);
 
 modperl_mgv_t *modperl_mgv_compile(pTHX_ apr_pool_t *p, const char *name);
-
-char *modperl_mgv_name_from_sv(pTHX_ apr_pool_t *p, SV *sv);
 
 GV *modperl_mgv_lookup(pTHX_ modperl_mgv_t *symbol);
 

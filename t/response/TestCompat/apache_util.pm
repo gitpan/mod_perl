@@ -58,7 +58,7 @@ sub handler {
     ok t_cmp($esc_uri, $uri, "Apache::Util::escape_uri");
     ok t_cmp($esc_uri, $uri2, "Apache::Util::escape_path");
 
-    ok t_cmp(Apache::unescape_url($uri),
+    ok t_cmp(Apache::URI::unescape_url($uri),
              Apache::Util::unescape_uri($uri2),
              "Apache::URI::unescape_uri vs Apache::Util::unescape_uri");
 
@@ -76,8 +76,9 @@ sub handler {
 
     # ht_time(), parsedate()
     my $time = time;
-    
+    Apache::compat::override_mp2_api('Apache::Util::ht_time');
     my $fmtdate = Apache::Util::ht_time($time);
+    Apache::compat::restore_mp2_api('Apache::Util::ht_time');
 
     ok t_cmp($fmtdate, $fmtdate, "Apache::Util::ht_time");
 

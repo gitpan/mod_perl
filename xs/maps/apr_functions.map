@@ -81,13 +81,13 @@ MODULE=APR::Brigade
 -apr_brigade_to_iovec
 -apr_brigade_vprintf
 -apr_brigade_vputstrs
-!apr_brigade_length
+~apr_brigade_length
 !apr_brigade_write
 !apr_brigade_puts
 -apr_brigade_putc
 !apr_brigade_cleanup
-?apr_brigade_flatten
-?apr_brigade_pflatten
+~apr_brigade_flatten
+~apr_brigade_pflatten
 ?apr_brigade_split_line
  mpxs_APR__Brigade_first        #APR_BRIGADE_FIRST
  mpxs_APR__Brigade_last         #APR_BRIGADE_LAST
@@ -97,6 +97,9 @@ MODULE=APR::Brigade
  mpxs_APR__Brigade_insert_head  #APR_BRIGADE_INSERT_HEAD
  mpxs_APR__Brigade_concat       #APR_BRIGADE_CONCAT
  mpxs_APR__Brigade_empty        #APR_BRIGADE_EMPTY
+ mpxs_APR__Brigade_length | | bb, read_all=1
+ mpxs_APR__Brigade_flatten | | ...
+ mpxs_APR__Brigade_pool
 
 MODULE=APR::Bucket
  mpxs_APR__Bucket_is_flush       #APR_BUCKET_IS_FLUSH
@@ -154,7 +157,7 @@ MODULE=APR::Pool
  apr_pool_destroy
  DEFINE_DESTROY | mpxs_apr_pool_DESTROY | SV *:obj
 >apr_pool_destroy_debug
- apr_pool_t *:DEFINE_new | mpxs_apr_pool_create | SV *:parent_pool_obj
+ SV *:DEFINE_new | mpxs_apr_pool_create | SV *:parent_pool_obj
 -apr_pool_create_ex
 >apr_pool_create_ex_debug
 !apr_pool_userdata_get
@@ -172,7 +175,7 @@ MODULE=APR::Pool
 -apr_pmemdup
 !apr_pool_child_cleanup_set
 !apr_pool_abort_get
- apr_pool_parent_get | mpxs_
+ SV *:apr_pool_parent_get | mpxs_
  apr_pool_is_ancestor
 -apr_pool_abort_set
 >apr_pool_initialize

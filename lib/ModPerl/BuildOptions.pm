@@ -1,3 +1,17 @@
+# Copyright 2000-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package ModPerl::BuildOptions;
 
 use strict;
@@ -21,6 +35,19 @@ sub init {
     parse($build, [grep { /^MP_OPTIONS_FILE/ } @ARGV]);
     parse_file($build);
     parse_argv($build);
+
+    # if AP_PREFIX is used apxs and apr-config from the apache build
+    # tree won't work, so it can't co-exist with APXS and APR_CONFIG
+    # options
+    if ($build->{MP_AP_PREFIX} and $build->{MP_APXS}) {
+        error "You need to pass either MP_AP_PREFIX or MP_APXS, but not both";
+        die "\n";
+    }
+    if ($build->{MP_AP_PREFIX} and $build->{MP_APR_CONFIG}) {
+        error "You need to pass either MP_AP_PREFIX or MP_APR_CONFIG, " .
+            "but not both";
+        die "\n";
+    }
 
     if ($build->{MP_DEBUG} and $build->{MP_USE_GTOP} and !$build->find_gtop) {
         error "Can't find libgtop, resetting MP_USE_GTOP=0";

@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 /*
@@ -82,31 +97,6 @@ modperl_mgv_t *modperl_mgv_compile(pTHX_ apr_pool_t *p,
     modperl_mgv_hash(mgv);
 
     return symbol;
-}
-
-char *modperl_mgv_name_from_sv(pTHX_ apr_pool_t *p, SV *sv)
-{
-    char *name = NULL;
-    GV *gv;
-
-    if (SvROK(sv)) {
-        sv = SvRV(sv);
-    }
-
-    switch (SvTYPE(sv)) {
-      case SVt_PV:
-        name = SvPVX(sv);
-        break;
-      case SVt_PVCV:
-        if (CvANON((CV*)sv)) {
-            Perl_croak(aTHX_ "anonymous handlers not (yet) supported");
-        }
-        gv = CvGV((CV*)sv);
-        name = apr_pstrcat(p, HvNAME(GvSTASH(gv)), "::", GvNAME(gv), NULL);
-        break;
-    };
-
-    return name;
 }
 
 void modperl_mgv_append(pTHX_ apr_pool_t *p, modperl_mgv_t *symbol,
@@ -223,6 +213,11 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
     char *handler_name = "handler";
     char *tmp;
 
+    if (MpHandlerANON(handler)) {
+        /* already resolved anonymous handler */
+        return 1;
+    }
+    
     if (strnEQ(name, "sub ", 4)) {
         MP_TRACE_h(MP_FUNC, "handler is anonymous\n");
         MpHandlerANON_On(handler);
@@ -298,17 +293,24 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
                        "package %s not in %INC, attempting to load '%s'\n",
                        name, filename);
 
-            if (modperl_require_module(aTHX_ name, FALSE)) {
+            if (modperl_require_module(aTHX_ name, logfailure)) {
                 MP_TRACE_h(MP_FUNC, "loaded %s package\n", name);
             }
             else {
-                MP_TRACE_h(MP_FUNC, "failed to load %s package\n", name);
-                return 0;
+                if (logfailure) {
+                    /* the caller doesn't handle the error checking */
+                    Perl_croak(aTHX_ "failed to load %s package\n", name);
+                }
+                else {
+                    /* the caller handles the error checking */
+                    MP_TRACE_h(MP_FUNC, "failied to load %s package\n", name);
+                    return 0;
+                }
             }
         }
         else {
             MP_TRACE_h(MP_FUNC, "package %s seems to be loaded\n"
-                       "  $INC{%s)='%s';\n",
+                       "  $INC{'%s')='%s';\n",
                        name, filename, SvPV_nolen(*svp));
         }
     }
@@ -318,8 +320,7 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
      * module was loaded, preventing from loading the module
      */
     if (!(stash || (stash = gv_stashpv(name, FALSE)))) {
-        MP_TRACE_h(MP_FUNC, "package %s seems to be loaded, "
-                   "but can't find its stash\n", name);
+        MP_TRACE_h(MP_FUNC, "%s's stash is not found\n", name);
         return 0;
     }
 
@@ -346,6 +347,14 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
         return 1;
     }
 
+    /* at least modperl_hash_handlers needs to verify that an
+     * autoloaded-marked handler needs to be loaded, since it doesn't
+     * check success failure, and handlers marked to be autoloaded are
+     * the same as PerlModule and the failure should be fatal */
+    if (MpHandlerAUTOLOAD(handler)) {
+        Perl_croak(aTHX_ "failed to resolve handler %s\n", name);
+    }
+    
 #ifdef MP_TRACE
     /* complain only if the class was actually loaded/created */
     if (stash) {
@@ -417,7 +426,8 @@ int modperl_mgv_require_module(pTHX_ modperl_mgv_t *symbol,
 }
 #endif
 
-/* precompute the hash(es) for handler names */
+/* precompute the hash(es) for handler names, preload handlers
+ * configured to be autoloaded */
 static void modperl_hash_handlers(pTHX_ apr_pool_t *p, server_rec *s,
                                   MpAV *entry, void *data)
 {

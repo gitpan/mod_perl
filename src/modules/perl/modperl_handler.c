@@ -1,4 +1,82 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
+
+#ifdef USE_ITHREADS
+static
+char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv)
+{
+    dSP;
+    int count;
+    SV *bdeparse;
+    char *text;
+    
+    /* B::Deparse >= 0.61 needed for blessed code references.
+     * 0.6 works fine for non-blessed code refs.
+     * notice that B::Deparse is not CPAN-updatable.
+     * 0.61 is available starting from 5.8.0
+     */
+    load_module(PERL_LOADMOD_NOIMPORT,
+                newSVpvn("B::Deparse", 10),
+                newSVnv(SvOBJECT((SV*)cv) ? 0.61 : 0.60));
+
+    ENTER;
+    SAVETMPS;
+
+    /* create the B::Deparse object */
+    PUSHMARK(sp);
+    XPUSHs(sv_2mortal(newSVpvn("B::Deparse", 10)));
+    PUTBACK;
+    count = call_method("new", G_SCALAR);
+    SPAGAIN;
+    if (count != 1) {
+        Perl_croak(aTHX_ "Unexpected return value from B::Deparse::new\n");
+    }
+    if (SvTRUE(ERRSV)) {
+        Perl_croak(aTHX_ "error: %s", SvPVX(ERRSV));
+    }
+    bdeparse = POPs;
+
+    PUSHMARK(sp);
+    XPUSHs(bdeparse);
+    XPUSHs(sv_2mortal(newRV_inc((SV*)cv)));
+    PUTBACK;
+    count = call_method("coderef2text", G_SCALAR);
+    SPAGAIN;
+    if (count != 1) {
+        Perl_croak(aTHX_ "Unexpected return value from "
+                   "B::Deparse::coderef2text\n");
+    }
+    if (SvTRUE(ERRSV)) {
+        Perl_croak(aTHX_ "error: %s", SvPVX(ERRSV));
+    }
+    
+    {
+        STRLEN n_a;
+        text = apr_pstrcat(p, "sub ", POPpx, NULL);
+    }
+    
+    PUTBACK;
+    
+    FREETMPS;
+    LEAVE;
+
+    return text;
+}
+#endif
 
 modperl_handler_t *modperl_handler_new(apr_pool_t *p, const char *name)
 {
@@ -14,17 +92,73 @@ modperl_handler_t *modperl_handler_new(apr_pool_t *p, const char *name)
         ++name;
         /* XXX: currently a noop; should disable autoload of given handler
          * if PerlOptions +AutoLoad is configured
+         * see: modperl_hash_handlers in modperl_mgv.c
          */
         MpHandlerAUTOLOAD_Off(handler);
         break;
     }
 
+    handler->cv = NULL;
     handler->name = name;
     MP_TRACE_h(MP_FUNC, "[%s] new handler %s\n",
                modperl_pid_tid(p), handler->name);
 
     return handler;
 }
+
+
+static
+modperl_handler_t *modperl_handler_new_anon(pTHX_ apr_pool_t *p, CV *cv)
+{
+    modperl_handler_t *handler = 
+        (modperl_handler_t *)apr_pcalloc(p, sizeof(*handler));
+    MpHandlerPARSED_On(handler);
+    MpHandlerANON_On(handler);
+
+#ifdef USE_ITHREADS
+    /* XXX: perhaps we can optimize this further. At the moment when
+     * perl w/ ithreads is used, we always deparse the anon subs
+     * before storing them and then eval them each time they are
+     * used. This is because we don't know whether the same perl that
+     * compiled the anonymous sub is used to run it.
+     *
+     * A possible optimization is to cache the CV and use that cached
+     * value w/ or w/o deparsing at all if:
+     *
+     * - the mpm is non-threaded mpm and no +Clone/+Parent is used
+     *   (i.e. no perl pools) (no deparsing is needed at all)
+     * 
+     * - the interpreter that has supplied the anon cv is the same
+     *   interpreter that is executing that cv (requires storing aTHX
+     *   in the handler's struct) (need to deparse in case the
+     *   interpreter gets switched)
+     *
+     * - other cases?
+     */
+    handler->cv = NULL;
+    handler->name = modperl_coderef2text(aTHX_ p, cv);
+    MP_TRACE_h(MP_FUNC, "[%s] new deparsed anon handler:\n%s\n",
+               modperl_pid_tid(p), handler->name);
+#else
+    /* it's safe to cache and later use the cv, since the same perl
+     * interpeter is always used */
+    handler->cv = cv;
+    handler->name = NULL;
+    MP_TRACE_h(MP_FUNC, "[%s] new cached cv anon handler\n",
+               modperl_pid_tid(p));
+#endif
+
+    return handler;
+}
+
+MP_INLINE
+const char *modperl_handler_name(modperl_handler_t *handler)
+{
+    /* a handler containing an anonymous sub doesn't have a normal sub
+     * name */
+    return handler->name ? handler->name : "anonymous sub";
+}
+
 
 int modperl_handler_resolve(pTHX_ modperl_handler_t **handp,
                             apr_pool_t *p, server_rec *s)
@@ -319,14 +453,41 @@ MpAV **modperl_handler_get_handlers(request_rec *r, conn_rec *c, server_rec *s,
                                            action, NULL);
 }
 
+modperl_handler_t *modperl_handler_new_from_sv(pTHX_ apr_pool_t *p, SV *sv)
+{
+    char *name = NULL;
+    GV *gv;
+
+    if (SvROK(sv)) {
+        sv = SvRV(sv);
+    }
+
+    switch (SvTYPE(sv)) {
+      case SVt_PV:
+        name = SvPVX(sv);
+        return modperl_handler_new(p, apr_pstrdup(p, name));
+        break;
+      case SVt_PVCV:
+        if (CvANON((CV*)sv)) {
+            return modperl_handler_new_anon(aTHX_ p, (CV*)sv);
+        }
+        if (!(gv = CvGV((CV*)sv))) {
+            Perl_croak(aTHX_ "can't resolve the code reference");
+        }
+        name = apr_pstrcat(p, HvNAME(GvSTASH(gv)), "::", GvNAME(gv), NULL);
+        return modperl_handler_new(p, apr_pstrdup(p, name));
+        break;
+    };
+
+    return NULL;
+}
+
 int modperl_handler_push_handlers(pTHX_ apr_pool_t *p,
                                   MpAV *handlers, SV *sv)
 {
-    char *handler_name;
+    modperl_handler_t *handler = modperl_handler_new_from_sv(aTHX_ p, sv);
 
-    if ((handler_name = modperl_mgv_name_from_sv(aTHX_ p, sv))) {
-        modperl_handler_t *handler =
-            modperl_handler_new(p, apr_pstrdup(p, handler_name));
+    if (handler) {
         modperl_handler_array_push(handlers, handler);
         return TRUE;
     }

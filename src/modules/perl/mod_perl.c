@@ -1,3 +1,18 @@
+/* Copyright 2000-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 /* make sure that mod_perl won't try to start itself, while it's
@@ -70,13 +85,12 @@ static void modperl_boot(pTHX_ void *data)
     /* outside mod_perl this is done by ModPerl::Const.xs */
     newXS("ModPerl::Const::compile", XS_modperl_const_compile, __FILE__);
 
-#ifdef MP_PERL_5_6_x
     /* make sure DynaLoader is loaded before XSLoader
-     * to workaround bug in 5.6.1 that can trigger a segv
+     * - to workaround bug in 5.6.1 that can trigger a segv
      * when using modperl as a dso
+     * - also needed when <Perl> sections are loaded from +Parent vhost
      */
     modperl_require_module(aTHX_ "DynaLoader", FALSE);
-#endif
 
     IoFLUSH_on(PL_stderrgv); /* unbuffer STDERR */
 }
@@ -714,11 +728,15 @@ void modperl_register_hooks(apr_pool_t *p)
     ap_hook_create_request(modperl_hook_create_request,
                            NULL, NULL, APR_HOOK_MIDDLE);
 
+    /* both of these hooks need to run really, really first.
+     * otherwise, the global request_rec will be set up _after_ some
+     * Perl handlers run.
+     */
     ap_hook_post_read_request(modperl_hook_post_read_request,
-                              NULL, NULL, APR_HOOK_FIRST);
+                              NULL, NULL, MODPERL_HOOK_REALLY_REALLY_FIRST);
 
     ap_hook_header_parser(modperl_hook_header_parser,
-                          NULL, NULL, APR_HOOK_FIRST);
+                          NULL, NULL, MODPERL_HOOK_REALLY_REALLY_FIRST);
 
     ap_hook_child_init(modperl_hook_child_init,
                        NULL, NULL, APR_HOOK_FIRST);
@@ -838,11 +856,38 @@ static int modperl_response_handler_run(request_rec *r, int finish)
 
 int modperl_response_handler(request_rec *r)
 {
+    MP_dDCFG;
+    apr_status_t retval;
+
+#ifdef USE_ITHREADS
+    pTHX;
+    modperl_interp_t *interp;
+#endif
+
     if (!strEQ(r->handler, "modperl")) {
         return DECLINED;
     }
 
-    return modperl_response_handler_run(r, TRUE);
+#ifdef USE_ITHREADS
+    interp = modperl_interp_select(r, r->connection, r->server);
+    aTHX = interp->perl;
+#endif
+
+    /* default is -SetupEnv, add if PerlOption +SetupEnv */
+    if (MpDirSETUP_ENV(dcfg)) {
+        modperl_env_request_populate(aTHX_ r);
+    }
+
+    retval = modperl_response_handler_run(r, TRUE);
+
+#ifdef USE_ITHREADS
+    if (MpInterpPUTBACK(interp)) {
+        /* PerlInterpScope handler */
+        modperl_interp_unselect(interp);
+    }
+#endif
+
+    return retval;
 }
 
 int modperl_response_handler_cgi(request_rec *r)

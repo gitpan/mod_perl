@@ -1,3 +1,18 @@
+/* Copyright 2000-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 void *modperl_config_dir_create(apr_pool_t *p, char *dir)
@@ -17,30 +32,82 @@ void *modperl_config_dir_create(apr_pool_t *p, char *dir)
 #define merge_item(item) \
     mrg->item = add->item ? add->item : base->item
 
-/* take the 'base' values, and override with 'add' values if any */
 static apr_table_t *modperl_table_overlap(apr_pool_t *p,
                                           apr_table_t *base,
                                           apr_table_t *add)
 {
-    int i;
-    const apr_array_header_t *arr = apr_table_elts(base);
-    apr_table_entry_t *entries  = (apr_table_entry_t *)arr->elts;
-    apr_table_t *merge = apr_table_copy(p, add);
+    /* take the base (parent) values, and override with add (child) values,
+     * generating a new table.  entries in add but not in base will be
+     * added to the new table.  all using core apr table routines.
+     *
+     * note that this is equivalent to apr_table_overlap except a new
+     * table is generated, which is required (otherwise we would clobber
+     * the existing parent or child configurations)
+     */
+    apr_table_t *merge = apr_table_overlay(p, base, add);
 
-    for (i = 0; i < arr->nelts; i++) {
-        if (apr_table_get(add, entries[i].key)) {
-            continue;
-        }
-        else {
-            apr_table_addn(merge, entries[i].key, entries[i].val);
-        }
-    }
+    /* compress will squash each key to the last value in the table.  this
+     * is acceptable for all tables that expect only a single value per key
+     * such as PerlPassEnv and PerlSetEnv.  PerlSetVar/PerlAddVar get their
+     * own, non-standard, merge routines in merge_table_config_vars.
+     */
+    apr_table_compress(merge, APR_OVERLAP_TABLES_SET);
 
     return merge;
 }
 
 #define merge_table_overlap_item(item) \
     mrg->item = modperl_table_overlap(p, base->item, add->item)
+
+static apr_table_t *merge_table_config_vars(apr_pool_t *p,
+                                            apr_table_t *configvars,
+                                            apr_table_t *set,
+                                            apr_table_t *add)
+{
+    apr_table_t *base = apr_table_copy(p, configvars);
+    apr_table_t *merged_config_vars;
+
+    const apr_array_header_t *arr;
+    apr_table_entry_t *entries;
+    int i;
+
+    /* configvars already contains a properly merged PerlSetVar/PerlAddVar
+     * configuration for the base (parent), so all we need to do is merge
+     * the add (child) configuration into it properly.
+     *
+     * any PerlSetVar settings in the add (child) config need to reset
+     * existing entries in the base (parent) config, or generate a
+     * new entry where none existed previously.  PerlAddVar settings
+     * are merged into that.
+     *
+     * unfortunately, there is no set of apr functions to do this for us - 
+     * apr_compress_table would be ok, except it always merges mulit-valued
+     * keys into one, regardless of the APR_OVERLAP_TABLES flag.  that is,
+     * regardless of whether newer entries are set or merged into existing
+     * entries, the entire table is _always_ compressed.  this is no good -
+     * we need separate entries for existing keys, not a single (compressed)
+     * entry.
+     *
+     * fortunately, the logic here is simple.  first, (re)set the base (parent)
+     * table where a PerlSetVar entry exists in the add (child) configuration.
+     * then, just overlay the PerlAddVar configuration into it.
+     */
+
+    arr = apr_table_elts(set);
+    entries  = (apr_table_entry_t *)arr->elts;
+
+    /* hopefully this is faster than using apr_table_do  */
+    for (i = 0; i < arr->nelts; i++) {
+        apr_table_setn(base, entries[i].key, entries[i].val);
+    }
+
+    /* at this point, all the PerlSetVar merging has happened.  add in the 
+     * add (child) PerlAddVar entries and we're done
+     */
+    merged_config_vars = apr_table_overlay(p, base, add);
+      
+    return merged_config_vars;
+}
 
 #define merge_handlers(merge_flag, array) \
     if (merge_flag(mrg)) { \
@@ -71,9 +138,21 @@ void *modperl_config_dir_merge(apr_pool_t *p, void *basev, void *addv)
 
     merge_item(location);
     
-    merge_table_overlap_item(vars);
-    
     merge_table_overlap_item(SetEnv);
+
+    /* this is where we merge PerlSetVar and PerlAddVar together */
+    mrg->configvars = merge_table_config_vars(p,
+                                              base->configvars,
+                                              add->setvars, add->addvars);
+
+    /* note we don't care about merging dcfg->setvars or dcfg->addvars
+     * specifically - what is important to merge is dfcg->configvars.
+     * but we need to keep track of the entries for this config, so
+     * the merged values are simply the values for the add (current)
+     * configuration.
+     */
+    mrg->setvars = add->setvars;
+    mrg->addvars = add->addvars;
 
     /* XXX: check if Perl*Handler is disabled */
     for (i=0; i < MP_HANDLER_NUM_PER_DIR; i++) {
@@ -107,7 +186,9 @@ modperl_config_srv_t *modperl_config_srv_new(apr_pool_t *p)
 
     scfg->argv = apr_array_make(p, 2, sizeof(char *));
 
-    scfg->vars = apr_table_make(p, 2);
+    scfg->setvars = apr_table_make(p, 2);
+    scfg->addvars = apr_table_make(p, 2);
+    scfg->configvars = apr_table_make(p, 2);
 
     scfg->PassEnv = apr_table_make(p, 2);
     scfg->SetEnv = apr_table_make(p, 2);
@@ -115,8 +196,19 @@ modperl_config_srv_t *modperl_config_srv_new(apr_pool_t *p)
 #ifdef MP_USE_GTOP
     scfg->gtop = modperl_gtop_new(p);
 #endif        
-    
-    modperl_config_srv_argv_push((char *)ap_server_argv0);
+
+    /* must copy ap_server_argv0, because otherwise any read/write of
+     * $0 corrupts process' argv[0] (visible with 'ps -ef' on most
+     * unices). This is due to the logic of calculating PL_origalen in
+     * perl_parse, which is later used in set_mg.c:Perl_magic_set() to
+     * truncate the argv[0] setting. remember that argv[0] passed to
+     * perl_parse() != process's real argv[0].
+     *
+     * as a copying side-effect, changing $0 now doesn't affect the
+     * way the process is seen from the outside.
+     */
+    modperl_config_srv_argv_push(apr_pstrmemdup(p, ap_server_argv0,
+                                                strlen(ap_server_argv0)));
 
     MP_TRACE_d(MP_FUNC, "new scfg: 0x%lx\n", (unsigned long)scfg);
 
@@ -130,7 +222,9 @@ modperl_config_dir_t *modperl_config_dir_new(apr_pool_t *p)
 
     dcfg->flags = modperl_options_new(p, MpDirType);
 
-    dcfg->vars = apr_table_make(p, 2);
+    dcfg->setvars = apr_table_make(p, 2);
+    dcfg->addvars = apr_table_make(p, 2);
+    dcfg->configvars = apr_table_make(p, 2);
 
     dcfg->SetEnv = apr_table_make(p, 2);
     
@@ -224,11 +318,23 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     merge_item(PerlModule);
     merge_item(PerlRequire);
 
-    merge_table_overlap_item(vars);
-
     merge_table_overlap_item(SetEnv);
     merge_table_overlap_item(PassEnv);
  
+    /* this is where we merge PerlSetVar and PerlAddVar together */
+    mrg->configvars = merge_table_config_vars(p,
+                                              base->configvars,
+                                              add->setvars, add->addvars);
+
+    /* note we don't care about merging dcfg->setvars or dcfg->addvars
+     * specifically - what is important to merge is dfcg->configvars.
+     * but we need to keep track of the entries for this config, so
+     * the merged values are simply the values for the add (current)
+     * configuration.
+     */
+    mrg->setvars = add->setvars;
+    mrg->addvars = add->addvars;
+
     merge_item(threaded_mpm);
     merge_item(server);
 
@@ -288,12 +394,12 @@ apr_status_t modperl_config_request_cleanup(pTHX_ request_rec *r)
     apr_status_t retval;
     MP_dRCFG;
 
+    retval = modperl_callback_per_dir(MP_CLEANUP_HANDLER, r, MP_HOOK_RUN_ALL);
+
     if (rcfg->pnotes) {
         SvREFCNT_dec(rcfg->pnotes);
         rcfg->pnotes = Nullhv;
     }
-
-    retval = modperl_callback_per_dir(MP_CLEANUP_HANDLER, r, MP_HOOK_RUN_ALL);
 
     /* undo changes to %ENV caused by +SetupEnv, perl-script, or
      * $r->subprocess_env, so the values won't persist  */
@@ -338,7 +444,7 @@ int modperl_config_apply_PerlModule(server_rec *s,
         }
         else {
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Can't load Perl module %s for server %s, exiting...\n",
+                         "Can't load Perl module %s for server %s, exiting...",
                          entries[i], modperl_server_desc(s,p));
             return FALSE;
         }
@@ -363,7 +469,7 @@ int modperl_config_apply_PerlRequire(server_rec *s,
         }
         else {
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "Can't load Perl file: %s for server %s, exiting...\n",
+                         "Can't load Perl file: %s for server %s, exiting...",
                          entries[i], modperl_server_desc(s,p));
             return FALSE;
         }
@@ -488,4 +594,39 @@ const char *modperl_config_insert_request(pTHX_
                                  dconf);
 
     return NULL;
+}
+
+
+/* if r!=NULL check for dir PerlOptions, otherwise check for server
+ * PerlOptions, (s must be always set)
+ */
+int modperl_config_is_perl_option_enabled(pTHX_ request_rec *r,
+                                          server_rec *s, const char *name)
+{
+    U32 flag;
+    MP_dSCFG(s);
+
+    /* XXX: should we test whether perl is disabled for this server? */
+    /*  if (!MpSrvENABLE(scfg)) { */
+    /*      return 0;             */
+    /*  }                         */
+
+    if (r) {
+        if ((flag = modperl_flags_lookup_dir(name))) {
+            MP_dDCFG;
+            return MpDirFLAGS(dcfg) & flag ? 1 : 0;
+        }
+        else {
+            Perl_croak(aTHX_ "PerlOptions %s is not a directory option", name);
+        }
+    }
+    else {
+        if ((flag = modperl_flags_lookup_srv(name))) {
+            return MpSrvFLAGS(scfg) & flag ? 1 : 0;
+        }
+        else {
+            Perl_croak(aTHX_ "PerlOptions %s is not a server option", name);
+        }
+    }
+
 }

@@ -1336,11 +1336,6 @@ $Apache::FunctionTable = [
   },
   {
     'return_type' => 'const char *',
-    'name' => 'ap_get_server_built',
-    'args' => []
-  },
-  {
-    'return_type' => 'const char *',
     'name' => 'ap_get_server_name',
     'args' => [
       {
@@ -1358,11 +1353,6 @@ $Apache::FunctionTable = [
         'name' => 'r'
       }
     ]
-  },
-  {
-    'return_type' => 'const char *',
-    'name' => 'ap_get_server_version',
-    'args' => []
   },
   {
     'return_type' => 'const char *',
@@ -4724,7 +4714,7 @@ $Apache::FunctionTable = [
     ]
   },
   {
-    'return_type' => 'char *',
+    'return_type' => 'SV *',
     'name' => 'ap_server_root_relative',
     'args' => [
       {

@@ -376,7 +376,7 @@ This will work in both mod_perl generations.
 
 C<Apache::Constants::SERVER_VERSION()> has been replaced with:
 
-  Apache::get_server_version();
+  Apache::Server::get_server_version();
 
 =head2 C<export()>
 
@@ -401,15 +401,30 @@ future, it's documented in modperl_env.c:modperl_env_magic_set_all.)
 
 =head2 C<$ENV{GATEWAY_INTERFACE}>
 
-The environment variable C<$ENV{GATEWAY_INTERFACE}> is deprecated in
-mod_perl 2.0 (See:
-C<L<MP_COMPAT_1X=0|docs::2.0::user::install::install/MP_COMPAT_1X>>). Instead
-use C<$ENV{MOD_PERL}> (available in both mod_perl generations), which
-is set to something like this:
+The environment variable C<$ENV{GATEWAY_INTERFACE}> is not special in
+mod_perl 2.0, but the same as any other CGI environment variables,
+i.e. it'll be enabled only if C<L<PerlOptions
++SetupEnv|docs::2.0::user::config::config/C_SetupEnv_>> is enabled and
+its value would be the default:
+
+  CGI/1.1
+
+or anything else Apache decides to set it to, but not:
+
+  CGI-Perl/1.1
+
+Instead use C<$ENV{MOD_PERL}> (available in both mod_perl
+generations), which is set to the mod_perl version, like so:
 
   mod_perl/1.99_03-dev
 
-However to check the version it's better to use C<$mod_perl::VERSION>:
+Therefore in order to check whether you are running under mod_perl,
+you'd say:
+
+  if ($ENV{MOD_PERL}) { ... }
+
+To check for a specific version it's better to use
+C<$mod_perl::VERSION>:
 
   use mod_perl;
   use constant MP2 => ($mod_perl::VERSION >= 1.99);
@@ -521,7 +536,7 @@ C<Apache-E<gt>request> available in the calls made from it:
 =head2 C<Apache-E<gt>define>
 
 C<Apache-E<gt>define> has been replaced with
-C<Apache::exists_config_define()> residing inside
+C<Apache::Server::exists_config_define()> residing inside
 C<Apache::ServerUtil>.
 
 See the
@@ -582,6 +597,22 @@ or:
 
 C<Apache-E<gt>set_handlers> is avalable via
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
+
+To reset the list of handlers, instead of doing:
+
+  $r->set_handlers(PerlAuthenHandler => [ \&OK ]);
+
+do:
+
+  $r->set_handlers(PerlAuthenHandler => []);
+
+or
+
+  $r->set_handlers(PerlAuthenHandler => undef);
+
+See
+C<L<Apache::RequestUtil|docs::2.0::api::Apache::RequestUtil/C_set_handlers_>>.
+
 
 =head2 C<Apache-E<gt>httpd_conf>
 
@@ -729,6 +760,19 @@ including those where C<$r> simply doesn't exist.
 C<L<Apache::compat|docs::2.0::api::Apache::compat>> implements
 C<$r-E<gt>current_callback> for backwards compatibility.
 
+=head2 C<$r-E<gt>cleanup_for_exec>
+
+C<$r-E<gt>cleanup_for_exec> wasn't a part of the mp1 core API, but
+lived in a 3rd party module C<Apache::SubProcess>. That module's
+functionality is now a part of mod_perl 2.0 API. But Apache 2.0
+doesn't need this function any longer.
+
+C<L<Apache::compat|docs::2.0::api::Apache::compat>> implements
+C<$r-E<gt>cleanup_for_exec> for backwards compatibility as a NOOP.
+
+See also the
+C<L<Apache::SubProcess|docs::2.0::api::Apache::SubProcess>> manpage.
+
 =head2 C<$r-E<gt>get_remote_host>
 
 C<get_remote_host()> is now invoked on the C<L<connection
@@ -739,17 +783,6 @@ object|docs::2.0::api::Apache::Connection>>:
 
 C<$r-E<gt>get_remote_host> is available through
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
-
-=head2 C<$r-E<gt>cleanup_for_exec>
-
-C<$r-E<gt>cleanup_for_exec> doesn't exist in the Apache 2.0 API, it is
-now being internally called by the Apache process spawning
-functions. For more information see
-C<L<Apache::SubProcess|docs::2.0::api::Apache::SubProcess>> manpage.
-
-There is C<L<$pool-E<gt>cleanup_for_exec|docs::2.0::api::APR::Pool>>,
-but it's not the same as C<$r-E<gt>cleanup_for_exec> in the mod_perl
-1.0 API.
 
 
 =head2 C<$r-E<gt>content>
@@ -978,24 +1011,28 @@ need to set the I<Content-type> via C<$r-E<gt>content_type($type)>.
 
 =head2 C<$r-E<gt>server_root_relative>
 
-C<Apache::server_root_relative> is a function in 2.0 and its first
+C<Apache::Server::server_root_relative> is a function in 2.0 and its first
 argument is the I<pool> object. For example:
 
   # during request
-  my $conf_dir = Apache::server_root_relative($r->pool, 'conf');
+  my $conf_dir = Apache::Server::server_root_relative($r->pool, 'conf');
   # during startup
-  my $conf_dir = Apache::server_root_relative($s->pool, 'conf');
+  my $conf_dir = Apache::Server::server_root_relative($s->pool, 'conf');
 
-The old way:
+Alternatively:
 
-  my $conf_dir = Apache::server_root_relative('Apache', 'conf');
+  # during request
+  my $conf_dir = $r->server_root_relative('conf');
+  # during startup
+  my $conf_dir = $c->server_root_relative('conf');
 
-will work as well, but you shouldn't use it, because it'll internally
-use a global pool, which is a bit slower, but the worst drawback is
-that every time you use this way the allocated from this pool memory
-won't be cleaned up, till the server quits so there will be a memory
-leak. When you are inside a request and use C<$r-E<gt>pool>, this pool
-is freed at the end of each request.
+Note that the old form
+
+  my $conf_dir = Apache->server_root_relative('conf');
+
+is no longer valid - C<Apache::Server::server_root_relative> must be called
+from either one of C<$r>, C<$s>, or C<$c>, or be explicitly
+passed a pool.
 
 
 See the L<Apache::ServerUtil> manpage.
@@ -1016,8 +1053,10 @@ See the next item.
 =head2 C<$r-E<gt>kill_timeout>
 
 The functions C<$r-E<gt>hard_timeout>, C<$r-E<gt>reset_timeout>,
-C<$r-E<gt>soft_timeout> and C<$r-E<gt>kill_timeout> aren't needed
-in mod_perl 2.0.
+C<$r-E<gt>soft_timeout> and C<$r-E<gt>kill_timeout> aren't needed in
+mod_perl 2.0.  C<L<Apache::compat|docs::2.0::api::Apache::compat>>
+implements these functions for backwards compatibility as NOOPs.
+
 
 =head2 C<$r-E<gt>set_byterange>
 
@@ -1153,7 +1192,7 @@ argument. For example:
 =head2 C<Apache::Util::unescape_uri()>
 
 C<Apache::Util::unescape_uri()> has been replaced with
-C<Apache::unescape_url()>.
+C<Apache::URI::unescape_url()>.
 
 =head2 C<Apache::Util::escape_html()>
 
@@ -1168,18 +1207,28 @@ C<APR::Date::parse_http()>.
 
 =head2 C<Apache::Util::ht_time()>
 
-C<Apache::Util::ht_time()> has been replaced (temporary?) with
-C<Apache::Util::format_time()>, which requires a pool object as a
-forth argument. All four arguments are now required.
+C<Apache::Util::ht_time()> now requires a
+C<L<pool|docs::2.0::api::APR::Pool>> object as a first argument.
 
 For example:
 
    use Apache::Util ();
    $fmt = '%a, %d %b %Y %H:%M:%S %Z';
    $gmt = 1;
-   $fmt_time = Apache::Util::format_time(time(), $fmt, $gmt, $r->pool);
+   $fmt_time = Apache::Util::ht_time($r->pool, time(), $fmt, $gmt);
 
-See the L<Apache::Util> manpage.
+See the L<Apache::Util|docs::2.0::api::Apache::Util> manpage.
+
+It's also possible to adjust the mod_perl 1.0 code using
+Apache::compat's
+L<overriding|docs::2.0::api::Apache::compat/Compatibility_Functions_Colliding_with_mod_perl_2_0_API>.
+
+For example:
+
+  use Apache::compat;
+  Apache::compat::override_mp2_api('Apache::Util::ht_time');
+  $fmt_time = Apache::Util::ht_time(time(), $fmt, $gmt);
+  Apache::compat::restore_mp2_api('Apache::Util::ht_time');
 
 
 =head2 C<Apache::Util::validate_password()>
@@ -1327,9 +1376,10 @@ but instead behaves in the same way as Apache does when multiple
 handlers are configured, respecting (or ignoring) the return 
 value of each handler as it is called.
 
-See L<Single Phase's Multiple Handlers
-Behavior|docs::2.0::user::handlers::intro/Single_Phase_s_Multiple_Handlers_Behavior>
-for a complete description of each hook and its run-type.
+See L<Stacked
+Handlers|docs::2.0::user::handlers::intro/Stacked_Handlers> for a
+complete description of each hook and its run-type.
+
 
 
 =head1 C<Apache::src>

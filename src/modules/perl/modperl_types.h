@@ -1,3 +1,18 @@
+/* Copyright 2000-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef MODPERL_TYPES_H
 #define MODPERL_TYPES_H
 
@@ -111,7 +126,9 @@ typedef enum {
 } modperl_interp_scope_e;
 
 typedef struct {
-    MpHV *vars;
+    MpHV *setvars;
+    MpHV *addvars;
+    MpHV *configvars;
     MpHV *SetEnv;
     MpHV *PassEnv;
     MpAV *PerlRequire, *PerlModule;
@@ -142,7 +159,9 @@ typedef struct {
     char *PerlDispatchHandler;
     MpAV *handlers_per_dir[MP_HANDLER_NUM_PER_DIR];
     MpHV *SetEnv;
-    MpHV *vars;
+    MpHV *setvars;
+    MpHV *addvars;
+    MpHV *configvars;
     modperl_options_t *flags;
 #ifdef USE_ITHREADS
     modperl_interp_scope_e interp_scope;
@@ -163,7 +182,13 @@ typedef struct modperl_handler_t modperl_handler_t;
 struct modperl_handler_t{
     modperl_mgv_t *mgv_obj;
     modperl_mgv_t *mgv_cv;
-    const char *name; /* original name from .conf if any */
+    /* could be:
+     * - a subroutine name
+     * - a subroutine source code as a string (anon subs)
+     * - NULL, when .cv is set (anon subs)
+     */
+    const char *name; 
+    CV *cv;
     U8 flags;
     U32 attrs;
     modperl_handler_t *next;

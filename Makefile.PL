@@ -124,11 +124,26 @@ sub configure {
             print "ok (installing relative to Apache2/)\n";
         }
         else {
-            print "not ok\n";
-            error "cannot install mod_perl/$VERSION on top of $vstring",
-                  "use MP_INST_APACHE2=1 option " .
-                  "or to force installation delete:\n $old_modperl_pm";
-            exit 1;
+            my $prefix;
+            /^PREFIX=(.*)/ && $1 && ($prefix = canonpath glob($1)) for @ARGV;
+
+            # check that it's a full path
+            my $mp1_path = canonpath $old_modperl_version;
+            # XXX: doesn't handle relative paths yet
+            # if PREFIX=/foo/bar is used, and it's not the same as the
+            # path where mod_perl 1 is installed, we don't need to require
+            # MP_INST_APACHE2
+            if ($prefix && $mp1_path !~ /^$prefix/) {
+                print "ok (will install mod_perl 2 into PREFIX=$prefix, " .
+                    "no collision)\n";
+            }
+            else {
+                error "not ok";
+                error "cannot install mod_perl/$VERSION on top of $vstring",
+                    "use MP_INST_APACHE2=1 option " .
+                     "or to force installation delete:\n $old_modperl_pm";
+                exit 1;
+            }
         }
     }
 
@@ -562,7 +577,10 @@ sub MY::postamble {
     my $string = $self->ModPerl::BuildMM::MY::postamble;
 
     $string .= <<'EOF';
-mydist : manifest tardist
+mydist : Apache-Test/META.yml manifest tardist
+
+Apache-Test/META.yml:
+	cd Apache-Test && make metafile
 
 cvs_tag :
 	cvs tag MODPERL_$(VERSION_SYM) .
@@ -570,6 +588,13 @@ cvs_tag :
 EOF
 
     return $string;
+}
+
+# this is a workaround so that ModPerl::MM will move MY::constants
+# away, and Apache-Test/Makefile.PL which has its own MY::constants
+# won't get complaints on MY::constants redefined
+sub MY::constants {
+    shift->ModPerl::BuildMM::MY::constants;
 }
 
 sub MY::tool_autosplit {

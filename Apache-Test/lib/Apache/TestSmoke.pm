@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::TestSmoke;
 
 use strict;
@@ -93,9 +107,6 @@ sub new {
         $self->{order}    = 'rotate';
         $self->{trace}    = 'debug';
     }
-
-    # server is run from under t/
-    Apache::TestHarness->chdir_t;
 
     # specific tests end up in $self->{tests} and $self->{subtests};
     # and get removed from $self->{argv}
@@ -600,7 +611,9 @@ sub report_start {
     $self->{start_time} = $time;
     $time =~ s/\s/_/g;
     $time =~ s/:/-/g; # winFU
-    my $file = $self->{opts}->{report} || "../smoke-report-$time.txt";
+    my $file = $self->{opts}->{report} ||
+        catfile Apache::Test::vars('top_dir'), "smoke-report-$time.txt";
+    info "Report file: $file";
 
     open my $fh, ">$file" or die "cannot open $file for writing: $!";
     $self->{fh} = $fh;

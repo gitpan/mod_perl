@@ -1,6 +1,6 @@
 use Socket (); #test DynaLoader vs. XSLoader workaround for 5.6.x
 use IO::File ();
-use File::Spec::Functions qw(canonpath);
+use File::Spec::Functions qw(canonpath catdir);
 
 use Apache2 ();
 
@@ -12,7 +12,7 @@ use Apache::Process ();
 # reorg @INC to have first devel libs, then blib libs, and only then
 # perl core libs
 my $pool = Apache->server->process->pool;
-my $project_root = canonpath Apache::server_root_relative($pool, "..");
+my $project_root = canonpath Apache::Server::server_root_relative($pool, "..");
 my (@a, @b, @c);
 for (@INC) {
     if (m|^\Q$project_root\E|) {
@@ -79,6 +79,18 @@ Apache->server->add_config([split /\n/, $conf]);
 # attempt to use perl's mip  early
 Apache->server->add_config(['<Perl >', '1;', '</Perl>']);
 
+# cleanup files for TestHooks::startup which can't be done from the
+# test itself because the files are created at the server startup and
+# the test needing these files may run more than once (t/SMOKE)
+{
+    require Apache::Test;
+    my $dir = catdir Apache::Test::config()->{vars}->{documentroot}, 'hooks',
+        'startup';
+    for (<$dir/*>) {
+        my $file = ($_ =~ /(.*(?:open_logs|post_config)-\d+)/);
+        unlink $file;
+    }
+}
 
 # this is needed for TestModperl::ithreads
 # one should be able to boot ithreads at the server startup and then
@@ -91,6 +103,21 @@ if ($] >= 5.008001 && $Config{useithreads}) {
     eval { require threads; "threads"->import() };
 }
 
+use Apache::TestTrace;
+use Apache::Const -compile => qw(M_POST);
+
+# read the posted body and send it back to the client as is
+sub ModPerl::Test::pass_through_response_handler {
+    my $r = shift;
+
+    if ($r->method_number == Apache::M_POST) {
+        my $data = ModPerl::Test::read_post($r);
+        debug "pass_through_handler read: $data\n";
+        $r->print($data);
+    }
+
+    Apache::OK;
+}
 
 use constant IOBUFSIZE => 8192;
 
@@ -152,8 +179,7 @@ sub ModPerl::Test::add_config {
     my $r = shift;
 
     #test adding config at request time
-    my $errmsg = $r->add_config(['require valid-user']);
-    die $errmsg if $errmsg;
+    $r->add_config(['require valid-user']);
 
     Apache::OK;
 }
@@ -246,5 +272,82 @@ sub bb_dump {
     }
 }
 
+package ModPerl::TestMemoryLeak;
+
+# handy functions to measure memory leaks. since it measures the total
+# memory size of the process and not just perl leaks, you get your
+# C/XS leaks discovered too
+#
+# For example to test TestAPR::Pool::handler for leaks, add to its
+# top:
+#
+#  ModPerl::TestMemoryLeak::start();
+#
+# and just before returning from the handler add:
+#
+#  ModPerl::TestMemoryLeak::end();
+#
+# now start the server with only worker server
+#
+#  % t/TEST -maxclients 1 -start
+#
+# of course use maxclients 1 only if your test be handled with one
+# client, e.g. proxy tests need at least two clients. 
+#
+# Now repeat the same test several times (more than 3)
+#
+# % t/TEST -run apr/pool -times=10
+#
+# t/logs/error_log will include something like:
+#
+#    size    vsize resident    share      rss
+#    196k     132k     196k       0M     196k
+#    104k     132k     104k       0M     104k
+#     16k       0k      16k       0k      16k
+#      0k       0k       0k       0k       0k
+#      0k       0k       0k       0k       0k
+#      0k       0k       0k       0k       0k
+#
+# as you can see the first few runs were allocating memory, but the
+# following runs should consume no more memory. The leak tester measures
+# the extra memory allocated by the process since the last test. Notice
+# that perl and apr pools usually allocate more memory than they
+# need, so some leaks can be hard to see, unless many tests (like a
+# hundred) were run.
+
+use warnings;
+use strict;
+
+# GTop v0.12 is the first version that will work under threaded mpms
+use constant HAS_GTOP => eval { require GTop && GTop->VERSION >= 0.12 };
+
+my $gtop = HAS_GTOP ? GTop->new : undef;
+my @attrs = qw(size vsize resident share rss);
+my $format = "%8s %8s %8s %8s %8s\n";
+
+my %before;
+
+sub start {
+
+    die "No GTop avaible, bailing out" unless HAS_GTOP;
+
+    unless (keys %before) {
+        my $before = $gtop->proc_mem($$);
+        %before = map { $_ => $before->$_() } @attrs;
+        # print the header once
+        warn sprintf $format, @attrs;
+    }
+}
+
+sub end {
+
+    die "No GTop avaible, bailing out" unless HAS_GTOP;
+
+    my $after = $gtop->proc_mem($$);
+    my %after = map {$_ => $after->$_()} @attrs;
+    warn sprintf $format,
+        map GTop::size_string($after{$_} - $before{$_}), @attrs;
+    %before = %after;
+}
 
 1;

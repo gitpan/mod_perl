@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 static MP_INLINE
 int mpxs_Apache__RequestRec_push_handlers(pTHX_ request_rec *r,
                                           const char *name,
@@ -246,5 +261,22 @@ SV *mpxs_Apache__RequestRec_as_string(pTHX_ request_rec *r)
     sv_catpvn(svh.sv, "\n", 1);
 
     return svh.sv;
+}
+
+static MP_INLINE
+int mpxs_Apache__RequestRec_is_perl_option_enabled(pTHX_ request_rec *r,
+                                                   const char *name)
+{
+    return modperl_config_is_perl_option_enabled(aTHX_ r, r->server, name);
+}
+
+static MP_INLINE
+void mpxs_Apache__RequestRec_add_config(pTHX_ request_rec *r, SV *lines, char *path, int override)
+{
+    const char *errmsg = modperl_config_insert_request(aTHX_ r, lines,
+                                                       path, override);
+    if (errmsg) {
+        Perl_croak(aTHX_ "$r->add_config() has failed: %s", errmsg);
+    }
 }
 

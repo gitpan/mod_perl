@@ -6,6 +6,108 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.09 - March 8, 2004
+
+remove the dependency on APR::UUID (i.e. mod_perl 2.0) in the
+same_interpreter framework (use plain time/rand/$$ concatenation)
+[Stas]
+
+Updated to the new Apache License Version 2.0 [Gozer]
+
+handle cases on Win32 when supplied paths have spaces in their
+names [Stas]
+
+c-modules build errors are no longer ignored [Stas]
+
+change -DAPACHE1 (and like defines) to -D APACHE1 to fix Win32
+compatibility issues [Steve Hay]
+
+fix the custom config use for Apache-Test's own upgrades [Stas]
+
+=item 1.08 - February 24, 2004
+
+Instead of hard-coding listen directive to 127.0.0.1, use the server
+name. [Gozer]
+
+added -defines configuration option, providing a way to pass additional
+-D names to the server for use in <IfDefine> blocks.  [Geoffrey Young]
+
+Make it possible to run TEST (or another driving script) from any path
+(e.g. t/TEST, ./TEST, /full/path/to/t/TEST) [Stas]
+
+If at least one *conf*.in files is modified since the last
+configuration, make sure to regenerate them all, so the right ports
+will be assigned. [Stas]
+
+Make sure that Apache-Test modules are installed into INSTALLSITEARCH
+during a standalone build. Because EU::MM does so when A-T is bundled
+with mp2, and we want to avoid having A-T installed in two different
+places under @INC. [Stas]
+
+HTTP/0.9 responses no longer croak, provided $ENV{APACHE_TEST_HTTP_09_OK} 
+is true.  [Geoffrey Young]
+
+Hard-code listen directive to 127.0.0.1, solving problems for people
+with IPv4 & IPv6 address until a better solution is found. [Gozer]
+
+prefix Apache::TestTrace (non-colour mode) messages with the loglevel,
+similar to what Apache does. [Stas]
+
+Instrument A-T with an optional successful (shell-wise) abort of the
+test suite, by asking the user whether they want to continue w/o
+completing the test suite. Use it in places where we know that the
+test suite will certaionly fail (e.g. running from /root as 'root', or
+not providing httpd/apxs locations). [Stas]
+
+In order to make Apache-Test compatible with the rest of Perl testing
+frameworks, we no longer chdir into t/, but run from the root of the
+project (where t/ resides). A test needing to know where it's running
+from (e.g. to read/write files/dirs on the filesystem), should do that
+relative to the serverroot, documentroot and other server
+configuration variables, available via
+Apache::Test::vars('serverroot'), Apache::Test::vars('documentroot'),
+etc. [Stas]
+
+Apache::Test::vars() can now query for config arguments [Stas]
+
+generate t/conf if it does not already exist, which
+it may not if the tests are entirely autoconfigured.
+[Geoffrey Young]
+
+Special to Apache-Test environment variables:
+APXS APACHE APACHE_GROUP APACHE_USER APACHE_PORT
+are now moved to:
+APACHE_TEST_APXS APACHE_TEST_HTTPD APACHE_TEST_GROUP 
+APACHE_TEST_USER APACHE_TEST_PORT
+respectively, for consistency with other APACHE_TEST_ env vars and in
+order not to interfere with other projects that may use the same env
+vars. [Stas]
+
+if $self->{reconfigure} is true, make sure to perform a complete
+reconfiguration, to solve the bug where conf.in files weren't reparsed
+and vhost hostport info was getting lost on subsequent runs when
+APACHE env var was set (one of the cases when $self->{reconfigure} is
+true). [Stas]
+
+handle "Include conf/*conf" cases when inheriting httpd.conf in a
+cleaner way, don't complain that "*conf" doesn't exist, since it's a
+glob pattern. Instead check try to resolve the base directory. [Stas]
+
+import the Apache::TestMM clean target in Makefile.PL so 'make clean'
+will call t/TEST -clean [Stas]
+
+fix have_apache_version(), have_min_apache_version(), and
+have_min_module_version() to use proper numeric version strings 
+in comparisons.  thanks to Rafael Garcia-Suarez for the spot.
+[Geoffrey Young]
+
+fix Apache::TestConfig::which to check that the found file is a plain
+file [Stas]
+
+implementing custom interactive and non-interactive (with the -save
+option) reusable configuration for -httpd, -apxs, -user, -group, and
+-port [Randy Kobes, Stas]
+
 =item 1.07 - Decemeber 22, 2003
 
 allow conditional C module compilation on a more granular level.

@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 /* helper funcs */
@@ -6,7 +21,7 @@
 
 #define MP_FILTER_NAME(f) \
     (is_modperl_filter(f) \
-        ? ((modperl_filter_ctx_t *)(f)->ctx)->handler->name \
+        ? modperl_handler_name(((modperl_filter_ctx_t *)(f)->ctx)->handler) \
         : (f)->frec->name)
 
 #define MP_FILTER_TYPE(filter) \
@@ -112,39 +127,22 @@ MP_INLINE apr_status_t modperl_wbucket_pass(modperl_wbucket_t *wb,
     apr_bucket_alloc_t *ba = (*wb->filters)->c->bucket_alloc;
     apr_bucket_brigade *bb;
     apr_bucket *bucket;
-    const char *work_buf = buf;
 
     /* reset the counter to 0 as early as possible and in one place,
-     * since this function will always either path the data out (and
+     * since this function will always either pass the data out (and
      * it has 'len' already) or return an error.
      */
-     wb->outcnt = 0;
+    wb->outcnt = 0;
 
     if (wb->header_parse) {
         request_rec *r = wb->r;
-        const char *bodytext = NULL;
+        const char *body;
         int status;
-        /*
-         * since wb->outbuf is persistent between requests, if the
-         * current response is shorter than the size of wb->outbuf
-         * it may include data from the previous request at the
-         * end. When this function receives a pointer to
-         * wb->outbuf as 'buf', modperl_cgi_header_parse may
-         * return that irrelevant data as part of 'bodytext'. So
-         * to avoid this risk, we create a new buffer of size 'len'
-         * XXX: if buf wasn't 'const char *buf' we could simply do
-         * buf[len] = '\0'
-         */
-        /* MP_IOBUFSIZE is the size of wb->outbuf */
-        if (buf == wb->outbuf && len < MP_IOBUFSIZE) {
-            work_buf = (char *)apr_pcalloc(wb->pool, sizeof(char*)*len);
-            memcpy((void*)work_buf, buf, len);
-        }
 
         MP_TRACE_f(MP_FUNC, "\n\n\tparsing headers: %d bytes [%s]\n", len,
-                   apr_pstrmemdup(wb->pool, work_buf, len));
+                   apr_pstrmemdup(wb->pool, buf, len));
         
-        status = modperl_cgi_header_parse(r, (char *)work_buf, &bodytext);
+        status = modperl_cgi_header_parse(r, (char *)buf, &len, &body);
 
         wb->header_parse = 0; /* only once per-request */
 
@@ -156,19 +154,18 @@ MP_INLINE apr_status_t modperl_wbucket_pass(modperl_wbucket_t *wb,
                          0, r->server, "%s did not send an HTTP header",
                          r->uri);
             r->status = status;
-            /* XXX: bodytext == NULL here */
+            /* XXX: body == NULL here */
             return APR_SUCCESS;
         }
-        else if (!bodytext) {
+        else if (!len) {
             return APR_SUCCESS;
         }
 
-        len -= (bodytext - work_buf);
-        work_buf = bodytext;
+        buf = body;
     }
 
     bb = apr_brigade_create(wb->pool, ba);
-    bucket = apr_bucket_transient_create(work_buf, len, ba);
+    bucket = apr_bucket_transient_create(buf, len, ba);
     APR_BRIGADE_INSERT_TAIL(bb, bucket);
 
     if (add_flush_bucket) {
@@ -325,49 +322,45 @@ modperl_filter_t *modperl_filter_mg_get(pTHX_ SV *obj)
 int modperl_filter_resolve_init_handler(pTHX_ modperl_handler_t *handler,
                                         apr_pool_t *p)
 {
-    char *init_handler_pv_code;
-    char *package_name;
-    CV *cv;
-    MAGIC *mg;
+    char *init_handler_pv_code = NULL;
     
     if (handler->mgv_cv) {
-        GV *gv;
-        if ((gv = modperl_mgv_lookup(aTHX_ handler->mgv_cv))) {
-            cv = modperl_mgv_cv(gv);
-            package_name = modperl_mgv_as_string(aTHX_ handler->mgv_cv, p, 1);
-            /* fprintf(stderr, "PACKAGE: %s\n", package_name ); */
+        GV *gv = modperl_mgv_lookup(aTHX_ handler->mgv_cv);
+        if (gv) {
+            CV *cv = modperl_mgv_cv(gv);
+            if (cv && SvMAGICAL(cv)) {
+                MAGIC *mg = mg_find((SV*)(cv), '~');
+                init_handler_pv_code = mg ? mg->mg_ptr : NULL;
+            }
+            else {
+                /* XXX: should we complain in such a case? */
+                return 0;
+            }
         }
-    }
-
-    if (cv && SvMAGICAL(cv)) {
-        mg = mg_find((SV*)(cv), '~');
-        init_handler_pv_code = mg ? mg->mg_ptr : NULL;
-    }
-    else {
-        /* XXX: should we complain in such a case? */
-        return 0;
     }
     
     if (init_handler_pv_code) {
+        char *package_name =
+            modperl_mgv_as_string(aTHX_ handler->mgv_cv, p, 1);
+        /* fprintf(stderr, "PACKAGE: %s\n", package_name ); */
+
         /* eval the code in the parent handler's package's context */
         char *code = apr_pstrcat(p, "package ", package_name, ";",
                                  init_handler_pv_code, NULL);
         SV *sv = eval_pv(code, TRUE);
-        char *init_handler_name;
 
         /* fprintf(stderr, "code: %s\n", code); */
-        
-        if ((init_handler_name = modperl_mgv_name_from_sv(aTHX_ p, sv))) {
-            modperl_handler_t *init_handler =
-                modperl_handler_new(p, apr_pstrdup(p, init_handler_name));
+        modperl_handler_t *init_handler =
+            modperl_handler_new_from_sv(aTHX_ p, sv);
 
+        if (init_handler) {
             MP_TRACE_h(MP_FUNC, "found init handler %s\n",
-                       init_handler->name);
+                       modperl_handler_name(init_handler));
 
-            if (! init_handler->attrs & MP_FILTER_INIT_HANDLER) {
+            if (!init_handler->attrs & MP_FILTER_INIT_HANDLER) {
                 Perl_croak(aTHX_ "handler %s doesn't have "
                            "the FilterInitHandler attribute set",
-                           init_handler->name);
+                           modperl_handler_name(init_handler));
             }
             
             handler->next = init_handler;
@@ -397,7 +390,8 @@ static int modperl_run_filter_init(ap_filter_t *f,
 
     MP_dINTERP_SELECT(r, c, s);    
 
-    MP_TRACE_h(MP_FUNC, "running filter init handler %s\n", handler->name);
+    MP_TRACE_h(MP_FUNC, "running filter init handler %s\n",
+               modperl_handler_name(handler));
             
     modperl_handler_make_args(aTHX_ &args,
                               "Apache::Filter", f,
@@ -405,7 +399,12 @@ static int modperl_run_filter_init(ap_filter_t *f,
 
     modperl_filter_mg_set(aTHX_ AvARRAY(args)[0], filter);
 
-    /* XXX filters are VOID handlers.  should we ignore the status? */
+    /* XXX filter_init return status is propagated back to Apache over
+     * in C land, making it possible to use filter_init to return, say,
+     * BAD_REQUEST.  this implementation, however, ignores the return status
+     * even though we're trapping it here - modperl_filter_add_request sees
+     * the error and propagates it, but modperl_output_filter_add_request
+     * is void so the error is lost  */
     if ((status = modperl_callback(aTHX_ handler, p, r, s, args)) != OK) {
         status = modperl_errsv(aTHX_ status, r, s);
     }
@@ -416,7 +415,7 @@ static int modperl_run_filter_init(ap_filter_t *f,
     MP_INTERP_PUTBACK(interp);
 
     MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT
-               "return: %d\n", handler->name, status);
+               "return: %d\n", modperl_handler_name(handler), status);
     
     return status;  
 }
@@ -452,7 +451,11 @@ int modperl_run_filter(modperl_filter_t *filter)
         av_push(args, newSViv(filter->readbytes));
     }
 
-    /* XXX filters are VOID handlers.  should we ignore the status? */
+    /* while filters are VOID handlers, we need to log any errors,
+     * because most perl coders will forget to check the return errors
+     * from read() and print() calls. and if the caller is not a perl
+     * program they won't make any sense of ERRSV or $!
+     */
     if ((status = modperl_callback(aTHX_ handler, p, r, s, args)) != OK) {
         status = modperl_errsv(aTHX_ status, r, s);
     }
@@ -488,7 +491,7 @@ int modperl_run_filter(modperl_filter_t *filter)
     MP_INTERP_PUTBACK(interp);
 
     MP_TRACE_f(MP_FUNC, MP_FILTER_NAME_FORMAT
-               "return: %d\n", handler->name, status);
+               "return: %d\n", modperl_handler_name(handler), status);
     
     return status;
 }
@@ -1082,12 +1085,11 @@ void modperl_filter_runtime_add(pTHX_ request_rec *r, conn_rec *c,
                                 SV *callback, const char *type)
 {
     apr_pool_t *pool = r ? r->pool : c->pool;
-    char *handler_name;
+    modperl_handler_t *handler =
+        modperl_handler_new_from_sv(aTHX_ pool, callback);
 
-    if ((handler_name = modperl_mgv_name_from_sv(aTHX_ pool, callback))) {
+    if (handler) {
         ap_filter_t *f;
-        modperl_handler_t *handler =
-            modperl_handler_new(pool, apr_pstrdup(pool, handler_name));
         modperl_filter_ctx_t *ctx =
             (modperl_filter_ctx_t *)apr_pcalloc(pool, sizeof(*ctx));
 
@@ -1101,7 +1103,8 @@ void modperl_filter_runtime_add(pTHX_ request_rec *r, conn_rec *c,
 
         /* has to resolve early so we can check for init functions */ 
         if (!modperl_mgv_resolve(aTHX_ handler, pool, handler->name, TRUE)) {
-            Perl_croak(aTHX_ "unable to resolve handler %s\n", handler->name);
+            Perl_croak(aTHX_ "unable to resolve handler %s\n",
+                       modperl_handler_name(handler));
         }
 
         /* verify that the filter handler is of the right kind */
@@ -1111,7 +1114,7 @@ void modperl_filter_runtime_add(pTHX_ request_rec *r, conn_rec *c,
                 Perl_croak(aTHX_ "Can't add connection filter handler '%s' "
                            "since it doesn't have the "
                            "FilterConnectionHandler attribute set",
-                           handler->name);
+                           modperl_handler_name(handler));
             }
         }
         else {
@@ -1125,7 +1128,7 @@ void modperl_filter_runtime_add(pTHX_ request_rec *r, conn_rec *c,
                 Perl_croak(aTHX_ "Can't add request filter handler '%s' "
                            "since it doesn't have the "
                            "FilterRequestHandler attribute set",
-                           handler->name);
+                           modperl_handler_name(handler));
             }
         }
 

@@ -27,9 +27,9 @@ sub handler {
 
     ok $tree;
 
-    my $port = $tree->lookup('Listen');
+    my $listen = $tree->lookup('Listen');
 
-    ok t_cmp($vars->{port}, $port);
+    ok t_cmp(join(':', $vars->{servername}, $vars->{port}), $listen);
 
     my $documentroot = $tree->lookup('DocumentRoot');
 

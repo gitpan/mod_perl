@@ -1,3 +1,18 @@
+/* Copyright 2001-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 #define EnvMgObj SvMAGIC((SV*)ENVHV)->mg_ptr
@@ -54,9 +69,6 @@ typedef struct {
 
 static modperl_env_ent_t MP_env_const_vars[] = {
     MP_ENV_ENT("MOD_PERL", MP_VERSION_STRING),
-#ifdef MP_COMPAT_1X
-    MP_ENV_ENT("GATEWAY_INTERFACE", "CGI-Perl/1.1"),
-#endif
     { NULL }
 };
 
@@ -143,9 +155,12 @@ static const char *MP_env_pass_defaults[] = {
 
 void modperl_env_configure_server(pTHX_ apr_pool_t *p, server_rec *s)
 {
-    /* XXX: propagate scfg->SetEnv to environ */
     MP_dSCFG(s);
     int i = 0;
+
+    /* make per-server PerlSetEnv and PerlPassEnv entries visible
+     * to %ENV at config time
+     */
 
     for (i=0; MP_env_pass_defaults[i]; i++) {
         const char *key = MP_env_pass_defaults[i];
@@ -180,18 +195,79 @@ void modperl_env_configure_server(pTHX_ apr_pool_t *p, server_rec *s)
                                           r->subprocess_env, \
                                           tab)
 
-void modperl_env_configure_request(request_rec *r)
+void modperl_env_configure_request_dir(pTHX_ request_rec *r)
 {
+    MP_dRCFG;
     MP_dDCFG;
-    MP_dSCFG(r->server);
+
+    /* populate %ENV and r->subprocess_env with per-directory 
+     * PerlSetEnv entries.
+     *
+     * note that per-server PerlSetEnv entries, as well as
+     * PerlPassEnv entries (which are only per-server), are added
+     * to %ENV and r->subprocess_env via modperl_env_configure_request_srv
+     */
 
     if (!apr_is_empty_table(dcfg->SetEnv)) {
-        overlay_subprocess_env(r, dcfg->SetEnv);
+        apr_table_t *setenv_copy;
+
+        /* add per-directory PerlSetEnv entries to %ENV
+         * collisions with per-server PerlSetEnv entries are 
+         * resolved via the nature of a Perl hash
+         */
+        MP_TRACE_e(MP_FUNC, "\n\t[%s/0x%lx/%s]"
+                   "\n\t@ENV{keys dcfg->SetEnv} = values dcfg->SetEnv;",
+                   modperl_pid_tid(r->pool), modperl_interp_address(aTHX),
+                   modperl_server_desc(r->server, r->pool));
+        modperl_env_table_populate(aTHX_ dcfg->SetEnv);
+
+        /* make sure the entries are in the subprocess_env table as well.
+         * we need to use apr_table_overlap (not apr_table_overlay) because
+         * r->subprocess_env might have per-server PerlSetEnv entries in it
+         * and using apr_table_overlay would generate duplicate entries.
+         * in order to use apr_table_overlap, though, we need to copy the
+         * the dcfg table so that pool requirements are satisfied */
+        
+        setenv_copy = apr_table_copy(r->pool, dcfg->SetEnv);
+        apr_table_overlap(r->subprocess_env, setenv_copy, APR_OVERLAP_TABLES_SET);
+    }
+
+    MpReqPERL_SET_ENV_DIR_On(rcfg);
+}
+
+void modperl_env_configure_request_srv(pTHX_ request_rec *r)
+{
+    MP_dRCFG;
+    MP_dSCFG(r->server);
+
+    /* populate %ENV and r->subprocess_env with per-server PerlSetEnv 
+     * and PerlPassEnv entries.  
+     *
+     * although both are setup in %ENV in modperl_request_configure_server
+     * %ENV will be reset via modperl_env_request_unpopulate.
+     */
+
+    if (!apr_is_empty_table(scfg->SetEnv)) {
+        MP_TRACE_e(MP_FUNC, "\n\t[%s/0x%lx/%s]"
+                   "\n\t@ENV{keys scfg->SetEnv} = values scfg->SetEnv;",
+                   modperl_pid_tid(r->pool), modperl_interp_address(aTHX),
+                   modperl_server_desc(r->server, r->pool));
+        modperl_env_table_populate(aTHX_ scfg->SetEnv);
+
+        overlay_subprocess_env(r, scfg->SetEnv);
     }
 
     if (!apr_is_empty_table(scfg->PassEnv)) {
+        MP_TRACE_e(MP_FUNC, "\n\t[%s/0x%lx/%s]"
+                   "\n\t@ENV{keys scfg->PassEnv} = values scfg->PassEnv;",
+                   modperl_pid_tid(r->pool), modperl_interp_address(aTHX),
+                   modperl_server_desc(r->server, r->pool));
+        modperl_env_table_populate(aTHX_ scfg->PassEnv);
+
         overlay_subprocess_env(r, scfg->PassEnv);
     }
+
+    MpReqPERL_SET_ENV_SRV_On(rcfg);
 }
 
 void modperl_env_default_populate(pTHX)
@@ -217,27 +293,42 @@ void modperl_env_default_populate(pTHX)
 void modperl_env_request_populate(pTHX_ request_rec *r)
 {
     MP_dRCFG;
-
-    if (MpReqSETUP_ENV(rcfg)) {
-        return;
-    }
-            
-    /* XXX: might want to always do this regardless of PerlOptions -SetupEnv */
-    modperl_env_configure_request(r);
-
-    ap_add_common_vars(r);
-    ap_add_cgi_vars(r);
+ 
+    /* this is called under the following conditions
+     *   - if PerlOptions +SetupEnv
+     *   - if $r->subprocess_env() is called in a void context with no args
+     *
+     * normally, %ENV is only populated once per request (if at all) -
+     * just prior to content generation if +SetupEnv.
+     *
+     * however, in the $r->subprocess_env() case it will be called 
+     * more than once - once for each void call, and once again just
+     * prior to content generation.  while costly, the multiple
+     * passes are required, otherwise void calls would prohibit later
+     * phases from populating %ENV with new subprocess_env table entries
+     */
 
     MP_TRACE_e(MP_FUNC, "\n\t[%s/0x%lx/%s%s]"
                "\n\t@ENV{keys r->subprocess_env} = values r->subprocess_env;",
                modperl_pid_tid(r->pool), modperl_interp_address(aTHX),
                modperl_server_desc(r->server, r->pool), r->uri);
+
+    /* we can eliminate some of the cost by only doing CGI variables once
+     * per-request no matter how many times $r->subprocess_env() is called
+     */
+    if (! MpReqSETUP_ENV(rcfg)) {
+
+        ap_add_common_vars(r);
+        ap_add_cgi_vars(r);
+
+    }
+
     modperl_env_table_populate(aTHX_ r->subprocess_env);
 
-#ifdef MP_COMPAT_1X
-    modperl_env_default_populate(aTHX); /* reset GATEWAY_INTERFACE */
-#endif
-
+    /* don't set up CGI variables again this request.
+     * this also triggers modperl_env_request_unpopulate, which
+     * resets %ENV between requests - see modperl_config_request_cleanup 
+     */
     MpReqSETUP_ENV_On(rcfg);
 }
 

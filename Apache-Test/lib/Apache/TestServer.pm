@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::TestServer;
 
 use strict;
@@ -77,15 +91,21 @@ sub pid_file {
 
 sub dversion {
     my $self = shift;
-    "-DAPACHE$self->{rev}";
+    "-D APACHE$self->{rev}";
 }
 
 sub config_defines {
+    my $self = shift;
+
     my @defines = ();
 
     for my $item (qw(useithreads)) {
         next unless $Config{$item} and $Config{$item} eq 'define';
-        push @defines, "-DPERL_\U$item";
+        push @defines, "-D PERL_\U$item";
+    }
+
+    if (my $defines = $self->{config}->{vars}->{defines}) {
+        push @defines, map { "-D $_" } split " ", $defines;
     }
 
     "@defines";
@@ -100,11 +120,11 @@ sub args {
     "-d $vars->{serverroot} -f $vars->{t_conf_file} $dversion $defines";
 }
 
-my %one_process = (1 => '-X', 2 => '-DONE_PROCESS');
+my %one_process = (1 => '-X', 2 => '-D ONE_PROCESS');
 
 sub start_cmd {
     my $self = shift;
-    #XXX: threaded mpm does not respond to SIGTERM with -DONE_PROCESS
+    #XXX: threaded mpm does not respond to SIGTERM with -D ONE_PROCESS
     my $args = $self->args;
     return "$self->{config}->{vars}->{httpd} $args";
 }
@@ -540,7 +560,14 @@ sub start {
             last;
         }
         elsif ($delta > $timeout) {
-            print $preamble, "giving up after $delta secs\n";
+            my $suggestion = $timeout + 300;
+            print $preamble, "not ok\n";
+            error <<EOI;
+giving up after $delta secs. If you think that your system
+is slow or overloaded try again with a longer timeout value.
+by setting the environment variable APACHE_TEST_STARTUP_TIMEOUT
+to a high value (e.g. $suggestion) and repeat the last command.
+EOI
             last;
         }
     }

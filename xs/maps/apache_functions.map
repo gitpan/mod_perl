@@ -163,10 +163,11 @@ MODULE=Apache::ServerUtil   PACKAGE=guess   BOOT=1
 #XXX: thought this might be useful
 #however it is not exported on win32
 !ap_get_local_host
- ap_get_server_built
- ap_get_server_version
+~ap_get_server_built
+~ap_get_server_version
+~ap_server_root
  ap_psignature | | r,prefix
- ap_server_root_relative | mpxs_ | SV *:p, fname=""
+~ap_server_root_relative
 
 MODULE=Apache::Connection   PACKAGE=guess
 #XXX: thought this might be useful for protocol modules
@@ -179,10 +180,12 @@ MODULE=Apache::Log   PACKAGE=guess
 ?ap_log_assert
 ~ap_log_error
 -ap_log_perror
- ap_log_pid
 ~ap_log_rerror
 >ap_open_stderr_log
 >ap_open_logs
+
+PACKAGE=Apache::Log    PREFIX=ap_
+ ap_log_pid
 
 MODULE=Apache::Module
  module *:DEFINE_top_module | | SV *:CLASS
@@ -271,7 +274,7 @@ MODULE=Apache::Command
 -ap_set_deprecated
 
 MODULE=Apache::Util 
- ap_ht_time | | t, fmt, gmt, p | format_time
+ ap_ht_time | | p, t=TIME_NOW, fmt=DEFAULT_TIME_FORMAT, gmt=1
 !ap_rfc1413
 !ap_escape_html | | s, p
  #escape_uri
@@ -282,11 +285,12 @@ MODULE=Apache::Util
 !ap_recent_rfc822_date
 
 MODULE=Apache::URI   PACKAGE=guess
- char *:ap_unescape_url | mpxs_ | SV *:url
  ap_parse_uri
  ap_construct_url    | | r, uri=r->uri, p=r->pool
  ap_construct_server | | r, hostname=ap_get_server_name(r), \
                          port=ap_get_server_port(r), p=r->pool
+PACKAGE=Apache::URI
+ char *:ap_unescape_url | mpxs_ | SV *:url
 
 PACKAGE=Apache::RequestRec
  mpxs_Apache__RequestRec_parsed_uri

@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::TestConfig;
 
 use strict;
@@ -12,10 +26,13 @@ use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 use constant DEFAULT_PORT => 8529;
 
 use constant IS_MOD_PERL_2       =>
-    eval { require mod_perl } && $mod_perl::VERSION >= 1.99;
+    eval { require mod_perl && $mod_perl::VERSION >= 1.99 } || 0;
 
 use constant IS_MOD_PERL_2_BUILD => IS_MOD_PERL_2 &&
     require Apache::Build && Apache::Build::IS_MOD_PERL_BUILD();
+
+use constant IS_APACHE_TEST_BUILD =>
+    grep { -e "$_/lib/Apache/TestConfig.pm" } qw(Apache-Test . ..);
 
 use Symbol ();
 use File::Copy ();
@@ -30,6 +47,7 @@ use Apache::TestConfigPerl ();
 use Apache::TestConfigParse ();
 use Apache::TestTrace;
 use Apache::TestServer ();
+use Apache::TestRun ();
 use Socket ();
 
 use vars qw(%Usage);
@@ -60,8 +78,19 @@ use vars qw(%Usage);
    sslca           => 'location of SSL CA (default is $t_conf/ssl/ca)',
    sslcaorg        => 'SSL CA organization to use for tests (default is asf)',
    libmodperl      => 'path to mod_perl\'s .so (full or relative to LIBEXECDIR)',
+   defines         => 'values to add as -D defines (for example, "VAR1 VAR2")',
    (map { $_ . '_module_name', "$_ module name"} qw(cgi ssl thread access auth)),
 );
+
+my %filepath_conf_opts = map { $_ => 1 }
+    qw(top_dir t_dir t_conf t_logs t_conf_file src_dir serverroot
+       documentroot bindir sbindir httpd apxs httpd_conf perlpod sslca
+       libmodperl);
+
+sub conf_opt_is_a_filepath {
+    my $opt = shift;
+    $opt && exists $filepath_conf_opts{$opt};
+}
 
 sub usage {
     for my $hash (\%Usage) {
@@ -101,7 +130,11 @@ sub filter_args {
 }
 
 my %passenv = map { $_,1 } qw{
-APXS APACHE APACHE_GROUP APACHE_USER APACHE_PORT
+    APACHE_TEST_APXS
+    APACHE_TEST_HTTPD
+    APACHE_TEST_GROUP
+    APACHE_TEST_USER
+    APACHE_TEST_PORT
 };
 
 sub passenv {
@@ -181,6 +214,10 @@ sub new {
         }
     }
 
+    # custom config options from Apache::TestConfigData
+    # again, this should force reconfiguration
+    Apache::TestRun::custom_config_add_conf_opts($args);
+
     my $self = bless {
         clean => {},
         vhosts => {},
@@ -242,6 +279,7 @@ sub new {
     $vars->{maxclients}   ||= 1;
     $vars->{proxy}        ||= 'off';
     $vars->{proxyssl_url} ||= '';
+    $vars->{defines}      ||= '';
 
     $self->configure_apxs;
     $self->configure_httpd;
@@ -303,7 +341,7 @@ sub configure_httpd {
     my $self = shift;
     my $vars = $self->{vars};
 
-    $vars->{target} ||= (WIN32 ? 'Apache.exe' : 'httpd');
+    $vars->{target} ||= (WIN32 ? 'Apache.EXE' : 'httpd');
 
     unless ($vars->{httpd}) {
         #sbindir should be bin/ with the default layout
@@ -456,7 +494,7 @@ sub default_group {
     #use only first value if $) contains more than one
     $gid =~ s/^(\d+).*$/$1/;
 
-    my $group = $ENV{APACHE_GROUP} || (getgrgid($gid) || "#$gid");
+    my $group = $ENV{APACHE_TEST_GROUP} || (getgrgid($gid) || "#$gid");
 
     if ($group eq 'root') {
         # similar to default_user, we want to avoid perms problems,
@@ -476,7 +514,7 @@ sub default_user {
 
     my $uid = $>;
 
-    my $user = $ENV{APACHE_USER} || (getpwuid($uid) || "#$uid");
+    my $user = $ENV{APACHE_TEST_USER} || (getpwuid($uid) || "#$uid");
 
     if ($user eq 'root') {
         my $other = (getpwnam('nobody'))[0];
@@ -506,7 +544,7 @@ sub default_apxs {
         return $build_config->{MP_APXS};
     }
 
-    $ENV{APXS} || which('apxs');
+    $ENV{APACHE_TEST_APXS};
 }
 
 sub default_httpd {
@@ -515,13 +553,13 @@ sub default_httpd {
     if (my $build_config = modperl_build_config()) {
         if (my $p = $build_config->{MP_AP_PREFIX}) {
             for my $bindir (qw(bin sbin)) {
-                my $httpd = "$p/$bindir/$vars->{target}";
+                my $httpd = catfile $p, $bindir, $vars->{target};
                 return $httpd if -e $httpd;
             }
         }
     }
 
-    $ENV{APACHE} || which($vars->{target});
+    $ENV{APACHE_TEST_HTTPD};
 }
 
 my $localhost;
@@ -549,13 +587,15 @@ sub default_servername {
 # bind() will actually get the port. So there is a need in another
 # check and reconfiguration just before the server starts.
 #
+my $port_memoized;
 sub select_first_port {
     my $self = shift;
 
-    my $port ||= $ENV{APACHE_PORT} || $self->{vars}{port} || DEFAULT_PORT;
+    my $port ||= $port_memoized || $ENV{APACHE_TEST_PORT} 
+        || $self->{vars}{port} || DEFAULT_PORT;
 
     # memoize
-    $ENV{APACHE_PORT} = $port;
+    $port_memoized = $port;
 
     return $port unless $port eq 'select';
 
@@ -579,7 +619,7 @@ sub select_first_port {
         unless $port == DEFAULT_PORT;
 
     # memoize
-    $ENV{APACHE_PORT} = $port;
+    $port_memoized = $port;
 
     return $port;
 }
@@ -618,19 +658,8 @@ sub hostport {
     my $module = shift || '';
 
     my $name = $vars->{servername};
-    my $resolve = \$self->{resolved}->{$name};
 
-    unless ($$resolve) {
-        if (gethostbyname $name) {
-            $$resolve = $name;
-        }
-        else {
-            $$resolve = $self->default_loopback;
-            warn "lookup $name failed, using $$resolve for client tests\n";
-        }
-    }
-
-    join ':', $$resolve || 'localhost', $self->port($module || '');
+    join ':', $name , $self->port($module || '');
 }
 
 #look for mod_foo.so
@@ -988,7 +1017,7 @@ sub parse_vhost {
     my @out_config = ();
     if ($self->{vhosts}->{$module}->{namebased} < 2) {
         #extra config that should go *outside* the <VirtualHost ...>
-        @out_config = ([Listen => $port]);
+        @out_config = ([Listen => $vars->{servername} . ':' . $port]);
 
         if ($self->{vhosts}->{$module}->{namebased}) {
             push @out_config => [NameVirtualHost => "*:$port"];
@@ -1094,6 +1123,9 @@ sub generate_types_config {
     }
 }
 
+# various dup bugs in older perl and perlio in perl < 5.8.4 need a
+# workaround to explicitly rewind the dupped DATA fh before using it
+my $DATA_pos = tell DATA;
 sub httpd_conf_template {
     my($self, $try) = @_;
 
@@ -1102,7 +1134,10 @@ sub httpd_conf_template {
         return $in;
     }
     else {
-        return \*DATA;
+        my $dup = Symbol::gensym();
+        open $dup, "<&DATA" or die "Can't dup DATA: $!";
+        seek $dup, $DATA_pos, 0; # rewind to the beginning
+        return $dup; # so we don't close DATA
     }
 }
 
@@ -1126,6 +1161,20 @@ sub check_vars {
     }
 }
 
+sub extra_conf_files_needing_update {
+    my $self = shift;
+
+    my @need_update = ();
+    finddepth(sub {
+        return unless /\.in$/;
+        (my $generated = $File::Find::name) =~ s/\.in$//;
+        push @need_update, $generated 
+            unless -e $generated && -M $generated < -M $File::Find::name;
+    }, $self->{vars}->{t_conf});
+
+    return @need_update;
+}
+
 sub generate_extra_conf {
     my $self = shift;
 
@@ -1147,26 +1196,30 @@ sub generate_extra_conf {
     }
 
     for my $file (@conf_files) {
-        local $Apache::TestConfig::File = $file;
-
         (my $generated = $file) =~ s/\.in$//;
+        debug "Will 'Include' $generated config file";
         push @extra_conf, $generated;
+    }
 
-        debug "Including $generated config file";
+    # if at least one .in file was modified or the derivative is
+    # missing, regenerate them all (so information like assigned port
+    # numbers will be correct)
+    if ($self->extra_conf_files_needing_update) {
+        for my $file (@conf_files) {
+            local $Apache::TestConfig::File = $file;
 
-        next if -e $generated
-            && -M $generated < -M $file;
+            my $in = Symbol::gensym();
+            open($in, $file) or next;
 
-        my $in = Symbol::gensym();
-        open($in, $file) or next;
+            (my $generated = $file) =~ s/\.in$//;
+            my $out = $self->genfile($generated, $file);
+            $self->replace_vars($in, $out);
 
-        my $out = $self->genfile($generated, $file);
-        $self->replace_vars($in, $out);
+            close $in;
+            close $out;
 
-        close $in;
-        close $out;
-
-        $self->check_vars;
+            $self->check_vars;
+        }
     }
 
     #we changed order to give ssl the first port after DEFAULT_PORT
@@ -1264,6 +1317,7 @@ sub generate_httpd_conf {
     $self->generate_index_html;
 
     $self->gendir($vars->{t_logs});
+    $self->gendir($vars->{t_conf});
 
     my @very_last_postamble = ();
     if (my $extra_conf = $self->generate_extra_conf) {
@@ -1352,23 +1406,39 @@ sub need_reconfiguration {
     my @reasons = ();
     my $vars = $self->{vars};
 
+    # if '-port select' we need to check from scratch which ports are
+    # available
     if (my $port = $conf_opts->{port} || $Apache::TestConfig::Argv{port}) {
-        push @reasons, "'-port $port' requires reconfiguration";
+        if ($port eq 'select') {
+            push @reasons, "'-port $port' requires reconfiguration";
+        }
     }
 
-    my $exe = $vars->{apxs} || $vars->{httpd};
+    my $exe = $vars->{apxs} || $vars->{httpd} || '';
     # if httpd.conf is older than executable
-    push @reasons, 
+    push @reasons,
         "$exe is newer than $vars->{t_conf_file}"
             if -e $exe && 
                -e $vars->{t_conf_file} &&
                -M $exe < -M $vars->{t_conf_file};
 
-    # if .in files are newer than their derived versions
-    if (my $extra_conf = $self->generate_extra_conf) {
-        for my $file (@$extra_conf) {
-            push @reasons, "$file.in is newer than $file"
-                if -e $file && -M "$file.in" < -M $file;
+    # any .in files are newer than their derived versions?
+    if (my @files = $self->extra_conf_files_needing_update) {
+        # invalidate the vhosts cache, since a different port could be
+        # assigned on reparse
+        $self->{vhosts} = {};
+        for my $file (@files) {
+            push @reasons, "$file.in is newer than $file";
+        }
+    }
+
+    # if special env variables are used (since they can change any time)
+    # XXX: may be we could check whether they have changed since the
+    # last run and thus avoid the reconfiguration?
+    {
+        my $passenv = passenv();
+        if (my @env_vars = grep { $ENV{$_} } keys %$passenv) {
+            push @reasons, "environment variables (@env_vars) are set";
         }
     }
 
@@ -1408,8 +1478,6 @@ sub which {
 
     return undef unless $program;
 
-    my @results = ();
-
     for my $base (map { catfile($_, $program) } File::Spec->path()) {
         if ($ENV{HOME} and not WIN32) {
             # only works on Unix, but that's normal:
@@ -1417,11 +1485,11 @@ sub which {
             $base =~ s/~/$ENV{HOME}/o;
         }
 
-        return $base if -x $base;
+        return $base if -x $base && -f _;
 
         if (WIN32) {
             for my $ext (@path_ext) {
-                return "$base.$ext" if -x "$base.$ext";
+                return "$base.$ext" if -x "$base.$ext" && -f _;
             }
         }
     }
@@ -1717,7 +1785,7 @@ perl(1), Apache::Test(3)
 
 
 __DATA__
-Listen     @Port@
+Listen     @ServerName@:@Port@
 
 ServerRoot   "@ServerRoot@"
 DocumentRoot "@DocumentRoot@"

@@ -1,3 +1,17 @@
+# Copyright 2000-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package ModPerl::Code;
 
 use strict;
@@ -33,6 +47,9 @@ my %hooks = map { $_, canon_lc($_) }
 my %not_ap_hook = map { $_, 1 } qw(child_exit response cleanup
                                    output_filter input_filter);
 
+my %not_request_hook = map { $_, 1 } qw(child_init process_connection
+                                        pre_connection open_logs post_config);
+
 my %hook_proto = (
     Process    => {
         ret  => 'void',
@@ -65,6 +82,15 @@ my %hook_proto = (
                  {type => 'dummy', name => 'MP_HOOK_RUN_ALL'}],
     },
 );
+
+my %cmd_push = (
+    InputFilter  => 'modperl_cmd_push_filter_handlers',
+    OutputFilter => 'modperl_cmd_push_filter_handlers',
+);
+my $cmd_push_default = 'modperl_cmd_push_handlers';
+sub cmd_push {
+    $cmd_push{+shift} || $cmd_push_default;
+}
 
 $hook_proto{PerDir} = $hook_proto{PerSrv};
 
@@ -114,7 +140,7 @@ my %flags = (
             @hook_flags, 'UNSET'],
     Dir => [qw(NONE PARSE_HEADERS SETUP_ENV MERGE_HANDLERS GLOBAL_REQUEST UNSET)],
     Req => [qw(NONE SET_GLOBAL_REQUEST PARSE_HEADERS SETUP_ENV 
-               CLEANUP_REGISTERED)],
+               CLEANUP_REGISTERED PERL_SET_ENV_DIR PERL_SET_ENV_SRV)],
     Interp => [qw(NONE IN_USE PUTBACK CLONED BASE)],
     Handler => [qw(NONE PARSED METHOD OBJECT ANON AUTOLOAD DYNAMIC FAKE)],
 );
@@ -209,8 +235,12 @@ sub generate_handler_hooks {
 
             if (my $hook = $hooks{$handler}) {
                 next if $not_ap_hook{$hook};
+
+                my $order = $not_request_hook{$hook} ? 'APR_HOOK_FIRST'
+                                                     : 'APR_HOOK_REALLY_FIRST';
+
                 push @register_hooks,
-                  "    ap_hook_$hook($name, NULL, NULL, APR_HOOK_FIRST);";
+                  "    ap_hook_$hook($name, NULL, NULL, $order);";
             }
 
             my($protostr, $pass) = canon_proto($prototype, $name);
@@ -320,6 +350,7 @@ sub generate_handler_directives {
             my $flag = 'MpSrv' . canon_uc($h);
             my $ix = $self->{handler_index}->{$class}->[$i++];
             my $av = "$prototype->{handlers} [$ix]";
+            my $cmd_push = cmd_push($h);
 
             print $h_fh "$protostr;\n";
 
@@ -347,7 +378,7 @@ $protostr
                            parms->server->server_hostname, NULL);
     }
     MP_TRACE_d(MP_FUNC, "push \@%s, %s\\n", parms->cmd->name, arg);
-    return modperl_cmd_push_handlers(&($av), arg, parms->pool);
+    return $cmd_push(&($av), arg, parms->pool);
 }
 EOF
         }

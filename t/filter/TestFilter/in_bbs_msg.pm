@@ -53,6 +53,11 @@ sub handler : FilterConnectionHandler {
         if ($data and $data =~ s,GET $from_url,GET $to_url,) {
             debug "GET line rewritten to be:\n$data";
             $bucket = APR::Bucket->new($data);
+            # XXX: currently a bug in httpd doesn't allow to remove
+            # the first connection filter. once it's fixed adjust the test
+            # to test that it was invoked only once.
+            # debug "removing the filter";
+            # $filter->remove; # this filter is no longer needed
         }
 
         $bb->insert_tail($bucket);
@@ -75,8 +80,6 @@ sub response {
 __END__
 <NoAutoConfig>
 <VirtualHost TestFilter::in_bbs_msg>
-  # must be preloaded so the FilterConnectionHandler attributes will
-  # be set by the time the filter is inserted into the filter chain
   PerlModule TestFilter::in_bbs_msg
   PerlInputFilterHandler TestFilter::in_bbs_msg
 

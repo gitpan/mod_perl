@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::compat;
 
 use strict;
@@ -139,6 +153,34 @@ EOI
 }
 EOI
 
+    'Apache::server_root_relative' => <<'EOI',
+{
+    require Apache::Server;
+    require Apache::ServerUtil;
+
+    my $orig_sub = *Apache::Server::server_root_relative{CODE};
+    *Apache::server_root_relative = sub {
+        my $class = shift;
+        return Apache->server->server_root_relative(@_);
+    };
+    $orig_sub;
+}
+
+EOI
+
+    'Apache::Util::ht_time' => <<'EOI',
+{
+    require Apache::Util;
+    my $orig_sub = *Apache::Util::ht_time{CODE};
+    *Apache::Util::ht_time = sub {
+        my $r = Apache::compat::request('Apache::Util::ht_time');
+        return $orig_sub->($r->pool, @_);
+    };
+    $orig_sub;
+}
+
+EOI
+
 );
 
 my %overridden_mp2_api = ();
@@ -210,7 +252,7 @@ sub request {
 
 package Apache::Server;
 # XXX: is that good enough? see modperl/src/modules/perl/mod_perl.c:367
-our $CWD = Apache->server_root_relative();
+our $CWD = Apache::server_root;
 
 our $AddPerlVersion = 1;
 
@@ -320,6 +362,10 @@ sub hard_timeout {}
 sub kill_timeout {}
 sub reset_timeout {}
 
+# this function is from mp1's Apache::SubProcess 3rd party module
+# which is now a part of mp2 API. this function doesn't exist in 2.0.
+sub cleanup_for_exec {}
+
 sub current_callback {
     return Apache::current_callback();
 }
@@ -334,9 +380,6 @@ sub send_http_header {
 
     $r->content_type($type);
 }
-
-#to support $r->server_root_relative
-*server_root_relative = \&Apache::server_root_relative;
 
 #we support Apache->request; this is needed to support $r->request
 #XXX: seems sorta backwards
@@ -406,7 +449,7 @@ sub get_remote_host {
     $r->connection->get_remote_host($type, $r->per_dir_config);
 }
 
-#XXX: should port 1.x's Apache::unescape_url_info
+#XXX: should port 1.x's Apache::URI::unescape_url_info
 sub parse_args {
     my($r, $string) = @_;
     return () unless defined $string and $string;
@@ -589,7 +632,8 @@ sub tmpfile {
         my $tmpfile = "$TMPDIR/${$}" . $TMPNAM++;
         my $fh = $class->new;
 
-        sysopen($fh, $tmpfile, $Mode, $Perms);
+        sysopen $fh, $tmpfile, $Mode, $Perms
+            or die "failed to open $tmpfile: $!";
         $r->pool->cleanup_register(sub { unlink $tmpfile });
 
         if ($fh) {
@@ -636,7 +680,7 @@ sub size_string {
     return $size;
 }
 
-*unescape_uri = \&Apache::unescape_url;
+*unescape_uri = \&Apache::URI::unescape_url;
 
 sub escape_uri {
     my $path = shift;
@@ -660,18 +704,6 @@ sub escape_html {
     my $html = shift;
     $html =~ s/($html_escape)/$html_escapes{$1}/go;
     $html;
-}
-
-sub ht_time {
-    my($t, $fmt, $gmt) = @_;
-
-    $t   ||= time;
-    $fmt ||= '%a, %d %b %Y %H:%M:%S %Z';
-    $gmt = 1 unless @_ == 3;
-
-    my $r = Apache::compat::request('Apache::Util::ht_time');
-
-    return Apache::Util::format_time($t, $fmt, $gmt, $r->pool);
 }
 
 *parsedate = \&APR::Date::parse_http;

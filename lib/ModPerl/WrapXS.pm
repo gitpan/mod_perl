@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package ModPerl::WrapXS;
 
 use strict;
@@ -524,9 +538,10 @@ EOF
 
 my %typemap = (
     'Apache::RequestRec' => 'T_APACHEOBJ',
-    'apr_time_t' => 'T_APR_TIME',
-    'APR::Table' => 'T_HASHOBJ',
-    'APR::OS::Thread' => 'T_UVOBJ',
+    'apr_time_t'         => 'T_APR_TIME',
+    'APR::Table'         => 'T_HASHOBJ',
+    'APR::Pool'          => 'T_POOLOBJ',
+    'APR::OS::Thread'    => 'T_UVOBJ',
 );
 
 sub write_typemap {
@@ -688,17 +703,19 @@ my $methods_compat = {
     SERVER_VERSION    => ['get_server_version',
                           ''],
     can_stack_handlers=> [undef,
-                          'there is no more need for that method'],
+                          'there is no more need for that method in mp2'],
 
     # Apache::RequestRec
     soft_timeout      => [undef,
-                          'there is no more need for that method'],
+                          'there is no more need for that method in mp2'],
     hard_timeout      => [undef,
-                          'there is no more need for that method'],
+                          'there is no more need for that method in mp2'],
     kill_timeout      => [undef,
-                          'there is no more need for that method'],
+                          'there is no more need for that method in mp2'],
     reset_timeout     => [undef,
-                          'there is no more need for that method'],
+                          'there is no more need for that method in mp2'],
+    cleanup_for_exec  => [undef,
+                          'there is no more need for that method in mp2'],
     send_http_header  => ['content_type',
                           ''],
     header_in         => ['headers_in',
@@ -761,8 +778,6 @@ my $methods_compat = {
                           ''],
     escape_html       => [undef, # XXX: will be ap_escape_html
                           'ap_escape_html now requires a pool object'],
-    ht_time           => ['format_time',
-                          ''],
     parsedate         => ['parse_http',
                           ''],
     validate_password => ['password_validate',
@@ -783,6 +798,16 @@ sub avail_methods_compat {
 
 sub avail_methods {
     return keys %$methods;
+}
+
+sub avail_modules {
+    my %modules = ();
+    for my $method (keys %$methods) {
+        for my $item ( @{ $methods->{$method} }) {
+            $modules{$item->[MODULE]}++;
+        }
+    }
+    return keys %modules;
 }
 
 sub preload_all_modules {
@@ -817,7 +842,7 @@ sub sep { return '-' x (shift() + 20) . "\n" }
 # what modules contain the passed method.
 # an optional object or a reference to it can be passed to help
 # resolve situations where there is more than one module containing
-# the same method.
+# the same method. Inheritance is supported.
 sub lookup_method {
     my ($method, $object) = @_;
 
@@ -854,19 +879,30 @@ sub lookup_method {
     if (@items == 1) {
         my $module = $items[0]->[MODULE];
         my $hint = "To use method '$method' add:\n" . "\tuse $module ();\n";
+        # we should really check that the method matches the object if
+        # any was passed, but it may not always work
         return ($hint, $module);
     }
     else {
         if (defined $object) {
             my $class = ref $object || $object;
             for my $item (@items) {
-                if ($class eq $item->[OBJECT]) {
+                # real class or inheritance
+                if ($class eq $item->[OBJECT] or
+                    (ref($object) && $object->isa($item->[OBJECT]))) {
                     my $module = $item->[MODULE];
                     my $hint = "To use method '$method' add:\n" .
                         "\tuse $module ();\n";
                     return ($hint, $module);
                 }
             }
+            # fall-through
+            local $" = ", ";
+            my @modules = map $_->[MODULE], @items;
+            my $hint = "Several modules (@modules) contain method '$method' " .
+                "but none of them matches class '$class';\n";
+            return ($hint);
+
         }
         else {
             my %modules = map { $_->[MODULE] => 1 } @items;

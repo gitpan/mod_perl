@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 # VERY IMPORTANT: Be very careful modifying the defaults, since many
 # VERY IMPORTANT: packages rely on them. In fact you should never
 # VERY IMPORTANT: modify the defaults after the package gets released,
@@ -25,6 +39,7 @@ use ModPerl::Util ();
 use ModPerl::Global ();
 
 use File::Spec::Functions ();
+use File::Basename;
 
 use Apache::Const -compile => qw(:common &OPT_EXECCGI);
 
@@ -360,6 +375,11 @@ sub convert_script_to_compiled_handler {
 
     $self->strip_end_data_segment;
 
+    # handle the non-parsed handlers ala mod_cgi (though mod_cgi does
+    # some tricks removing the header_out and other filters, here we
+    # just call assbackwards which has the same effect).
+    my $base = File::Basename::basename($self->{FILENAME});
+    my $nph = substr($base, 0, 4) eq 'nph-' ? '$_[0]->assbackwards(1);' : "";
     my $script_name = $self->get_script_name || $0;
 
     my $eval = join '',
@@ -367,6 +387,7 @@ sub convert_script_to_compiled_handler {
                     $self->{PACKAGE}, ";",
                     "sub handler {",
                     "local \$0 = '$script_name';",
+                    $nph,
                     $line,
                     ${ $self->{CODE} },
                     "\n}"; # last line comment without newline?

@@ -1,3 +1,18 @@
+/* Copyright 2000-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "mod_perl.h"
 
 int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
@@ -36,8 +51,22 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
     PUTBACK;
 
     if (MpHandlerANON(handler)) {
-        SV *sv = eval_pv(handler->name, TRUE); /* XXX: cache */
+#ifdef USE_ITHREADS
+        /* it's possible that the interpreter that is running the anon
+         * cv, isn't the one that compiled it. so to be safe need to
+         * re-eval the deparsed form before using it.
+         * XXX: possible optimizations, see modperl_handler_new_anon */
+        SV *sv = eval_pv(handler->name, TRUE); 
         cv = (CV*)SvRV(sv);
+#else
+        /* the same interpreter that has compiled the anon cv is used
+         * to run it */
+        if (!handler->cv) {
+            SV *sv = eval_pv(handler->name, TRUE); 
+            handler->cv = (CV*)SvRV(sv); /* cache */
+        }
+        cv = handler->cv;
+#endif
     }
     else {
         GV *gv = modperl_mgv_lookup_autoload(aTHX_ handler->mgv_cv, s, p);
@@ -58,9 +87,10 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
             }
             
             MP_TRACE_h(MP_FUNC, "[%s %s] lookup of %s failed\n",
-                         modperl_pid_tid(p), modperl_server_desc(s, p), name);
+                       modperl_pid_tid(p),
+                       modperl_server_desc(s, p), name);
             ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                         "lookup of '%s' failed\n", name);
+                         "lookup of '%s' failed", name);
             status = HTTP_INTERNAL_SERVER_ERROR;
         }
     }
@@ -116,7 +146,8 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
 }
 
 int modperl_callback_run_handlers(int idx, int type,
-                                  request_rec *r, conn_rec *c, server_rec *s,
+                                  request_rec *r, conn_rec *c,
+                                  server_rec *s,
                                   apr_pool_t *pconf,
                                   apr_pool_t *plog,
                                   apr_pool_t *ptemp,
@@ -132,7 +163,7 @@ int modperl_callback_run_handlers(int idx, int type,
     modperl_handler_t **handlers;
     apr_pool_t *p = NULL;
     MpAV *av, **avp;
-    int i, nelts, status = OK;
+    int i, status = OK;
     const char *desc = NULL;
     AV *av_args = Nullav;
 
@@ -182,15 +213,25 @@ int modperl_callback_run_handlers(int idx, int type,
     modperl_config_req_cleanup_register(r, rcfg);
 
     switch (type) {
-      case MP_HANDLER_TYPE_PER_DIR:
       case MP_HANDLER_TYPE_PER_SRV:
         modperl_handler_make_args(aTHX_ &av_args,
                                   "Apache::RequestRec", r, NULL);
 
-        /* only happens once per-request */
-        if (MpDirSETUP_ENV(dcfg)) {
-            modperl_env_request_populate(aTHX_ r);
+        /* per-server PerlSetEnv and PerlPassEnv - only once per-request */
+        if (! MpReqPERL_SET_ENV_SRV(rcfg)) {
+            modperl_env_configure_request_srv(aTHX_ r);
         }
+
+        break;
+      case MP_HANDLER_TYPE_PER_DIR:
+        modperl_handler_make_args(aTHX_ &av_args,
+                                  "Apache::RequestRec", r, NULL);
+
+        /* per-directory PerlSetEnv - only once per-request */
+        if (! MpReqPERL_SET_ENV_DIR(rcfg)) {
+            modperl_env_configure_request_dir(aTHX_ r);
+        }
+
         break;
       case MP_HANDLER_TYPE_PRE_CONNECTION:
       case MP_HANDLER_TYPE_CONNECTION:
@@ -213,24 +254,19 @@ int modperl_callback_run_handlers(int idx, int type,
 
     modperl_callback_current_callback_set(desc);
     
-    /* XXX: deal with {push,set}_handler of the phase we're currently in */
-    /* for now avoid the segfault by not letting av->nelts grow if
-     * somebody push_handlers to the phase we are currently in, but
-     * different handler e.g. jumping from 'modperl' to 'perl-script',
-     * before calling push_handler */
-    nelts = av->nelts;
     MP_TRACE_h(MP_FUNC, "[%s] running %d %s handlers\n",
-               modperl_pid_tid(p), nelts, desc);
+               modperl_pid_tid(p), av->nelts, desc);
     handlers = (modperl_handler_t **)av->elts;
 
-    for (i=0; i<nelts; i++) {
+    for (i=0; i<av->nelts; i++) {
         status = modperl_callback(aTHX_ handlers[i], p, r, s, av_args);
         
-        MP_TRACE_h(MP_FUNC, "%s returned %d\n", handlers[i]->name, status);
+        MP_TRACE_h(MP_FUNC, "%s returned %d\n",
+                   handlers[i]->name, status);
 
         /* follow Apache's lead and let OK terminate the phase for
-         * MP_HOOK_RUN_FIRST handlers.  MP_HOOK_RUN_ALL handlers keep going on OK.
-         * MP_HOOK_VOID handler ignore all errors.
+         * MP_HOOK_RUN_FIRST handlers.  MP_HOOK_RUN_ALL handlers keep
+         * going on OK.  MP_HOOK_VOID handlers ignore all errors.
          */
 
         if (run_mode == MP_HOOK_RUN_ALL) {
@@ -242,9 +278,10 @@ int modperl_callback_run_handlers(int idx, int type,
 
                 status = modperl_errsv(aTHX_ status, r, s);
 #ifdef MP_TRACE
-                if (i+1 != nelts) {
-                    MP_TRACE_h(MP_FUNC, "error status %d leaves %d uncalled handlers\n",
-                               status, desc, nelts-i-1);
+                if (i+1 != av->nelts) {
+                    MP_TRACE_h(MP_FUNC, "error status %d leaves %d "
+                               "uncalled handlers\n",
+                               status, desc, av->nelts-i-1);
                 }
 #endif
                 break;
@@ -258,9 +295,10 @@ int modperl_callback_run_handlers(int idx, int type,
 
             if (status == OK) {
 #ifdef MP_TRACE
-                if (i+1 != nelts) {
-                    MP_TRACE_h(MP_FUNC, "OK ends the %s stack, leaving %d uncalled handlers\n",
-                               desc, nelts-i-1);
+                if (i+1 != av->nelts) {
+                    MP_TRACE_h(MP_FUNC, "OK ends the %s stack, "
+                               "leaving %d uncalled handlers\n",
+                               desc, av->nelts-i-1);
                 }
 #endif
                 break;
@@ -268,9 +306,10 @@ int modperl_callback_run_handlers(int idx, int type,
             if (status != DECLINED) {
                 status = modperl_errsv(aTHX_ status, r, s);
 #ifdef MP_TRACE
-                if (i+1 != nelts) {
-                    MP_TRACE_h(MP_FUNC, "error status %d leaves %d uncalled handlers\n",
-                               status, desc, nelts-i-1);
+                if (i+1 != av->nelts) {
+                    MP_TRACE_h(MP_FUNC, "error status %d leaves %d "
+                               "uncalled handlers\n",
+                               status, desc, av->nelts-i-1);
                 }
 #endif
                 break;
@@ -282,6 +321,18 @@ int modperl_callback_run_handlers(int idx, int type,
              * Apache should handle whatever mod_perl returns, 
              * so there is no need to mess with the status
              */
+        }
+
+        /* it's possible that during the last callback a new handler
+         * was pushed onto the same phase it's running from. av needs
+         * to be updated.
+         *
+         * XXX: would be nice to somehow optimize that
+         */
+        avp = modperl_handler_lookup_handlers(dcfg, scfg, rcfg, p,
+                                              type, idx, FALSE, NULL);
+        if (avp && (av = *avp)) {
+            handlers = (modperl_handler_t **)av->elts;
         }
     }
 
@@ -304,7 +355,8 @@ int modperl_callback_per_dir(int idx, request_rec *r,
 int modperl_callback_per_srv(int idx, request_rec *r, 
                              modperl_hook_run_mode_e run_mode)
 {
-    return modperl_callback_run_handlers(idx, MP_HANDLER_TYPE_PER_SRV,
+    return modperl_callback_run_handlers(idx,
+                                         MP_HANDLER_TYPE_PER_SRV,
                                          r, NULL, r->server,
                                          NULL, NULL, NULL, run_mode);
 }
@@ -312,7 +364,8 @@ int modperl_callback_per_srv(int idx, request_rec *r,
 int modperl_callback_connection(int idx, conn_rec *c, 
                                 modperl_hook_run_mode_e run_mode)
 {
-    return modperl_callback_run_handlers(idx, MP_HANDLER_TYPE_CONNECTION,
+    return modperl_callback_run_handlers(idx,
+                                         MP_HANDLER_TYPE_CONNECTION,
                                          NULL, c, c->base_server,
                                          NULL, NULL, NULL, run_mode);
 }
@@ -320,7 +373,8 @@ int modperl_callback_connection(int idx, conn_rec *c,
 int modperl_callback_pre_connection(int idx, conn_rec *c, void *csd,
                                     modperl_hook_run_mode_e run_mode)
 {
-    return modperl_callback_run_handlers(idx, MP_HANDLER_TYPE_PRE_CONNECTION,
+    return modperl_callback_run_handlers(idx,
+                                         MP_HANDLER_TYPE_PRE_CONNECTION,
                                          NULL, c, c->base_server,
                                          NULL, NULL, NULL, run_mode);
 }

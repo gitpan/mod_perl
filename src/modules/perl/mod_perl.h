@@ -1,3 +1,18 @@
+/* Copyright 2000-2004 The Apache Software Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef MOD_PERL_H
 #define MOD_PERL_H
 
@@ -107,5 +122,8 @@ int modperl_response_handler_cgi(request_rec *r);
 typedef void MP_FUNC_T(modperl_table_modify_t) (apr_table_t *,
                                                 const char *,
                                                 const char *);
+
+/* we need to hook a few internal things before APR_HOOK_REALLY_FIRST */
+#define MODPERL_HOOK_REALLY_REALLY_FIRST (-20)
 
 #endif /*  MOD_PERL_H */

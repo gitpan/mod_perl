@@ -1,3 +1,17 @@
+# Copyright 2001-2004 The Apache Software Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 package Apache::ParseSource;
 
 use strict;
@@ -161,6 +175,7 @@ my %defines_wanted = (
         override   => [qw{OR_ ACCESS_CONF RSRC_CONF}],
         log        => [qw(APLOG_)],
         platform   => [qw{CRLF CR LF}],
+        mpmq       => [qw{AP_MPMQ_}],
     },
     APR => {
         table     => [qw{APR_OVERLAP_TABLES_}],
@@ -188,12 +203,12 @@ while (my($class, $groups) = each %defines_wanted) {
 }
 
 my %enums_wanted = (
-    Apache => { map { $_, 1 } qw(cmd_how input_mode filter_type) },
-    APR => { map { $_, 1 } qw(apr_shutdown_how apr_read_type apr_lockmech) },
+    Apache => { map { $_, 1 } qw(cmd_how input_mode filter_type conn_keepalive) },
+    APR => { map { $_, 1 } qw(apr_shutdown_how apr_read_type apr_lockmech apr_filetype) },
 );
 
 my $defines_unwanted = join '|', qw{
-HTTP_VERSION APR_EOL_STR APLOG_MARK APLOG_NOERRNO
+HTTP_VERSION APR_EOL_STR APLOG_MARK APLOG_NOERRNO APR_SO_TIMEOUT
 };
 
 sub get_constants {

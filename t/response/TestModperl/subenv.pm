@@ -11,28 +11,84 @@ use Apache::Test;
 use Apache::Const -compile => 'OK';
 
 sub handler {
+
     my $r = shift;
 
-    plan $r, tests => 16;
+    plan $r, tests => 31;
 
-    my $env = $r->subprocess_env;
-    ok $env;
+    # subprocess_env in void context with arguments does
+    # nothing to %ENV
+    {
+        my $env = $r->subprocess_env;
+        
+        my $key = 'ONCE';
 
-    # subprocess_env in void context populates the same as +SetEnv
-    ok_false($r, 'REMOTE_ADDR');
-    $r->subprocess_env; 
-    ok_true($r, 'REMOTE_ADDR');
+        ok_false($r, $key);
 
-    $env = $r->subprocess_env; #table may have been overlayed
+        $r->subprocess_env($key => 1); # void context but with args
 
-    $env->set(FOO => 1);
-    ok_true($r, 'FOO');
+        ok_true($r, $key);
 
-    $r->subprocess_env(FOO => undef);
-    ok_false($r, 'FOO');
+        ok ! $ENV{$key};               # %ENV not populated yet
+    }
 
-    $r->subprocess_env(FOO => 1);
-    ok_true($r, 'FOO');
+    # subprocess_env in void context with no arguments 
+    # populates the same as +SetEnv
+    {
+        my $env = $r->subprocess_env;
+
+        my $key = 'REMOTE_ADDR';
+
+        ok_false($r, $key);   # still not not there yet
+
+        ok ! $ENV{$key};      # %ENV not populated yet
+
+        $r->subprocess_env;   # void context with no arguments
+
+        ok_true($r, $key);
+
+        ok $ENV{$key};        # mod_cgi emulation
+    }
+
+    # handlers can use a void context more than once to force
+    # population of %ENV with new table entries
+    {
+        my $env = $r->subprocess_env;
+
+        my $key = 'AGAIN';
+
+        $env->set($key => 1);      # new table entry
+
+        ok_true($r, $key);
+
+        ok ! $ENV{$key};           # shouldn't affect %ENV yet
+
+        $r->subprocess_env;        # now called in in void context twice
+
+        ok $ENV{$key};             # so %ENV is populated with new entry
+    }
+
+    {
+        my $env = $r->subprocess_env; # table may have been overlayed
+
+        my $key = 'FOO';
+
+        $env->set($key => 1);         # direct call to set()
+
+        ok_true($r, $key);
+
+        ok ! $ENV{$key};              # shouldn't affect %ENV
+
+        $r->subprocess_env($key => undef);
+
+        ok_false($r, $key);           # removed
+
+        $r->subprocess_env($key => 1);
+
+        ok_true($r, $key);            # reset
+
+        ok ! $ENV{$key};              # still shouldn't affect %ENV
+    }
 
     Apache::OK;
 }

@@ -134,6 +134,7 @@ $Apache::ConstantsTable = {
       'HTTP_UNPROCESSABLE_ENTITY',
       'HTTP_LOCKED',
       'HTTP_FAILED_DEPENDENCY',
+      'HTTP_UPGRADE_REQUIRED',
       'HTTP_INTERNAL_SERVER_ERROR',
       'HTTP_NOT_IMPLEMENTED',
       'HTTP_BAD_GATEWAY',
@@ -161,6 +162,11 @@ $Apache::ConstantsTable = {
       'AP_FTYPE_TRANSCODE',
       'AP_FTYPE_CONNECTION',
       'AP_FTYPE_NETWORK'
+    ],
+    'conn_keepalive' => [
+      'AP_CONN_UNKNOWN',
+      'AP_CONN_CLOSE',
+      'AP_CONN_KEEPALIVE'
     ],
     'common' => [
       'DECLINED',
@@ -249,7 +255,7 @@ $Apache::ConstantsTable = {
     'shutdown_how' => [
       'APR_SHUTDOWN_READ',
       'APR_SHUTDOWN_WRITE',
-      'APR_SHUTDOWN_READWRITE'
+      'APR_SHUTDOWN_READWRITE',
     ],
     'read_type' => [
       'APR_BLOCK_READ',
@@ -333,7 +339,10 @@ $Apache::ConstantsTable = {
       'APR_FILEPATH_NOTRELATIVE',
       'APR_FILEPATH_NOTABSOLUTE',
       'APR_FILEPATH_NATIVE',
-      'APR_FILEPATH_TRUENAME'
+      'APR_FILEPATH_TRUENAME',
+      'APR_FILEPATH_ENCODING_UNKNOWN',
+      'APR_FILEPATH_ENCODING_LOCALE',
+      'APR_FILEPATH_ENCODING_UTF8'
     ],
     'filemode' => [
       'APR_READ',
@@ -380,6 +389,9 @@ $Apache::ConstantsTable = {
       'APR_EINCOMPLETE',
       'APR_EABOVEROOT',
       'APR_EBADPATH',
+      'APR_EPATHWILD',
+      'APR_ESYMNOTFOUND',
+      'APR_EPROC_UNKNOWN',
       'APR_EOF',
       'APR_EINIT',
       'APR_ENOTIMPL',
