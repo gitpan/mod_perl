@@ -3,7 +3,7 @@ use Config;
 use FileHandle ();
 use Cwd;
 
-$VERSION = "0.88";
+$VERSION = "0.89";
 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
@@ -70,7 +70,7 @@ foreach $adir (@adirs) {
 	}
 	last if $NO_HTTPD;
 
-	unless ($HAS_DASH_MAKE) {
+	unless ($can_dash_make{$adir}) {
 	    unless (-e "$adir/Makefile.tmpl.bak") {
 		print STDERR "Backing up $adir/Makefile.tmpl to $adir/Makefile.tmpl.bak\n";
 		system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
@@ -121,7 +121,7 @@ EOT
     unless ($NO_HTTPD) {
 	my $dash_make;
 	$dash_make = " -make ".cwd()."/src/$mft_map{$adir}"
-	    if $HAS_DASH_MAKE;
+	    if $can_dash_make{$adir};
 	print STDERR "(cd $adir; ./Configure${dash_make})\n";
 	system "(cd $adir; ./Configure${dash_make})"
     }
@@ -283,10 +283,10 @@ sub httpd_version {
 	    if($fserver eq "Apache") {
 		($server, $version) = ($fserver, $fversion);
 		if($version == 1.2 and $frest =~ s/^b(\d)$/$1/) {
-		    ++$HAS_DASH_MAKE if $frest >= 3;
+		    ++$can_dash_make{$dir} if $frest >= 3;
 		}
 		elsif($version >= 1.2) {
-		    $HAS_DASH_MAKE++;
+		    $can_dash_make{$dir}++;
 		}
 	    }
 	    else {

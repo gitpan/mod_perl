@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.33 1996/12/19 04:14:51 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.34 1996/12/31 04:36:58 dougm Exp $ */
 
 #include "mod_perl.h"
 
@@ -77,13 +77,27 @@ static command_rec perl_cmds[] = {
   { "PerlHandler", set_string_slot,
     (void*)XtOffsetOf(perl_dir_config, PerlHandler),
     OR_ALL, TAKE1, "the Perl handler routine name" },
+#ifdef PERL_TRANS
   { PERL_TRANS_CMD_ENTRY },
+#endif
+#ifdef PERL_AUTHEN
   { PERL_AUTHEN_CMD_ENTRY },
+#endif
+#ifdef PERL_AUTHZ
   { PERL_AUTHZ_CMD_ENTRY },
+#endif
+#ifdef PERL_ACCESS
   { PERL_ACCESS_CMD_ENTRY },
+#endif
+#ifdef PERL_TYPE
   { PERL_TYPE_CMD_ENTRY },
+#endif
+#ifdef PERL_FIXUP
   { PERL_FIXUP_CMD_ENTRY },
+#endif
+#ifdef PERL_LOGGER
   { PERL_LOGGER_CMD_ENTRY },
+#endif
   { NULL }
 };
 
