@@ -1,0 +1,287 @@
+=head1 NAME
+
+Installing mod_perl
+
+=head1 Description
+
+This chapter provides an indepth mod_perl 2.0 installation coverage.
+
+=head1 Prerequisites
+
+Lots of prerequisites
+
+=head1 Installing from Source
+
+XXX: For Win32 specific installation doc here.
+
+Download the httpd-2.0 and modperl-2.0 tarballs, and extract them in the
+same directory.
+
+Or use anoncvs (password is "anoncvs"):
+
+  % cvs -d :pserver:anoncvs@cvs.apache.org:/home/cvspublic login
+  % cvs -d :pserver:anoncvs@cvs.apache.org:/home/cvspublic co modperl-2.0
+  % cvs -d :pserver:anoncvs@cvs.apache.org:/home/cvspublic co httpd-2.0
+  % cd httpd-2.0/srclib
+  % cvs -d :pserver:anoncvs@cvs.apache.org:/home/cvspublic co apr
+  % cvs -d :pserver:anoncvs@cvs.apache.org:/home/cvspublic co apr-util
+  % cd ..
+  % ./buildconf
+  % ./configure --prefix=$HOME/apache-2.0 --with-mpm=prefork
+  % make && make install
+
+Once extracted, whenever you want to sync with the latest httpd-2.0
+version and rebuild, run:
+
+  % cd httpd-2.0
+  % cvs up -dP
+  % make distclean && ./buildconf
+  % ./configure --prefix=$HOME/apache-2.0 --with-mpm=prefork
+  % make && make install
+
+For bleeding edge Perl:
+
+  # (--delete to ensure a clean state)
+  % rsync -acvz --delete --force \
+    rsync://ftp.linux.activestate.com/perl-current/ perl-current
+  % cd perl-current
+  % ./Configure -des -Dprefix=$HOME/bleedperl \
+    -Dusethreads -Doptimize='-g' -Dusedevel
+  % make && make test && make install
+  % ln -s $HOME/bleedperl/bin/perl5.x.x $HOME/bleedperl/bin/perl
+
+or otherwise make sure that your perl was built with threads enabled if
+you want to use a threaded MPM.
+
+If you are re-building Perl after rsync-ing, make sure to cleanup:
+
+  % make distclean
+
+before running C<./Configure>.
+
+You'll also want to install (at least) LWP into the bleedperl/lib
+directory if you want to fully test mod_perl, because normally a
+privately installed bleedperl won't find libraries installed in the
+normal places; it only looks in it's own lib tree. You can install LWP
+with CPAN.pm shell:
+
+  % $HOME/bleedperl/bin/perl -MCPAN -e 'install("LWP")'
+
+
+=head1 Compiling
+
+=head2 Create the build environment
+
+   % cd modperl-2.0
+   % perl Makefile.PL MP_APXS=$apache_prefix/bin/apxs && make
+
+I<options> an optional list of (key,value) pairs.
+
+The following options are boolean and can be set with C<MP_XXX=1> or
+unset with C<MP_XXX=0>, where XXX is the name of the option.
+
+=over 4
+
+=item MP_PROMPT_DEFAULT
+
+Accept default values for all would-be prompts.
+
+=item MP_GENERATE_XS
+
+Generate XS code from parsed source headers in I<xs/tables/$httpd_version>.
+Default is 1, set to 0 to disable.
+
+=item MP_USE_DSO
+
+Build mod_perl as a DSO. This is the default.
+
+=item MP_USE_STATIC
+
+Build mod_perl static.
+
+=item MP_STATIC_EXTS
+
+Build C<Apache::*.xs> as static extensions.
+
+=item MP_USE_GTOP
+
+Link with I<libgtop> and enable I<libgtop> reporting.
+
+=item MP_DEBUG
+
+Turn on debugging (C<-g -lperld>) and tracing.
+
+=item MP_MAINTAINER
+
+Enable maintainer compile mode, which sets C<MP_DEBUG=1> and adds the
+following C<gcc> flags:
+
+  -DAP_DEBUG -Wall -Wmissing-prototypes -Wstrict-prototypes \
+  -Wmissing-declarations
+
+To use this mode Apache must be build with
+C<--enable-maintainer-mode>.
+
+=item MP_TRACE
+
+Enable tracing
+
+=item MP_INST_APACHE2
+
+Install all the I<*.pm> modules relative to the I<Apache2/> directory.
+
+=back
+
+Non-Boolean options: set them with MP_XXX=value.
+
+=over 4
+
+=item MP_APXS
+
+Path to C<apxs>. For example if you've installed Apache 2.0 under
+I</home/httpd/httpd-2.0> as DSO, the default location would be
+I</home/httpd/httpd-2.0/bin/apxs>.
+
+=item MP_AP_PREFIX
+
+Apache installation prefix. This option can be used to derive C<apxs>
+values on platforms where C<apxs> is not supported (e.g., on Win32).
+For example if you've have installed Apache 2.0 in C<\Apache2> on
+Win32, you should use:
+
+  MP_AP_PREFIX=\Apache2
+
+=item MP_CCOPTS
+
+Add to compiler flags, e.g.:
+
+  MP_CCOPTS=-Werror
+
+(Notice that C<-Werror> will work only with the Perl version 5.7 and
+higher.)
+
+=item MP_OPTIONS_FILE
+
+Read build options from given file. e.g.:
+
+  MP_OPTIONS_FILE=~/.my_mod_perl2_opts
+
+=back
+
+mod_perl specific compiler options:
+
+=over 4
+
+=item -DMP_IOBUFSIZE
+
+Change the default mod_perl's 8K IO buffer size, e.g. to 16K:
+
+  MP_CCOPTS=-DMP_IOBUFSIZE=16384
+
+=back
+
+Options can also be specified in the file I<makepl_args.mod_perl2> or
+I<.makepl_args.mod_perl2>. The file can be placed under C<$ENV{HOME}>,
+the root of the source package or its parent directory. So if you
+unpack the mod_perl source into I</tmp/mod_perl-2.x/> and your home is
+I</home/foo/>, the file will be searched in:
+
+  /tmp/mod_perl-2.x/makepl_args.mod_perl2
+  /tmp/makepl_args.mod_perl2
+  /home/foo/makepl_args.mod_perl2
+  /tmp/mod_perl-2.x/.makepl_args.mod_perl2
+  /tmp/.makepl_args.mod_perl2
+  /home/foo/.makepl_args.mod_perl2
+
+If the file specified in C<MP_OPTIONS_FILE> is found the
+I<makepl_args.mod_perl2> will be ignored.
+
+Options specified on the command line override those from
+I<makepl_args.mod_perl2> and those from C<MP_OPTIONS_FILE>.
+
+If your terminal supports colored text you may want to set the
+environment variable C<APACHE_TEST_COLOR> to 1 to enable the colored
+tracing which makes it easier to tell the reported errors and
+warnings, from the rest of the notifications.
+
+=head2 Compile mod_perl
+
+  % make
+
+=head2 Configure and compile Apache
+
+  % cd ../httpd-2.0
+  % ./configure --with-mpm=prefork
+  % make
+
+=head2 Test mod_perl
+
+  % make test
+
+L<Apache::Test Framework|devel::testing::testing> document covers the
+C<make test> suite.
+
+META: probably need to link directly to the 'Running Tests' section.
+
+=head2 Howto generate source tables
+
+All mod_perl-2.0 xs code is generated from parsed header files.  While
+in pre-release mode, a version of these tables will be checked in to
+I<xs/tables/current>.  Should you wish to update these tables, here's
+how:
+
+NOTE: requires C::Scan 0.75, which at the moment is unreleased, there
+is a working copy here: http://perl.apache.org/~dougm/Scan.pm
+
+NOTE: source_scan.pl is a HEAVY process, do not be alarmed.
+
+  % perl build/source_scan.pl apxs $apache_prefix/bin/apxs
+
+META: this is covered in L<Core
+Explained|devel::core_explained::core_explained> should probably
+move/point there.
+
+=head2 Re-using Build Options
+
+Since mod_perl remembers what build options were used to build it, you
+can use this knowledge to rebuild itself using the same
+options. Simply chdir(1) to the mod_perl source directory and run:
+
+  % cd modperl-2.0
+  % perl -MApache::Build -e rebuild
+
+=head1 Installing from Binary Packages
+
+As of this writing only the binaries for the Win32 platform are
+available, kindly prepared and maintained by Randy Kobes.
+
+XXX: link to Win32 download doc.
+
+=head1 Maintainers
+
+Maintainer is the person(s) you should contact with updates,
+corrections and patches.
+
+=over
+
+=item *
+
+Doug MacEachern E<lt>dougm (at) covalent.netE<gt>
+
+=back
+
+=head1 Authors
+
+=over
+
+=item *
+
+Doug MacEachern E<lt>dougm (at) covalent.netE<gt>
+
+=back
+
+Only the major authors are listed above. For contributors see the
+Changes file.
+
+
+=cut

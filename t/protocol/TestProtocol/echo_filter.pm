@@ -1,0 +1,40 @@
+package TestProtocol::echo_filter;
+
+use strict;
+use warnings FATAL => 'all';
+
+use Apache::Connection ();
+use APR::Bucket ();
+use APR::Brigade ();
+use APR::Util ();
+
+use APR::Const -compile => qw(SUCCESS EOF);
+use Apache::Const -compile => qw(OK MODE_GETLINE);
+
+sub handler {
+    my Apache::Connection $c = shift;
+
+    my $bb = APR::Brigade->new($c->pool, $c->bucket_alloc);
+
+    for (;;) {
+        my $rv = $c->input_filters->get_brigade($bb,
+                                                Apache::MODE_GETLINE);
+
+        if ($rv != APR::SUCCESS or $bb->empty) {
+            my $error = APR::strerror($rv);
+            unless ($rv == APR::EOF) {
+                warn "[echo_filter] get_brigade: $error\n";
+            }
+            $bb->destroy;
+            last;
+        }
+
+        my $b = APR::Bucket::flush_create($c->bucket_alloc);
+        $bb->insert_tail($b);
+        $c->output_filters->pass_brigade($bb);
+    }
+
+    Apache::OK;
+}
+
+1;
