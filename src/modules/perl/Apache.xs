@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.60 1997/09/16 00:47:48 dougm Exp dougm $ */
+/* $Id: Apache.xs,v 1.62 1997/10/16 23:21:47 dougm Exp $ */
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -68,6 +68,16 @@ child_terminate(request_rec *r)
 #ifndef DONE
 #define DONE -2
 #endif
+
+static pool *perl_get_startup_pool(void)
+{
+    SV *sv = perl_get_sv("Apache::__POOL", FALSE);
+    if(sv) {
+	IV tmp = SvIV((SV*)SvRV(sv));
+	return (pool *)tmp;
+    }
+    return NULL;
+}
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -95,8 +105,9 @@ mod_perl_sent_header(r, val=0)
     int val
     
 int
-mod_perl_seqno(self)
+mod_perl_seqno(self, inc=0)
     SV *self
+    int inc
 
 int
 perl_hook(name)
@@ -340,8 +351,9 @@ get_remote_logname(r)
     Apache	r
 
 char *
-auth_name(r)
+mod_perl_auth_name(r, val=NULL)
     Apache    r
+    char *val
 
 char *
 auth_type(r)
@@ -352,12 +364,24 @@ document_root(r)
     Apache    r
 
 char *
-server_root_relative(r, name)
-    Apache    r
+server_root_relative(rsv, name)
+    SV   *rsv
     char *name
 
+    PREINIT:
+    pool *p;
+
     CODE:
-    RETVAL = (char *)server_root_relative(r->pool, name);
+    if (SvROK(rsv) && sv_derived_from(rsv, "Apache")) {
+	IV tmp = SvIV((SV*)SvRV(rsv));
+	p = ((Apache)tmp)->pool;
+    }
+    else {
+	if(!(p = perl_get_startup_pool()))
+	   croak("r is not of type Apache");
+    }
+
+    RETVAL = (char *)server_root_relative(p, name);
 
     OUTPUT:
     RETVAL
@@ -554,19 +578,18 @@ log_error(...)
         errstr = SvPVX(ST(i));
 #if MODULE_MAGIC_NUMBER > 19970909
     {
-	int level = APLOG_ERR;
+	int level = APLOG_ERR | APLOG_NOERRNO;
 
 	switch((ix = XSANY.any_i32)) {
 	case 0:
-	    level = APLOG_ERR;
 	    break;
 
 	case 1:
-	    level = APLOG_WARNING;
+	    level = APLOG_WARNING | APLOG_NOERRNO; 
 	    break;
 
 	default:
-	    level = APLOG_ERR;
+	    break;
 	}
 	aplog_error(APLOG_MARK, level, r->server, errstr);
     }
@@ -612,8 +635,8 @@ cgi_env(r, ...)
 #struct request_rec {
 
 void
-request(packname = "Apache", ...)
-    char * packname
+request(self, ...)
+    SV *self
 	
     PREINIT:
     SV *sv = perl_get_sv("Apache::Request", TRUE);
@@ -717,17 +740,6 @@ next(r)
 int
 is_initial_req(r)
     Apache   r
-
-    CODE:
-    if(r->main != NULL) /* this is a sub-request */
-	RETVAL = 0;
-    else if(r->prev != NULL) /* this is an internal redirect */
-	RETVAL = 0;
-    else /* this is the initial main request, we only get here *once* per HTTP request */
-	RETVAL = 1;
-
-    OUTPUT:
-    RETVAL
 
 int 
 is_main(r)

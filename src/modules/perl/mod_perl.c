@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.63 1997/09/16 00:47:48 dougm Exp dougm $ */
+/* $Id: mod_perl.c,v 1.65 1997/10/16 23:21:47 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -70,6 +70,7 @@ void *mod_perl_dummy_mutex = &mod_perl_dummy_mutex;
 static IV mp_request_rec;
 static int seqno = 0;
 static int perl_is_running = 0;
+static int callbacks_this_request = 0;
 static PerlInterpreter *perl = NULL;
 static AV *orig_inc = Nullav;
 static AV *cleanup_av = Nullav;
@@ -196,6 +197,20 @@ int PERL_RUNNING (void)
     return (perl_is_running);
 }
 
+static void seqno_check_max(request_rec *r, int seqno)
+{
+    dPPDIR;
+    char *max = table_get(cld->vars, "MaxModPerlRequestsPerChild");
+
+#if (MODULE_MAGIC_NUMBER >= 19970912) && !defined(WIN32)
+    if(max && (seqno >= atoi(max))) {
+	child_terminate(r);
+	MP_TRACE(fprintf(stderr, "mod_perl: terminating child %d after serving %d requests\n", 
+		getpid(), seqno));
+    }
+#endif
+}
+
 void perl_shutdown (server_rec *s, pool *p)
 {
     /* execute END blocks we suspended during perl_startup() */
@@ -237,10 +252,10 @@ void perl_shutdown (server_rec *s, pool *p)
 
 void perl_startup (server_rec *s, pool *p)
 {
-    char *argv[] = { NULL, NULL, NULL, NULL, NULL };
-    char *constants[] = { "Apache::Constants", "OK", "DECLINED", NULL };
-    int status, i, argc=2, t=0, w=0;
+    char *argv[] = { NULL, "-I.", "-Mmod_perl", NULL, NULL, NULL };
+    int status, i, argc=3;
     dPSRV(s);
+    SV *pool_rv;
 
 #ifndef WIN32
     argv[0] = server_argv0;
@@ -267,23 +282,20 @@ void perl_startup (server_rec *s, pool *p)
     perl_construct(perl);
 
     /* fake-up what the shell usually gives perl */
-    if((t = cls->PerlTaintCheck)) {
-	argv[1] = "-T";
-	argc++;
-    }
-    if((w = cls->PerlWarn)) {
-	argv[1+t] = "-w";
-	argc++;
-    }
+    if(cls->PerlTaintCheck) 
+	argv[argc++] = "-T";
 
-    argv[1+t+w] = cls->PerlScript ? 
-	server_root_relative(p, cls->PerlScript) : NULL;
+    if(cls->PerlWarn)
+	argv[argc++] = "-w";
 
-    if (argv[1+t+w] == NULL) {
-	argv[1+t+w] = "-e";
-	argv[2+t+w] = "0";
-	argc++;
+    if(cls->PerlScript) {
+	argv[argc++] = server_root_relative(p, cls->PerlScript);
+    }
+    else {
+	argv[argc++] = "-e";
+	argv[argc++] = "0";
     } 
+
     MP_TRACE(fprintf(stderr, "parsing perl script: "));
     for(i=1; i<argc; i++)
 	MP_TRACE(fprintf(stderr, "'%s' ", argv[i]));
@@ -298,19 +310,13 @@ void perl_startup (server_rec *s, pool *p)
     MP_TRACE(fprintf(stderr, "ok\n"));
 
     perl_clear_env();
+
+#if 0 /* -Mmod_perl will take care of this now */
     hv_store(PerlEnvHV, "GATEWAY_INTERFACE", 17, 
 	     newSVpv(PERL_GATEWAY_INTERFACE,0), 0);
 
-    if(hv_exists(GvHV(incgv), "CGI.pm", 6)) {
-	/* be sure CGI.pm knows GATEWAY_INTERFACE by recompiling  
-	 * we'll only get here if there's a `use CGI' in the PerlScript file 
-	 */
-	bool old_warn = dowarn;
-	(void)hv_delete(GvHV(incgv), "CGI.pm", 6, G_DISCARD);
-	MP_TRACE(fprintf(stderr, 
-		 "Reloading CGI.pm so it sees GATEWAY_INTERFACE...\n"));
-	dowarn = FALSE; perl_require_module("CGI", s); dowarn = old_warn;
-    }
+    perl_reload_inc(); /* so all can see GATEWAY_INTERFACE */
+#endif
 
     MP_TRACE(fprintf(stderr, "running perl interpreter..."));
 
@@ -318,8 +324,13 @@ void perl_startup (server_rec *s, pool *p)
     /* suspend END blocks */
     save_aptr(&endav);
     endav = Nullav;
+    
+    pool_rv = perl_get_sv("Apache::__POOL", TRUE);
+    sv_setref_pv(pool_rv, Nullch, (void*)p);
 
     status = perl_run(perl);
+
+    SvREFCNT_dec(pool_rv);
 
     MP_TRACE(fprintf(stderr, 
 	     "mod_perl: %d END blocks encountered during server startup\n",
@@ -345,12 +356,6 @@ void perl_startup (server_rec *s, pool *p)
 	    exit(1);
 	}
     }
-
-    /* import Apache::Constants qw(OK DECLINED) */
-    perl_call_argv("Exporter::import", G_DISCARD | G_EVAL, constants);
-
-    if(perl_eval_ok(s) != OK) 
-	perror("Apache::Constants->import failed");
 
     orig_inc = av_copy_array(GvAV(incgv));
 
@@ -391,8 +396,9 @@ int perl_handler(request_rec *r)
     dSTATUS;
     dPPDIR;
 
+    table_set(r->subprocess_env, "MOD_PERL", MOD_PERL_VERSION);
+
     (void)perl_request_rec(r); 
-    register_cleanup(r->pool, NULL, mod_perl_end_cleanup, NULL);
 
 #ifdef USE_SFIO
     IoFLAGS(GvIOp(defoutgv)) |= IOf_FLUSH; /* $|=1 */
@@ -413,8 +419,6 @@ int perl_handler(request_rec *r)
     /* hookup STDIN & STDOUT to the client */
     perl_stdout2client(r);
     perl_stdin2client(r);
-
-    seqno++;
 
     if(MP_ENV(cld)) 
 	perl_setup_env(r);
@@ -574,6 +578,10 @@ void mod_perl_end_cleanup(void *data)
     /* reset $/ */
     sv_setpvn(GvSV(gv_fetchpv("/", FALSE, SVt_PV)), "\n", 1);
     MP_TRACE(fprintf(stderr, "perl_end_cleanup...ok\n"));
+    callbacks_this_request = 0;
+#ifdef PERL_STACKED_HANDLERS
+    hv_clear(stacked_handlers);
+#endif
     (void)release_mutex(mod_perl_mutex); 
 }
 
@@ -616,6 +624,8 @@ int perl_handler_ismethod(HV *class, char *sub)
 }
 #endif
 
+void mod_perl_noop(void *data) {}
+
 void mod_perl_register_cleanup(request_rec *r, SV *sv)
 {
     dPPDIR;
@@ -623,7 +633,7 @@ void mod_perl_register_cleanup(request_rec *r, SV *sv)
     if(!MP_RCLEANUP(cld)) {
 	(void)perl_request_rec(r); 
 	register_cleanup(r->pool, (void*)r,
-			 mod_perl_cleanup_handler, NULL);
+			 mod_perl_cleanup_handler, mod_perl_noop);
 	MP_RCLEANUP_on(cld);
 	if(cleanup_av == Nullav) cleanup_av = newAV();
     }
@@ -742,18 +752,7 @@ void perl_per_request_init(request_rec *r)
 {
     dPPDIR;
 
-    /* hookup stderr to error_log */
-#ifndef PERL_TRACE
-    if(!MP_DSTDERR(cld)) {
-	if(r->server->error_log) {
-	    error_log2stderr(r->server);
-	    MP_DSTDERR_on(cld);
-	}
-    }
-#endif
-
-    /* set $$, $>, etc., if 1.3a1+, this really happens during child_init */
-    perl_init_ids; 
+    if(!is_initial_req(r)) return;
 
     /* PerlSetEnv */
     mod_perl_dir_env(cld);
@@ -775,6 +774,23 @@ void perl_per_request_init(request_rec *r)
 	    MP_INCPUSH_on(cld);
 	}
     }
+
+    if(callbacks_this_request++ > 0) return;
+
+    register_cleanup(r->pool, NULL, mod_perl_end_cleanup, mod_perl_noop);
+
+    /* hookup stderr to error_log */
+#ifndef PERL_TRACE
+    if(r->server->error_log) 
+	error_log2stderr(r->server);
+#endif
+
+    seqno++;
+    MP_TRACE(fprintf(stderr, "mod_perl: inc seqno to %d for %s\n", seqno, r->uri));
+    seqno_check_max(r, seqno);
+
+    /* set $$, $>, etc., if 1.3a1+, this really happens during child_init */
+    perl_init_ids; 
 }
 
 /* XXX this still needs work, getting there... */
@@ -873,11 +889,9 @@ API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 	}
 	
 	if(!is_method && !defined_sub) {
-	    if(!strnEQ(imp,"OK",2) && !strnEQ(imp,"DECLINED",8)) { /*XXX*/
-		MP_TRACE(fprintf(stderr, 
-		       "perl_call: defaulting to %s::handler\n", imp));
-		sv_catpv(sv, "::handler");
-	    }
+	    MP_TRACE(fprintf(stderr, 
+			     "perl_call: defaulting to %s::handler\n", imp));
+	    sv_catpv(sv, "::handler");
 	}
 #ifdef PERL_STACKED_HANDLERS
  	if(!is_method && defined_sub) { /* cache it */
@@ -994,9 +1008,10 @@ void perl_setup_env(request_rec *r)
     MP_TRACE(fprintf(stderr, "perl_setup_env...%d keys\n", i));
 }
 
-int mod_perl_seqno(SV *self)
+int mod_perl_seqno(SV *self, int inc)
 {
-    if(SvTRUE(self)) return seqno;
-    else return -1;
+    self = self; /*avoid warning*/
+    if(inc) seqno += inc;
+    return seqno;
 }
 

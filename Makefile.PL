@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.00_03";
+$VERSION = "1.01";
 
 use subs qw(_prompt iedit asrc);
 
@@ -47,7 +47,7 @@ my %SSL = (
 );
 
 # Patch up the Makefiles we are going to use with Apache
-system $^X, "-pi~", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
+system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
             <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
 
 #soes yous can try out the zamples
@@ -67,6 +67,8 @@ my(@do_clean) = qw{
    src/Configuration
    lib/Apache/MyConfig.pm
    Apache/Apache.xs
+   Constants/Constants.xs
+   t/modules/ssi.t       
 };
 #t/conf/httpd.conf
 #t/net/config.pl
@@ -311,13 +313,13 @@ unless ($NO_HTTPD) {
     unless($mmn >= 19970728) {
 	$callback_hooks{PERL_CHILD_EXIT} = 0;
 	$cant_hook{PERL_CHILD_EXIT} = 
-	    "(need 1.3a2-dev or higher)";
+	    "(need 1.3b1 or higher)";
     }
 
     unless($mmn >= 19970825) {
 	$callback_hooks{PERL_POST_READ_REQUEST} = 0;
 	$cant_hook{PERL_POST_READ_REQUEST} = 
-	    "(need 1.3a2-dev or higher)";
+	    "(need 1.3b1 or higher)";
     }
 
     setup_for_static();
@@ -382,11 +384,19 @@ unless ($NO_HTTPD) {
 
 #let's not bother with patchlevel.h
 PERL_VERSION = $p54
+MOD_PERL_VERSION = $VERSION
 
 INCDIR = $incdir
 
 EOF
     iedit "$APACHE_SRC/modules/perl/Makefile", "s/^#__ORIGINAL__/$edit_note/";
+
+    #needed as of 1.3b1+ 
+
+    if($mmn >= 19970912) {     #1.3b1
+	system "cat $APACHE_SRC/Makefile.config $APACHE_SRC/modules/perl/Makefile > /tmp/mpmf.$$";
+	mv "/tmp/mpmf.$$", "$APACHE_SRC/modules/perl/Makefile";
+    }
 
     if($callback_hooks{PERL_TRANS}) {
 	push @test_pre_init, 
@@ -452,6 +462,11 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
 
 
 write_my_config($APACHE_SRC);
+{
+    (my $pmv = $VERSION) =~ s/_//g;
+    iedit "lib/mod_perl.pm", qq(s/VERSION .*/VERSION = "$pmv";/);
+    unlink "lib/mod_perl.pm~";
+}
 
 #checking for LWP code, borrowed from LWP's own Makefile.PL :-)
 unless ($Is_Win32) {
@@ -518,6 +533,10 @@ sub write_extra_tests {
     ");\n1;\n";
     close FH;
 
+    if($PERL_SSI) {
+	cp "t/modules/ssi.test", "t/modules/ssi.t";
+    }
+
     return unless 
 	$callback_hooks{PERL_STACKED_HANDLERS} 
     and $callback_hooks{PERL_FIXUP};
@@ -538,7 +557,7 @@ EOF
     open FH, ">$dir/.htaccess";
     print FH <<EOF;
     $meth_test
-PerlFixupHandler  OK DECLINED MyClass::method
+PerlFixupHandler  Apache::OK Apache::DECLINED MyClass::method
 EOF
         close FH;
 }
@@ -565,6 +584,10 @@ WriteMakefile(
 	FILES	=> "@do_clean",
     }
 );
+
+unless (-l "mod_perl.pm") {
+    system "$Config{lns} $PWD/lib/mod_perl.pm $PWD/mod_perl.pm";
+}
 
 print "*** BSDI users: be sure to read the INSTALL `Notes' section ***\n"
     if $Config{osname} =~ /bsdos/i;

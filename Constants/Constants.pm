@@ -1,13 +1,16 @@
 package Apache::Constants;
 
-$Apache::Constants::VERSION = "1.05";
+$Apache::Constants::VERSION = "1.06";
 
-use Carp ();
 use Exporter ();
-use DynaLoader ();
 use strict;
 
-@Apache::Constants::ISA = qw(Exporter DynaLoader);
+*import = \&Exporter::import;
+
+unless(defined &bootstrap) {
+    require DynaLoader;
+    @Apache::Constants::ISA = qw(DynaLoader);
+}
 
 %Apache::Constants::EXPORT_TAGS = (
    options => [qw(OPT_NONE OPT_INDEXES OPT_INCLUDES 
@@ -37,6 +40,7 @@ use strict;
 
 @Apache::Constants::EXPORT_OK = qw(
    MOVED
+   HTTP_NO_CONTENT
    HTTP_METHOD_NOT_ALLOWED 
    HTTP_NOT_ACCEPTABLE 
    HTTP_LENGTH_REQUIRED
@@ -85,8 +89,7 @@ use strict;
 
 eval { bootstrap Apache::Constants $Apache::Constants::VERSION; };
 if($@) {
-    my $gw = $ENV{GATEWAY_INTERFACE} || '';
-    die "$@\n" if substr($gw,0,8) eq 'CGI-Perl';
+    die "$@\n" if exists $ENV{MOD_PERL};
     warn "warning: can't `bootstrap Apache::Constants $Apache::Constants::VERSION' outside of httpd\n";
 }
 

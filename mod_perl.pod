@@ -37,7 +37,7 @@ type check, fixup and logger stages of a request.
 =head1 FAQ
 
 The mod_perl FAQ is maintained by Frank Cringle <fdc@cliwe.ping.de>:
-http://www.ping.de/~fdc/mod_perl/
+http://perl.apache.org/faq/
 
 Mike Stok <mike@stok.co.uk> maintains mirrors the mod_perl FAQ at
 
@@ -133,6 +133,26 @@ directive:
 
  PerlSetEnv  SomeKey  SomeValue
 
+=over 4
+
+=item GATEWAY_INTERFACE
+
+The standard CGI environment variable B<GATEWAY_INTERFACE> is set to
+C<CGI-Perl/1.1> when running under mod_perl.
+
+=item MOD_PERL
+
+The environment variable `MOD_PERL' is set so scripts can say:
+
+ if(exists $ENV{MOD_PERL}) { 
+     #we're running under mod_perl
+     ...
+ }
+ else {
+     #we're NOT running under mod_perl
+ }
+
+=back
 
 =head1 END blocks
 
@@ -261,14 +281,10 @@ vs.
  @ISA = qw(...);
  $VERSION = "1.00";
 
-=item Memory Balancing Servers
+=item Further Reading
 
-It is possible to reduce the number of server children bloated with a
-Perl syntax tree inside of it by dedicating servers running on
-different ports to specific tasks.  For instance, a server
-configuration on one port (built without mod_perl) serves nothing but
-image files, another server on a different port, serves nothing but
-mod_perl scripts.  
+See Vivek Khera's L<mod_perl_tuning> document for more tips on
+improving Apache/mod_perl performance.
 
 =back
 

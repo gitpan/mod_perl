@@ -1,5 +1,7 @@
 package net;
 
+BEGIN { delete $ENV{'HTTP_PROXY'} }
+
 # Configure these for your local system
 $httpserver  = "localhost:8529";
 $perldir      = "/perl";

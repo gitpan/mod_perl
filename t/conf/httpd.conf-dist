@@ -49,7 +49,7 @@ PerlHandler Apache::Status
 </Location>
 
 #PerlChildInitHandler My::child_init
-#PerlChildInitHandler My::child_exit
+#PerlChildExitHandler My::child_exit
 
 #end mod_perl stuff
 

@@ -8,6 +8,32 @@ BEGIN {
 
 #use Apache::Debug level => 4;
 
+use mod_perl 1.00_05;
+
+#test Apache::RegistryLoader
+{
+    use Cwd ();
+    use Apache::RegistryLoader ();
+    use DirHandle ();
+    use strict;
+    
+    local $^W = 0; #shutup line 164 Cwd.pm 
+
+    my $cwd = Cwd::fastcwd;
+    my $rl = Apache::RegistryLoader->new(trans => sub {
+	my $uri = shift; 
+	$cwd."/t/net${uri}";
+    });
+
+    my $d = DirHandle->new("t/net/perl");
+
+    for my $file ($d->read) {
+	next if $file eq "hooks.pl"; 
+	next unless $file =~ /\.pl$/;
+	$rl->handler("/perl/$file");
+    }
+}
+
 #for testing perl mod_include's
 
 $Access::Cnt = 0;

@@ -6,6 +6,44 @@
 #include "XSUB.h"
 
 void newCONSTSUB(HV *stash, char *name, SV *sv);
+static CV *no_warn = Nullcv;
+
+CV *empty_anon_sub(void)
+{
+    return newSUB(start_subparse(FALSE, 0),
+                  newSVOP(OP_CONST, 0, newSVpv("__ANON__",8)),
+                  Nullop,
+                  block_end(block_start(TRUE), newOP(OP_STUB,0)));
+}
+   
+void newCONSTSUB(HV *stash, char *name, SV *sv)
+{
+    line_t oldline = curcop->cop_line;
+    curcop->cop_line = copline;
+
+    ENTER;
+    SAVEI32(hints);
+    hints &= ~HINT_BLOCK_SCOPE;
+
+    if(stash) {
+	save_hptr(&curstash);
+	save_hptr(&curcop->cop_stash);
+	curstash = curcop->cop_stash = stash;
+    }
+
+    /* prevent prototype mismatch warnings */
+    if(!no_warn) no_warn = empty_anon_sub();
+    SAVESPTR(warnhook);
+    warnhook = (SV*)no_warn;
+
+    (void)newSUB(start_subparse(FALSE, 0),
+	   newSVOP(OP_CONST, 0, newSVpv(name,0)),
+	   newSVOP(OP_CONST, 0, &sv_no),	
+	   newSTATEOP(0, Nullch, newSVOP(OP_CONST, 0, sv)));
+
+    LEAVE;
+    curcop->cop_line = oldline;
+}
 
 static double
 constant(name)

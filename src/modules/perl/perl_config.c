@@ -55,6 +55,24 @@
 
 extern module *top_module;
 
+char *mod_perl_auth_name(request_rec *r, char *val)
+{
+#ifndef WIN32 
+    core_dir_config *conf = 
+      (core_dir_config *)get_module_config(r->per_dir_config, &core_module); 
+
+    if(val) {
+	conf->auth_name = pstrdup(r->pool, val);
+	set_module_config(r->per_dir_config, &core_module, (void*)conf); 
+	MP_TRACE(fprintf(stderr, "mod_perl: setting auth_name to %s\n", conf->auth_name));
+    }
+
+    return conf->auth_name;
+#else
+    return auth_name(r);
+#endif
+}
+
 void mod_perl_dir_env(perl_dir_config *cld)
 {
     if(MP_HASENV(cld)) {
@@ -177,10 +195,12 @@ void *perl_create_server_config (pool *p, server_rec *s)
 CHAR_P perl_cmd_push_handlers(char *hook, PERL_CMD_TYPE **cmd, char *arg)
 { 
     SV *sva;
+#if !defined(APACHE_SSL) && !defined(WIN32)
     if(!PERL_RUNNING()) { 
         MP_TRACE(fprintf(stderr, "perl_cmd_push_handlers: perl not running, skipping push\n")); 
 	return NULL; 
     } 
+#endif
     sva = newSVpv(arg,0); 
     if(!*cmd) { 
         *cmd = newAV(); 
@@ -393,22 +413,6 @@ void add_per_url_conf (server_rec *s, void *url_config);
 void add_file_conf (core_dir_config *conf, void *url_config);
 const command_rec *find_command_in_modules (const char *cmd_name, module **mod);
 
-char *perl_av2string(AV *av, pool *p) 
-{
-    I32 i, len = AvFILL(av);
-    SV *sv = newSV(0);
-    char *retval;
-
-    for(i=0; i<=len; i++) {
-	sv_catsv(sv, *av_fetch(av, i, FALSE));
-	if(i != len)
-	    sv_catpvn(sv, " ", 1);
-    }
-    retval = pstrdup(p, (char *)SvPVX(sv));
-    SvREFCNT_dec(sv);
-    return retval;
-}
-
 CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
 {
     char l[MAX_STRING_LEN];
@@ -438,6 +442,7 @@ CHAR_P perl_srm_command_loop(cmd_parms *parms, SV *sv)
     (void)hv_iterinit(hv); \
     while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { \
 	HV *tab; \
+	if(SvMAGICAL(val)) mg_get(val); \
 	if((tab = (HV *)SvRV(val))) { 
 
 #define dSECiter_stop \
@@ -456,11 +461,13 @@ void perl_section_hash_walk(cmd_parms *cmd, void *cfg, HV *hv)
 	char *value = NULL;
 	if(SvROK(tmpval)) {
 	    if(SvTYPE(SvRV(tmpval)) == SVt_PVAV) {
-		value = perl_av2string((AV*)SvRV(tmpval), cmd->pool); 
+		perl_handle_command_av((AV*)SvRV(tmpval), 
+				       0, tmpkey, cmd, cfg);
+		continue;
 	    }
 	    else if(SvTYPE(SvRV(tmpval)) == SVt_PVHV) {
-		HV *lim = (HV*)SvRV(tmpval);
-		perl_limit_section(cmd, cfg, lim);
+		perl_handle_command_hv((HV*)SvRV(tmpval), 
+				       tmpkey, cmd, cfg); 
 		continue;
 	    }
 	}
@@ -489,11 +496,20 @@ CHAR_P perl_virtualhost_section (cmd_parms *cmd, void *dummy, HV *hv)
     dSEC;
     server_rec *main_server = cmd->server, *s;
     pool *p = cmd->pool;
-    char *arg;
+    char *arg; 
+    const char *errmsg;
     dSECiter_start
 
     arg = pstrdup(cmd->pool, getword_conf (cmd->pool, &key));
-    s = init_virtual_host (p, arg, main_server);
+
+#if MODULE_MAGIC_NUMBER >= 19970912
+    errmsg = init_virtual_host(p, arg, main_server, &s);
+    if (errmsg)
+	return errmsg;   
+#else
+    s = init_virtual_host(p, arg, main_server);
+#endif
+
     s->next = main_server->next;
     main_server->next = s;
     cmd->server = s;
@@ -510,6 +526,7 @@ CHAR_P perl_virtualhost_section (cmd_parms *cmd, void *dummy, HV *hv)
 }
 
 #if MODULE_MAGIC_NUMBER > 19970719 /* 1.3a1 */
+#include "fnmatch.h"
 #define test__is_match(conf) conf->d_is_fnmatch = is_fnmatch( conf->d ) != 0
 #else
 #define test__is_match(conf) conf->d_is_matchexp = is_matchexp( conf->d )
@@ -704,6 +721,20 @@ void perl_handle_command(cmd_parms *cmd, void *dummy, char *line)
 		     (errmsg ? errmsg : "OK")));
 }
 
+void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *dummy)
+{
+    if(strEQ(key, "Location")) 	
+	perl_urlsection(cmd, dummy, hv);
+    else if(strEQ(key, "Directory")) 
+	perl_dirsection(cmd, dummy, hv);
+    else if(strEQ(key, "VirtualHost")) 
+	perl_virtualhost_section(cmd, dummy, hv);
+    else if(strEQ(key, "Files")) 
+	perl_filesection(cmd, (core_dir_config *)dummy, hv);
+    else if(strEQ(key, "Limit")) 
+	perl_limit_section(cmd, dummy, hv);
+}
+
 void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *dummy)
 {
     I32 alen = AvFILL(av);
@@ -776,13 +807,19 @@ char *splain_args(enum cmd_how args_how) {
 }
 #endif
 
+void perl_section_hash_init(char *name, I32 dotie)
+{
+    GV *gv = GvHV_init(name);
+    if(dotie) perl_tie_hash(GvHV(gv), "Tie::IxHash");
+}
+
 CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 {
     CHAR_P errmsg;
     SV *code = newSV(0), *val;
     HV *symtab;
     char *key;
-    I32 klen;
+    I32 klen, dotie=FALSE;
     char line[MAX_STRING_LEN];
 
     if(!PERL_RUNNING()) perl_startup(cmd->server, cmd->pool); 
@@ -795,11 +832,14 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	return NULL;
     }
 
-    GvHV_init("ApacheReadConfig::Location");
-    GvHV_init("ApacheReadConfig::VirtualHost");
-    GvHV_init("ApacheReadConfig::Directory");
-    GvHV_init("ApacheReadConfig::Files");
-    GvHV_init("ApacheReadConfig::Limit");
+    if((perl_require_module("Tie::IxHash", cmd->server) == OK))
+	dotie = TRUE;
+
+    perl_section_hash_init("ApacheReadConfig::Location", dotie);
+    perl_section_hash_init("ApacheReadConfig::VirtualHost", dotie);
+    perl_section_hash_init("ApacheReadConfig::Directory", dotie);
+    perl_section_hash_init("ApacheReadConfig::Files", dotie);
+    perl_section_hash_init("ApacheReadConfig::Limit", dotie);
 
     perl_eval_sv(code, G_DISCARD);
     if(SvTRUE(GvSV(errgv))) {
@@ -827,16 +867,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	}
 
 	if((hv = GvHV((GV*)val))) {
-	    if(strEQ(key, "Location")) 	
-		perl_urlsection(cmd, dummy, hv);
-	    else if(strEQ(key, "Directory")) 
-		perl_dirsection(cmd, dummy, hv);
-	    else if(strEQ(key, "VirtualHost")) 
-		perl_virtualhost_section(cmd, dummy, hv);
-	    else if(strEQ(key, "Files")) 
-		perl_filesection(cmd, (core_dir_config *)dummy, hv);
-	    else if(strEQ(key, "Limit")) 
-		perl_limit_section(cmd, dummy, hv);
+	    perl_handle_command_hv(hv, key, cmd, dummy);
 	}
 	else if((av = GvAV((GV*)val))) {	
 	    module *mod = top_module;
@@ -979,6 +1010,12 @@ int perl_hook(char *name)
 #endif
 	break;
 	case 'S':
+	    if (strEQ(name, "SSI")) 
+#ifdef PERL_SSI
+		return 1;
+#else
+	return 0;    
+#endif
 	    if (strEQ(name, "StackedHandlers")) 
 #ifdef PERL_STACKED_HANDLERS
 		return 1;
@@ -1001,6 +1038,6 @@ int perl_hook(char *name)
 #endif
 	break;
     }
-    return 0;
+    return -1;
 }
 

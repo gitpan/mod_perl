@@ -9,6 +9,10 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#ifndef MOD_PERL_VERSION
+#define MOD_PERL_VERSION "TRUE"
+#endif
+
 /* perl hides it's symbols in libperl when these macros are 
  * expanded to Perl_foo
  * but some cause conflict when expanded in other headers files
@@ -41,7 +45,7 @@ typedef request_rec * Apache__SubRequest;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
 
-#define GvHV_init(gv) (void)gv_fetchpv(gv, GV_ADDMULTI, SVt_PVHV)
+#define GvHV_init(gv) gv_fetchpv(gv, GV_ADDMULTI, SVt_PVHV)
 
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
@@ -143,8 +147,17 @@ if((add->flags & f) || (base->flags & f)) \
 #define PERL_SECTIONS
 #endif
 
+/* some 1.2.x/1.3.x compat stuff */
+#if MODULE_MAGIC_NUMBER < 19970719
+#define is_initial_req(r) ((r->main == NULL) && (r->prev == NULL)) 
+#endif
+
 #ifndef API_EXPORT
 #define API_EXPORT(type)    type
+#endif
+
+#ifndef MODULE_VAR_EXPORT
+#define MODULE_VAR_EXPORT
 #endif
 
 #ifdef MULTITHREAD
@@ -549,10 +562,6 @@ typedef struct {
     U32 flags;
 } perl_dir_config;
 
-#ifndef MODULE_VAR_EXPORT
-#define MODULE_VAR_EXPORT
-#endif
-
 extern module MODULE_VAR_EXPORT perl_module;
 
 /* a couple for -Wall sanity sake */
@@ -597,7 +606,7 @@ int PERL_RUNNING(void);
 
 /* per-request gunk */
 int mod_perl_sent_header(request_rec *r, int val);
-int mod_perl_seqno(SV *self);
+int mod_perl_seqno(SV *self, int inc);
 request_rec *perl_request_rec(request_rec *);
 void perl_setup_env(request_rec *r);
 SV  *perl_bless_request_rec(request_rec *); 
@@ -608,12 +617,14 @@ void mod_perl_register_cleanup(request_rec *r, SV *sv);
 
 /* perl_util.c */
 
+void perl_tie_hash(HV *hv, char *class);
 void perl_util_cleanup(void);
 void mod_perl_clear_rgy_endav(request_rec *r, SV *sv);
 void perl_run_rgy_endav(char *s);
 void perl_run_endav(char *s);
 void perl_call_halt(void);
 CV *empty_anon_sub(void);
+void perl_reload_inc(void);
 int perl_require_module(char *, server_rec *);
 void newCONSTSUB(HV *stash, char *name, SV *sv);
 void perl_clear_env(void);
@@ -628,6 +639,8 @@ API_EXPORT(void) perl_stdout2client(request_rec *);
 
 /* perl_config.c */
 
+char *mod_perl_auth_name(request_rec *r, char *val);
+
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *perl_create_dir_config(pool *p, char *dirname);
 void *perl_create_server_config(pool *p, server_rec *s);
@@ -640,6 +653,7 @@ CHAR_P perl_dirsection (cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_filesection (cmd_parms *cmd, void *dummy, HV *hv);
 void perl_add_file_conf (server_rec *s, void *url_config);
 void perl_handle_command(cmd_parms *cmd, void *dummy, char *line);
+void perl_handle_command_hv(HV *hv, char *key, cmd_parms *cmd, void *dummy);
 void perl_handle_command_av(AV *av, I32 n, char *key, cmd_parms *cmd, void *dummy);
 
 CHAR_P perl_cmd_script (cmd_parms *parms, void *dummy, char *arg);
@@ -667,3 +681,4 @@ CHAR_P perl_cmd_handler_handlers (cmd_parms *parms, perl_dir_config *rec, char *
 CHAR_P perl_cmd_log_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 
 void mod_perl_dir_env(perl_dir_config *cld);
+

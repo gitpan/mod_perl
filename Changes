@@ -16,12 +16,92 @@ Other contributors are mentioned below.
 
 =over 3
 
-=item 1.00_03
+=item 1.01 - 10/16/97
+
+removed undocumented auto-import of qw(OK DECLINED) use to short-cut
+Perl*Handlers and/or apache C handlers, use Apache::OK and
+Apache::DECLINED instead
+
+start perl interpreter with -Mmod_perl so _every_ module no matter
+where it's loaded from will see $ENV{GATEWAY_INTERFACE} and $ENV{MOD_PERL}
+Thanks to Mark Dedlow for illustrating this need with Apache::DBI and friends.
+
+<Perl> section %Hash values of hash refs now go through
+perl_handle_command_hv(), so `Location' can be inside %VirtualHost,
+etc.  Thanks to Ask Hansen for spotting this. 
+
+<Perl> section %Hash values of array refs now go though
+perl_handle_command_av(), so proper action is used on TAKE1, etc. 
+
+if Tie::IxHash is available, tie <Perl> section %Hashes to it, so the
+apache config routines get info in the order it needs to.  Thanks to
+Rob Hartill and Dean Gaudet for explaining this need for 1.3bx's
+new virtual host features
+
+include the mod_perl logo image (mod_perl.gif)
+
+ensure _all_ stacked handlers registered with $r->push_handlers() are 
+cleared after each request to fix bug spotted by Peter Lister
+
+test suite will now delete $ENV{HTTP_PROXY} before running,
+thanks to Frank Cringle
+
+Apache::Registry args changes:
+-$_[0] is the blessed Apache request_rec
+-$_[1..-1] are args from Apache::Include::handler or elsewhere 
+           as suggested by Andreas
+
+added tests for Apache::Include
+
+applied Apache::Registry optimization patch from Andreas
+
+Apache/Apache::Constants no longer ISA Exporter,
+just alias *import = \&Exporter::import
+
+test suite re-org
+
+write a mod_perl.pm so we can require a mod_perl min version 
+and hooks/features ala
+ use mod_perl 1.01;
+ use mod_perl 1.01, qw(Authen Authz);
+
+new Apache::RegistryLoader to pre-load Apache::Registry scripts
+
+added Apache::Include->virtual($uri) method
+
+1.3b1 stuff:
+-cat apache_x.x.x/src/Makefile.config and src/modules/perl/Makefile
+ together so we get $(INCLUDES) (for os/unix, etc)
+
+applied patch from Salvador Ortiz Garcia so calling $r->args in an
+array context will not produce "Odd number of elements in hash list" 
+
+$r->auth_name can now be modified
+
+remove Apache->send_cgi_header's broken internal re-direct handling
+spotted by Debby Fu
+
+added Frank Cringle's mod_perl FAQ 
+
+added mod_perl_tuning.pod document from Vivek Khera <khera@kciLink.com>
+
+fixed bug spotted by Brian Millett so stacked handlers work again with
+Apache-SSL
+
+set environment variable `MOD_PERL' so scripts can say:
+if(exists $ENV{MOD_PERL}) { ...
+
+added suggestion from Rob Hartill:
+'PerlSetVar MaxModPerlRequestsPerChild 10' behaves like
+MaxRequestsPerChild, but counts mod_perl requests only.  1.3b1-dev+ is
+needed for this
+
+=item 1.00_03 - 09/21/97
 
 save %SIG before perl_handler (Apache::Registry) is run, restore
 afterwards as suggested by Randal Schwartz
 
-fixed virutal host/Apache::Registry bug introduced in _02,
+fixed virtual host/Apache::Registry bug introduced in _02,
 spotted by Ryan A. Whelan
 
 a few win32 fixes:

@@ -92,6 +92,10 @@ SOURCE=..\perl\Apache.c
 # End Source File
 # Begin Source File
 
+SOURCE=..\..\..\..\..\Apache\ApacheCore.lib
+# End Source File
+# Begin Source File
+
 SOURCE=..\perl\Constants.c
 # End Source File
 # Begin Source File
@@ -105,6 +109,10 @@ SOURCE=..\perl\mod_perl.c
 # Begin Source File
 
 SOURCE=..\perl\mod_perl.h
+# End Source File
+# Begin Source File
+
+SOURCE=..\..\..\..\..\perl\lib\CORE\perl.lib
 # End Source File
 # Begin Source File
 

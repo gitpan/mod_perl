@@ -1,3 +1,5 @@
+AddType text/x-server-parsed-html .shtml
+
 #these three are passed to perl_parse(), 
 #which happens before <Perl> sections are processed
 #optionally, they can be inside <Perl>, however for testing we want
@@ -71,11 +73,21 @@ $Location{"/cgi-bin"} = {
     Options    => "ExecCGI",
 };
 
-$Location{"/perl/io"} = {
-    @mod_perl,
-    PerlSendHeader => "On",
-    PerlSetupEnv   => "On",
+$VirtualHost{"localhost"} = {
+    Location => {
+	"/perl/io" => {
+	    @mod_perl,
+	    PerlSendHeader => "On",
+	    PerlSetupEnv   => "On",
+	},
+    },
 };
+
+#$Location{"/perl/io"} = {
+#    @mod_perl,
+#    PerlSendHeader => "On",
+#    PerlSetupEnv   => "On",
+#};
 
 $Location{"/perl/perl-status"} = {
     SetHandler  => "perl-script",

@@ -76,6 +76,18 @@ terminating newline, your script must send that itself, e.g.:
 If you're using CGI.pm or CGI::Switch and 'print $q->header' you do
 _not_ need C<PerlSendHeader On>.    
 
+=item NPH SCRIPTS
+
+To run a CGI `nph' script under mod_perl, simply add to your code:
+
+ local $| = 1;
+
+If you normally set B<PerlSendHeader On>, add this to your httpd.conf:
+
+ <Files */nph-*>
+ PerlSendHeader Off
+ </Files>
+
 =item PROGRAMMING PRACTICE
 
 CGI lets you get away with sloppy programming, mod_perl does not.

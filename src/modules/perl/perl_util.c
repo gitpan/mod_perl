@@ -1,7 +1,58 @@
+/* ====================================================================
+ * Copyright (c) 1995-1997 The Apache Group.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer. 
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ *
+ * 3. All advertising materials mentioning features or use of this
+ *    software must display the following acknowledgment:
+ *    "This product includes software developed by the Apache Group
+ *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ *
+ * 4. The names "Apache Server" and "Apache Group" must not be used to
+ *    endorse or promote products derived from this software without
+ *    prior written permission.
+ *
+ * 5. Redistributions of any form whatsoever must retain the following
+ *    acknowledgment:
+ *    "This product includes software developed by the Apache Group
+ *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE APACHE GROUP ``AS IS'' AND ANY
+ * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE APACHE GROUP OR
+ * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * ====================================================================
+ *
+ * This software consists of voluntary contributions made by many
+ * individuals on behalf of the Apache Group and was originally based
+ * on public domain software written at the National Center for
+ * Supercomputing Applications, University of Illinois, Urbana-Champaign.
+ * For more information on the Apache Group and the Apache HTTP server
+ * project, please see <http://www.apache.org/>.
+ *
+ */
+
 #include "mod_perl.h"
 
 static HV *mod_perl_endhv = Nullhv;
-static CV *no_warn = Nullcv;
 static int set_ids = 0;
 
 void perl_util_cleanup(void)
@@ -10,11 +61,33 @@ void perl_util_cleanup(void)
     SvREFCNT_dec((SV*)mod_perl_endhv);
     mod_perl_endhv = Nullhv;
 
-    SvREFCNT_dec((SV*)no_warn);
-    no_warn = Nullcv;
-
     set_ids = 0;
 }
+
+#ifdef PERL_SECTIONS
+void perl_tie_hash(HV *hv, char *class)
+{
+    dSP;
+    SV *obj, *varsv = (SV*)hv;
+    char *methname = "TIEHASH";
+    
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(sp);
+    XPUSHs(sv_2mortal(newSVpv(class,0)));
+    PUTBACK;
+    perl_call_method(methname, G_EVAL | G_SCALAR);
+    SPAGAIN;
+
+    obj = POPs;
+    sv_unmagic(varsv, 'P');
+    sv_magic(varsv, obj, 'P', Nullch, 0);
+
+    PUTBACK;
+    FREETMPS;
+    LEAVE; 
+}
+#endif
 
 /* execute END blocks */
 
@@ -151,42 +224,30 @@ void perl_call_halt()
     sv_unmagic(GvSV(errgv), 'U');
 }
 
-CV *empty_anon_sub(void)
+#if 0
+void perl_reload_inc(void)
 {
-    return newSUB(start_subparse(FALSE, 0),
-                  newSVOP(OP_CONST, 0, newSVpv("__ANON__",8)),
-                  Nullop,
-                  block_end(block_start(TRUE), newOP(OP_STUB,0)));
-}
-   
-void newCONSTSUB(HV *stash, char *name, SV *sv)
-{
-    line_t oldline = curcop->cop_line;
-    curcop->cop_line = copline;
+    SV *val;
+    char *key;
+    I32 klen;
+    HV *orig_inc = GvHV(incgv);
 
     ENTER;
-    SAVEI32(hints);
-    hints &= ~HINT_BLOCK_SCOPE;
 
-    if(stash) {
-	save_hptr(&curstash);
-	save_hptr(&curcop->cop_stash);
-	curstash = curcop->cop_stash = stash;
+    save_hptr(&GvHV(incgv));
+    GvHV(incgv) = Nullhv;
+    SAVEI32(dowarn);
+    dowarn = FALSE;
+
+    (void)hv_iterinit(orig_inc);
+    while((val = hv_iternextsv(orig_inc, &key, &klen))) {
+	perl_require_pv(key);
+	MP_TRACE(fprintf(stderr, "reloading %s\n", key));
     }
 
-    /* prevent prototype mismatch warnings */
-    if(!no_warn) no_warn = empty_anon_sub();
-    SAVESPTR(warnhook);
-    warnhook = (SV*)no_warn;
-
-    (void)newSUB(start_subparse(FALSE, 0),
-	   newSVOP(OP_CONST, 0, newSVpv(name,0)),
-	   newSVOP(OP_CONST, 0, &sv_no),	
-	   newSTATEOP(0, Nullch, newSVOP(OP_CONST, 0, sv)));
-
     LEAVE;
-    curcop->cop_line = oldline;
 }
+#endif
 
 int perl_require_module(char *mod, server_rec *s)
 {
@@ -215,7 +276,7 @@ void perl_clear_env(void)
     while ((val = hv_iternextsv(hv, (char **) &key, &klen))) { 
 	if((*key == 'G') && strEQ(key, "GATEWAY_INTERFACE"))
 	    continue;
-	if((*key == 'T') && strnEQ(key, "TZ", 2))
+	else if((*key == 'T') && strnEQ(key, "TZ", 2))
 	    continue;
 	(void)hv_delete(hv, key, klen, G_DISCARD);
     }

@@ -32,9 +32,13 @@ HTTPD::UserAdmin - Apache::Authen stuff
 
 CGI - CGI.pm
 
+Tie::IxHash - For order in <Perl> sections
+
 Apache::ePerl - mod_perl adaptation of 'ePerl'
 
 Apache::DBI   - Wrapper around DBI->connect to transparently maintain persistent connections
+
+Apache::Stage - Management of document staging directories
 
 =head1 DESCRIPTION
 

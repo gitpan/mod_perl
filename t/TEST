@@ -4,7 +4,7 @@
 # "t" directory.
 
 # First we check if we already are within the "t" directory
-unless (-d "net") {
+if (-d "t") {
     # try to move into test directory
     chdir "t" or die "Can't chdir: $!";
 
@@ -58,7 +58,7 @@ EOM
 	sleep(2);
     }
     else {
-       push(@tests, <net/*.t>) if -f "net/config.pl";
+       push(@tests, <modules/*.t>, <core/*.t>, <net/*.t>);
     }
 }
 

@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.36 1997/09/16 00:47:48 dougm Exp dougm $
-$Apache::Registry::VERSION = (qw$Revision: 1.36 $)[1];
+#$Id: Registry.pm,v 1.38 1997/10/16 23:21:47 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.38 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -18,14 +18,14 @@ Apache->module('Apache::Debug') if $Apache::Registry::Debug;
 my $Is_Win32 = $^O eq "MSWin32";
 
 sub handler {
-    my($r) = @_;
+    my $r = shift;
     Apache->request($r);
     my $filename = $r->filename;
     #local $0 = $filename; #this core dumps!?
     *0 = \$filename;
     my $oldwarn = $^W;
     $r->log_error("Apache::Registry::handler for $filename in process $$")
-	if $Debug & 4;
+	if $Debug && $Debug & 4;
 
     if (-r $filename && -s _) {
 	if (!($r->allow_options & OPT_EXECCGI)) {
@@ -37,7 +37,7 @@ sub handler {
 	    $r->log_reason("attempt to invoke directory as script", $filename);
 	    return FORBIDDEN;
 	}
-	unless ($Is_Win32 or -x _) {
+	unless (-x _ or $Is_Win32) {
 	    $r->log_reason("file permissions deny server execution",
 			   $filename);
 	    return FORBIDDEN;
@@ -47,7 +47,7 @@ sub handler {
 
 	# turn into a package name
 	$r->log_error(sprintf "Apache::Registry::handler examining %s",
-		      $r->uri) if $Debug & 4;
+		      $r->uri) if $Debug && $Debug & 4;
 	my $script_name = $r->path_info ?
 	    substr($r->uri, 0, length($r->uri)-length($r->path_info)) :
 		$r->uri;
@@ -70,33 +70,32 @@ sub handler {
 	my $package = "Apache::ROOT$script_name";
 	$Apache::Registry::curstash = $script_name;
 	$r->log_error("Apache::Registry::handler package $package")
-	   if $Debug & 4;
+	   if $Debug && $Debug & 4;
 
 
 	my $cwd = Cwd::fastcwd();
 	chdir File::Basename::dirname($r->filename);
 
 	if (
-	    defined($Apache::Registry->{$package}{mtime})
+	    exists $Apache::Registry->{$package}{mtime}
 	    &&
 	    $Apache::Registry->{$package}{mtime} <= $mtime
 	   ){
 	    # we have compiled this subroutine already, nothing left to do
  	} else {
 	    $r->log_error("Apache::Registry::handler reading $filename")
-		if $Debug & 4;
+		if $Debug && $Debug & 4;
 	    my($sub);
 	    {
 		my $fh = FileHandle->new($filename);
-		(my $oldrs, local $/) = ($/, undef);
+		local $/;
 		$sub = <$fh>;
 		$sub = parse_cmdline($sub);
-		$/ = $oldrs;
 	    }
 
 	    # compile this subroutine into the uniq package name
-            $r->log_error("Apache::Registry::handler eval-ing") if $Debug & 4;
- 	    undef &{"$package\::handler"} unless $Debug & 4; #avoid warnings
+            $r->log_error("Apache::Registry::handler eval-ing") if $Debug && $Debug & 4;
+ 	    undef &{"$package\::handler"} unless $Debug && $Debug & 4; #avoid warnings
 	    $r->clear_rgy_endav($script_name);
 
 	    my $eval = join(
@@ -112,15 +111,16 @@ sub handler {
 	    compile($eval);
 	    if ($@) {
 		$r->log_error($@);
-		return SERVER_ERROR unless $Debug & 2;
+		return SERVER_ERROR unless $Debug && $Debug & 2;
 		return Apache::Debug::dump($r, SERVER_ERROR);
 	    }
             $r->log_error(qq{Compiled package \"$package\" for process $$})
-	       if $Debug & 1;
+	       if $Debug && $Debug & 1;
 	    $Apache::Registry->{$package}{mtime} = $mtime;
 	}
 
-	eval {$package->handler;};
+	my $cv = \&{"$package\::handler"};
+	eval {$cv->($r, @_);} if $r->seqno;
 	{
 	    local $^W = 0; #shutup Cwd.pm
 	    chdir $cwd;
@@ -128,20 +128,22 @@ sub handler {
 	$^W = $oldwarn;
 
 	my $err = $@;
-	if($INC{'CGI.pm'}) {
-	    use Exporter ();
+	if(exists $INC{'CGI.pm'}
+	   && ! $Apache::Registry::CGI_versioncheck_done ) {
+	    $Apache::Registry::CGI_versioncheck_done++;
+	    require Exporter;
 	    eval { Exporter::require_version('CGI', 2.36); }; 
 	    $err .= $@ if $@;
 	}
 	if ($err) {
 	    $r->log_error($err);
-	    return SERVER_ERROR unless $Debug & 2;
+	    return SERVER_ERROR unless $Debug && $Debug & 2;
 	    return Apache::Debug::dump($r, SERVER_ERROR);
 	}
 
 	return $r->status;
     } else {
-	return NOT_FOUND unless $Debug & 2;
+	return NOT_FOUND unless $Debug && $Debug & 2;
 	return Apache::Debug::dump($r, NOT_FOUND);
     }
 }

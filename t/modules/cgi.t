@@ -11,10 +11,11 @@ if($@) {
 
 $ua = new LWP::UserAgent;    # create a useragent to test
 
-print "1..4\nok 1\n";
+print "1..5\nok 1\n";
 print fetch($ua, "http://$net::httpserver$net::perldir/cgi.pl?PARAM=2");
 print fetch($ua, "http://$net::httpserver$net::perldir/cgi.pl?PARAM=%33");
 print upload($ua, "http://$net::httpserver$net::perldir/cgi.pl", "4 (fileupload)");
+print fetch($ua, "http://$net::httpserver/cgi-bin/cgi.pl?PARAM=5");
 
 sub upload ($$$) {
     my $ua = shift;

@@ -1,11 +1,17 @@
 package Apache;
 use strict;
-use DynaLoader ();
-use Apache::Constants ();
+use Exporter ();
+use Apache::Constants qw(OK DECLINED);
 
-@Apache::ISA = qw(Exporter DynaLoader);
 @Apache::EXPORT_OK = qw(exit warn);
-$Apache::VERSION = "1.17";
+$Apache::VERSION = "1.18";
+
+*import = \&Exporter::import;
+
+unless(defined &bootstrap) {
+    require DynaLoader;
+    @Apache::ISA = qw(DynaLoader);
+}
 
 if (caller eq "CGI::Apache") {
     #we must die here outside of httpd so CGI::Switch works
@@ -15,8 +21,7 @@ else {
     eval { bootstrap Apache $Apache::VERSION; } 
 }
 if($@) {
-    my $gw = $ENV{GATEWAY_INTERFACE} || '';
-    die "$@\n" if substr($gw,0,8) eq 'CGI-Perl';
+    die "$@\n" if exists $ENV{MOD_PERL};
     warn "warning: can't `bootstrap Apache $Apache::VERSION' outside of httpd\n";
 }
 
@@ -29,7 +34,7 @@ sub parse_args {
     my($wantarray,$string) = @_;
     return unless defined $string and $string;
     if(defined $wantarray and $wantarray) {
-	return map { Apache::unescape_url_info($_) } split /[=&]/, $string;
+	return map { Apache::unescape_url_info($_) } split /[=&]/, $string, -1;
     }
     $string;
 }
@@ -112,18 +117,6 @@ sub send_cgi_header {
 	    ($key, $val) = ($1, $2);
 	    last unless $key;
 	    $r->cgi_header_out($key, $val);
-	    if($key eq "Location") {
-		if($val =~ m,^/,) {
-		    #/* This redirect needs to be a GET no 
-                    #   matter what the original
-		    # * method was.
-
-		    $r->method("GET");
-		    $r->method_number(0); #M_GET 
-		    $r->internal_redirect_handler($val);
-		    return 0;
-		}
-	    }
 	}
 	else {
 	    #we didn't find the header terminator, punt away
