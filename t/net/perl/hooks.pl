@@ -1,10 +1,17 @@
 use Apache ();
+use Cwd 'fastcwd';
 my $tests = 0;
-use Cwd;
-
 my $pwd = fastcwd;
-my $ht_access  = "$pwd/t/docs/.htaccess";
-my $hooks_file = "$pwd/t/docs/hooks.txt";
+
+my $r = Apache->request;
+$r->content_type("text/html");
+$r->send_http_header;
+my $doc_root = "$pwd/../../docs";
+#Apache->untaint($doc_root);
+
+my $ht_access  = "$doc_root/.htaccess";
+my $hooks_file = "$doc_root/hooks.txt";
+warn "hooks_file = $doc_root/hooks.txt ($pwd)\n";
 
 unlink $ht_access;
 unlink $hooks_file;
@@ -24,12 +31,11 @@ EOF
     close FH;
 }
 
-my $r = Apache->request;
-$r->content_type("text/html");
-$r->send_http_header;
+
 my($hook, $package, $retval);
 
-for (qw(Access Authen Authz Fixup HeaderParser Log Type Trans)) {
+for (qw(Access Authen Authz Fixup Cleanup
+	HeaderParser Init Log Type Trans)) {
     next unless Apache::perl_hook($_);
     $tests++; 
     $retval = -1; #we want to decline Trans, but ok for Authen, etc.
@@ -37,7 +43,7 @@ for (qw(Access Authen Authz Fixup HeaderParser Log Type Trans)) {
     $package = $hook; #"Apache::$hook";
     unless ($_ eq "Trans") { #must be in server configs
 	$retval = 0;
-	open FH, ">>$ht_access" or warn "can't open $ht_access" and next;
+	open FH, ">>$ht_access" or die "can't open $ht_access";
 	print FH "$hook $package\n";
 	close FH;
     }

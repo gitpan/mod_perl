@@ -23,6 +23,12 @@ which will be passed to the handler as arguments, e.g.
  PerlHandler FooPackage [One Two Three]
  (calls &FooPackage::handler($r, "One", "Two", "Three");
 
+
+complete <Perl></Perl> configuration section 
+
+if Perl*Handler's are prototyped with $$ call it as a method?
+(test with -DPERL_HANDLER_METHODS)
+
 provide an optional and configurable Safe wrapper around embedded scripts
 
 find good ways to decrease size of httpd (perl-runtime!)

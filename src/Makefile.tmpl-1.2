@@ -33,7 +33,7 @@ modules/perl/libmodperl.a:
 	(cd modules/perl && $(MAKE) CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)' PERL=$(PERL);)
 
 httpd: $(REGLIB) $(OBJS)
-	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS) $(PERL_LD_OPTS)
+	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS)
 
 regex/libregex.a:
 	(cd regex; $(MAKE) lib CC=$(CC) AUX_CFLAGS='$(CFLAGS)' RANLIB='$(RANLIB)')

@@ -12,6 +12,10 @@ __END__
 
 Apache::Options - OPT_* defines from httpd_core.h
 
+=head1 SYNOPSIS
+
+    use Apache::Options;
+
 =head1 DESCRIPTION
 
 The B<Apache::Options> module will export the following bitmask

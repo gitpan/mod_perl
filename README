@@ -28,8 +28,6 @@ Bundled Apache/Perl modules include:
     Apache::Registry       - Run unaltered CGI scripts 
     Apache::Status         - Embedded interpreter runtime status	
     Apache::SSI            - Implement server-side includes in Perl
-    Apache::AuthenDBI      - Authenticate via Perl's DBI
-    Apache::Authen         - Perl Apache authentication utilities
     Apache::AuthzAge       - Authorize based on age
     Apache::AccessLimitNum - Limit user access by number of requests
     Apache::Constants      - Constants defined in httpd.h

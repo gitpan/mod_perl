@@ -43,3 +43,5 @@ foreach (split /\n/, `cat docs/hooks.txt`) {
     next if $Seen{$_}++;
     print "ok $i\n"; $i++;
 }
+
+unlink "docs/.htaccess";

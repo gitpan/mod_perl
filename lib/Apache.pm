@@ -566,12 +566,6 @@ These headers are used if the status indicates an error.
 This is a flag that indicates that the data being returned is volatile
 and the client should be told not to cache it.
 
-=item $r->write_client( @list_of_data )
-
-Send data to the client.  Unless you know what you are doing, you
-should only call this method after you have called
-$r->send_http_header.
-
 =item $r->print()
 
 This method sends data to the client with C<$r->write_client>, but first

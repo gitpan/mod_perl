@@ -11,6 +11,7 @@
 #undef setreuid
 #undef sync
 #undef my_memcmp
+#undef RETURN
 
 #include "httpd.h"
 #include "http_config.h"
@@ -58,6 +59,14 @@ typedef server_rec  * Apache__Server;
 /* must alloc for PerlModule ... */
 #define MAX_PERL_MODS 10
 
+#ifndef NO_PERL_STACKED_HANDLERS
+#define PERL_STACKED_HANDLERS
+#endif
+
+#ifndef NO_PERL_SECTIONS
+#define PERL_SECTIONS
+#endif
+
 #ifdef PERL_STACKED_HANDLERS
 #define PERL_TAKE ITERATE
 #define CMD_INIT  Nullav
@@ -66,16 +75,17 @@ typedef server_rec  * Apache__Server;
 #define mod_perl_can_stack_handlers(sv) (SvTRUE(self) && 1)
 
 #define PERL_CALLBACK_RETURN(h,name) \
+perl_set_pid; \
 status = perl_run_stacked_handlers(h, r, Nullav); \
 if((status != OK) && (status != DECLINED)) { \
     CTRACE(stderr, "%s handlers returned %d\n", h, status); \
-    return status; \
 } \
-if(name != Nullav) { \
+else if(name != Nullav) { \
     status = perl_run_stacked_handlers(h, r, name); \
 } \
-CTRACE(stderr, "%s handlers returned %d\n", h, status); \
-return status
+perl_clear_env; \
+CTRACE(stderr, "%s handlers returned %d\n", h, status)
+
 
 #else
 
@@ -92,8 +102,7 @@ if(name != NULL) { \
 } \
 else { \
     CTRACE(stderr, "mod_perl: declining to handle %s, no callback defined\n", h); \
-} \
-return status
+}
 
 #endif
 
@@ -291,6 +300,40 @@ PERL_READ_CLIENT
 #define PERL_LOG_CREATE(s) 
 #endif
 
+#ifndef NO_PERL_CLEANUP
+#define PERL_CLEANUP
+
+#define PERL_CLEANUP_HOOK perl_cleanup
+
+#define PERL_CLEANUP_CMD_ENTRY \
+"PerlCleanupHandler", perl_cmd_cleanup_handlers, \
+    NULL, \
+    OR_ALL, PERL_TAKE, "the Perl Cleanup handler routine name" 
+
+#define PERL_CLEANUP_CREATE(s) s->PerlCleanupHandler = CMD_INIT
+#else
+#define PERL_CLEANUP_HOOK NULL
+#define PERL_CLEANUP_CMD_ENTRY NULL
+#define PERL_CLEANUP_CREATE(s)
+#endif
+
+#ifndef NO_PERL_INIT
+#define PERL_INIT
+
+#define PERL_INIT_HOOK perl_init
+
+#define PERL_INIT_CMD_ENTRY \
+"PerlInitHandler", perl_cmd_init_handlers, \
+    NULL, \
+    OR_ALL, PERL_TAKE, "the Perl Init handler routine name" 
+
+#define PERL_INIT_CREATE(s) s->PerlInitHandler = CMD_INIT
+#else
+#define PERL_INIT_HOOK NULL
+#define PERL_INIT_CMD_ENTRY NULL
+#define PERL_INIT_CREATE(s) 
+#endif
+
 #ifndef NO_PERL_HEADER_PARSER
 #define PERL_HEADER_PARSER
 
@@ -325,7 +368,9 @@ typedef struct {
     CMD_TYPE *PerlTypeHandler;
     CMD_TYPE *PerlFixupHandler;
     CMD_TYPE *PerlLogHandler;
+    CMD_TYPE *PerlCleanupHandler;
     CMD_TYPE *PerlHeaderParserHandler;
+    CMD_TYPE *PerlInitHandler;
     table *vars;
     int  sendheader;
     int setup_env;
@@ -337,11 +382,12 @@ extern module perl_module;
 int multi_log_transaction(request_rec *r);
 int basic_http_header(request_rec *r);
 /* prototypes */
+int perl_handler_ismethod(SV *sub);
 int perl_call(char *imp, request_rec *r);
 int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 int perl_handler(request_rec *r);
-void perl_init (server_rec *s, pool *p);
+void perl_startup (server_rec *s, pool *p);
 void *create_perl_dir_config (pool *p, char *dirname);
 void *create_perl_server_config (pool *p, server_rec *s);
 int perl_translate(request_rec *r);
@@ -352,6 +398,9 @@ int perl_type_checker(request_rec *r);
 int perl_fixup(request_rec *r);
 int perl_logger(request_rec *r);
 int perl_header_parser(request_rec *r);
+CHAR_P perl_end_section (cmd_parms *cmd, void *dummy);
+CHAR_P perl_section (cmd_parms *cmd, void *dummy, CHAR_P arg);
+CHAR_P perl_urlsection (cmd_parms *cmd, void *dummy, HV *hv);
 CHAR_P perl_cmd_script (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_module (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P perl_cmd_var(cmd_parms *cmd, void *rec, char *key, char *val);
@@ -360,6 +409,8 @@ CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_env (cmd_parms *cmd, void *rec, int arg);
 
+CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
+CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_header_parser_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_trans_handlers (cmd_parms *parms, void *dumm, char *arg);
 CHAR_P perl_cmd_authen_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);

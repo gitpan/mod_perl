@@ -21,7 +21,7 @@ sub Foo::string {
 }
 
 if(Apache->can_stack_handlers) {
-    $r->push_handlers("PerlLogHandler", "Foo::string");
+#    $r->push_handlers("PerlLogHandler", "Foo::string");
 
     Apache->push_handlers("PerlLogHandler", \&first_one);
 
@@ -43,10 +43,6 @@ if (@args = $r->args) {
        "ARGS: ",
        join(", ", map { $_ = qq{"$_"} } @args),
        "\n\n");
-
-    eval { system @args };
-    die "TaintCheck failed, I can `system @args'" unless $@;
-    warn "TRAPPED: `system \$r->args' '$@'\n";
 } else {
     $r->print("No command line arguments passed to script\n\n");
 }
@@ -55,14 +51,6 @@ my($key,$val);
 while (($key,$val) = each %ENV) {
    $r->print("$key=$val\n");
 }
-
-eval { system $ENV{SERVER_SOFTWARE} };
-die "TaintCheck failed, I can `system $ENV{SERVER_SOFTWARE}'" unless $@;
-warn "TRAPPED: `system \$ENV{SERVER_SOFTWARE}' '$@'\n";
-
-eval { system $r->header_in('User-Agent') };
-die "TaintCheck failed, I can `system \$r->header_in('User-Agent')'" unless $@;
-warn "TRAPPED: `system \$r->header_in('User-Agent')' '$@'\n";
 
 if ($ENV{CONTENT_LENGTH}) {
     #$len = $ENV{CONTENT_LENGTH};

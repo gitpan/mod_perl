@@ -16,6 +16,33 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.95_03
+
+with 1.2b8-dev+, we no longer need a Makefile.tmpl
+
+added Apache->max_requests_per_child method
+
+now have taint.t test
+
+added <Perl> config section (see httpd.conf.pl)
+(needs 'perl Makefile.PL PERL_SECTIONS=1')
+
+Apache::Registry will now chdir to directory where the script
+
+Apache::AuthenDBI and Apache::Authen removed from distribution,
+now maintained by John Groenveld and Steve Kane
+
+added PerlInitHandler and PerlCleanupHandler hooks 
+
+Apache::Registry will require CGI.pm version 2.32 or higher if it
+finds CGI.pm in %INC
+
+added Apache::Registry->push_cleanup method suggested by Frank Cringle.
+
+applied patches from Gerald Richter <richter@ecos.de> to:
+-fix Apache::unescape_url_info
+-one s/Apache::Config/Apache::MyConfig/ in Makefile.PL
+
 =item 0.95_02
 
 introduced experimental "stacked handlers" mechanism, allowing more

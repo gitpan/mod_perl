@@ -107,6 +107,13 @@ __END__
 
 Apache::Status - Embedded interpreter status information 
 
+=head1 SYNOPSIS
+
+ <Location /perl-status>
+ SetHandler  perl-script
+ PerlHandler Apache::Status
+ </Location>
+
 =head1 DESCRIPTION
 
 The B<Apache::Status> module provides some information

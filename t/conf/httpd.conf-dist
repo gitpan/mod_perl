@@ -5,6 +5,8 @@ Group nogroup
 Port 8529
 ServerName localhost
 DocumentRoot 
+AddType text/x-server-parsed-html .shtml
+
 #mod_perl stuff
 
 #-Tw
@@ -12,8 +14,6 @@ PerlTaintCheck On
 PerlWarn On
 
 PerlScript t/docs/startup.pl
-
-PerlModule Apache Apache::Registry
 
 Alias /perl/ ./t/net/perl/
 
@@ -25,7 +25,7 @@ Options ExecCGI
 
 <Location /perl/io>
 SetHandler perl-script
-PerlHandler Apache::Registry::handler
+PerlHandler Apache::Registry
 Options ExecCGI
 PerlSendHeader On
 PerlSetupEnv   On

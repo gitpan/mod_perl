@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.20 1997/03/23 16:48:45 dougm Exp $
+# $Id: Makefile,v 1.21 1997/04/01 04:15:11 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -61,6 +61,8 @@ LIB=libmodperl.a
 
 #on/off switches for Perl API hooks
 #comment out to enable callbacks at a certain stage in the request
+PERL_INIT   = -DNO_PERL_INIT
+PERL_CLEANUP = -DNO_PERL_CLEANUP
 PERL_TRANS  = -DNO_PERL_TRANS
 PERL_AUTHEN = -DNO_PERL_AUTHEN
 PERL_AUTHZ  = -DNO_PERL_AUTHZ
@@ -70,15 +72,17 @@ PERL_FIXUP  = -DNO_PERL_FIXUP
 PERL_LOG    = -DNO_PERL_LOG 
 PERL_HEADER_PARSER = -DNO_PERL_HEADER_PARSER
 
-#PERL_STACKED_HANDLERS = -DPERL_STACKED_HANDLERS
+PERL_STACKED_HANDLERS = -DNO_PERL_STACKED_HANDLERS
+PERL_SECTIONS = -DNO_PERL_SECTIONS
 
 PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
  $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOG) \
-$(PERL_HEADER_PARSER) $(PERL_STACKED_HANDLERS)
+$(PERL_HEADER_PARSER) $(PERL_INIT) $(PERL_CLEANUP) \
+$(PERL_STACKED_HANDLERS) $(PERL_SECTIONS)
 
 #TRACE = -DPERL_TRACE
 PERL=/opt/perl5.003/bin/perl
-PERL_STATIC_EXTS = Apache `$(PERL) -MConfig -e 'print $$Config{static_ext}'`
+PERL_STATIC_EXTS = Apache 
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
 PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)

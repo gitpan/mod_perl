@@ -4,15 +4,19 @@ use Apache ();
 use Apache::Debug ();
 use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
+use File::Basename qw(dirname);
+use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.27 1997/03/20 23:15:20 dougm Exp $
-$VERSION = (qw$Revision: 1.27 $)[1];
+#$Id: Registry.pm,v 1.28 1997/04/01 04:15:11 dougm Exp $
+$VERSION = (qw$Revision: 1.28 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
 # 2 => Apache::Debug::dump in case of $@
 # 4 => trace pedantically
+
+my(@cleanup);
 
 sub handler {
     my($r) = @_;
@@ -108,13 +112,28 @@ sub handler {
 	    $Apache::Registry->{$package}{mtime} = $mtime;
 	}
 
+	my $cwd = fastcwd;
+	chdir dirname $r->filename;
 	eval {$package->handler;};
+	chdir $cwd;
 	$^W = $oldwarn;
-	if ($@) {
-	    $r->log_error($@);
+
+	my $err = $@;
+	if($INC{'CGI.pm'}) {
+	    use Exporter ();
+	    eval { Exporter::require_version('CGI', 2.32); }; 
+	    $err .= $@ if $@;
+	}
+	if ($err) {
+	    $r->log_error($err);
 	    return SERVER_ERROR unless $Debug & 2;
 	    return Apache::Debug::dump($r, SERVER_ERROR);
 	}
+
+	#run cleanup handlers if any
+	for (@cleanup) { &{$_}($r) }
+	@cleanup = ();
+
 	return $r->status;
     } else {
 	return NOT_FOUND unless $Debug & 2;
@@ -150,6 +169,11 @@ sub parse_cmdline {
     }
     $sub =~ s/^/$prepend/ if $prepend;
     return $sub;
+}
+
+sub push_cleanup {
+    my $self = shift;
+    push @cleanup, @_;
 }
 
 1;

@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.95_02";
+$VERSION = "0.95_03";
 #
 # Check if Readline is installed
 #
@@ -56,7 +56,7 @@ EOT
 eval 'use Apache::MyConfig' ;
 
 if ($@ eq '') { 
-    $APACHE_SRC_DEFAULT = $Apache::Config::Setup{Apache_Src} ; 
+    $APACHE_SRC_DEFAULT = $Apache::MyConfig::Setup{Apache_Src} ; 
 }
 else {
     $APACHE_SRC_DEFAULT = '../apache_x.x/src' ;
@@ -79,10 +79,13 @@ chmod 0644, "t/conf/mod_perl_srm.conf";
 my(@do_clean) = qw{
    t/docs/.htaccess 
    t/docs/hooks.txt
-   t/conf/httpd.conf
-   t/net/config.pl
    src/Configuration
+   lib/Apache/MyConfig.pm
 };
+#t/conf/httpd.conf
+#t/net/config.pl
+
+for(@do_clean) { unlink $_ }
 
 my(@test_pre_init) = qq(
 test_pre_init:
@@ -95,6 +98,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
    '1.1.3' => "Makefile.tmpl",
    '1.2'  => "Makefile.tmpl-1.2",
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
+   NONE => "", 
 );	     
 
 $Port = $PORT = 8529;
@@ -102,7 +106,7 @@ $NO_HTTPD = $ENV{NO_HTTPD} || 0;
 $PERL_TRACE = 0;
 $ALL_HOOKS  = 0;
 $APACHE_SRC = "";
-$STACKED_HANDLERS = 0;
+$PERL_SECTIONS = 0;
 
 #callback hooks
 @callback_hooks = qw{
@@ -110,6 +114,11 @@ $STACKED_HANDLERS = 0;
    PERL_TRANS PERL_AUTHEN PERL_AUTHZ 
    PERL_ACCESS PERL_TYPE PERL_FIXUP
    PERL_LOG PERL_HEADER_PARSER
+   PERL_INIT PERL_CLEANUP
+   PERL_STACKED_HANDLERS 
+};
+@callback_alias{qw(PERL_INIT PERL_CLEANUP)} = qw{
+    PERL_HEADER_PARSER PERL_LOG
 };
 %callback_hooks = map { $_,0 } @callback_hooks;
 $callback_hooks{PERL_HANDLER} = 1; #PerlHandler always on
@@ -122,9 +131,15 @@ while($_ = shift) {
     $callback_hooks{$k} = $v if exists $callback_hooks{$k};
 }
 
+for (keys %callback_alias) {
+    $callback_hooks{$callback_alias{$_}}++ 
+       if $callback_hooks{$_};
+}
+
 if($ALL_HOOKS) {
     for (@callback_hooks) {
-       $callback_hooks{$_}++;
+	next if /Handlers?$/i;
+	$callback_hooks{$_}++;
     }
 }
 
@@ -135,10 +150,11 @@ foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
     next if $seen{$src_dir}++;
     next unless $vers = httpd_version($src_dir);
     $no_header_parser{$src_dir}++ if $no_header_parser{$vers};
-    unless($mft_map{$src_dir} = $vers_map{$vers}) {
+    unless(exists $vers_map{$vers}) {
 	print STDERR "Apache version '$vers' unsupported\n";
 	next;
     }
+    $mft_map{$src_dir} = $vers_map{$vers};
     #print STDERR "$src_dir -> $vers_map{$vers}\n";
     push @adirs, $src_dir;
 }
@@ -213,7 +229,14 @@ foreach $adir (@adirs) {
 	    system $^X, "-pi", "-e",  
 	    q{next unless /EXTRA_CFLAGS\s*=/;}.
             q{next if /mod_perl/; chomp;}.
-            qq{\$_ .= q: '-DSERVER_SUBVERSION="mod_perl/$VERSION"'\n:;},
+            qq{\$_ .= q: -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;},
+	    $conf;
+
+	    my $ldopts = "`$^X $PWD/src/modules/perl/ldopts`";
+	    system $^X, "-pi", "-e",  
+	    q{next unless /EXTRA_LIBS\s*=/;}.
+            q{next if /perl/; chomp;}.
+            qq{\$_ .= q: $ldopts\n:;},
 	    $conf;
 
 	    open(CONF, $conf) || die "Can't open $conf: $!";
@@ -242,7 +265,7 @@ EOT
 	$conf = "src/Configuration";
 	my $dash_make;
 	$dash_make = " -make $PWD/src/$mft_map{$adir} "
-	    if $can_dash_make{$adir};
+	    if $can_dash_make{$adir} and $mft_map{$adir};
 	#print STDERR "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)\n";
 	system "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)"
     }
@@ -263,24 +286,25 @@ unless ($NO_HTTPD) {
 	$cant_hook{PERL_HEADER_PARSER} = 
 	    "(need 1.2b5 or higher)";
     }
-    for (@callback_hooks) {
+    system $^X, "-pi~", "-e", 
+    's/^(PERL_SECTIONS) /#$1 /', 
+    "$APACHE_SRC/modules/perl/Makefile" 
+	if $PERL_SECTIONS;
+
+    for ( @callback_hooks) {
 	($k,$v) = ($_,$callback_hooks{$_});
 	system $^X, "-pi~", "-e", 
 	"s/^$k /#$k /", "$APACHE_SRC/modules/perl/Makefile" if $v;
 	$why = ($cant_hook{$k} || "(enable with $k=1)") unless $v;
 	$k =~ s/([A-Z]+)/ucfirst(lc($1))/ge;
 	$k =~ s/_//g;
-	$k .= "Handler" unless $k =~ /Handler$/; 
+	$k .= "Handler" unless $k =~ /Handlers?$/;
 	print $k . '.' x (25 - length($k));
 	print $v ? "enabled\n" : "disabled $why\n";
-	#printf "%-25s %s\n", "${k}Handler", ($v ? "enabled" : "disabled");
     }
-    system $^X, "-pi~", "-e", 
-    "s/^#TRACE/TRACE/", "$APACHE_SRC/modules/perl/Makefile" if $PERL_TRACE;
 
     system $^X, "-pi~", "-e", 
-    's/^#(PERL_STACKED_HANDLERS)/$1/', 
-    "$APACHE_SRC/modules/perl/Makefile" if $STACKED_HANDLERS;
+    "s/^#TRACE/TRACE/", "$APACHE_SRC/modules/perl/Makefile" if $PERL_TRACE;
 
     if($callback_hooks{PERL_TRANS}) {
 	push @test_pre_init, 
@@ -503,9 +527,14 @@ sub httpd_version {
 			return undef;
 		    }
 		    ++$can_dash_make{$dir} if $frest >= 3;
+		    if($frest >= 8) {
+			#warn "Don't need our own Makefile.tmpl (b$frest)!\n";
+			return "NONE";
+		    }
 		}
 		elsif($version >= 1.2) {
 		    $can_dash_make{$dir}++;
+		    return "NONE";
 		}
 	    }
 	    else {

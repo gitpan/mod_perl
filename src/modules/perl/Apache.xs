@@ -51,8 +51,9 @@
  */
 
 #include "mod_perl.h"
+#include "http_conf_globals.h"
 
-/* $Id: Apache.xs,v 1.46 1997/03/23 16:48:45 dougm Exp $ */
+/* $Id: Apache.xs,v 1.47 1997/04/01 04:15:11 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
@@ -60,6 +61,16 @@ PROTOTYPES: DISABLE
 
 BOOT:
     CTRACE(stderr, "boot_Apache: items = %d\n", items);
+
+int
+max_requests_per_child(self)
+SV *self
+
+    CODE:
+    RETVAL = SvTRUE(self) ? max_requests_per_child : 0;
+
+    OUTPUT:
+    RETVAL
 
 int
 seqno(...)
@@ -193,7 +204,7 @@ unescape_url_info(url)
             digit = ((*url >= 'A') ? ((*url & 0xdf) - 'A')+10 : (*url - '0'));
             url++ ;
             *trans = (digit << 4) +
-		(*url >= 'A' ? ((*url & 0xdf) - 'A')+10 : *url);
+		(*url >= 'A' ? ((*url & 0xdf) - 'A')+10 : (*url - '0'));
         }
         url++, trans++ ;
     }
