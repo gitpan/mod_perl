@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.8 1998/07/15 15:05:14 dougm Exp $
+# $Id: Makefile,v 1.9 1998/07/23 02:59:37 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -115,7 +115,7 @@ CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
 # AUX_CFLAGS comes from higher level Makefile
 CFLAGS=-I. -I$(INCDIR) -I$(INCDIR)/regex -I$(INCDIR)/../$(OSDIR) $(AUX_CFLAGS) \
 	$(APACHE_SSL) $(PERL_CCFLAGS) \
-	-DMOD_PERL_VERSION=\"$(MOD_PERL_VERSION)\" $(PERL_VERSION) \
+	-DMOD_PERL_VERSION=\"$(MOD_PERL_VERSION)\" \
 	$(INCLUDES)
 
 all:	$(LIB)

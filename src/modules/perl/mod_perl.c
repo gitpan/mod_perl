@@ -552,7 +552,10 @@ void perl_startup (server_rec *s, pool *p)
 
     status = perl_run(perl);
 
-    TAINT_NOT; /* At this time all is safe */
+    {
+	dTHR;
+	TAINT_NOT; /* At this time all is safe */
+    }
 
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,""),0));
     av_push(GvAV(incgv), newSVpv(server_root_relative(p,"lib/perl"),0));
@@ -961,10 +964,11 @@ int mod_perl_push_handlers(SV *self, char *hook, SV *sub, AV *handlers)
 	    MP_TRACE_h(fprintf(stderr, "pushing CODE ref into `%s' handlers\n", hook));
 	}
 	else if(SvPOK(sub)) {
-	    if(do_store) 
+	    if(do_store) {
 		MP_TRACE_h(fprintf(stderr, 
 				   "pushing `%s' into `%s' handlers\n", 
 				   SvPV(sub,na), hook));
+	    }
 	    else {
 		MP_TRACE_d(fprintf(stderr, 
 				   "pushing `%s' into `%s' handlers\n", 

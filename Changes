@@ -6,6 +6,31 @@ Changes - Apache mod_perl change logfile
 
 =over 3
 
+=item 1.15 - July 24, 1998
+
+new experimental XS implementation of Apache::PerlRun/Apache::Registry
+handlers in module Apache::PerlRunXS (enable with PERL_RUN_XS=1)
+
+added $r->get_server_name method
+
+move /tmp/mod_perl_* to t/logs, t/conf
+
+alias Apache::Util unescape_uri -> Apache::unescape_url
+
+alias Apache::Log emerg -> emergency, crit -> critical
+
+deal with PL_ renaming in 5.004_76+
+
+fixes to support to apache_1.3.0+ssl_1.19 [Salvador Ortiz]
+
+add another dTHR so we build/run with threaded Perl again
+
+USE_APXS fixups:
+ 
+ -use apaci/find_source instead of hard-coding files in apaci/configure
+ -re-gen apaci/mod_perl.config before running apache/configure
+ -chmod 0644, apaci/mod_perl.config
+
 =item 1.14 - July 18, 1998
 
 PERL_DEBUG=1 w/ USE_APACI=1 will properly link against libperld if exists

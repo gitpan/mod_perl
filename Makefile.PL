@@ -33,6 +33,8 @@ my $Is_dougm = (defined($ENV{USER}) && ($ENV{USER} eq "dougm"));
 my $USE_THREADS = 
     (defined($Config{usethreads}) && ($Config{usethreads} eq "define"));
    
+$PERL_VERSION = perl_version();
+
 require "./lib/mod_perl.pm";
 $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
 {
@@ -55,6 +57,7 @@ use subs qw(_prompt iedit asrc);
 
 gen_script("t/net/perl/cgi.pl");
 gen_script("t/report");
+gen_script("apaci/find_source");
 write_version_h("src/modules/perl");
 
 if($] < 5.004_04) {
@@ -79,6 +82,7 @@ $APACHE_SRC_DEFAULT = $@ ?
 
 my $PWD = cwd;
 my %SSL = (
+    "modules/ssl/apache_ssl.c" => "Ben-SSL",
     "apache_ssl.c" => "Ben-SSL",
     "mod_ssl.h"   => "Stronghold",
 );
@@ -89,8 +93,10 @@ unless (-e "t/docs/test.shtml") {
 
 chmod 0644, "t/conf/mod_perl_srm.conf";
 
+mkdir "t/logs", 0777;
+chmod 0777, "t/logs";
+
 unless ($Is_Win32) {
-    mkdir "t/logs", 0755;
      system "chmod a+x t/net/perl/* t/net/perl/io/*";
 }
 
@@ -103,9 +109,9 @@ my(@do_clean) = qw{
    Apache/Apache.xs
    Constants/Constants.xs
    t/modules/ssi.t       
-   /tmp/mod_perl_error_log
-   /tmp/mod_perl_srm.conf
-   /tmp/mod_perl_httpd.pid
+   t/logs/mod_perl_error_log
+   t/conf/srm.conf
+   t/logs/mod_perl_httpd.pid
 };
 #t/conf/httpd.conf
 #t/net/config.pl
@@ -146,6 +152,11 @@ $PERL_STATIC_EXTS = "";
 $PERL_EXTRA_CFLAGS = "";
 $SSLCacheServerPort = 8539;
 $Port = 8529;
+#so Doug can 'make test' different-builds@sametime/samebox
+if(!$Is_Win32 and $Is_dougm and $$ > 8000 and $$ < 30000) {
+    $PORT ||= $$;
+    print "I'll use Port $PORT\n";
+}
 $PORT ||= $Port;
 $DO_HTTPD = $ENV{DO_HTTPD} || 0;
 $NO_HTTPD = $ENV{NO_HTTPD} || 0;
@@ -167,7 +178,9 @@ $PERL_TIE_TABLES = 0;
 $PERL_LOG_API = 0;
 $PERL_URI_API = 0;
 $PERL_UTIL_API = 0;
+$PERL_RUN_XS = 0;
 my %experimental = map { $_,1 } qw{
+PERL_RUN_XS
 PERL_GET_SET_HANDLERS
 PERL_MARK_WHERE
 DO_INTERNAL_REDIRECT
@@ -311,11 +324,6 @@ if($Is_Win32) {
     $NO_HTTPD = 1;
 } 
 
-if($USE_APXS) {
-    my $cmd = "./configure --with-perl=$^X";
-    $cmd .= " --with-apxs=$WITH_APXS" if $WITH_APXS;
-    system "(cd apaci && $cmd)";
-}
 
 unless ($NO_HTTPD && !$PREP_HTTPD) {
 for $src_dir ($APACHE_SRC, <../apache*/src>, 
@@ -388,7 +396,7 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	}
 	unless ($DO_HTTPD or $NO_HTTPD) {
 	    $ans = _prompt("Shall I build httpd in $adir for you?", "y");
-	    ++$NO_HTTPD unless $ans =~ /^y$/i;
+	    ++$NO_HTTPD, ++$PREP_HTTPD unless $ans =~ /^y$/i;
 	}
 
 	if($NO_HTTPD) {
@@ -525,7 +533,16 @@ if($PERL_TIE_TABLES) {
     push @xs_modules, "Apache::Tie";
     $callback_hooks{PERL_TIE_TABLES} = 1;
 }
-
+if($PERL_RUN_XS) {
+    my $mmn    = $USE_APXS ? MMN_130 : magic_number($APACHE_SRC);
+    if($mmn >= MMN_130) {
+	push @xs_modules, "Apache::PerlRunXS";
+    }
+    else {
+	$PERL_RUN_XS = 0;
+	print "Sorry, need 1.3.0+ for Apache::PerlRunXS\n";
+    }
+}
 for (qw(Log URI Util)) {
     my $s = "PERL_".uc($_)."_API";
     if($$s) {
@@ -691,6 +708,7 @@ if($APACHE_SRC or $USE_APXS) {
 #---------------------------------------------------------------------
 
 MOD_PERL_VERSION = $VERSION
+PERL_VERSION = $PERL_VERSION
 
 INCDIR = $incdir
 
@@ -707,7 +725,7 @@ EOF
 
     if($callback_hooks{PERL_TRANS}) {
 	push @test_pre_init, 
-	"\t", '$(CP) t/conf/mod_perl_srm.conf /tmp', "\n";
+	"\t", '$(CP) t/conf/mod_perl_srm.conf t/conf/srm.conf', "\n";
     }
     unless ($USE_APXS) {
 	unless (-l "t/httpd") {
@@ -771,6 +789,7 @@ sub init_tests_and_config {
 	    my $yes_no = $v ? "yes" : "no";
 	    print $apaci_cfg "$k = $yes_no\n" if $apaci_cfg;
 	}
+	print $hf "   PERL_RUN_XS => $PERL_RUN_XS,\n";
         print $hf "   MMN => $mmn,\n";
 	print $hf ");\n1;\n";
 	$hf->close;
@@ -807,6 +826,13 @@ sub init_tests_and_config {
 	print "(cd $APACHE_ROOT && $cmd)\n";
 	system "(cd $APACHE_ROOT && $cmd)";
     }
+
+    if($USE_APXS) {
+	my $cmd = "./configure --with-perl=$^X";
+	$cmd .= " --with-apxs=$WITH_APXS" if $WITH_APXS;
+	system "(cd apaci && $cmd)";
+    }
+
     #expand ./t to full path
     iedit "t/conf/httpd.conf", "s: \./t(\S*): $PWD/t\$1:";
 
@@ -824,7 +850,7 @@ EOF
     my $v = httpd_version($APACHE_SRC, 1);
     my $mmn = magic_number($APACHE_SRC) || 0;
 
-    conf_append("LockFile /tmp/mod_perl.lock") if $v >= 121;
+    conf_append("LockFile logs/mod_perl.lock") if $v >= 121 or $mmn >= MMN_130;
     conf_append("PerlChildInitHandler My::child_init") if $My::child_init;
     conf_append("PerlChildExitHandler My::child_exit") if $My::child_exit;
     conf_append("PerlTransHandler My::ProxyTest") 
@@ -1160,19 +1186,19 @@ MP_TEST_SCRIPT=$script
 TEST_VERBOSE=0
 
 kill_httpd:
-	kill `cat /tmp/mod_perl_httpd.pid`
-	@$(RM_F) /tmp/mod_perl_srm.conf
-	@$(RM_F) /tmp/mod_perl.lock.*
-	$(RM_F) /tmp/mod_perl_httpd.pid
-	$(RM_F) /tmp/mod_perl_error_log
+	kill `cat t/logs/mod_perl_httpd.pid`
+	@$(RM_F) t/conf/srm.conf
+	@$(RM_F) t/logs/mod_perl.lock*
+	$(RM_F) t/logs/mod_perl_httpd.pid
+	$(RM_F) t/logs/mod_perl_error_log
 
 start_httpd: test_pre_init
 	@(cd t/conf; test -f httpd.conf || cp httpd.conf-dist httpd.conf)
 	@(cd t/net; test -f config.pl || cp config.pl.dist config.pl)
-	@$(TOUCH) /tmp/mod_perl_srm.conf
+	@$(TOUCH) t/conf/srm.conf
 	$(APACHE_SRC)/$(HTTPD) -f `pwd`/t/conf/httpd.conf -X -d `pwd`/t &
 	@echo httpd listening on port $(PORT)
-	@echo will write error_log to: /tmp/mod_perl_error_log
+	@echo will write error_log to: t/logs/mod_perl_error_log
 	@echo "letting apache warm up...\c"
 	@sleep 2
 	@echo done
@@ -1483,7 +1509,7 @@ sub edit_extra_cflags {
     $inc .= $SSL_INCLUDE if $SSL_INCLUDE;
     $inc .= " -DSTRONGHOLD" if is_ssl() =~ /stronghold/i;
     $inc .= " $PERL_EXTRA_CFLAGS" if $PERL_EXTRA_CFLAGS;
-    $inc .= " -DMOD_PERL";
+    $inc .= " -DMOD_PERL -DPERL_VERSION=$PERL_VERSION";
 
     while (<$fh>) {
 	push @file, $_;
@@ -1721,10 +1747,18 @@ sub ldopts {
     $Embed::ldopts;
 }
 
+sub perl_version {
+    my $v = "$]";
+    $v =~ s/\.//g;
+    $v .= "0" while length($v) < 6;
+    $v;
+}
+
 sub APACI::init {
     my $lib_cfg;
     if($USE_APXS) {
 	$lib_cfg = "apaci/mod_perl.config";
+	chmod 0644, $lib_cfg;
     }
     elsif($USE_APACI) {
 	$lib_cfg = "$APACHE_SRC/modules/perl/mod_perl.config";
@@ -1752,6 +1786,7 @@ sub APACI::init {
 
 #   mod_perl version
 MOD_PERL_VERSION = $VERSION
+PERL_VERSION = $PERL_VERSION
 
 #   Perl interpreter to use 
 PERL = $^X

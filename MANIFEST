@@ -58,6 +58,7 @@ Symbol/Makefile.PL
 Symbol/Symbol.pm
 Symbol/Symbol.xs
 Symbol/test.pl
+src/modules/perl/perl_PL.h
 src/modules/perl/mod_perl_version.h
 src/modules/perl/Exports.c
 src/modules/perl/Constants.xs
@@ -186,8 +187,13 @@ apaci/libperl.module
 apaci/mod_perl.config
 apaci/mod_perl.config.sh
 apaci/load_modules.pl.PL
+apaci/find_source.PL
 .gdbinit
 INSTALL.simple
 INSTALL.simple.ssl
 INSTALL.simple.stronghold
 t/docs/subr/.exists
+PerlRunXS/Makefile.PL
+PerlRunXS/PerlRunXS.pm
+src/modules/perl/PerlRunXS.xs
+t/modules/perlrunxs.t
