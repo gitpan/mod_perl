@@ -81,7 +81,7 @@ sub handler {
 			  (/+)       # directory
 			  (\d?)      # package's first character
 			 }[
-			   "::" . ($2 ? sprintf("_%2x",unpack("C",$2)) : "")
+			   "::" . (length $2 ? sprintf("_%2x",unpack("C",$2)) : "")
 			  ]egx;
 
 	my $package = "Apache::ROOT$script_name";
@@ -137,6 +137,8 @@ sub handler {
 	    $Apache::Registry->{$package}{'mtime'} = $mtime;
 	}
 
+	my $old_status = $r->status;
+
 	my $cv = \&{"$package\::handler"};
 	eval { &{$cv}($r, @_) } if $r->seqno;
 	$r->chdir_file("$Apache::Server::CWD/");
@@ -161,7 +163,7 @@ sub handler {
 #		return REDIRECT;
 #	    }
 #	}
-	return $r->status;
+	return $r->status($old_status);
     } else {
 	return NOT_FOUND unless $Debug && $Debug & 2;
 	return Apache::Debug::dump($r, NOT_FOUND);

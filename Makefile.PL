@@ -49,7 +49,11 @@ else {
     $USE_THREADS = (defined($Config{use5005threads}) && 
 		    ($Config{use5005threads} eq "define"));
 }
-   
+
+#hmm, seems the #include flip/flop isn't needed anymore
+#so ignore the stuff above for now
+$USE_THREADS = $ENV{PERL_USE_THREADS} || 0;
+
 require "./lib/mod_perl.pm";
 $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
 {
@@ -127,6 +131,7 @@ my(@do_clean) = qw{
    t/report
    t/httpd
    apaci/find_source
+   apaci/mod_perl.config
 };
 #t/conf/httpd.conf
 #t/net/config.pl
@@ -912,7 +917,9 @@ sub init_tests_and_config {
     }
 
     if($USE_APACI and not $PREP_HTTPD and not $USE_APXS) {
-	my $cmd = "CC=\"$Config{cc}\" ";
+	my $shrpenv = $Config{shrpenv} || "";
+	$shrpenv .= ' ' if $shrpenv;
+	my $cmd = "CC=\"${shrpenv}$Config{cc}\" ";
 
 	if($PERL_EXTRA_CFLAGS) {
 	    $cmd .= qq(CFLAGS="$PERL_EXTRA_CFLAGS" );
@@ -2021,6 +2028,35 @@ Your current configuration will most likely trigger core dumps, suggestions:
    *) Switch to an os other than $^O
 EOF
       }
+
+    if ($^O eq 'aix' and $] <= 5.00503 and ($USE_DSO or $USE_APXS)) {
+    	phat_warn(<<EOF);
+Please make sure that you apply the following patch to the perl
+distribution before you install mod_perl, without this patch you will
+not be able load any xs modules.
+
+--- perl5.005_03/ext/DynaLoader/dl_aix.xs.orig  Fri Mar  3 17:00:58 2000
++++ perl5.005_03/ext/DynaLoader/dl_aix.xs       Fri Mar  3 17:06:51 2000
+@@ -222,7 +222,16 @@
+        mp->refCnt = 1;
+        mp->next = modList;
+        modList = mp;
+-       if (loadbind(0, mainModule, mp->entry) == -1) {
++       /*
++        * Assume anonymous exports come from the module this dlopen
++        * is linked into, that holds true as long as dlopen and all
++        * of the perl core are in the same shared object. Also bind
++        * against the main part, in the case a perl is not the main
++        * part, e.g mod_perl as DSO in Apache so perl modules can
++        * also reference Apache symbols.
++        */
++       if (loadbind(0, (void *)dlopen, mp->entry) == -1 ||
++           loadbind(0, mainModule, mp->entry) == -1) {
+                dlclose(mp);
+                errvalid++;
+                strcpy(errbuf, "loadbind: ");
+EOF
+    }
 }
 
 sub gdbm_check {

@@ -8,6 +8,39 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.21_03 - March 15, 2000
+
+removed the generated apaci/mod_perl.config from MANIFEST
+
+new variable $Apache::Server::StrictPerlSections, if true, will croak
+<Perl> section generates invalid Apache configuration syntax
+
+new Apache::src->ccflags method to combine $Config{ccflags} and
+apxs -q CFLAGS
+[Matthias Urlichs <smurf@noris.net>]
+
+added Apache::src->apxs method
+
+make use of $Config{shrpenv} to find CORE/libperl.so
+[Ignasi Roca Carrió <ignasi.roca@fujitsu.siemens.es>]
+
+fix Apache::Registry bug when filename starts with a 0
+[Peter Deister <deister@opus5.de>, Ken Williams <ken@forum.swarthmore.edu>]
+
+Apache::Registry will restore $r->status to the original value
+[Charles Levert <charles@comm.polymtl.ca>]
+
+warn aix-apxs-5.005_03 users of the patch needed for DynaLoader
+[Jens-Uwe Mager <jum@helios.de>]
+
+fixup the output of apxs -q CFLAGS to preserve quoting
+[Sheldon Hearn <sheldonh@uunet.co.za>]
+
+dso fix fix: modules with END blocks calling xs code (e.g. DBI) would
+core dump because the xs .dso had been unloaded, now dso's are not
+unloaded until after END blocks are called.
+Thanks to Daniel Jacobowitz and others for spotting
+
 =item 1.21_02 - March 6, 2000
 
 fix Makefile.PL if $USE_APXS && $PERL_DEBUG
