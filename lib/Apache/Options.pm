@@ -1,8 +1,9 @@
 package Apache::Options;
 require Apache::Constants;
-use vars qw(@ISA @EXPORT);
+use vars qw(@ISA @EXPORT $VERSION);
 @ISA = qw(Apache::Constants);
 @EXPORT = @{$Apache::Constants::EXPORT_TAGS{options}};
+$VERSION = (qw$Revision: 1.15 $)[1];
 
 1;
 

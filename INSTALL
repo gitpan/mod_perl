@@ -62,6 +62,7 @@ Possible arguments are:
 
   PERL_INIT
   PERL_TRANS
+  PERL_HEADER_PARSER
   PERL_AUTHEN
   PERL_AUTHZ
   PERL_ACCESS
@@ -85,7 +86,30 @@ To enable all callback hooks:
 To enable tracing set PERL_TRACE=1
 
   perl Makefile.PL PERL_TRACE=1
- 
+
+=item Linking Perl extensions static with httpd
+
+Normally, if an exension is linked static with Perl it is listed in
+Config.pm's $Config{static_exts}, in which case, mod_perl will also
+link this extension static with httpd.  However, if an extension is
+linked static with Perl after it is installed, it is not listed in
+Config.pm.  You may either edit Config.pm and add these extensions, or
+configure mod_perl like so:
+
+ perl Makefile.PL "PERL_STATIC_EXTS=Something::Static Another::One" 
+
+=item Reducing the size of httpd
+
+In addition to the suggestions listed in the mod_perl.pod section
+"MEMORY CONSUMPTION", it is possible to reduce httpd even more by
+configuring mod_perl with the DYNAMIC attribute:
+
+ perl Makefile.PL DYNAMIC=1
+
+This will link the Apache::Constants and Apache extensions as shared
+libraries rather than static with httpd.  However, some systems have
+trouble with this, such as aix.
+
 =back
 
 

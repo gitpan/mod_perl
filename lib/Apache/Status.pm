@@ -1,5 +1,8 @@
 package Apache::Status;
 use strict;
+use vars qw($VERSION);
+
+$VERSION = (qw$Revision: 1.11 $)[1];
 
 my(%status) = (
    inc => "Loaded Modules",

@@ -16,6 +16,22 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.98_10
+
+if mod_php is in Configuration, keep Makefile.tmpl link order as is,
+and set Rule WANTHSREGEX=no
+
+removed `BrowserMatch' from t/conf/httpd.conf
+
+can now 'make test' without needing to run 'make' first
+
+get rid of Manifest warnings during 'perl Makefile.PL'
+
+reset $/ to "\n" after each request (t/net/test will test this)
+
+set $ENV{GATEWAY_INTERFACE} before perl_run() so it's set for
+server startup PerlScript's
+
 =item 0.98_09
 
 fixed bug in Apache::perl_hook('Access') spotted by Eric Bartley

@@ -10,9 +10,9 @@ use File::Copy qw(cp);
 #version 1.5 that ships with 5.003 is broken!
 *cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
 
-$VERSION = "0.98_09";
+$VERSION = "0.98_10";
 
-use subs qw(_prompt);
+use subs qw(_prompt iedit);
 
 report_setup();
 readline_setup();        
@@ -46,6 +46,7 @@ my(@do_clean) = qw{
    t/docs/hooks.txt
    src/Configuration
    lib/Apache/MyConfig.pm
+   Apache/Apache.xs
 };
 #t/conf/httpd.conf
 #t/net/config.pl
@@ -69,6 +70,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
     NONE => "", 
 );	     
 
+$PERL_STATIC_EXTS = "";
 $Port = $PORT = 8529;
 $NO_HTTPD = $ENV{NO_HTTPD} || 0;
 $PERL_TRACE = 0;
@@ -177,8 +179,6 @@ foreach $adir (@adirs) {
 	    print STDERR "cp src/$mft_map{$adir} $adir/Makefile.tmpl\n";
 	}
 
-	mft_fixup("$adir/Makefile.tmpl");
-
 	mkpath "$adir/modules/perl";
 	#ignore make's output here
 	`(cd $adir/modules/perl && make clean 2> /dev/null)`;
@@ -202,43 +202,7 @@ foreach $adir (@adirs) {
 	    cp $conf, "src/Configuration";
 	    $conf = "src/Configuration";
 
-	    if ($ADD_VERSION and not is_ssl()) {
-		my $inc = " -I$Config{archlibexp}/CORE -I./";
-		system $^X, "-pi", "-e",  
-		q{next unless /EXTRA_CFLAGS\s*=/;}.
- 	        q{next if /mod_perl/; chomp; }.
-		qq{\$_ .= q: $inc -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;},
-			$conf;
-	    }
-
-	    $b8_chop = (split "/", $PWD)[1];
-
-	    my $ldopts = "`$^X $PWD/src/modules/perl/ldopts`";
-	    system $^X, "-pi", "-e",  
-	    q{next unless /EXTRA_LIBS\s*=/;}.
-            q{next if /perl/; chomp;}.
-            qq{\$_ .= q: $ldopts\n:;},
-	    $conf;
-
-	    open(CONF, $conf) || die "Can't open $conf: $!";
-	    while (<CONF>) {
-		$seen_modperl++ if /^Module\s+perl_module/i;
-	    }
-	    close(CONF);
-	    unless ($seen_modperl) {
-		print "Appending mod_perl to $conf\n";
-		open(CONF, ">>$conf") || die "Can't open $conf: $!";
-		print CONF <<EOT;
-		
-# Embed a perl interpreter
-Module perl_module         modules/perl/libmodperl.a
-
-
-EOT
-    close(CONF);
-	    } else {
-		print "mod_perl already present in $conf\n";
-	    }
+	    conf_fixup("$adir/Makefile.tmpl", $conf);
 	}
     }
 
@@ -251,8 +215,7 @@ EOT
 	system "(cd $adir && ./Configure${dash_make} -file $PWD/$conf)";
 	if($do_b8_chop and -e "$adir/modules/Makefile") {
 	    print "getting rid of $b8_chop target in modules/Makefile\n";
-	    system $^X, "-pi~", "-e", 
-	    "s/=$b8_chop".'\s+/=/g', "$adir/modules/Makefile";
+	    iedit "$adir/modules/Makefile", "s/=$b8_chop".'\s+/=/g'; 
 	}
     }
 
@@ -275,17 +238,16 @@ unless ($NO_HTTPD) {
 	    "(need 1.2b5 or higher)";
     }
 
-    setup_for_static() if $STATIC;
+    cp "src/modules/perl/Apache.xs", "Apache/Apache.xs" if $DYNAMIC;
+    setup_for_static();
 
-    system $^X, "-pi~", "-e", 
-    's/^(PERL_SECTIONS) /#$1 /', 
-    "$APACHE_SRC/modules/perl/Makefile" 
+    iedit "$APACHE_SRC/modules/perl/Makefile", 's/^(PERL_SECTIONS) /#$1 /'
 	if $PERL_SECTIONS;
 
     for ( @callback_hooks) {
 	($k,$v) = ($_,$callback_hooks{$_});
-	system $^X, "-pi~", "-e", 
-	"s/^$k /#$k /", "$APACHE_SRC/modules/perl/Makefile" if $v;
+
+	iedit "$APACHE_SRC/modules/perl/Makefile", "s/^$k /#$k /" if $v;
 	$why = ($cant_hook{$k} || "(enable with $k=1)") unless $v;
 	$k =~ s/([A-Z]+)/ucfirst(lc($1))/ge;
 	$k =~ s/_//g;
@@ -294,16 +256,13 @@ unless ($NO_HTTPD) {
 	print $v ? "enabled\n" : "disabled $why\n";
     }
 
-    system $^X, "-pi~", "-e", 
-    "s/^#TRACE/TRACE/", "$APACHE_SRC/modules/perl/Makefile" if $PERL_TRACE;
+    iedit "$APACHE_SRC/modules/perl/Makefile", "s/^#TRACE/TRACE/" if $PERL_TRACE;
 
     my $ssl_name = is_ssl();
     if($ssl_name) {
 	print "I see you are building with $ssl_name,\nI'll set the SSL flags in mod_perl's Makefile\n";
 
-	system $^X, "-pi~", "-e", 
-	"s/^#APACHE_SSL/APACHE_SSL/",
-	"$APACHE_SRC/modules/perl/Makefile";
+	iedit "$APACHE_SRC/modules/perl/Makefile",	"s/^#APACHE_SSL/APACHE_SSL/";
     }
 
     my $p54 = "-DHAVE_PERL_5__4" if $] > 5.00398;
@@ -325,9 +284,7 @@ unless ($NO_HTTPD) {
 PERL_VERSION = $p54
 
 EOF
-    system $^X, "-pi~", "-e", 
-    "s/^#__ORIGINAL__/$edit_note/",
-    "$APACHE_SRC/modules/perl/Makefile";
+    iedit "$APACHE_SRC/modules/perl/Makefile", "s/^#__ORIGINAL__/$edit_note/";
 
     if($callback_hooks{PERL_TRANS}) {
 	push @test_pre_init, 
@@ -353,18 +310,15 @@ unless(-e "t/conf/httpd.conf") {
     print STDERR "Will run tests as User: '$User' Group: '$Group'\n";
 
     if($Port != $PORT) {
-	system $^X, "-pi~", "-e", 
-	"s/^(Port) .*/\$1 $PORT/", "t/conf/httpd.conf";
-	system $^X, "-pi~", "-e", 
-	"s/$Port/$PORT/;", "t/net/config.pl";
+	iedit "t/conf/httpd.conf", "s/^(Port) .*/\$1 $PORT/";
+	iedit "t/net/config.pl", "s/$Port/$PORT/;";
     }
 
     #expand ./t to full path
-    system $^X, "-pi~", "-e", 
-    "s: \./t(\S*): $PWD/t\$1:", "t/conf/httpd.conf";
+    iedit "t/conf/httpd.conf", "s: \./t(\S*): $PWD/t\$1:";
 
     for (qw(User Group)) {
-	system $^X, "-pi~", "-e", "s/^$_ .*/$_ $$_/", "t/conf/httpd.conf";
+	iedit "t/conf/httpd.conf", "s/^$_ .*/$_ $$_/"; 
     }
     if($IsBenSSL) {
 	local *CONF;
@@ -474,8 +428,6 @@ EOF
         close FH;
 }
 
-print "Ignore warnings about Constants.xs and Apache.xs\n" if $STATIC;
-
 WriteMakefile(
     NAME    => "mod_perl",
     VERSION => $VERSION,
@@ -502,7 +454,7 @@ WriteMakefile(
 print "*** BSDI users: be sure to read the INSTALL `Notes' section ***\n"
     if $Config{osname} =~ /bsdos/i;
 
-cleanup_for_static() if $STATIC;
+cleanup_for_static();
 
 sub MY::clean {
     my $self = shift;
@@ -578,7 +530,7 @@ start_httpd: test_pre_init
 run_tests:
 	$(FULLPERL) t/TEST $(TEST_VERBOSE)
 
-test:	start_httpd run_tests kill_httpd
+test:	pure_all start_httpd run_tests kill_httpd
 
 test_report:
 	make test | t/report
@@ -647,6 +599,7 @@ sub httpd_version {
 }
 
 sub cleanup_for_static {
+    return unless $STATIC;
     for (qw(Apache Constants)) {
 	rename "${_}/${_}.xs.disabled", "${_}/${_}.xs";
     }
@@ -654,18 +607,23 @@ sub cleanup_for_static {
 
 sub setup_for_static {
     my $d = "$APACHE_SRC/modules/perl";
+    my $mf = "$APACHE_SRC/modules/perl/Makefile";
+
+    iedit $mf, "s/(PERL_STATIC_EXTS) =.*/\$1 = $PERL_STATIC_EXTS/"
+	if $PERL_STATIC_EXTS;
+
+    return unless $STATIC;
+
     cp "Apache/typemap", $d;
 
-    for (qw(Apache Constants)) {
+    for (qw(Constants)) {
 	cp "${_}/${_}.xs", $d;
     }
     for (qw(Apache)) {
 	rename "${_}/${_}.xs", "${_}/${_}.xs.disabled";
     }
 
-    system $^X, "-pi~", "-e", 
-    "s/^#STATIC_/STATIC_/",
-    "$APACHE_SRC/modules/perl/Makefile";
+    iedit $mf, "s/^#STATIC_/STATIC_/";
 }
 
 sub readline_setup {
@@ -706,12 +664,69 @@ EOT
     }
 }
 
-sub mft_fixup {
-    my $mf = shift;
-    my $repl = quotemeta('$(REGLIB) $(LIBS)');
-    system $^X, "-pi~", "-e",
-    "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;",
-    $mf;
+sub conf_fixup {
+    my($mf, $cfg) = @_;
+
+    if ($ADD_VERSION and not is_ssl()) {
+	my $inc = " -I$Config{archlibexp}/CORE -I./";
+	iedit $cfg,
+	      q{next unless /EXTRA_CFLAGS\s*=/;}.
+	      q{next if /mod_perl/; chomp; }.
+		  qq{\$_ .= q: $inc -DSERVER_SUBVERSION=\\"mod_perl/$VERSION\\"\n:;};
+		
+    }
+
+    if(has_module($cfg, 'php')) {
+	iedit $cfg, "s/(Rule WANTHSREGEX)\=(default)/\$1=no/";
+	warn "setting Rule WANTHSREGEX=no\n";
+    }
+    else {
+	my $repl = quotemeta('$(REGLIB) $(LIBS)');
+	iedit $mf, "s:\Q\$(LIBS) \$(REGLIB)\E:$repl:;";
+    }
+
+    $b8_chop = (split "/", $PWD)[1];
+
+    my $ldopts = "`$^X $PWD/src/modules/perl/ldopts $PERL_STATIC_EXTS`";
+    iedit $cfg,
+    q{next unless /EXTRA_LIBS\s*=/;}.
+    q{next if /perl/; chomp;}.
+    qq{\$_ .= q| $ldopts\n|;};
+
+    open(CONF, $cfg) || die "Can't open $cfg: $!";
+    while (<CONF>) {
+	$seen_modperl++ if /^Module\s+perl_module/i;
+    }
+    close(CONF);
+    unless ($seen_modperl) {
+	print "Appending mod_perl to $conf\n";
+	open(CONF, ">>$cfg") || die "Can't open $cfg: $!";
+	print CONF <<EOT;
+		
+# Embed a perl interpreter
+Module perl_module         modules/perl/libmodperl.a
+
+
+EOT
+    close(CONF);
+    } else {
+	print "mod_perl already present in $conf\n";
+    }
+}
+
+
+sub has_module {
+    my($cfg, $name) = @_;
+    local(*IN);
+    open IN, $cfg or die "Can't open $cfg $!\n";
+    while(<IN>) {
+	if(/^Module\s+${name}_module/i) {
+ 	    close IN;
+#	    print STDERR "has module_$name\n";
+	    return 1;
+	}
+    }
+    return 0;
 }
  
 sub report_setup {
@@ -722,4 +737,10 @@ sub report_setup {
     close OUT;
     close IN;
     chmod 0755 => "t/report";
+}
+
+sub iedit {
+    my $file = shift;
+    #print STDERR "-e @_\n";
+    system $^X, "-pi~", "-e", "@_", $file;
 }

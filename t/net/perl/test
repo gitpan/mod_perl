@@ -4,6 +4,10 @@ use Apache ();
 use strict;
 use vars qw($Scalar @Array %Hash); #for testing perl-status
 
+#make sure this untrip works
+$/ eq "\n" or die "\$/ was not reset!\n";
+$/ = "";
+
 $Scalar = 1;
 @Array  = qw(one two three);
 %Hash   = qw(one 1 two 2 three 3);

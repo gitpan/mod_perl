@@ -1,6 +1,9 @@
 package Apache::Debug;
 use Cwd 'fastcwd';
 #from HTTP::Status
+use vars qw($VERSION);
+$VERSION = (qw$Revision: 1.16 $)[1];
+
 my %StatusCode = (
     100 => 'Continue',
     101 => 'Switching Protocols',
@@ -52,7 +55,7 @@ sub dump {
     $r->content_type("text/html");
     $r->content_language("en");
     $r->no_cache(1);
-    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.15 1997/05/12 22:04:01 dougm Exp $);
+    $r->header_out("X-Debug-Version" => q$Id: Debug.pm,v 1.16 1997/06/03 03:00:42 dougm Exp $);
     $r->send_http_header;
     
     return 0 if $r->header_only;   # should not generate a body

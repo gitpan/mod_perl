@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.12 1996/10/20 17:15:51 dougm Exp dougm $
+# $Id: Makefile,v 1.26 1997/06/03 03:00:42 dougm Exp $
 #
 
 #__ORIGINAL__
@@ -92,10 +92,9 @@ PERL=/opt/perl5/bin/perl
 PERL_STATIC_EXTS =
 PERL5LIB=`$(PERL) -MConfig -e 'print $$Config{privlibexp}'`
 EXTUTILS_EMBED = $(PERL) -MExtUtils::Embed
-PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccflags -e perl_inc` $(PERL_HOOKS) $(TRACE)
+PERL_CCFLAGS = `$(EXTUTILS_EMBED) -e ccopts` $(PERL_HOOKS) $(TRACE)
 
 XS_INIT = `$(EXTUTILS_EMBED) -e xsinit -- -std $(PERL_STATIC_EXTS) $(STATIC_EXTS)`
-LD_OPTS = `$(EXTUTILS_EMBED) -e ldopts -- $(PERL_STATIC_EXTS)`
 
 CC=`$(PERL) -MConfig -e 'print $$Config{cc}'`
 

@@ -1,2 +1,2 @@
 
-system "$^X -MExtUtils::Embed -e ccdlflags -e ldopts -- -std";
+system "$^X -MExtUtils::Embed -e ldopts -- -std @ARGV";

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.55 1997/05/19 22:25:31 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.57 1997/06/03 03:00:42 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -275,6 +275,8 @@ void perl_startup (server_rec *s, pool *p)
     hv_fetch(perl_get_hv("INC", TRUE), "Apache/TieHandle.pm", 19, 1);
 
     perl_clear_env;
+    hv_store(PerlEnvHV, "GATEWAY_INTERFACE", 17, 
+	     newSVpv(PERL_GATEWAY_INTERFACE,0), 0);
 
     MP_TRACE(fprintf(stderr, "running perl interpreter..."));
     status = perl_run(perl);
@@ -284,9 +286,6 @@ void perl_startup (server_rec *s, pool *p)
 	exit(1);
     }
     MP_TRACE(fprintf(stderr, "ok\n"));
-
-    hv_store(PerlEnvHV, "GATEWAY_INTERFACE", 17, 
-	     newSVpv(PERL_GATEWAY_INTERFACE,0), 0);
 
     for(i = 0; i < cls->NumPerlModules; i++) {
 	if(perl_require_module(cls->PerlModules[i], s) != OK) {
@@ -460,6 +459,8 @@ void mod_perl_end_cleanup(void *data)
     av_undef(GvAV(incgv));
     GvAV(incgv) = Nullav;
     GvAV(incgv) = av_copy_array(orig_inc);
+    /* reset $/ */
+    sv_setpvn(GvSV(gv_fetchpv("/", FALSE, SVt_PV)), "\n", 1);
     MP_TRACE(fprintf(stderr, "perl_end_cleanup...ok\n"));
 }
 

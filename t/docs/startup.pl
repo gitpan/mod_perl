@@ -1,4 +1,6 @@
 
+$ENV{GATEWAY_INTERFACE} =~ /^CGI-Perl/ or die "GATEWAY_INTERFACE not set!";
+
 #will be redef'd during tests
 sub PerlTransHandler::handler {-1}
 

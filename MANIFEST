@@ -24,9 +24,9 @@ lib/Apache/Registry.pm
 src/Makefile.tmpl
 src/Makefile.tmpl-1.2
 Apache/Apache.pm
-Apache/Apache.xs
 Apache/typemap
 Apache/Makefile.PL
+src/modules/perl/Apache.xs
 src/modules/perl/ldopts
 src/modules/perl/config.c
 src/modules/perl/mod_perl.c

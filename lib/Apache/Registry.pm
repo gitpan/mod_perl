@@ -7,7 +7,7 @@ use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.24 1997/03/10 00:25:45 dougm Exp dougm $
+#$Id: Registry.pm,v 1.31 1997/05/19 22:25:31 dougm Exp $
 $VERSION = (qw$Revision: 1.31 $)[1];
 
 $Debug ||= 0;
