@@ -22,6 +22,7 @@ PerlSetEnv KeyForPerlSetEnv OK
 PerlSetVar KeyForPerlSetVar OK
  
 PerlScript docs/startup.pl
+PerlScript docs/stacked.pl
 
 Alias /perl/ ./t/net/perl/
 

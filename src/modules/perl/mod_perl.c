@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.72 1997/11/21 00:10:11 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.73 1997/12/02 04:38:02 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -70,6 +70,8 @@ void *mod_perl_dummy_mutex = &mod_perl_dummy_mutex;
 static IV mp_request_rec;
 static int seqno = 0;
 static int perl_is_running = 0;
+int mod_perl_socketexitoption = 3;
+int mod_perl_weareaforkedchild = 0;     
 static int callbacks_this_request = 0;
 static PerlInterpreter *perl = NULL;
 static AV *orig_inc = Nullav;
@@ -94,7 +96,7 @@ static command_rec perl_cmds[] = {
       RSRC_CONF, FLAG, "Turn on -w switch" },
     { "PerlScript", perl_cmd_script,
       NULL,
-      RSRC_CONF, TAKE1, "A Perl script name" },
+      OR_ALL, ITERATE, "A Perl script name" },
     { "PerlModule", perl_cmd_module,
       NULL,
       OR_ALL, ITERATE, "List of Perl modules" },
@@ -252,6 +254,11 @@ void perl_shutdown (server_rec *s, pool *p)
     
     perl_destruct(perl);
     perl_free(perl);
+
+#ifdef USE_THREADS
+    PERL_SYS_TERM();
+#endif
+
     perl_is_running = 0;
     MP_TRACE(fprintf(stderr, "ok\n"));
 
@@ -279,9 +286,8 @@ void perl_restart(server_rec *s, pool *p)
     if(rgy_symtab)
 	hv_clear(rgy_symtab);
 
-    /* reload modules and PerlScript */
+    /* reload modules and PerlScripts */
     perl_reload_inc();
-    perl_load_startup_script(s, p, FALSE);
 
     LEAVE;
 
@@ -317,6 +323,27 @@ void perl_startup (server_rec *s, pool *p)
     }
     perl_is_running++;
 
+    /* fake-up what the shell usually gives perl */
+    if(cls->PerlTaintCheck) 
+	argv[argc++] = "-T";
+
+    if(cls->PerlWarn)
+	argv[argc++] = "-w";
+
+    argv[argc++] = "-e";
+    argv[argc++] = dash_e;
+
+    MP_TRACE(fprintf(stderr, "perl_parse args: "));
+    for(i=1; i<argc; i++)
+	MP_TRACE(fprintf(stderr, "'%s' ", argv[i]));
+    MP_TRACE(fprintf(stderr, "..."));
+
+#ifdef USE_THREADS
+# ifdef PERL_SYS_INIT
+    PERL_SYS_INIT(&argc,&argv);
+# endif
+#endif
+
     MP_TRACE(fprintf(stderr, "allocating perl interpreter..."));
     if((perl = perl_alloc()) == NULL) {
 	MP_TRACE(fprintf(stderr, "not ok\n"));
@@ -328,20 +355,6 @@ void perl_startup (server_rec *s, pool *p)
     MP_TRACE(fprintf(stderr, "constructing perl interpreter...ok\n"));
     perl_construct(perl);
 
-    /* fake-up what the shell usually gives perl */
-    if(cls->PerlTaintCheck) 
-	argv[argc++] = "-T";
-
-    if(cls->PerlWarn)
-	argv[argc++] = "-w";
-
-    argv[argc++] = "-e";
-    argv[argc++] = dash_e;
-
-    MP_TRACE(fprintf(stderr, "parsing perl script: "));
-    for(i=1; i<argc; i++)
-	MP_TRACE(fprintf(stderr, "'%s' ", argv[i]));
-    MP_TRACE(fprintf(stderr, "..."));
 
     status = perl_parse(perl, xs_init, argc, argv, NULL);
     if (status != OK) {
@@ -368,9 +381,12 @@ void perl_startup (server_rec *s, pool *p)
 
     status = perl_run(perl);
 
-    if(cls->PerlScript) {
-	if(perl_load_startup_script(s, p, cls->PerlWarn) != OK) {
-	    fprintf(stderr, "mod_perl: failed to load PerlScript `%s'\n", cls->PerlScript);
+    av_push(GvAV(incgv), newSVpv(server_root_relative(p,""),0));
+
+    for(i = 0; i < cls->NumPerlScript; i++) {
+	if(perl_load_startup_script(s, p, cls->PerlScript[i], TRUE) != OK) {
+	    fprintf(stderr, "Can't load PerlScript `%s', exiting...\n", 
+		    cls->PerlScript[i]);
 	    exit(1);
 	}
     }
@@ -449,6 +465,7 @@ int perl_handler(request_rec *r)
 {
     dSTATUS;
     dPPDIR;
+    dTHR;
 
     (void)acquire_mutex(mod_perl_mutex);
     
@@ -464,12 +481,6 @@ int perl_handler(request_rec *r)
     table_set(r->subprocess_env, "MOD_PERL", MOD_PERL_VERSION);
 
     (void)perl_request_rec(r); 
-
-#ifdef USE_SFIO
-    IoFLAGS(GvIOp(defoutgv)) |= IOf_FLUSH; /* $|=1 */
-#else
-    IoFLAGS(GvIOp(defoutgv)) &= ~IOf_FLUSH; /* $|=0 */
-#endif
 
     MP_TRACE(fprintf(stderr, "perl_handler ENTER: SVs = %5d, OBJs = %5d\n",
 		     (int)sv_count, (int)sv_objcount));
@@ -1069,8 +1080,8 @@ callback:
     MP_TRACE(fprintf(stderr, "perl_call_handler: SVs = %5d, OBJs = %5d\n", 
 	    (int)sv_count, (int)sv_objcount));
 
-    if(SvMAGICAL(GvSV(errgv)))
-       sv_unmagic(GvSV(errgv), 'U'); /* Apache::exit was called */
+    if(SvMAGICAL(ERRSV))
+       sv_unmagic(ERRSV, 'U'); /* Apache::exit was called */
 
     return status;
 }

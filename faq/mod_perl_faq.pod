@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1997/10/16 23:21:47 $)
+Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1997/12/02 04:39:46 $)
 
 =head1 DESCRIPTION
 
@@ -359,6 +359,18 @@ the bandaid for these few cases."
 If the specific error message gives you a hint about which object is
 causing difficulty, put the C<sub DESTROY { }> in the module that
 defines that object class.
+
+=head2 How can I test that my script is running under mod_perl?
+
+There are 2 environment variables you can test.
+
+  exists $ENV{"MOD_PERL"}   # if running under mod_perl
+
+  $ENV{"GATEWAY_INTERFACE"} eq "CGI-Perl/1.1"
+
+The MOD_PERL variable gets set immediately when the perl interpreter
+starts up, whereas GATEWAY_INTERFACE may not be set yet when BEGIN
+blocks are being processed.
 
 =head2 Where can I get help that I did not find in here?
 

@@ -59,6 +59,8 @@ select "Project -> Add to Project -> Files" adding:
 perl.lib       (e.g. C:\perl\lib\Core\perl.lib)
 ApacheCore.lib (e.g. C:\Apache\ApacheCore.lib)
 
+select "Build -> Set Active Configuration... -> [ApacheModulePerl - Win32 Release]"
+
 select "Build -> Build ApacheModulePerl.dll"
 
 You may see some harmless warnings, which can be reduced (along with

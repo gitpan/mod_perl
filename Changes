@@ -16,6 +16,56 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.07_01 - 12/1/97
+
+added t/internal/stacked test
+
+updated the FAQ from Frank Cringle
+
+added Apache::fork module which override's Perl's built-in fork() and
+provides a forkoption function, contributed by Michael Turner
+
+can now build/run w/ 5.004_55 threaded Perl
+
+added Apache::Status item for PerlScripts
+
+there can now be multiple PerlScript files in *.conf and .htaccess 
+(same behavior as PerlModule)
+
+ServerRoot is now pushed into @INC at server startup
+
+filename argument to log_reason is now optional, defaults to $r->uri
+
+Apache::Constants cleanup:
+ - @EXPORT now only holds items in :common
+ - re-organized tags (adding some new ones)
+ - added some documentation!
+
+$r->get_remote_host can now take an optional type argument, default is
+still REMOTE_HOST, other valid options are Apache::Constants :remotehost
+
+added new Apache::Constants tag :remotehost (for $r->get_remote_host)
+with new constants:
+   REMOTE_HOST REMOTE_NAME REMOTE_NOLOOKUP REMOTE_DOUBLE_REV
+
+added new Apache::Constants tag :satisfy (for $r->satisfies)
+with new constants: 
+  SATISFY_ALL, SATISFY_ANY, SATISFY_NOSPEC
+
+added new method $r->satisfies
+
+added new method $r->some_auth_required
+
+`METHODS' Apache::Constant added to import tag :methods
+
+perl_stdout2client() will now set $| instead of perl_handler(), so
+thanks to Salvador Ortiz Garcia for the tip
+
+PerlSetEnv will now call my_setenv() underneath thanks to Tim Bunce
+for the tip 
+
+fix mod_perl_traps.pod typo so it can install, spotted by Brian Tiemann
+
 =item 1.07 - 11/25/97
 
 added notes from Larry Denneau and Michael Smith on building with

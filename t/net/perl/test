@@ -1,15 +1,23 @@
 #!/usr/local/bin/perl -Tw
 
 use Apache ();
+use Apache::fork;
 use strict;
 use vars qw($Scalar @Array %Hash); #for testing perl-status
 use vars qw($filename); 
+use Config;
+use Apache::test qw($USE_THREAD);
 
 not $filename or die "Apache::Registry scoping is broken!\n";
 
 #make sure this untrip works
-$/ eq "\n" or die "\$/ was not reset!\n";
-$/ = "";
+if($USE_THREAD) {
+    warn "must fix \$/ for threaded Perl\n";
+}
+else {
+    $/ eq "\n" or die "\$/ was not reset!\n";
+    $/ = "";
+}
 
 $Scalar = 1;
 @Array  = qw(one two three);

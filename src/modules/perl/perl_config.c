@@ -84,6 +84,7 @@ void mod_perl_dir_env(perl_dir_config *cld)
 			     elts[i].key, elts[i].val));
 	    hv_store(env, elts[i].key, strlen(elts[i].key), 
 		     newSVpv(elts[i].val,0), FALSE); 
+	    my_setenv(elts[i].key, elts[i].val);
 	}
 	MP_HASENV_off(cld); /* just doit once per-request */
     }
@@ -206,7 +207,8 @@ void *perl_create_server_config (pool *p, server_rec *s)
     cls->PerlModules = (char **)palloc(p, (MAX_PERL_MODS+1)*sizeof(char *));
     cls->PerlModules[0] = "Apache";
     cls->NumPerlModules = 1;
-    cls->PerlScript = NULL;
+    cls->PerlScript = (char **)palloc(p, (MAX_PERL_MODS+1)*sizeof(char *));
+    cls->NumPerlScript = 0;
     cls->PerlTaintCheck = 0;
     cls->PerlWarn = 0;
     cls->FreshRestart = 0;
@@ -362,14 +364,17 @@ CHAR_P perl_cmd_script (cmd_parms *parms, void *dummy, char *arg)
 {
     dPSRV(parms->server);
     MP_TRACE(fprintf(stderr, "perl_cmd_script: %s\n", arg));
-    cls->PerlScript = arg;
-#if 0
-#ifdef PERL_SECTIONS
-    if(PERL_RUNNING() && NO_PERL_SCRIPT) {
-	perl_load_startup_script(parms->server, parms->pool, cls->PerlWarn);
-    } 
-#endif
-#endif
+    if(PERL_RUNNING()) 
+	perl_load_startup_script(parms->server, parms->pool, arg, TRUE);
+    else {
+	if (cls->NumPerlScript >= MAX_PERL_MODS) {
+	    fprintf(stderr, "mod_perl: There's a limit of %d PerlScripts\n",
+		    MAX_PERL_MODS);
+	    exit(-1);
+	}
+	
+	cls->PerlScript[cls->NumPerlScript++] = arg;
+    }
     return NULL;
 }
 
@@ -925,6 +930,7 @@ void perl_section_hash_init(char *name, I32 dotie)
 
 CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 {
+    dTHR;
     CHAR_P errmsg;
     SV *code = newSV(0), *val;
     HV *symtab;
@@ -953,8 +959,8 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
     perl_section_hash_init("ApacheReadConfig::Limit", dotie);
 
     perl_eval_sv(code, G_DISCARD);
-    if(SvTRUE(GvSV(errgv))) {
-       fprintf(stderr, "Apache::ReadConfig: %s\n", SvPV(GvSV(errgv),na));
+    if(SvTRUE(ERRSV)) {
+       fprintf(stderr, "Apache::ReadConfig: %s\n", SvPV(ERRSV,na));
        return NULL;
     }
 

@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern, 19-Nov-1997 -->
+<!-- Changed by: Doug MacEachern, 30-Nov-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.37 $ $Date: 1997/11/20 23:17:59 $</i>
+<br><i> $Revision: 1.38 $ $Date: 1997/12/02 04:39:46 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -73,8 +73,10 @@ Apache::
 Embperl		bdcf	Embed Perl in HTML			GRICHTER
 ePerl		Rdpr  	Fast emulated Embedded Perl (ePerl)	RSE            
 FTP		i	Full-fledged FTP proxy			PMKANE
-Gzip		c	Unzip compressed files on the fly	ANDK
+GzipChain	bmpf	Compress files on the fly		ANDK
 JavaScript	bdpf	Generate JavaScript code		ABH
+OutputChain     bmpO	Chain output of stacked handlers	JANPAZ
+PassFile	bdpf	Send file via OutputChain		ANDK
 Registry	Rmpf	Run unaltered CGI scripts 		APML
 RobotRules	bdpf	Enforce robot rules (robots.txt)	PARKER
 Sandwich	bmpO	Layered document (sandwich) maker	DOUGM
@@ -93,6 +95,7 @@ AuthenDBI	bmpO	Authenticate via Perl's DBI		MERGL
 AuthExpire	cmpO	Expire Basic auth credentials		DOUGM
 AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
 AuthenLDAP	i	LDAP authentication module		MARKK
+AuthNIS		bdpf	NIS authentication and authorization	DOUGM
 BasicCookieAuth	cdpf	Accept cookie or basic auth creds	PMKANE
 DBILogin	bdpf	Authenticate to backend database 	JGROENVEL
 DCELogin	bdpf	Obtain a DCE login context		DOUGM
@@ -102,6 +105,7 @@ AuthCookie	cdpf	Authen + Authz via cookies		EBARTLEY
 AuthzAge	bmpf	Authorize based on age			APML
 AuthzDCE	cdpf	DFS/DCE ACL based access control	DOUGM
 AuthzDBI	bmpO	Group authorization via Perl's DBI	MERGL
+AuthNIS		bdpf	NIS authentication and authorization	DOUGM
 RoleAuthz	i	Role-based authorization		DOUGM
 
 * PerlAccessHandler's
@@ -157,7 +161,6 @@ Debug		Rmpf	mod_perl debugging utilities		APML
 ErrorLog	c	error_log interfaces			FLETCH
 FakeRequest	ampO	Implement Apache methods off-line	APML
 Mmap		bdcf	Share data via Mmap module		FLETCH
-OutputChain     bmpO	Chain output of stacked handlers	HONZAP
 PUT		cdpf	HTTP PUT method handler module		PLISTER
 RegistryLoader	bmpf	Apache::Registry startup script loader 	APML
 Safe		ampO	Adaptation of "safecgiperl"		APML
@@ -193,8 +196,8 @@ EBARTLEY Eric Bartley  &lt;bartley@pdn.cc.purdue.edu&gt;
 FLETCH   Mike Fletcher &lt;lemur1@mindspring.com&gt;
 GRICHTER Gerald Richter &lt;richter@ecos.de&gt;
 HMUELLER Hanno Mueller &lt;hmueller@mail.kabel.de&gt;
-HONZAP   Honza Pazdziora &lt;adelton@INFORMATICS.MUNI.CZ&gt;
 IKLUFT	 Ian Kluft &lt;ikluft@cisco.com&gt;
+JANPAZ	 Honza Pazdziora &lt;adelton@INFORMATICS.MUNI.CZ&gt;
 JGROV	 John D Groenveld &lt;groenvel@cse.psu.edu&gt;
 JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;
 KWILLIAM Ken Williams  &lt;ken@forum.swarthmore.edu&gt;

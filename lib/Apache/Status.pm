@@ -1,9 +1,10 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.17 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.18 $)[1];
 
 my(%status) = (
+   script => "Loaded PerlScripts",
    inc => "Loaded Modules",
    rgysubs => "Compiled Registry Scripts",
    symdump => "Symbol Table Dump",
@@ -27,14 +28,14 @@ sub handler {
     no strict 'refs';
     header($r);
     if(defined &$sub) {
-	$r->module('CGI::Switch');
+	$r->module('CGI');
 	$r->module('Devel::Symdump');
         eval { Exporter::require_version('Devel::Symdump', 2.00); };
 	if($@) {
 	    $r->print("You need to install Devel::Symdump version 2.00 or higher!<p>\n$@");
 	    return 1;
 	}		      
-	$r->print(@{ &{$sub}($r,CGI::Switch->new) });
+	$r->print(@{ &{$sub}($r,CGI->new) });
     }
     elsif ($qs and defined %{$qs."::"}) {
 	$r->module('Devel::Symdump');
@@ -83,6 +84,7 @@ sub status_inc {
     push @retval, "<tr><td><b>Package</b></td><td><b>Version</b><td><b>File</b></td></tr>";
     foreach $file (sort keys %INC) {
 	next if $file =~ m:^/:;
+	next unless $file =~ m:\.pm:;
 	next unless $INC{$file}; #e.g. fake Apache/TieHandle.pm
 	no strict 'refs';
 	($module = $file) =~ s,/,::,g;
@@ -90,6 +92,20 @@ sub status_inc {
 	$v = ${"$module\:\:VERSION"} || '0.00';
 	push @retval, 
 	qq(<tr><td><a href="$uri?$module">$module</a></td><td>$v</td><td>$INC{$file}</td></tr>);
+    }
+    push @retval, "</table>";
+    \@retval;
+}
+
+sub status_script {
+    my($r,$q) = @_;
+    my(@retval, $file);
+    push @retval, "<table border=1>";
+    push @retval, "<tr><td><b>PerlScript</b></td><td><b>File</b></td></tr>";
+    foreach $file (sort keys %INC) {
+	next if $file =~ m:\.pm$:;
+	push @retval, 
+	qq(<tr><td>$file</td><td>$INC{$file}</td></tr>);
     }
     push @retval, "</table>";
     \@retval;

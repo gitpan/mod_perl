@@ -10,6 +10,8 @@ Action text/perl-module /perl/action.pl
 #besides that, we rely on the PerlScript below to set @INC to our blib
 
 PerlScript docs/startup.pl
+PerlScript docs/stacked.pl
+
 #-Tw
 PerlTaintCheck On
 PerlWarn On

@@ -5,6 +5,22 @@
 #include "dirent.h"
 #endif
 
+#ifdef USE_THREADS
+#define _INCLUDE_APACHE_FIRST
+#endif
+
+#ifdef _INCLUDE_APACHE_FIRST
+#include "httpd.h" 
+#include "http_config.h" 
+#include "http_protocol.h" 
+#include "http_log.h" 
+#include "http_main.h" 
+#include "http_core.h" 
+#include "http_request.h" 
+#include "util_script.h" 
+#include "http_conf_globals.h"
+#endif
+
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -30,15 +46,25 @@
 #undef RETURN
 #undef die
 
-#include "httpd.h"
-#include "http_config.h"
-#include "http_protocol.h"
-#include "http_log.h"
-#include "http_main.h"
-#include "http_core.h"
-#include "http_request.h"
-#include "util_script.h"
+#ifndef _INCLUDE_APACHE_FIRST
+#include "httpd.h" 
+#include "http_config.h" 
+#include "http_protocol.h" 
+#include "http_log.h" 
+#include "http_main.h" 
+#include "http_core.h" 
+#include "http_request.h" 
+#include "util_script.h" 
 #include "http_conf_globals.h"
+#endif
+
+#ifndef dTHR
+#define dTHR extern int errno
+#endif
+
+#ifndef ERRSV
+#define ERRSV GvSV(errgv) 
+#endif
 
 typedef request_rec * Apache;
 typedef request_rec * Apache__SubRequest;
@@ -166,12 +192,20 @@ if((add->flags & f) || (base->flags & f)) \
 #define mod_perl_notice(s,msg) \
     aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, s, msg)
 
+#define mod_perl_log_reason(msg, file, r) \
+    aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, r->server, \
+                "access to %s failed for %s, reason: %s", \
+                file, \
+                get_remote_host(r->connection, \
+				r->per_dir_config, REMOTE_NAME), \
+                msg)
+
 #else
 
 #define mod_perl_error(s,msg) log_error(msg,s)
 #define mod_perl_warn   mod_perl_error
 #define mod_perl_notice mod_perl_error
-
+#define mod_perl_log_reason log_reason
 #endif                    
 
 #if MODULE_MAGIC_NUMBER < 19970719
@@ -590,9 +624,10 @@ PERL_READ_CLIENT
 
 typedef struct {
     char *PerlPassEnv;
-    char *PerlScript;
+    char **PerlScript;
     char **PerlModules;
     int  NumPerlModules;
+    int  NumPerlScript;
     int  PerlTaintCheck;
     int  PerlWarn;
     int FreshRestart;
@@ -695,7 +730,7 @@ void perl_call_halt(void);
 CV *empty_anon_sub(void);
 void perl_reload_inc(void);
 int perl_require_module(char *, server_rec *);
-int perl_load_startup_script(server_rec *s, pool *p, I32 my_warn);
+int perl_load_startup_script(server_rec *s, pool *p, char *script, I32 my_warn);
 void newCONSTSUB(HV *stash, char *name, SV *sv);
 void perl_clear_env(void);
 void mod_perl_init_ids(void);

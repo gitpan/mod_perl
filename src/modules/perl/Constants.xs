@@ -18,6 +18,9 @@ CV *empty_anon_sub(void)
    
 void newCONSTSUB(HV *stash, char *name, SV *sv)
 {
+#ifdef dTHR
+    dTHR;
+#endif
     line_t oldline = curcop->cop_line;
     curcop->cop_line = copline;
 
@@ -530,6 +533,31 @@ char *name;
 #else
 	    goto not_there;
 #endif
+        if (strEQ(name, "REMOTE_HOST"))
+#ifdef REMOTE_HOST
+            return REMOTE_HOST;
+#else
+            goto not_there;
+#endif   
+        if (strEQ(name, "REMOTE_NAME"))
+#ifdef REMOTE_NAME
+            return REMOTE_NAME;
+#else
+            goto not_there;
+#endif   
+        if (strEQ(name, "REMOTE_NOLOOKUP"))
+#ifdef REMOTE_NOLOOKUP
+            return REMOTE_NOLOOKUP;
+#else
+            goto not_there;
+#endif   
+        if (strEQ(name, "REMOTE_DOUBLE_REV"))
+#ifdef REMOTE_DOUBLE_REV
+            return REMOTE_DOUBLE_REV;
+#else
+            goto not_there;
+#endif   
+   
 	if (strEQ(name, "REQUEST_NO_BODY"))
 #ifdef REQUEST_NO_BODY
 	    return REQUEST_NO_BODY;
@@ -562,6 +590,25 @@ char *name;
 #endif
 	break;
     case 'S':
+	if (strEQ(name, "SATISFY_ALL"))
+#ifdef SATISFY_ALL
+	    return SATISFY_ALL;
+#else
+	    goto not_there;
+#endif
+	if (strEQ(name, "SATISFY_ANY"))
+#ifdef SATISFY_ANY
+	    return SATISFY_ANY;
+#else
+	    goto not_there;
+#endif
+       if(strEQ(name, "SATISFY_NOSPEC"))
+#ifdef SATISFY_NOSPEC
+   	    return SATISFY_NOSPEC;
+#else
+	    goto not_there;
+#endif
+
 	if (strEQ(name, "SERVER_ERROR"))
 #ifdef SERVER_ERROR
 	    return SERVER_ERROR;

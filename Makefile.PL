@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.07";
+$VERSION = "1.07_01";
 
 use subs qw(_prompt iedit asrc);
 
@@ -357,6 +357,11 @@ if($APACHE_SRC) {
 	    "(need 1.3b2 or higher)";
     }
 
+#    if($Config{extensions} =~ /Thread/) {
+#	$PERL_SSI = 0;
+#	$cant_hook{PERL_SSI} = "(won't build w/ threaded Perl)";
+#    }
+
     setup_for_static();
 
     for (@callback_hooks) {
@@ -496,6 +501,13 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
     conf_append("LockFile /tmp/mod_perl.lock") if $v >= 121;
     conf_append("PerlChildInitHandler My::child_init") if $My::child_init;
     conf_append("PerlChildExitHandler My::child_exit") if $My::child_exit;
+
+    conf_append(<<EOF) if $callback_hooks{PERL_STACKED_HANDLERS}; 
+<Location /chain>
+SetHandler perl-script
+PerlHandler Stacked::one Stacked::two Stacked::three Stacked::four
+</Location>
+EOF
 }
 
 
@@ -602,6 +614,8 @@ PerlFixupHandler  Apache::OK Apache::DECLINED MyClass::method
 EOF
         close FH;
 }
+
+cp "t/conf/httpd.conf", "t/httpd.conf";
 
 WriteMakefile(
     NAME    => "mod_perl",
@@ -713,6 +727,7 @@ TEST_VERBOSE=0
 kill_httpd:
 	kill `cat /tmp/mod_perl_httpd.pid`
 	@$(RM_F) /tmp/mod_perl_srm.conf
+	@$(RM_F) /tmp/mod_perl.lock.*
 	$(RM_F) /tmp/mod_perl_httpd.pid
 	$(RM_F) /tmp/mod_perl_error_log
 

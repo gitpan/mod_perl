@@ -19,6 +19,7 @@ eg/perlio.pl
 eg/registry.pl
 eg/README
 lib/mod_perl.pm
+lib/Apache/fork.pm
 lib/Apache/test.pm
 lib/Apache/Debug.pm
 lib/Apache/FakeRequest.pm
@@ -71,6 +72,7 @@ t/internal/hooks.t
 t/internal/http-get.t
 t/internal/http-post.t
 t/internal/redirect.t
+t/internal/stacked.t
 #t/internal/resolver.t
 t/internal/taint.t
 t/net/perl/hooks.pl
@@ -100,6 +102,7 @@ t/docs/lists.ehtml
 t/docs/test.html
 t/docs/rgy-include.shtml
 t/docs/startup.pl
+t/docs/stacked.pl
 t/docs/LoadClass.pm
 t/docs/content.html
 t/docs/content.shtml

@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.42 1997/11/20 23:17:59 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.42 $)[1];
+#$Id: Registry.pm,v 1.43 1997/12/02 04:39:46 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.43 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -200,6 +200,8 @@ sub parse_cmdline {
 
 #trick so we show up under CPAN/modules/by-module/CGI/
 package CGI::mod_perl;
+
+sub DESTROY {}
 
 1;
 

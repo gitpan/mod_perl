@@ -72,8 +72,10 @@ Optionally:
 
     PerlScript  perl-scripts/script_to_load_at_startup.pl
 
-This script will be loaded when the server starts.  The C<PerlScript>
-must return a true value, i.e., the end of this file should have a:
+A B<PerlScript> file is commonly used for intialization during server
+startup time.  A PerlScript file name can be absolute or relative to
+B<ServerRoot> or a path in C<@INC>.   The B<PerlScript> must return a
+true value, i.e., the end of this file should have a: 
 
  1; #return true value
 

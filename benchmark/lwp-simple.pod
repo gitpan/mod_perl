@@ -19,6 +19,8 @@ Benchmark: timing 50 iterations of cgi, perl...
 
 =head1 THE SCRIPT
 
+=cut 
+
  #!/opt/perl/bin/perl
 
  use Benchmark;
@@ -36,8 +38,9 @@ Benchmark: timing 50 iterations of cgi, perl...
      "perl" => "(\$s = get('$perl')) or die \$s",
  });
 
- __END__
+=pod
 
 =head1 AUTHOR
 
 Doug MacEachern
+

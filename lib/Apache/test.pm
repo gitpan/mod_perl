@@ -1,12 +1,13 @@
 package Apache::test;
 
 use strict;
-use vars qw(@EXPORT);
+use vars qw(@EXPORT $USE_THREAD);
 use LWP::UserAgent ();
 use Exporter ();
+use Config;
 *import = \&Exporter::import;
 
-@EXPORT = qw(test fetch simple_fetch have_module skip_test); 
+@EXPORT = qw(test fetch simple_fetch have_module skip_test $USE_THREAD); 
 
 BEGIN { 
     if(not $ENV{MOD_PERL}) {
@@ -14,10 +15,14 @@ BEGIN {
     } 
 }
 
+$USE_THREAD = $Config{extensions} =~ /Thread/;
+
 my $UA = LWP::UserAgent->new;
 
-*Apache::bootstrap = sub {};
-*Apache::Constants::bootstrap = sub {};
+unless (defined &Apache::bootstrap) {
+    *Apache::bootstrap = sub {};
+    *Apache::Constants::bootstrap = sub {};
+}
 
 sub test { 
     my $s = $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n";

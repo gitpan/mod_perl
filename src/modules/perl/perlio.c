@@ -166,10 +166,13 @@ void perl_soak_script_output(request_rec *r)
 
 API_EXPORT(void) perl_stdout2client(request_rec *r)
 {
+    dTHR;
 #ifdef USE_SFIO
     sfdisc(PerlIO_stdout(), SF_POPDISC);
     sfdisc(PerlIO_stdout(), sfdcnewapache(r));
+    IoFLAGS(GvIOp(defoutgv)) |= IOf_FLUSH; /* $|=1 */
 #else
+    IoFLAGS(GvIOp(defoutgv)) &= ~IOf_FLUSH; /* $|=0 */
 
     if(TIED("STDOUT")) return; 
     MP_TRACE(fprintf(stderr, "tie *STDOUT => Apache\n"));

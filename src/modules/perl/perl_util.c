@@ -95,10 +95,11 @@ void perl_run_blocks(I32 oldscope, AV *list)
 {
     STRLEN len;
     I32 i;
+    dTHR;
 
     for(i=0; i<=AvFILL(list); i++) {
 	CV *cv = (CV*)*av_fetch(list, i, FALSE);
-	SV* atsv = GvSV(errgv);
+	SV* atsv = ERRSV;
 
 	PUSHMARK(stack_sp);
 	perl_call_sv((SV*)cv, G_EVAL|G_DISCARD);
@@ -145,6 +146,7 @@ void perl_run_rgy_endav(char *s)
     AV *rgyendav = Nullav;
     STRLEN klen;
     char *key = SvPV(rgystash,klen);
+    dTHR;
 
     if(!klen) {
 	MP_TRACE(fprintf(stderr, 
@@ -189,6 +191,7 @@ void perl_run_rgy_endav(char *s)
 
 void perl_run_endav(char *s)
 {
+    dTHR;
     if(endav) {
 	save_hptr(&curstash);
 	curstash = defstash;
@@ -207,13 +210,14 @@ errgv_empty_set(IV ix, SV* sv)
 
 void perl_call_halt()
 {
+    dTHR;
     struct ufuncs umg;
 
     umg.uf_val = errgv_empty_set;
     umg.uf_set = errgv_empty_set;
     umg.uf_index = (IV)0;
                                                                   
-    sv_magic(GvSV(errgv), Nullsv, 'U', (char*) &umg, sizeof(umg));
+    sv_magic(ERRSV, Nullsv, 'U', (char*) &umg, sizeof(umg));
 
     ENTER;
     SAVESPTR(diehook);
@@ -221,7 +225,7 @@ void perl_call_halt()
     croak("");
     LEAVE;
 
-    sv_unmagic(GvSV(errgv), 'U');
+    sv_unmagic(ERRSV, 'U');
 }
 
 void perl_reload_inc(void)
@@ -249,6 +253,7 @@ void perl_reload_inc(void)
 
 int perl_require_module(char *mod, server_rec *s)
 {
+    dTHR;
     SV *sv = sv_newmortal();
     sv_setpvn(sv, "require ", 8);
     MP_TRACE(fprintf(stderr, "loading perl module '%s'...", mod)); 
@@ -260,7 +265,7 @@ int perl_require_module(char *mod, server_rec *s)
 	    return -1;
 	}
     }
-    else if(SvTRUE(GvSV(errgv))) {
+    else if(SvTRUE(ERRSV)) {
 	MP_TRACE(fprintf(stderr, "not ok\n"));
 	return -1;
     }
@@ -276,19 +281,19 @@ void perl_do_file(char *pv)
     sv_catpv(sv, pv);
     sv_catpv(sv, "'");
     perl_eval_sv(sv, G_DISCARD);
-    (void)hv_delete(GvHV(incgv), pv, strlen(pv), G_DISCARD);
+    /*(void)hv_delete(GvHV(incgv), pv, strlen(pv), G_DISCARD);*/
 }      
 
-int perl_load_startup_script(server_rec *s, pool *p, I32 my_warn)
+int perl_load_startup_script(server_rec *s, pool *p, char *script, I32 my_warn)
 {
-    dPSRV(s);
-    char *script;
+    dTHR;
     I32 old_warn = dowarn;
-    if(!cls->PerlScript) {
+
+    if(!script) {
 	MP_TRACE(fprintf(stderr, "no PerlScript to load\n"));
 	return OK;
     }
-    script = server_root_relative(p, cls->PerlScript);
+
     MP_TRACE(fprintf(stderr, "attempting to load `%s'\n", script));
     dowarn = my_warn;
     curstash = defstash;
@@ -335,7 +340,8 @@ void mod_perl_init_ids(void)  /* $$, $>, $), etc */
 
 int perl_eval_ok(server_rec *s)
 {
-    SV *sv = GvSV(errgv);
+    dTHR;
+    SV *sv = ERRSV;
     if(SvTRUE(sv)) {
 	MP_TRACE(fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na)));
 	mod_perl_error(s, SvPV(sv, na));

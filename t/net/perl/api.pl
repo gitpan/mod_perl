@@ -1,7 +1,7 @@
 use Apache ();
 use strict;
 
-my $tests = 27;
+my $tests = 29;
 my $i;
 my $r = Apache->request;
 $r->content_type("text/plain");
@@ -61,6 +61,10 @@ test ++$i, not $r->header_out("ByeBye");
 #test ++$i, $r->filename;
 #test ++$i, $r->path_info;
 #test ++$i, $r->query_string;
+
+#just make sure we can actually call these
+test ++$i, $r->satisfies || 1;
+test ++$i, $r->some_auth_required || 1;
 
 #dir_config
 

@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_api - accessing the Apache API via mod_perl ($Date: 1997/10/16 23:21:47 $)
+Mod_perl_api - accessing the Apache API via mod_perl ($Date: 1997/12/02 04:38:02 $)
 
 =head1 DESCRIPTION
 
@@ -99,3 +99,24 @@ URL and it is automagically processed by this code...
   }
   
   1;
+
+=head1 I get syntax errors when I define a PerlScript for a location
+
+PerlScript can't be inside <Location>.  There should only be one
+PerlScript in httpd.conf, at the top-level.
+
+=head1 How can I check if mod_perl is available during configuration?
+
+Ralf Engelschall writes:
+
+When you compiled one httpd with and the other without mod_perl, then
+you can simply use <IfModule mod_perl.c>...</IfModule> to surround the
+stuff for the httpd compiled with mod_perl. The other then ignores
+these lines. Example:
+
+  <IfModule mod_perl.c>
+  ...stuff for httpd w/ mod_perl...
+  </IfModule>
+  <IfModule !mod_perl.c>
+  ...stuff for httpd w/o mod_perl...
+  </IfModule>

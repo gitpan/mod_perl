@@ -3,7 +3,7 @@ use strict;
 use Exporter ();
 use Apache::Constants qw(OK DECLINED);
 
-@Apache::EXPORT_OK = qw(exit warn);
+@Apache::EXPORT_OK = qw(exit warn fork forkoption);
 $Apache::VERSION = "1.20";
 
 *import = \&Exporter::import;
