@@ -362,7 +362,7 @@ Vivek Khera.  My email is I<MyFirstName@MyLastName.org>.  I'd spell it
 out for you, but if this ends up on the net, I don't want some
 automatic mass-mail address collector to find me.
 
-This document is copyright E<copy> 1997 by Vivek Khera.
+This document is copyright 1997 by Vivek Khera.
 
 If you have contributions for this document, please send them to me or
 post them to the mailing list.  Perl POD format is best, but plain
@@ -373,5 +373,5 @@ modperl@LISTPROC.ITRIBE.NET first.  There are lots of people there
 that can help.  Also, check the web pages http://perl.apache.org/ and
 http://www.apache.org/ for explanations of the configuration options.
 
-$Revision: 1.14 $
-$Date: 1998/02/10 08:58:18 $
+$Revision: 1.15 $
+$Date: 1998/02/20 01:36:17 $
