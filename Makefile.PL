@@ -6,7 +6,7 @@ use File::Copy qw(cp);
 use File::Path qw(mkpath);
 use Cwd;
 
-$VERSION = "0.95_06";
+$VERSION = "0.96";
 #
 # Check if Readline is installed
 #

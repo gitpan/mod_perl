@@ -3,6 +3,14 @@ in no particular order:
 
 get rid of basic_http_header usage
 
+rework PerlCleanupHandler to use register_cleanup() instead of logger slot
+
+add $r->notes method, kinda like the C r->notes table, but we can store 
+arbitrary Perl structures
+
+think about re-introducing perl_alloc..perl_free option for each
+request now that embedding bugs are fixed in Perl 5.004  
+
 figure out why the heck filehandles used with file upload show up under
 'unknown' in our symbol table dump, and why the heck they are even in the
 symbol table (stems from CGI.pm now XA.pm)
@@ -32,6 +40,8 @@ if Perl*Handler's are prototyped with $$ call it as a method?
 provide an optional and configurable Safe wrapper around embedded scripts
 
 find good ways to decrease size of httpd (perl-runtime!)
+
+port to win32
 
 more tests for the test suite
 

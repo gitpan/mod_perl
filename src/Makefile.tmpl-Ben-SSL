@@ -28,7 +28,7 @@ Configuration: Configuration.tmpl
 	@false
 
 httpd: $(OBJS)
-	$(CC) $(LFLAGS) $(AUX_LFLAGS) -o httpd $(OBJS) $(EXTRA_LIBS) $(AUX_LIBS) $(PERL_LD_OPTS)
+	$(CC) $(LFLAGS) $(AUX_LFLAGS) -o httpd $(OBJS) $(EXTRA_LIBS) $(AUX_LIBS)
 
 httpsd: $(OBJS)
 	$(CC) $(LFLAGS) -o httpsd $(OBJS) $(EXTRA_LIBS) $(SSL_LIBS) $(AUX_LIBS) $(PERL_LD_OPTS)

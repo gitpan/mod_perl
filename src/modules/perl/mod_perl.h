@@ -31,6 +31,10 @@ typedef server_rec  * Apache__Server;
 
 #define PerlEnvHV GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV))
 
+#ifndef newRV_noinc
+#define newRV_noinc(sv)	((Sv = newRV(sv)), --SvREFCNT(SvRV(Sv)), Sv)
+#endif
+
 #ifndef SvTAINTED_on
 #define SvTAINTED_on(sv) if (tainting) sv_magic(sv, Nullsv, 't', Nullch, 0)
 #endif

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.41 1997/03/16 23:00:41 dougm Exp dougm $ */
+/* $Id: mod_perl.c,v 1.49 1997/04/02 04:36:03 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
