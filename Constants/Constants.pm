@@ -2,7 +2,7 @@ package Apache::Constants;
 
 use vars qw($VERSION @ISA @EXPORT);
 
-$VERSION = "1.04";
+$VERSION = "1.05";
 
 use Carp ();
 use Exporter ();
@@ -92,11 +92,18 @@ sub AUTH_REQUIRED () {401}
 	push @export, grep {!$SEEN{$_}++} @$val;
     }
     push @export, grep {!$SEEN{$_}++} @EXPORT;
-    bootstrap Apache::Constants $VERSION;
-    foreach $key (@export) {
-	next if defined &$key;
-	$val = constant($key);
-	eval "sub $key () { $val }";
+    eval { bootstrap Apache::Constants $VERSION; };
+    if($@) {
+	my $gw = $ENV{GATEWAY_INTERFACE} || '';
+	die "$@\n" if substr($gw,0,8) eq 'CGI-Perl';
+	warn "warning: can't `bootstrap Apache::Constants $VERSION' outside of httpd\n";
+    }
+    else {
+	foreach $key (@export) {
+	    next if defined &$key;
+	    $val = constant($key);
+	    eval "sub $key () { $val }";
+	}
     }
 }
 

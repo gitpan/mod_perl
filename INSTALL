@@ -10,7 +10,7 @@ How to build, test, configure and install mod_perl
 
 =over 3
 
-Apache version 1.1.x or 1.2.0+ 
+Apache version 1.1.x, 1.2.0+ or 1.3a1+
 
 Perl version 5.003 or higher
 
@@ -177,7 +177,7 @@ Now copy the source files into the apache build directory:
 
 apache_1.1.x users: copy src/Makefile.tmpl to apache_xxx/src/  
 
-apache 1.2 (b8+) users: no need to modify the Makefile.tmpl
+apache 1.2.0+ users: no need to modify the Makefile.tmpl for mod_perl
 
 =item Configuration
 
@@ -391,7 +391,8 @@ your apache server version details and your server configuration.
 
 the output of 'make test'
 
-if you get a core dump, please send a backtrace if possible.
+if you get a core dump, please send a backtrace if possible (be sure
+to add '-g' to EXTRA_CFLAGS in the Apache Configuration file).
 
 If the dump is happening in libperl a -DDEBUGGING enabled libperl
 would help show us what's really happening. 
@@ -410,7 +411,8 @@ $Config{archlibexp} is:
 Rebuild httpd, let's see a new backtrace.  After we're done debugging,
 ln -s libperle.a libperl.a
 
-if you can compile but not run a mod_perlend mail to modperl@listproc.itribe.net with the output of:
+if you can compile but not run a mod_perl, send mail to
+modperl@listproc.itribe.net with the output of: 
 
 Output of C<perl -v; perl -V>
 

@@ -60,7 +60,7 @@ void mod_perl_dir_env(perl_dir_config *cld)
 	int i;
 	HV *env = PerlEnvHV; 
 	for (i = 0; i < cld->env->nelts; ++i) {
-	    MP_TRACE(fprintf(stderr, "dir_env: %s=`%s'",
+	    MP_TRACE(fprintf(stderr, "mod_perl_dir_env: %s=`%s'",
 			     elts[i].key, elts[i].val));
 	    hv_store(env, elts[i].key, strlen(elts[i].key), 
 		     newSVpv(elts[i].val,0), FALSE); 
@@ -160,7 +160,8 @@ void *create_perl_server_config (pool *p, server_rec *s)
     cls->PerlTaintCheck = 0;
     cls->PerlWarn = 0;
     PERL_TRANS_CREATE(cls);
-
+    PERL_CHILD_INIT_CREATE(cls);
+    PERL_CHILD_EXIT_CREATE(cls);
     return (void *)cls;
 }
 
@@ -205,6 +206,20 @@ CHAR_P perl_cmd_trans_handlers (cmd_parms *parms, void *dummy, char *arg)
     perl_server_config *cls = 
 	get_module_config (parms->server->module_config, &perl_module);   
     PERL_CMD_PUSH_HANDLERS("PerlTransHandler", cls->PerlTransHandler);
+}
+
+CHAR_P perl_cmd_child_init_handlers (cmd_parms *parms, void *dummy, char *arg)
+{
+    perl_server_config *cls = 
+	get_module_config (parms->server->module_config, &perl_module);   
+    PERL_CMD_PUSH_HANDLERS("PerlChildInitHandler", cls->PerlChildInitHandler);
+}
+
+CHAR_P perl_cmd_child_exit_handlers (cmd_parms *parms, void *dummy, char *arg)
+{
+    perl_server_config *cls = 
+	get_module_config (parms->server->module_config, &perl_module);   
+    PERL_CMD_PUSH_HANDLERS("PerlChildExitHandler", cls->PerlChildExitHandler);
 }
 
 CHAR_P perl_cmd_authen_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg)
@@ -333,9 +348,13 @@ CHAR_P perl_cmd_setenv(cmd_parms *cmd, void *rec, char *key, char *val)
 }
 
 #ifdef PERL_SECTIONS
+#if MODULE_MAGIC_NUMBER < 19970719
+#define limit_section limit
+#endif
+
 /* some prototypes for -Wall sake */
 const char *handle_command (cmd_parms *parms, void *config, const char *l);
-const char *limit (cmd_parms *cmd, void *dummy, const char *arg);
+const char *limit_section (cmd_parms *cmd, void *dummy, const char *arg);
 void add_per_dir_conf (server_rec *s, void *dir_config);
 void add_per_url_conf (server_rec *s, void *url_config);
 void add_file_conf (core_dir_config *conf, void *url_config);
@@ -414,7 +433,7 @@ void perl_section_hash_walk(cmd_parms *cmd, void *cfg, HV *hv)
 		    MP_TRACE(fprintf(stderr, 
 				     "Found Limit section for `%s'\n", 
 				     SvPV(methods,na)));
-		    limit(cmd, cfg, SvPV(methods,na));
+		    limit_section(cmd, cfg, SvPV(methods,na));
 		    perl_section_hash_walk(cmd, cfg, lim);
 		    cmd->limited = -1;
 		    continue;
@@ -828,6 +847,18 @@ int perl_hook(char *name)
 #endif
 	break;
 	case 'C':
+	    if (strEQ(name, "ChildInit")) 
+#ifdef PERL_CHILD_INIT
+		return 1;
+#else
+	return 0;    
+#endif
+	    if (strEQ(name, "ChildExit")) 
+#ifdef PERL_CHILD_EXIT
+		return 1;
+#else
+	return 0;    
+#endif
 	    if (strEQ(name, "Cleanup")) 
 #ifdef PERL_CLEANUP
 		return 1;

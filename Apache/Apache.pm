@@ -6,10 +6,20 @@ use DynaLoader ();
 
 @ISA = qw(Exporter DynaLoader);
 @EXPORT_OK = qw(exit warn);
-$VERSION = "1.14";
-$Apache::CRLF = "\015\012";
+$VERSION = "1.16";
 
-bootstrap Apache $VERSION;
+if (caller eq "CGI::Apache") {
+    #we must die here outside of httpd so CGI::Switch works
+    bootstrap Apache $VERSION;
+}
+else {
+    eval { bootstrap Apache $VERSION; } 
+}
+if($@) {
+    my $gw = $ENV{GATEWAY_INTERFACE} || '';
+    die "$@\n" if substr($gw,0,8) eq 'CGI-Perl';
+    warn "warning: can't `bootstrap Apache $VERSION' outside of httpd\n";
+}
 
 *Apache::warn = \&Apache::log_error;
 
@@ -243,6 +253,41 @@ returns false if the request is a sub-request or interal redirect.
 
 =back
 
+=head1 SUB REQUESTS
+
+Apache provides a sub-request mechanism to lookup a uri or filename,
+preforming all access checks, etc., without actually running the
+response phase of the given request.  Notice, we have dropped the
+C<sub_req_> prefix here.  The C<request_rec *> returned by the lookup
+methods is blessed into the B<Apache::SubRequest> class.  This way,
+C<destroy_sub_request()> is called automatically during
+C<Apache::SubRequest->DESTROY> when the object goes out of scope.  The
+B<Apache::SubRequest> class inherits all the methods from the
+B<Apache> class.
+
+=over 4
+
+=item $r->lookup_uri($uri)
+
+ my $subr = $r->lookup_uri($uri);
+ my $filename = $subr->filename;
+
+ unless(-e $filename) {
+    warn "can't stat $filename!\n";
+ } 
+
+=item $r->lookup_file($filename)
+
+ my $subr = $r->lookup_file($filename);
+
+=item $subr->run
+
+ if($subr->run != OK) {
+     $subr->log_error("something went wrong!");
+ }
+
+=back
+
 =head1 CLIENT REQUEST PARAMETERS
 
 First we will take a look at various methods that can be used to
@@ -403,6 +448,36 @@ this variable.
 The dotted decimal representation of the remote client's IP address.
 This is set by then server when the connection record is created so
 is always defined.
+
+=item $c->local_addr
+
+A packed SOCKADDR_IN in the same format as returned by
+L<Socket/pack_sockaddr_in>, containing the port and address on the
+local host that the remote client is connected to.  This is set by
+the server when the connection record is created so it is always
+defined.
+
+=item $c->remote_addr
+
+A packed SOCKADDR_IN in the same format as returned by
+L<Socket/pack_sockaddr_in>, containig the port and address on the
+remote host that the server is connected to.  This is set by the
+server when the connection record is created so it is always defined.
+
+Among other things, this can be used, together with $c->local_addr, to
+perform RFC1413 ident lookups on the remote client even when the
+configuration directive B<IdentityCheck> is turned off.
+
+Can be used like:
+
+  use Net::Ident qw (lookupFromInAddr);
+  ...
+  my $remoteuser = lookupFromInAddr ($c->local_addr,
+                                     $c->remote_addr, 2);
+
+Note that the lookupFromInAddr interface does not currently exist in
+the C<Net::Ident> module, but the author is planning on adding it
+soon.
 
 =item $c->remote_logname
 
@@ -733,7 +808,7 @@ destroyed.
 
  $r->register_cleanup(sub {
      my $r = shift;
-     warn "registered cleanup called for ", $r->uri, $/;
+     warn "registered cleanup called for ", $r->uri, "\n";
  });
 
 =back
@@ -829,7 +904,7 @@ In opposite to unescape_url it translates the plus sign to space.
 
 Test to see if a callback hook is enabled
 
- for (qw(Access Authen Authz Cleanup Fixup HeaderParser Init Log Trans Type)) {
+ for (qw(Access Authen Authz ChildInit Cleanup Fixup HeaderParser Init Log Trans Type)) {
     print "$_ hook enabled\n" if Apache::perl_hook($_);
  }  
 

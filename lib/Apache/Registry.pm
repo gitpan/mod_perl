@@ -7,8 +7,8 @@ use File::Basename qw(dirname);
 use Cwd qw(fastcwd);
 
 use vars qw($VERSION $Debug);
-#$Id: Registry.pm,v 1.34 1997/07/08 05:37:24 dougm Exp $
-$VERSION = (qw$Revision: 1.34 $)[1];
+#$Id: Registry.pm,v 1.35 1997/07/29 02:11:12 dougm Exp $
+$VERSION = (qw$Revision: 1.35 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -67,6 +67,10 @@ sub handler {
 	$r->log_error("Apache::Registry::handler package $package")
 	   if $Debug & 4;
 
+
+	my $cwd = fastcwd;
+	chdir dirname $r->filename;
+
 	if (
 	    defined($Apache::Registry->{$package}{mtime})
 	    &&
@@ -88,9 +92,6 @@ sub handler {
 	    # compile this subroutine into the uniq package name
             $r->log_error("Apache::Registry::handler eval-ing") if $Debug & 4;
  	    undef &{"$package\::handler"} unless $Debug & 4; #avoid warnings
-
-	    my $cwd = fastcwd;
-	    chdir dirname $r->filename;
 
 	    my $eval = join(
 			    '',
@@ -185,7 +186,7 @@ sub push_cleanup {
 }
 
 #trick so we show up under CPAN/modules/by-module/CGI/
-package CGI::Apache;
+package CGI::mod_perl;
 
 1;
 

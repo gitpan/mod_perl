@@ -16,6 +16,50 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.00 - 07/28/97 
+
+some 1.3a1 compatible things:
+- mod_perl is now a dll under win32 
+(Extra thanks to Gurusamy Sarathy for fixing Perl so this works)
+- cope with limit() -> limit_section() rename
+- API_EXPORT perl_call_handler and perl_stdout2client for mod_include/win32
+- added win32 dirent.h kludge to workaround conflict(s) between perl's
+  dirent.h apache's readdir.h  
+- -Wall clean again
+
+added new sub request methods:
+- lookup_uri (sub_req_lookup_uri)
+- lookup_file (sub_req_lookup_file)
+The returned request_rec * is blessed into the `Apache::SubRequest'
+class so destroy_sub_req() is called automatically during DESTROY
+- the run_sub_req() function is available in this class as the run() method 
+
+added patched Makefile.tmpl-Xcert from Vivek Khera to support XCert's Stronghold Sentry
+
+$r->cgi_header_out should do case-insensive checks, 
+bug spotted by Ralf Engelschall
+
+eval { bootstrap Apache::Constants } so perl -c works outside of httpd
+
+added `PerlChildExitHandler' callback hook (requires 1.3a2-dev or higher)
+
+added `PerlChildInitHandler' callback hook (requires 1.3a1 or higher)
+
+don't enable PERL_SECTIONS or PERL_SSI unless apache version >= 1.2.0
+thanks to hint from Vivek Khera
+
+removed Makefile-1.2 (don't need one anymore!)
+
+removed Apache->connection->close method which _nobody_ should still have
+their code  (it has produced a warning since 0.93_01 - 03/04/97)
+
+added Apache->connection methods local_addr() and remote_addr() thanks to
+Eric James Negaard 
+
+applied patch from Hakan Tandogan so mod_perl's Makefile picks up SSL_INCLUDE
+
+fixed chdir/current dir bug in Apache::Registry thanks to Joel Wagner
+
 =item 1.00b2 - 07/07/97
 
 fixed scoping bug in Apache::Registry spotted by Marshall Dudley

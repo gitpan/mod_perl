@@ -2,7 +2,7 @@ use File::Copy qw(cp);
 
 
 #version 1.5 that ships with 5.003 is broken!
-*cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
+undef &cp, *cp = sub { system "cp @_"; } if $File::Copy::VERSION < 2.0;
 
 use ExtUtils::testlib;
 BEGIN { require "net/config.pl"; }

@@ -52,22 +52,25 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.58 1997/07/08 05:37:24 dougm Exp $ */
+/* $Id: Apache.xs,v 1.59 1997/07/29 02:11:12 dougm Exp $ */
 
 MODULE = Apache  PACKAGE = Apache   PREFIX = mod_perl_
 
 PROTOTYPES: DISABLE
 
 BOOT:
-    MP_TRACE(fprintf(stderr, "boot_Apache: items = %d\n", items));
+    items = items;
 
 int
 max_requests_per_child(...)
 
     CODE:
     items = items; /*avoid warning*/
+#ifdef WIN32
+    croak("Apache->max_requests_per_child not supported under win32!");
+#else
     RETVAL = max_requests_per_child;
-
+#endif
     OUTPUT:
     RETVAL
 
@@ -274,6 +277,17 @@ int
 translate_name(r)
     Apache     r
 
+    CODE:
+#ifdef WIN32
+    croak("Apache->translate_name not supported under Win32");
+    RETVAL = DECLINED;
+#else
+    RETVAL = translate_name(r);
+#endif
+
+    OUTPUT:
+    RETVAL
+
 #functions from http_core.c
 
 void
@@ -377,6 +391,17 @@ get_basic_auth_pw(r)
 	XPUSHs(&sv_undef);
 
 void
+basic_http_header(r)
+    Apache	r
+    
+    CODE:
+#ifdef WIN32
+    croak("Apache->basic_http_header() not supported under Win32!");
+#else
+    basic_http_header(r);
+#endif
+
+void
 send_http_header(r)
     Apache	r
 
@@ -385,10 +410,6 @@ send_http_header(r)
     mod_perl_sent_header(&sv_undef, 1);
     r->status = 200; /* XXX, why??? */
  
-void
-basic_http_header(r)
-    Apache	r
-
 # Beware that we have changes the order of the arguments for this
 # function.
 
@@ -477,6 +498,8 @@ write_client(r, ...)
     STRLEN n;
 
     CODE:
+    RETVAL = 0;
+
     for(i = 1; i <= items - 1; i++) {
 	buffer = SvPV(ST(i), n);
 	RETVAL += SENDN_TO_CLIENT;
@@ -919,21 +942,21 @@ cgi_header_out(r, key, ...)
 
     if(items > 2) {
 	val = SvPV(ST(2),na);
-        if(strnEQ(key, "Content-type", 12)) {
+        if(!strncasecmp(key, "Content-type", 12)) {
 	    r->content_type = pstrdup (r->pool, val);
 	}
-        else if(strnEQ(key, "Status", 6)) {
+        else if(!strncasecmp(key, "Status", 6)) {
             sscanf(val, "%d", &r->status);
             r->status_line = pstrdup(r->pool, val);
         }
-        else if(strnEQ(key, "Location", 8)) {
+        else if(!strncasecmp(key, "Location", 8)) {
 	    table_set (r->headers_out, key, val);
 	    r->status = 302;
         }   
-        else if(strnEQ(key, "Content-Length", 14)) {
+        else if(!strncasecmp(key, "Content-Length", 14)) {
 	    table_set (r->headers_out, key, val);
         }   
-        else if(strnEQ(key, "Transfer-Encoding", 17)) {
+        else if(!strncasecmp(key, "Transfer-Encoding", 17)) {
 	    table_set (r->headers_out, key, val);
         }   
 
@@ -942,7 +965,7 @@ cgi_header_out(r, key, ...)
 #merged headers and prefer that each Set-Cookie header is sent
 #separately.  Lets humour those browsers.
 
-	else if(strnEQ(key, "Set-Cookie", 10)) {
+	else if(!strncasecmp(key, "Set-Cookie", 10)) {
 	    table_add(r->err_headers_out, key, val);
 	}
         else {
@@ -1198,6 +1221,52 @@ dir_config(r, key)
 #  const struct htaccess_result *htaccess;
 #};
 
+Apache::SubRequest
+lookup_uri(r, uri)
+    Apache r
+    char *uri
+
+    CODE:
+    RETVAL = sub_req_lookup_uri(uri,r);
+
+    OUTPUT:
+    RETVAL
+
+Apache::SubRequest
+lookup_file(r, file)
+    Apache r
+    char *file
+
+    CODE:
+    RETVAL = sub_req_lookup_file(file,r);
+
+    OUTPUT:
+    RETVAL
+
+MODULE = Apache  PACKAGE = Apache::SubRequest
+
+BOOT:
+    av_push(perl_get_av("Apache::SubRequest::ISA",TRUE), newSVpv("Apache",6));
+
+void
+DESTROY(r)
+    Apache::SubRequest r
+
+    CODE:
+    destroy_sub_req(r);
+    MP_TRACE(fprintf(stderr, 
+	    "Apache::SubRequest::DESTROY(0x%lx)\n", (unsigned long)r));
+
+int
+run(r)
+    Apache::SubRequest r
+
+    CODE:
+    RETVAL = run_sub_req(r);
+
+    OUTPUT:
+    RETVAL
+
 #/* Things which are per connection
 # */
 
@@ -1206,13 +1275,6 @@ dir_config(r, key)
 MODULE = Apache  PACKAGE = Apache::Connection
 
 PROTOTYPES: DISABLE
-
-void
-close(conn)
-    Apache::Connection	conn
-
-    CODE:
-    warn("Do not call $r->connection->close!  Use $r->exit if you must");
 
 #  pool *pool;
 #  server_rec *server;
@@ -1239,6 +1301,28 @@ aborted(conn)
 
     CODE:
     RETVAL = conn->aborted;
+
+    OUTPUT:
+    RETVAL
+
+SV *
+local_addr(conn)
+    Apache::Connection        conn
+
+    CODE:
+    RETVAL = newSVpv((char *)&conn->local_addr,
+		     sizeof conn->local_addr);
+
+    OUTPUT:
+    RETVAL
+
+SV *
+remote_addr(conn)
+    Apache::Connection        conn
+
+    CODE:
+    RETVAL = newSVpv((char *)&conn->remote_addr,
+                      sizeof conn->remote_addr);
 
     OUTPUT:
     RETVAL

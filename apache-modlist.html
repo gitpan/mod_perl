@@ -1,13 +1,13 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern,  7-Jul-1997 -->
+<!-- Changed by: Doug MacEachern, 22-Jul-1997 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
-<br><i> $Revision: 1.28 $ $Date: 1997/07/08 05:37:24 $</i>
+<br><i> $Revision: 1.29 $ $Date: 1997/07/29 02:11:12 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -83,7 +83,7 @@ AgentDeny	bdpf	Deny abusive User-Agents		ROBH
 
 * PerlAuthenHandler's
 AuthenGSS	cdpf    Generic Security Service (RFC 2078)	DOUGM
-AuthenDBI	bmpO	Authenticate via Perl's DBI		SKANE
+AuthenDBI	bmpO	Authenticate via Perl's DBI		MERGL
 AuthenLDAP	i	LDAP authentication module		MARKK
 Authen		bmpf	Perl Apache authentication utilities	SKANE
 DBILogin	bdpf	Authenticate to backend database 	JGROENVEL
@@ -126,18 +126,21 @@ DBI		bmpO	Persistent DBI connection mgmt.		MERGL
 Sybase::DBlib   bmpO    Persistent DBlib connection mgmt.	BMILLET
 Mysql		cdpO	Persistent connection mgmt. for Mysql	NJENSEN
 
+* Interfaces and integration with various Apache C modules
+Constants	Rmcf	Constants defined in httpd.h		APML
+Include		Rmpf	mod_include + Apache::Registry handler	APML
+Mime		bmcf	Interface to mod_mime functionality	MDORMAN
+Options		Rmpf	Import Apache::Constants 'options'	APML
+Scoreboard	cmcO	Interface to scoreboard API		DOUGM
+Sfio		cmcO	Interface to r->connection->client->sf* DOUGM
+
 * Misc
 Byterun		i	Run Perl bytecode modules		DOUGM
-Constants	Rmcf	Constants defined in httpd.h		APML
 Debug		Rmpf	mod_perl debugging utilities		APML
-Include		Rmpf	mod_include + Apache::Registry handler	APML
 OutputChain     cmpO	Chain output of stacked handlers	HONZAP
-Options		Rmpf	Import Apache::Constants 'options'	APML
 PUT		cdpf	HTTP PUT method handler module		PLISTER
 Safe		cmpO	Adaptation of "safecgiperl"		APML
-Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 Session		cmpf	Maintain client <-> httpd session/state	APML
-SFIO		i	Interface to r->connection->client->sf* DOUGM
 State		i	Powerful state engine			RSE
 
 </pre>
@@ -148,7 +151,7 @@ mod_perl distribution package.  Other modules can be found on CPAN
 the <a href="http://www.perl.com/CPAN/modules/by-module/Apache/">
 modules/by-module/Apache/</A> directory.  If they have not made it 
 to CPAN yet, they might be found in the mod_perl 
-<a href="http://www.osf.org/~dougm/apache/src/contrib/">contrib</a>
+<a href="http://perl.apache.org/src/contrib/">contrib</a>
 directory, which is also tar'd and distributed via CPAN in the 
 <a href="http://www.perl.com/CPAN/modules/by-module/Apache/">
 modules/by-module/Apache/</A> directory.
@@ -170,6 +173,7 @@ JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;
 KWILLIAM Ken Williams  &lt;ken@forum.swarthmore.edu&gt;
 MARKIM	 Mark A. Imbriaco &lt;mark@itribe.net&gt;
 MARKK	 Mark Kennedy &lt;mtk@ny.ubs.com&gt;
+MDORMAN	 Michael Alan Dorman  &lt;mdorman@calder.med.miami.edu&gt;
 MERGL	 Edmund Mergl &lt;E.Mergl@bawue.de&gt;
 NJENSEN	 Neil Jensen &lt;njensen@habaneros.com&gt;
 PLISTER  Peter Lister &lt;p.lister@cranfield.ac.uk&gt;
@@ -181,6 +185,6 @@ SKANE    Stephen E Kane &lt;sek112@ELVIS.ARL.PSU.EDU&gt;
 
 <a name="info">
 <h3>More Info</h3>
-See the Apache/Perl <a href="http://www.osf.org/~dougm/apache/">homepage</a>.
+See the Apache/Perl <a href="http://perl.apache.org/">homepage</a>.
 </body>
 </html>

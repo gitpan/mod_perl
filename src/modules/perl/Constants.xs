@@ -520,7 +520,10 @@ not_there:
 MODULE = Apache::Constants PACKAGE = Apache::Constants
  
 PROTOTYPES: DISABLE
- 
+
+BOOT:
+    items = items;
+
 double
 constant(name)
 	char *		name

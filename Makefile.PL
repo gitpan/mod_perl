@@ -1,12 +1,13 @@
 BEGIN { 
     $Is_Win32 = ($^O eq "MSWin32");
     if($Is_Win32) {
-	require 5.004;
+	require 5.004_02;
     }
     else {
 	require 5.003; 
     } 
 }
+
 use ExtUtils::MakeMaker;
 use Config;
 use FileHandle ();
@@ -15,6 +16,8 @@ use File::Path qw(mkpath rmtree);
 use Cwd;
 use File::Copy qw(cp);
 
+my %vcache = (); #SERVER_VERSION
+my %mcache = (); #MODULE_MAGIC_NUMBER
 
 #version 1.5 that ships with 5.003 is broken!
 *cp = sub { 
@@ -22,7 +25,7 @@ use File::Copy qw(cp);
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.00b2";
+$VERSION = "1.00";
 
 use subs qw(_prompt iedit);
 
@@ -81,6 +84,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
    '1.1.1' => "Makefile.tmpl",
    '1.1.3' => "Makefile.tmpl",
    '1.2'  => "Makefile.tmpl-1.2",
+   '1.1.1Xcert-Sentry' => "Makefile.tmp-XCert",
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
    '1.1.3Ben-SSL' => "Makefile.tmpl-Ben-SSL",
    '1.2Ben-SSL' => "",
@@ -103,7 +107,7 @@ $DYNAMIC = 0;
 
 #callback hooks
 @callback_hooks = qw{
-   PERL_HANDLER
+   PERL_HANDLER PERL_CHILD_INIT PERL_CHILD_EXIT
    PERL_TRANS PERL_AUTHEN PERL_AUTHZ 
    PERL_ACCESS PERL_TYPE PERL_FIXUP
    PERL_LOG PERL_HEADER_PARSER
@@ -138,6 +142,7 @@ if($EVERYTHING) {
     }
 }
 
+
 if($ALL_HOOKS) {
     for (@callback_hooks) {
 	next if /Handlers?$/i;
@@ -157,7 +162,6 @@ foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
     next unless -d $src_dir;
     next if $seen{$src_dir}++;
     next unless $vers = httpd_version($src_dir);
-    $no_header_parser{$src_dir}++ if $no_header_parser{$vers};
     unless(exists $vers_map{$vers}) {
 	print STDERR "Apache version '$vers' unsupported\n";
 	next;
@@ -270,10 +274,25 @@ if($DYNAMIC) {
 unless ($NO_HTTPD) {
     ++$STATIC if $Config{osname} =~ /^(aix|svr4|unixware)$/i;
 
-    if($no_header_parser{$APACHE_SRC}) {
+    my $mmn    = magic_number($APACHE_SRC);
+    my $httpdv = httpd_version($APACHE_SRC,1);
+
+    unless($httpdv >= 120) {
 	$callback_hooks{PERL_HEADER_PARSER} = 0;
 	$cant_hook{PERL_HEADER_PARSER} = 
-	    "(need 1.2b5 or higher)";
+	    "(need 1.2.0 or higher)";
+    }
+
+    unless($httpdv >= 130) {
+	$callback_hooks{PERL_CHILD_INIT} = 0;
+	$cant_hook{PERL_CHILD_INIT} = 
+	    "(need 1.3a1 or higher)";
+    }
+
+    unless($mmn >= 19970728) {
+	$callback_hooks{PERL_CHILD_EXIT} = 0;
+	$cant_hook{PERL_CHILD_EXIT} = 
+	    "(need 1.3a2-dev or higher)";
     }
 
     setup_for_static();
@@ -290,12 +309,18 @@ unless ($NO_HTTPD) {
 	print $v ? "enabled\n" : "disabled $why\n";
     }
 
+    unless($httpdv >= 120) {
+	$PERL_SECTIONS = $PERL_SSI = 0;
+	$cant_hook{PERL_SECTIONS} = $cant_hook{PERL_SSI} = 
+	    "(need 1.2.0 or higher)";
+    }
+
     iedit "$APACHE_SRC/modules/perl/Makefile", 's/^(PERL_SECTIONS) /#$1 /'
 	if $PERL_SECTIONS;
 
     for (qw(PERL_SECTIONS PERL_SSI)) {
 	$k = $_;
-	$why = "(enable with $k=1)" unless $$_;
+	$why = ($cant_hook{$_} || "(enable with $k=1)") unless $$_;
 	$k =~ s/([A-Z]+)/ucfirst(lc($1))/ge;
 	$k =~ s/_//g;
 	$k =~ s/Ssi$/SSI/; #*shrug*
@@ -349,8 +374,8 @@ unless (-e "t/net/config.pl") {
 }
 
 unless($Is_Win32 or -e "t/conf/httpd.conf") {
-    chmod 0755, "t/conf/httpd.conf";
     cp "t/conf/httpd.conf-dist", "t/conf/httpd.conf";
+    chmod 0644, "t/conf/httpd.conf";
 
     $User  = $Is_Win32 ? "nobody" : (getpwuid($>) || $>);
     $Group = $Is_Win32 ? "nogroup" : (getgrgid($)) || $)); 
@@ -380,8 +405,7 @@ unless($Is_Win32 or -e "t/conf/httpd.conf") {
  
     #phooey!
     my $v = httpd_version($APACHE_SRC, 1);
-    $v =~ s/\.//g;
-    $v .= "0" if length $v < 3;
+
     conf_append("LockFile /tmp/mod_perl.lock") if $v >= 121;
 }
 
@@ -510,11 +534,10 @@ WriteMakefile(
 	PORT => $PORT,
 	PWD => $PWD,
     },
-    dist    => {
-	COMPRESS=> 'gzip -9f', SUFFIX=>'gz', 
-	DIST_DEFAULT => 'all tardist',
-#	POSTOP => 'mv $(DISTNAME)-*.tar.gz ../'
-	},
+    'dist'    => {
+	COMPRESS=> 'gzip -9f', SUFFIX=>'gz',
+	CI => qq(ci -u -m\\"See Changes file\\"),
+    },
     clean   => {
 	FILES	=> "@do_clean",
     }
@@ -608,9 +631,24 @@ test_report:
 );
 }
 
+sub fold_dots {
+    my $v = shift;
+    $v =~ s/\.//g;
+    $v .= "0" if length $v < 3;
+    $v;
+}
+
+sub vcache {
+    my($v,$dir) = @_;
+    $vcache{$dir} = fold_dots($v);
+}
+
 sub httpd_version {
     my($dir, $vnumber) = @_;
-    my $fh = new FileHandle "$dir/httpd.h" or return;
+    if($vnumber) {
+	return $vcache{$dir} if $vcache{$dir};
+    }
+    my $fh = FileHandle->new("$dir/httpd.h") or return;
     my($server, $version, $rest);
     my($fserver, $fversion, $frest);
     my($string, $extra, @vers);
@@ -626,8 +664,8 @@ sub httpd_version {
 	    next unless ($fserver,$fversion,$frest) =  
 		m,^([^/]+)/(\d\.\d+\.?\d*)([^ ]*),i;
 	    #print STDERR "match ($fserver,$fversion,$frest)\n";  
-	    if($fserver eq "Ben-SSL") {
-		$extra = $fserver;
+	    if($fserver =~ /Xcert-Sentry/i or $fserver eq "Ben-SSL") {
+		$extra ||= $fserver;
 		#print STDERR "I see $fserver/$fversion, ok\n";
 		next;
 	    }
@@ -638,7 +676,8 @@ sub httpd_version {
 		    if($frest >= 8 and is_ssl($dir)) {
 			$do_link_swap++;
 			$can_dash_make{$dir}++;
-			return $vnumber ? $version : "NONE";
+
+			return $vnumber ? vcache($version,$dir) : "NONE";
 		    }
 		    warn "Apache/1.2b$frest is not supported, upgrade to 1.2.0.\n";
 		    return undef;
@@ -646,7 +685,7 @@ sub httpd_version {
 		elsif($version >= 1.2) {
 		    $do_link_swap++ if is_ssl($dir);
 		    $can_dash_make{$dir}++;
-		    return $vnumber ? $version : "NONE";
+		    return $vnumber ? vcache($version,$dir) : "NONE";
 		}
 	    }
 	    else {
@@ -659,6 +698,21 @@ sub httpd_version {
     $fh->close;
     #print STDERR "return $version$extra\n";
     return($version.$extra);
+}
+
+sub magic_number {
+    my $d = shift;
+    return $mcache{$d} if $mcache{$d};
+    my $fh = FileHandle->new("$d/http_config.h") or die $!;
+    my $n;
+    while(<$fh>) {
+	if(s/^#define\s+MODULE_MAGIC_NUMBER\s+(\d+).*/$1/) {
+	   chomp($n = $_);
+	   last;
+       }
+    }
+    $fh->close;
+    return($mcache{$d} = $n);
 }
 
 sub cleanup_for_static {
@@ -816,6 +870,7 @@ sub iedit {
 
 sub win32_setup {
     my $d = "src/modules/perl";
+    dirent_kludge($d);
     cp "Apache/typemap", $d;
     chdir $d;
     system "$^X -MExtUtils::Embed -e xsinit -- -std Apache Apache::Constants $PERL_STATIC_EXTS";
@@ -825,4 +880,22 @@ sub win32_setup {
 
     }
     chdir "../../../";
+}
+
+sub dirent_kludge {
+    my $d = shift;
+    local *FH;
+    open FH, ">$d/dirent.h" or die "can't write $d/dirent.h $!";
+    print FH <<EOF;
+/* major kludge to workaround confilct(s) between perl's dirent.h apache's readdir.h */
+
+#ifdef WIN32
+
+#define _INC_DIRENT
+#define DIR void
+
+#endif
+
+EOF
+    close FH;
 }

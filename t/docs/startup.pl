@@ -33,3 +33,11 @@ sub BaseClass::handler ($$) {
 }
 
 @MyClass::ISA = qw(BaseClass);
+
+#testing child_init hook
+
+sub My::child_init {
+    my $r = shift;
+    my $sa = $r->server->server_admin;
+    warn "child_init for process $$, report any problems to $sa\n";
+}

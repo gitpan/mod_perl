@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.61 1997/07/08 05:37:24 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.62 1997/07/29 02:11:12 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -103,9 +103,14 @@ static command_rec perl_cmds[] = {
     { "PerlSetEnv", perl_cmd_setenv,
       NULL,
       OR_ALL, TAKE2, "Perl %ENV key and value" },
-    { "PerlSendHeader", perl_cmd_sendheader,
+    { "PerlSendHeader", 
+#ifdef WIN32
+      perl_cmd_new_sendheader,
+#else
+      perl_cmd_sendheader,
+#endif
       NULL,
-      OR_ALL, FLAG, "Tell mod_perl to send basic_http_header" },
+      OR_ALL, FLAG, "Tell mod_perl to send HTTP headers" },
     { "PerlNewSendHeader", perl_cmd_new_sendheader,
       NULL,
       OR_ALL, FLAG, "Tell mod_perl to parse and send HTTP headers" },
@@ -145,6 +150,12 @@ static command_rec perl_cmds[] = {
 #ifdef PERL_HEADER_PARSER
     { PERL_HEADER_PARSER_CMD_ENTRY },
 #endif
+#ifdef PERL_CHILD_INIT
+    { PERL_CHILD_INIT_CMD_ENTRY },
+#endif
+#ifdef PERL_CHILD_EXIT
+    { PERL_CHILD_EXIT_CMD_ENTRY },
+#endif
     { NULL }
 };
 
@@ -154,7 +165,7 @@ static handler_rec perl_handlers [] = {
     { NULL }
 };
 
-module perl_module = {
+module MODULE_VAR_EXPORT perl_module = {
     STANDARD_MODULE_STUFF,
     perl_startup,                 /* initializer */
     create_perl_dir_config,    /* create per-directory config structure */
@@ -172,6 +183,12 @@ module perl_module = {
     PERL_LOG_HOOK,          /* logger */
 #if MODULE_MAGIC_NUMBER >= 19970103
     PERL_HEADER_PARSER_HOOK,   /* header parser */
+#endif
+#if MODULE_MAGIC_NUMBER >= 19970719
+    PERL_CHILD_INIT_HOOK,   /* child_init */
+#endif
+#if MODULE_MAGIC_NUMBER >= 19970728
+    PERL_CHILD_EXIT_HOOK,   /* child_exit */
 #endif
 };
 
@@ -198,7 +215,7 @@ void perl_clear_env(void)
 	    continue;
 	(void)hv_delete(hv, key, klen, G_DISCARD);
     }
-    hv_magic(hv, envgv, 'E');
+    sv_magic((SV*)hv, (SV*)envgv, 'E', Nullch, 0);
 }
 
 void perl_startup (server_rec *s, pool *p)
@@ -295,7 +312,7 @@ void perl_startup (server_rec *s, pool *p)
 	 * we'll only get here if there's a `use CGI' in the PerlScript file 
 	 */
 	bool old_warn = dowarn;
-	hv_delete(GvHV(incgv), "CGI.pm", 6, G_DISCARD);
+	(void)hv_delete(GvHV(incgv), "CGI.pm", 6, G_DISCARD);
 	MP_TRACE(fprintf(stderr, 
 		 "Reloading CGI.pm so it sees GATEWAY_INTERFACE...\n"));
 	dowarn = FALSE; perl_require_module("CGI", s); dowarn = old_warn;
@@ -385,10 +402,12 @@ int perl_handler(request_rec *r)
 
     /*don't do anything special unless PerlNewSendHeader*/ 
     sent_header = (cld->new_sendheader ? 0 : 1); 
+#ifndef WIN32
     if(cld->sendheader) {
 	MP_TRACE(fprintf(stderr, "mod_perl sending basic_http_header...\n"));
 	basic_http_header(r);
     }
+#endif
     if(cld->setup_env) 
 	perl_setup_env(r);
 
@@ -411,6 +430,34 @@ int PERL_TRANS_HOOK(request_rec *r)
 						 &perl_module);   
     PERL_CALLBACK("PerlTransHandler", cls->PerlTransHandler);
     return status;
+}
+#endif
+
+#ifdef PERL_CHILD_INIT
+void PERL_CHILD_INIT_HOOK(server_rec *s, pool *p)
+{
+    request_rec *r = (request_rec *)palloc(p, sizeof(request_rec));
+    int status = DECLINED;
+    perl_server_config *cls = get_module_config (s->module_config,
+						 &perl_module);   
+    r->pool = p; 
+    r->server = s;
+
+    PERL_CALLBACK("PerlChildInitHandler", cls->PerlChildInitHandler);
+}
+#endif
+
+#ifdef PERL_CHILD_EXIT
+void PERL_CHILD_EXIT_HOOK(server_rec *s, pool *p)
+{
+    request_rec *r = (request_rec *)palloc(p, sizeof(request_rec));
+    int status = DECLINED;
+    perl_server_config *cls = get_module_config (s->module_config,
+						 &perl_module);   
+    r->pool = p; 
+    r->server = s;
+
+    PERL_CALLBACK("PerlChildExitHandler", cls->PerlChildExitHandler);
 }
 #endif
 
@@ -492,6 +539,7 @@ int PERL_LOG_HOOK(request_rec *r)
 
 void mod_perl_end_cleanup(void *data)
 {
+#ifndef MULTITHREAD     
     perl_clear_env();
     av_undef(GvAV(incgv));
     SvREFCNT_dec(GvAV(incgv));
@@ -500,6 +548,7 @@ void mod_perl_end_cleanup(void *data)
     /* reset $/ */
     sv_setpvn(GvSV(gv_fetchpv("/", FALSE, SVt_PV)), "\n", 1);
     MP_TRACE(fprintf(stderr, "perl_end_cleanup...ok\n"));
+#endif
 }
 
 void mod_perl_cleanup_handler(void *data)
@@ -568,7 +617,7 @@ void mod_perl_register_cleanup(request_rec *r, SV *sv)
     }
     MP_TRACE(fprintf(stderr, "registering PerlCleanupHandler\n"));
     
-    av_push(cleanup_av, SvREFCNT_inc(sv));
+    ++SvREFCNT(sv); av_push(cleanup_av, sv);
 }
 
 #ifdef PERL_STACKED_HANDLERS
@@ -604,7 +653,8 @@ int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers)
 	    warn("mod_perl_push_handlers: Not a subroutine name or CODE reference!");
 	}
 
-	av_push(handlers, SvREFCNT_inc(sub));
+	++SvREFCNT(sub); av_push(handlers, sub);
+
 	if(do_store) 
 	    hv_store(stacked_handlers, key, SvCUR(hook), 
 		     (SV*)newRV((SV*)handlers), 0);
@@ -658,7 +708,7 @@ int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
 #endif /* PERL_STACKED_HANDLERS */
 
 /* XXX this still needs work, getting there... */
-int perl_call_handler(SV *sv, request_rec *r, AV *args)
+API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args)
 {
     int count, status, is_method=0;
     dSP;
@@ -956,7 +1006,7 @@ Sfdisc_t * sfdcnewapache(request_rec *r)
 }
 #endif
 
-void perl_stdout2client(request_rec *r)
+API_EXPORT(void) perl_stdout2client(request_rec *r)
 {
 #ifdef USE_SFIO
     sfdisc(PerlIO_stdout(), SF_POPDISC);

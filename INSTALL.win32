@@ -10,16 +10,24 @@ How to build, test, configure and install mod_perl under Win32
 
 =over 3
 
-Apache version 1.3-dev or higher and Perl 5.004 or higher.
+patience - mod_perl is considered alpha under NT (untested under Win95).
+
+MSVC++ 5.0+, Apache version 1.3-dev or higher and Perl 5.004_02 or higher.
 
 mod_perl will _not_ work with Activeware's port, only with the "official"
 Perl, available from: http://www.perl.com/CPAN/src/5.0/latest.tar.gz
 
 =back
 
-=head1 Configuring and building under Win32
+=head1 BUILDING
 
 =over 3
+
+=item Binaries
+
+It is possible that binaries of ApacheModulePerl.dll will be made
+available from:
+http://www.perl.com/CPAN/authors/id/DOUGM/
 
 =item Setup the Perl side
 
@@ -28,62 +36,63 @@ run 'nmake install'
 
 This will install the Perl side of mod_perl and setup files for the library build.
 
-=item Create a new project
+=item Build ApacheModulePerl.dll
 
 Using MS developer studio, 
 select "File -> Open Workspace ...", 
-select "Files of type [Makefiles (*.mak)]"
-browse and open mod_perl-x.xx/src/modules/perl/mod_perl.mak
+select "Files of type [Projects (*.dsp)]"
+browse and open mod_perl-x.xx/src/modules/ApacheModulePerl/ApacheModulePerl.dsp
 
 =item Settings
 
-select "Tools -> Options -> Directories"
+select "Tools -> Options -> [Directories]"
 
 select "Show directories for: [Include files]"
 
 You'll need to add the following paths:
 C:\apache_x.xx\src
 C:\apache_x.xx\src\regex
+.  (should be expanded to C:\...\mod_perl-x.xx\src\modules\perl for you)
 C:\perl\lib\Core
 
-select "Build -> Build mod_perl.lib"
+select "Project -> Add to Project -> Files" adding:
+perl.lib       (e.g. C:\perl\lib\Core\perl.lib)
+ApacheCore.lib (e.g. C:\Apache\ApacheCore.lib)
+
+select "Build -> Build ApacheModulePerl.dll"
 
 (You may see some harmless warnings)
 
 =item Apache setup
 
-Open the apache workspace
-
-select "Insert -> Files into Project"
-
-browse and select C:\...\mod_perl-x.xx\src\modules\perl\Release\mod_perl.lib
-
-select "Insert -> Files into Project"
-
-browse and select C:\perl\lib\Core\perl.lib
-
-select "Build -> Settings ...Link" and add:
-
- /nodefaultlib:"LIBC"
-
-
-apply the patch "nt-modules.pat" to nt/modules.c
-or edit nt/modules.c, adding:
-
-  extern module perl_module;
-
-and and '&perl_module,' to both prelinked_modules[] and preloaded_modules[] 
- 
-select "Build -> Build apache.exe"
-
-Be sure that 'C:\perl\bin' is in your path so apache can find perl.dll
+You do not need to rebuild apache, just copy ApacheModulePerl.dll to
+$SERVER_ROOT/modules 
 
 =back
 
+=head1 CONFIGURATION
+
+Add this line to httpd.conf:
+
+ LoadModule perl_module modules/ApacheModulePerl
+
+Be sure that 'C:\perl\bin' is in your path so apache can find perl.dll
+
+See the cgi_to_mod_perl.pod and mod_perl.pod documents for general
+configuration.
+
 =head1 NOTES
 
-mod_perl-win32 is considered alpha, an alpha version of apache with 
-win32 support has not even been officially released at the time of
-this writing.  
+mod_perl-win32 is considered alpha, at the time of this writing, so is
+Apache-NT (1.3a1)
 
-this file will get much smaller once apache has a mod_dll 
+CGI::Switch does not work with apache_1.3a1 because basic_http_header() 
+is not exported by the ApacheCore.dll  For now, just change:
+
+ use CGI::Switch ();
+ my $q = CGI::Switch->new;
+
+ - to -
+
+ use CGI ();
+ my $q = CGI->new;

@@ -50,6 +50,8 @@ SetHandler perl-script
 PerlHandler Apache::Status
 </Location>
 
+#PerlChildInitHandler My::child_init
+
 #end mod_perl stuff
 
 ErrorLog /tmp/mod_perl_error_log

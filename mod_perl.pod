@@ -94,7 +94,7 @@ send that itself, e.g.:
  print "Content-type: text/html\n\n";
 
 With the recommended configuration, these options and Perl version
-5.003_93 or higher (or 5.003_xx version with sfio), scripts running
+5.004 or higher (or 5.004+ with sfio), scripts running
 under Apache::Registry will look just like "normal" CGI scripts.  See
 eg/perlio.pl as an example.  
  
@@ -152,7 +152,7 @@ assumes it is a package name which implements a 'handler' subroutine.
 =head1 I/O 
 
 Apache's i/o is not stream oriented.  So, unless you have perl version
-5.003_93 or higher, by default, you cannot print() to STDOUT from your
+5.004 or higher, by default, you cannot print() to STDOUT from your
 script, use $r->print() instead.  Nor can you read() from STDIN, use
 $r->read() or the $r->content methods to read POST data.
 In post 5.003 versions of Perl, two mechanisms have been introduced
@@ -164,7 +164,7 @@ client by default if you configured perl with -Dusesfio (see Perl's
 INSTALL doc). 
 
 Otherwise, mod_perl will tie() STDOUT and STDIN to the client.  
-In order for this to work, you must have Perl version 5.003_93 or higher.
+In order for this to work, you must have Perl version 5.004 or higher.
 
 =head1 ENVIRONMENT
 
@@ -578,7 +578,7 @@ To configure this feature build with
 
 =head1 mod_perl and mod_include integration
 
-As of apache 1.2b11, mod_include can handle Perl callbacks.
+As of apache 1.2.0, mod_include can handle Perl callbacks.
 
 A `sub' key value may be anything a Perl*Handler can be:
 subroutine name, package name (defaults to package::handler),

@@ -1,7 +1,7 @@
 use Apache ();
 use strict;
 
-my $tests = 21;
+my $tests = 23;
 my $i;
 my $r = Apache->request;
 $r->content_type("text/plain");
@@ -57,6 +57,9 @@ test ++$i, $r->handler;
 my $c = $r->connection;
 test ++$i, $c;
 test ++$i, $c->remote_ip;
+test ++$i, $c->remote_addr;
+test ++$i, $c->local_addr;
+
 #Connection::remote_host
 #Connection::remote_logname
 #Connection::user

@@ -22,7 +22,6 @@ lib/Apache/Debug.pm
 lib/Apache/Options.pm
 lib/Apache/Registry.pm
 src/Makefile.tmpl
-src/Makefile.tmpl-1.2
 Apache/Apache.pm
 Apache/typemap
 Apache/Makefile.PL
@@ -33,7 +32,8 @@ src/modules/perl/config.c
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/Makefile
-src/modules/perl/mod_perl.mak
+src/modules/ApacheModulePerl/ApacheModulePerl.dsp
+src/modules/ApacheModulePerl/ApacheModulePerl.mak
 t/report.PL
 t/README
 t/TEST
@@ -57,6 +57,7 @@ t/net/perl/io/perlio.pl
 lib/Apache/Include.pm
 lib/Apache/Status.pm
 src/Makefile.tmpl-Ben-SSL
+src/Makefile.tmpl-XCert
 lib/Bundle/Apache.pm
 t/docs/test.html
 t/docs/startup.pl
@@ -66,4 +67,3 @@ t/net/perl/hooks.pl
 t/net/perl/api.pl
 benchmark/lwp-simple.pod
 benchmark/stopwatch.pod
-nt-modules.pat

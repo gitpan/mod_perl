@@ -2,7 +2,7 @@ package Apache::Status;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = (qw$Revision: 1.12 $)[1];
+$VERSION = (qw$Revision: 1.13 $)[1];
 
 my(%status) = (
    inc => "Loaded Modules",
@@ -30,6 +30,11 @@ sub handler {
     if(defined &$sub) {
 	$r->module('CGI::Switch');
 	$r->module('Devel::Symdump');
+        eval { Exporter::require_version('Devel::Symdump', 2.00); };
+	if($@) {
+	    $r->print("You need to install Devel::Symdump version 2.00 or higher!<p>\n$@");
+	    return 1;
+	}		      
 	$r->print(@{ &{$sub}($r,CGI::Switch->new) });
     }
     elsif (exists $Apache::Registry->{$qs}) { 

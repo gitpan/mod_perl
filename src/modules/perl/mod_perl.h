@@ -1,3 +1,10 @@
+#ifdef WIN32
+#define NO_PERL_SECTIONS
+#define NO_PERL_CHILD_INIT
+#define NO_PERL_CHILD_EXIT
+#include "dirent.h"
+#endif
+
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -6,6 +13,9 @@
  * expanded to Perl_foo
  * but some cause conflict when expanded in other headers files
  */
+#undef S_ISREG
+#undef DIR
+#undef VOIDUSED
 #undef pregexec
 #undef pregfree
 #undef pregcomp
@@ -26,6 +36,7 @@
 #include "http_conf_globals.h"
 
 typedef request_rec * Apache;
+typedef request_rec * Apache__SubRequest;
 typedef conn_rec    * Apache__Connection;
 typedef server_rec  * Apache__Server;
 
@@ -74,6 +85,10 @@ typedef server_rec  * Apache__Server;
 #define PERL_SECTIONS
 #endif
 
+#ifndef API_EXPORT
+#define API_EXPORT(type)    type
+#endif
+
 #ifdef MULTITHREAD
 #include "multithread.h"
 extern void *mod_perl_mutex;
@@ -99,7 +114,7 @@ typedef void mutex;
 #define mod_perl_can_stack_handlers(sv) (SvTRUE(sv) && 1)
 
 #define PERL_CALLBACK(h,name) \
-acquire_mutex(mod_perl_mutex); \
+(void)acquire_mutex(mod_perl_mutex); \
 perl_set_pid; \
 status = perl_run_stacked_handlers(h, r, Nullav); \
 if((status != OK) && (status != DECLINED)) { \
@@ -109,7 +124,7 @@ else if(name != Nullav) { \
     MP_TRACE(fprintf(stderr, "running server configured stacked handlers...\n")); \
     status = perl_run_stacked_handlers(h, r, name); \
 } \
-release_mutex(mod_perl_mutex); \
+(void)release_mutex(mod_perl_mutex); \
 MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status))
 
 
@@ -124,11 +139,11 @@ MP_TRACE(fprintf(stderr, "%s handlers returned %d\n", h, status))
 #define PERL_CALLBACK(h,name) \
 if(name != NULL) { \
     SV *sv; \
-    acquire_mutex(mod_perl_mutex); \
+    (void)acquire_mutex(mod_perl_mutex); \
     sv = newSVpv(name,0); \
     status = perl_call_handler(sv, r, Nullav); \
     SvREFCNT_dec(sv); \
-    release_mutex(mod_perl_mutex); \
+    (void)release_mutex(mod_perl_mutex); \
     MP_TRACE(fprintf(stderr, "perl_call %s '%s' returned: %d\n", h,name,status)); \
 } \
 else { \
@@ -137,7 +152,11 @@ else { \
 
 #endif
 
+#ifdef WIN32
+#define PERL_EXIT_CLEANUP
+#else
 #define PERL_EXIT_CLEANUP log_transaction(r);
+#endif
 
 #if MODULE_MAGIC_NUMBER >= 19961007
 #define CHAR_P const char *
@@ -227,6 +246,40 @@ PERL_READ_CLIENT
 #define PERL_TRANS_HOOK NULL
 #define PERL_TRANS_CMD_ENTRY NULL
 #define PERL_TRANS_CREATE(s) 
+#endif
+
+#ifndef NO_PERL_CHILD_INIT
+#define PERL_CHILD_INIT
+
+#define PERL_CHILD_INIT_HOOK perl_child_init
+
+#define PERL_CHILD_INIT_CMD_ENTRY \
+"PerlChildInitHandler", perl_cmd_child_init_handlers, \
+    NULL,	 \
+    RSRC_CONF, PERL_TAKE, "the Perl Child init handler routine name"  
+
+#define PERL_CHILD_INIT_CREATE(s) s->PerlChildInitHandler = PERL_CMD_INIT
+#else
+#define PERL_CHILD_INIT_HOOK NULL
+#define PERL_CHILD_INIT_CMD_ENTRY NULL
+#define PERL_CHILD_INIT_CREATE(s) 
+#endif
+
+#ifndef NO_PERL_CHILD_EXIT
+#define PERL_CHILD_EXIT
+
+#define PERL_CHILD_EXIT_HOOK perl_child_exit
+
+#define PERL_CHILD_EXIT_CMD_ENTRY \
+"PerlChildExitHandler", perl_cmd_child_exit_handlers, \
+    NULL,	 \
+    RSRC_CONF, PERL_TAKE, "the Perl Child exit handler routine name"  
+
+#define PERL_CHILD_EXIT_CREATE(s) s->PerlChildExitHandler = PERL_CMD_INIT
+#else
+#define PERL_CHILD_EXIT_HOOK NULL
+#define PERL_CHILD_EXIT_CMD_ENTRY NULL
+#define PERL_CHILD_EXIT_CREATE(s) 
 #endif
 
 #ifndef NO_PERL_AUTHEN
@@ -389,6 +442,8 @@ typedef struct {
     int  NumPerlModules;
     int  PerlTaintCheck;
     PERL_CMD_TYPE   *PerlTransHandler;
+    PERL_CMD_TYPE   *PerlChildInitHandler;
+    PERL_CMD_TYPE   *PerlChildExitHandler;
     int  PerlWarn;
 } perl_server_config;
 
@@ -403,6 +458,7 @@ typedef struct {
     PERL_CMD_TYPE *PerlCleanupHandler;
     PERL_CMD_TYPE *PerlHeaderParserHandler;
     PERL_CMD_TYPE *PerlInitHandler;
+    PERL_CMD_TYPE *PerlExitHandler;
     table *env;
     int has_env;
     table *vars;
@@ -411,14 +467,19 @@ typedef struct {
     int setup_env;
 } perl_dir_config;
 
-extern module perl_module;
+#ifndef MODULE_VAR_EXPORT
+#define MODULE_VAR_EXPORT
+#endif
+
+extern module MODULE_VAR_EXPORT perl_module;
 
 /* a couple for -Wall sanity sake */
-int multi_log_transaction(request_rec *r);
 int basic_http_header(request_rec *r);
+int translate_name (request_rec *);
+int log_transaction (request_rec *r);
 /* prototypes */
 int perl_handler_ismethod(HV *class, char *sub);
-int perl_call_handler(SV *sv, request_rec *r, AV *args);
+API_EXPORT(int) perl_call_handler(SV *sv, request_rec *r, AV *args);
 int mod_perl_push_handlers(SV *self, SV *hook, SV *sub, AV *handlers);
 int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers);
 int perl_handler(request_rec *r);
@@ -426,6 +487,8 @@ void perl_startup(server_rec *s, pool *p);
 void *perl_merge_dir_config(pool *p, void *basev, void *addv);
 void *create_perl_dir_config(pool *p, char *dirname);
 void *create_perl_server_config(pool *p, server_rec *s);
+void perl_child_init(server_rec *, pool *);
+void perl_child_exit(server_rec *, pool *);
 int perl_translate(request_rec *r);
 int perl_authenticate(request_rec *r);
 int perl_authorize(request_rec *r);
@@ -451,6 +514,8 @@ CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg
 CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_header_parser_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_trans_handlers (cmd_parms *parms, void *dumm, char *arg);
+CHAR_P perl_cmd_child_init_handlers (cmd_parms *parms, void *dumm, char *arg);
+CHAR_P perl_cmd_child_exit_handlers (cmd_parms *parms, void *dumm, char *arg);
 CHAR_P perl_cmd_authen_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_authz_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_access_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
@@ -469,7 +534,7 @@ int mod_perl_seqno(void);
 int perl_hook(char *name);
 request_rec *perl_request_rec(request_rec *);
 void perl_stdin2client(request_rec *);
-void perl_stdout2client(request_rec *); 
+API_EXPORT(void) perl_stdout2client(request_rec *); 
 int perl_require_module(char *, server_rec *);
 int  perl_eval_ok(server_rec *);
 void perl_setup_env(request_rec *r);

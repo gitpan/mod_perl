@@ -55,10 +55,7 @@ Includes just as CGI scripts can, mod_perl's integration with
 mod_include gives an extra speed boost and allows Perl code to be
 directly inside SSI files. 
 
-See the `INSTALL' document for installing under unix and
-`INSTALL.win32' for installing under Win32.
-
-For more information see:
+For more module information see:
 http://www.perl.com/CPAN/modules/by-module/Apache/apache-modlist.html
 
 For comments, questions, bug-reports, announcements, etc., join the
@@ -73,7 +70,7 @@ The mod_perl FAQ is available from:
 http://www.ping.de/~fdc/mod_perl/
 
 For more general information see the Apache/Perl homepage:
-http://www.osf.org/~dougm/apache/
+http://perl.apache.org/
 
 Enjoy,
 -Doug MacEachern
