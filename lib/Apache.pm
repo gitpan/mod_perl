@@ -1,9 +1,9 @@
 package Apache;
 
 use vars qw($VERSION);
-use Apache::Constants;
+use Apache::Constants ();
 
-$VERSION = "1.06";
+$VERSION = "1.07";
 
 bootstrap Apache $VERSION;
 
@@ -20,13 +20,30 @@ sub content {
     my $ct = $r->header_in("Content-type");
     return unless $ct eq "application/x-www-form-urlencoded";
     my $buff;
-    $r->read_client_block($buff, $r->header_in("Content-length"));
+    $r->read($buff, $r->header_in("Content-length"));
     parse_args(wantarray, $buff);
 }
 
 sub args {
     my($r) = @_;
     parse_args(wantarray, $r->query_string);
+}
+
+sub read {
+    my($r, $bufsiz) = @_[0,2];
+    my($nrd, $buf);
+    while($bufsiz) {
+	$nrd = $r->read_client_block($buf, $bufsiz);
+	if($nrd > 0) {
+	    $bufsiz -= $nrd;
+	    $_[1] .= $buf;
+	    next if $bufsiz;
+	    last;
+	}
+	else {
+	    $_[1] = undef;
+	}
+    }
 }
 
 sub send_cgi_header {
@@ -214,7 +231,7 @@ Read from the entity body sent by the client.  Example of use:
 
 =item $r->read($buf, $bytes_to_read)
 
-Friendly alias for $r->read_client_block()
+
 
 =item $r->get_remote_host
 

@@ -1,14 +1,10 @@
 package Apache::Authen;
-
+use strict;
 use HTTPD::UserAdmin ();
+use Apache ();
+use Apache::Constants qw(OK AUTH_REQUIRED);
 
-#XXX get this with DBD::mSQL
-#$SIG{__WARN__} = sub {
-#    $_[0] =~ /Database handle destroyed without explicit disconnect/ && return;
-#    warn(@_);
-#};
-
-sub handler {
+sub check {
     my($self, $r, $attr) = @_;
     my($res, $sent_pwd, $passwd);
 
@@ -21,44 +17,15 @@ sub handler {
     unless($passwd = $u->password($user)) {
 	$r->log_reason("User '$user' not found", $r->uri);
 	$r->note_basic_auth_failure;
-	return 401;
+	return AUTH_REQUIRED;
     }
 
     unless(crypt($sent_pwd, $passwd) eq $passwd) {
 	$r->log_reason("user $user: password mismatch", $r->uri);
 	$r->note_basic_auth_failure;
-	return 401;
+	return AUTH_REQUIRED;
     }
-    return 200;
-}
-
-package Apache::DBIAuthen;
-
-%Config = (
-    AuthDBIDB => "",
-    AuthDBIUserTable => "",
-    AuthDBIDriver => "",
-    AuthDBINameField => "user",
-    AuthDBIPasswordField => "password",
-    AuthDBIUser => "",
-    AuthDBIAuth => "",	   
-);
-
-sub handler {
-    my($r) = @_;
-    my($key,$val);
-    my $attr = {
-	DBType => 'SQL',
-    };
-    while(($key,$val) = each %Config) {
-	$val = $r->dir_config($key) || $val;
-	$key =~ s/^AuthDBI//; 
-	$attr->{$key} = $val;
-    }
-    $attr->{DB} = delete $attr->{User} if #bleh, inconsistent
-	$attr->{Driver} eq "mSQL";
-     
-    Apache::Authen->handler($r, $attr);
+    return OK;
 }
 
 1;
@@ -67,56 +34,33 @@ __END__
 
 =head1 NAME
 
-Apache::Authen - Perl Apache authentication handlers
+Apache::Authen - Building blocks for mod_perl PerlAuthenHandler's
 
 =head1 SYNOPSIS
 
- #httpd.conf or srm.conf
-
- PerlModule Apache::Authen
-
- #.htaccess
- AuthName DBI
- AuthType Basic
-
- #authenticate via DBI
- PerlAuthenHandler Apache::DBIAuthen::handler
-
- PerlSetVar AuthDBIDB     dbname
- PerlSetVar AuthDBIUser   username
- PerlSetVar AuthDBIAuth   password
- PerlSetVar AuthDBIDriver Oracle
- #DBI->connect(qw(AuthDBIDB AuthDBIUser AuthDBIAuth AuthDBIDriver))
-
- PerlSetVar AuthDBIUserTable www_users
- PerlSetVar AuthDBINameField user
- PerlSetVar AuthDBIPasswordField password
-
-<Limit GET POST>
-require valid-user
-</Limit>
+use Apache::Authen ()
 
 =head1 DESCRIPTION
 
-With the PerlAuthenHandler set, you may define a subroutine handler
-to preform the authentication check.
-This module provides some building blocks and some full-fledged handlers.
+Building blocks for mod_perl PerlAuthenHandler's
 
-=head1 HANDLERS
+=head1 METHODS
 
-=item Apache::AuthenDBI::handler
+=over 4
 
-This handler authenticates against a database such as Oracle, DB2, Sybase,
-and others supported by the DBI module.
-For supported drivers see:
-http://www.hermetica.com/technologia/DBI
+=item Apache::Authen->check($r, \%attr)
 
-This handler users L<HTTPD::UserAdmin> to lookup the username and password.
-This may change.
+This method looks up the username and password via HTTPD::UserAdmin testing
+for a valid password if user is found.
+Returns C<OK> upon success, otherwise returns C<AUTH_REQUIRED>.
+C<$r> is a request_rec object blessed into the L<Apache> class.
+C<\%attr> is a hash reference passed to HTTPD::UserAdmin->new.
+
+=back
 
 =head1 SEE ALSO
 
-Apache(3), HTTPD::UserAdmin(3), DBI(3)
+Apache(3), HTTPD::UserAdmin(3), Apache::AuthenDBI(3)
 
 =head1 AUTHOR
 

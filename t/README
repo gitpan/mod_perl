@@ -30,5 +30,5 @@ The following setup works for my site:
   ln -s `pwd`/net/perl ~/www/apache_perl/t
   cp net/config.pl.dist net/config.pl
   emacs net/config.pl                        # fix if necessary
-  httpd -d `pwd` 	
+  httpd -X -d `pwd` 	
   ./TEST net

@@ -42,20 +42,22 @@ extern "C" {
 
 #if MODULE_MAGIC_NUMBER >= 19961007
 #define CHAR_P const char *
+#define PERL_EXIT_CLEANUP multi_log_transaction(r);
 #else
 #define CHAR_P char * 
+#define PERL_EXIT_CLEANUP common_log_transaction(r);
 #endif
 
     /* bleh */
-#if MODULE_MAGIC_NUMBER > 19960526 
+#if MODULE_MAGIC_NUMBER >= 19961125 
 #define PERL_READ_SETUP \
-       setup_client_block(r); \
+       setup_client_block(r, REQUEST_CHUNKED_ERROR); \
        extra = 0; 
 #else
 #define PERL_READ_SETUP
 #endif 
 
-#if MODULE_MAGIC_NUMBER >= 19961007 
+#if MODULE_MAGIC_NUMBER >= 19961125 
 #define PERL_READ_CLIENT \
        if(should_client_block(r)) { \
 	   nrd = get_client_block(r, buffer, bufsiz+extra); \

@@ -10,6 +10,15 @@ PerlHandler Apache::Registry::handler
 Options ExecCGI
 </Location>
 
+<Location /perl/t/io>
+SetHandler perl-script
+PerlHandler Apache::Registry::handler
+Options ExecCGI
+PerlSendHeader On
+PerlSetupEnv   On
+</Location>
+
+
 #end mod_perl stuff
 
 # This is the main server configuration file. See URL http://www.apache.org/

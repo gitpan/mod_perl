@@ -50,11 +50,11 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.28 1996/11/14 06:39:00 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.29 1996/11/27 16:59:45 dougm Exp $ */
 
 #include "mod_perl.h"
 
-static int avoid_first_alloc_hack = 0;
+static int avoid_alloc_hack = 0;
 
 static PerlInterpreter *perl = NULL;
 
@@ -115,13 +115,17 @@ module perl_module = {
 void perl_init (server_rec *s, pool *p)
 {
   char *argv[3];
-  int status, i;
+  int status, i, do_alloc=0;
   perl_server_config *cls;
 
 #ifndef APACHE_SSL  
-  if(avoid_first_alloc_hack++ == 0)
-    return;
+  do_alloc = 1;
 #endif
+
+  if(avoid_alloc_hack++ != do_alloc) {
+    CTRACE(stderr, "perl_init: skipping perl_alloc + perl_construct\n");
+    return;
+  }
 
   cls = get_module_config (s->module_config,
 			    &perl_module);   

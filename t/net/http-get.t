@@ -3,33 +3,45 @@
 # Check GET via HTTP.
 #
 
-print "1..12\n";
+my $num_tests = 5;
+my(@test_scripts) = qw(test);
+
+if($] > 5.003) {
+    $num_tests += 2;
+    push @test_scripts, qw(io/perlio.pl);
+}
+
+print "1..$num_tests\n";
 
 BEGIN { require "net/config.pl"; }
 require LWP::UserAgent;
 
 my $ua = new LWP::UserAgent;    # create a useragent to test
 
-$netloc = $net::httpserver;
-$script = $net::perldir . "/test";
+my($request,$response,$str);
 
-$url = new URI::URL("http://$netloc$script?query");
+foreach $script (@test_scripts) {
+    $netloc = $net::httpserver;
+    $script = $net::perldir . "/$script";
 
-my $request = new HTTP::Request('GET', $url);
+    $url = new URI::URL("http://$netloc$script?query");
 
-print "GET $url\n\n";
+    $request = new HTTP::Request('GET', $url);
 
-my $response = $ua->request($request, undef, undef);
+    print "GET $url\n\n";
 
-my $str = $response->as_string;
+    $response = $ua->request($request, undef, undef);
 
-print "$str\n";
+    $str = $response->as_string;
 
-test ++$i, ($response->is_success and $str =~ /^REQUEST_METHOD=GET$/m); 
-test ++$i, ($str =~ /^QUERY_STRING=query$/m); 
+    print "$str\n";
+
+    test ++$i, ($response->is_success and $str =~ /^REQUEST_METHOD=GET$/m); 
+    test ++$i, ($str =~ /^QUERY_STRING=query$/m); 
+}
 
 print "pounding a bit...\n";
-for (1..10) {
+for (1..3) {
     test ++$i, ($ua->request($request, undef, undef)->is_success);
 }
 

@@ -19,7 +19,7 @@ INSTALL
 MANIFEST
 Makefile.PL
 README
-UsersGuide
+mod_perl.pod
 eg/cgi-pm.pl
 eg/file_upload.fpl
 eg/mpf_eg.pl
@@ -30,6 +30,7 @@ eg/tiehandle.fpl
 lib/Apache.pm
 lib/Apache/AccessLimitNum.pm
 lib/Apache/Authen.pm
+lib/Apache/AuthenDBI.pm
 lib/Apache/AuthzAge.pm
 lib/Apache/Debug.pm
 lib/Apache/MsqlProxy.pm
@@ -57,3 +58,5 @@ t/net/config.pl.dist
 t/net/http-get.t
 t/net/http-post.t
 t/net/perl/test
+ToDo
+t/net/perl/io/perlio.pl

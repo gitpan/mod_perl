@@ -3,35 +3,50 @@
 # Check POST via HTTP.
 #
 
-print "1..12\n";
+use Config;
+
+my $num_tests = 5;
+my(@test_scripts) = qw(test);
+
+if($Config{usesfio} eq "true") {
+    $num_tests += 2;
+    push @test_scripts, qw(io/perlio.pl);
+}
+
+print "1..$num_tests\n";
 
 BEGIN { require "net/config.pl"; }
-
 require LWP::UserAgent;
-
-$netloc = $net::httpserver;
-$script = $net::perldir . "/test";
 
 my $ua = new LWP::UserAgent;    # create a useragent to test
 
-$url = new URI::URL("http://$netloc$script");
+my($request,$response,$str,$form);
 
-my $form = 'searchtype=Substring';
+foreach $script (@test_scripts) {
+    $netloc = $net::httpserver;
+    $script = $net::perldir . "/$script";
 
-my $request = new HTTP::Request('POST', $url, undef, $form);
-$request->header('Content-Type', 'application/x-www-form-urlencoded');
+    $ua = new LWP::UserAgent;    # create a useragent to test
 
-my $response = $ua->request($request, undef, undef);
+    $url = new URI::URL("http://$netloc$script");
 
-my $str = $response->as_string;
+    $form = 'searchtype=Substring';
 
-print "$str\n";
+    $request = new HTTP::Request('POST', $url, undef, $form);
+    $request->header('Content-Type', 'application/x-www-form-urlencoded');
 
-test ++$i, ($response->is_success and $str =~ /^REQUEST_METHOD=POST$/m);
-test ++$i, ($str =~ /^CONTENT_LENGTH=(\d+)$/m && $1 == length($form));
+    $response = $ua->request($request, undef, undef);
+
+    $str = $response->as_string;
+
+    print "$str\n";
+
+    test ++$i, ($response->is_success and $str =~ /^REQUEST_METHOD=POST$/m);
+    test ++$i, ($str =~ /^CONTENT_LENGTH=(\d+)$/m && $1 == length($form));
+}
 
 print "pounding a bit...\n";
-for (1..10) {
+for (1..3) {
     test ++$i, ($ua->request($request, undef, undef)->is_success);
 }
 

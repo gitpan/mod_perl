@@ -3,39 +3,50 @@ INSTALLATION for mod_perl
 Prerequisites
 -------------
 
-Apache version 1.1 or higher.
+Apache version 1.1, 1.1.1 or 1.2b0+
 
-Perl version 5.003 or higher.
+Perl version 5.003 or higher
 
 If you do not have Perl version 5.003_01 or higher,
 fetch and install ExtUtils::Embed from CPAN 
 <URL:http://www.perl.com/CPAN/modules/by-module/ExtUtils/ExtUtils-Embed-1.07.tar.gz>
 
-Build and install the perl part of this module
-----------------------------------------------
+Build and install mod_perl
+--------------------------
 
-The perl modules under lib/ can be installed by saying (in this current directory):
+In this current directory run:
 
   perl Makefile.PL
   make
   make install
 
-This install includes the module Apache::Registry, which uses the
-standard module 'FileHandle'.  There was a bug in the version of this
-module, that came with perl5.003, so if your perl is not younger than
-5.003 we suggest you apply the patch 'FileHandle.patch' to fix the
-problem until it is fixed in the standard distribution of Perl.
-Although, it is a strange bug, you might not even see it without the
-patch...
+Makefile.PL will search for apache source trees to configure against 
+and prompt for each one found.  If you answer 'y', httpd will be 
+configured and built when you say 'make'.
+If you answer 'n', see the instructions below on how to build by hand.
 
- 
-Build apache
-------------
+In either case, you need to 'make install' so the perl side of mod_perl
+will be installed.
+
+Testing mod_perl
+----------------
+
+See t/README on how to run the mod_perl test suite
+
+
+Building apache and mod_perl by hand
+------------------------------------
+
+** Only if you did not let Makefile.PL take care of this already **
 
 Copy the source files into the apache build directory:
 (For apache versions < 1.2 you'll need to mkdir src/modules/ first)
 
 	cp -r src/modules/perl  apache_xxx/src/modules/
+
+Copy src/Makefile.tmpl     to apache_xxx/src/ for apache_1.1.1
+			- or -
+Copy src/Makefile.tmpl-1.2 to apache_xxx/src/ for apache_1.2
 
 Edit apache_xxx/src/Configuration (if you don't have Configuration
 yet, this should be a copy of Configuration.tmpl in the same
@@ -45,52 +56,37 @@ For mod_perl add:
 
 	Module perl_module	   modules/perl/libmodperl.a
 
-We suggest you add this entry at the end of the Configuration file if you want your
-callback hooks to have precedence over core handlers.
+We suggest you add this entry at the end of the Configuration file if you want your callback hooks to have precedence over core handlers.
 
-If you are using the most current public release of apache '1.1.1',
-you can simply copy the src/Makefile.tmpl to apache_xxx/src/Makefile.tmpl
+Follow the apache install docs from there
 
-Otherwise, edit apache_xxx/src/Makefile.tmpl adding:
-(!Be sure to read the comments first!) 
----%<----
+Notes
+-----
 
-#next line only for apache versions < 1.2
-#RANLIB=ranlib
-
-PERL=/usr/local/bin/perl
-PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
-
-modules/perl/libmodperl.a:
-	(cd modules/perl; \
-	make CC=$(CC) AUX_CFLAGS="$(CFLAGS)" RANLIB=$(RANLIB) PERL=$(PERL);)
-
-#add $(PERL_LD_OPTS) to the httpd target, which may change with new releases
-#but should look something like so:
-
-#httpd: $(REGLIB) $(OBJS)
-#	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS) $(PERL_LD_OPTS)
----%<----
+This install includes the module Apache::Registry, which uses the
+standard module 'FileHandle'.  There was a bug in the version of this
+module, that came with perl5.003, so if your perl is not younger than
+5.003 we suggest you apply the patch 'FileHandle.patch' to fix the
+problem until it is fixed in the standard distribution of Perl.
+Although, it is a strange bug, you might not even see it without the
+patch...
 
 You may also wish to edit the on/off switches for callback hooks
 during request stages in src/modules/perl/Makefile. The default is
 that most callbacks are disabled.
 
-Follow the Apache install docs from there.
-
-See the 'UsersGuide' file for info on configuring, running
+Type 'perldoc mod_perl' for info on configuring, running
 and writing Apache/Perl scripts and modules.
  
 Using PerlIO
 ------------
-When you Configure Perl as of 5.003_02, you will be given the option to
-use sfio rather than stdio.  If you choose this option, STDOUT will be
-hooked up to the client for writing (or print'ing), as will STDIN for
-reading.
-Perl scripts outside of Apache will run as expected.
+
+See 'perldoc mod_perl' for an explaination
 See the Perl INSTALL document for more information.
 
-You may also want to look at the Apache::TieHandle module.
+To hookup STDOUT and STDIN to the client I configure my Perl like so:
+
+% Configure -des -Duseperlio -Dusesfio 
 
 Support
 -------
@@ -117,8 +113,14 @@ Please send mail to modperl@listproc.itribe.net with the output of:
     which script from the eg/ directory you are using.
     (please try a script from there first.)
 
-    your apache server version details of your server configuration.
+    your apache server version details and your server configuration.
 
     if you get a core dump, please send a backtrace if possible.
 
+    if you can compile but not run a mod_perl script, recompile with:
 
+    % make TRACE=-DPERL_TRACE
+
+    then send the output of the server startup and run   
+
+    also see t/README on how to run the mod_perl test suite

@@ -15,6 +15,47 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.85_02
+
+Apache::DBIAuthen renamed Apache::AuthenDBI and split out from
+Apache::Authen
+
+Apache::Authen->handler renamed Apache::Authen->check
+as it is not a handler, only used by handlers
+
+added ToDo file
+
+updated UserGuide, now called 'mod_perl.pod'
+
+updated INSTALL and README docs
+
+perl_init will only perl_alloc and perl_contstruct once when the server
+starts, meaning no more mad leaks when server is restarted
+
+modified test suite adding extra tests for sfio and TIEHANDLE
+
+unless Perl was configured to use perlio and sfio, STDOUT is tied by default to
+the client, no more need for tie *STDOUT => Apache::TieHandle
+
+Makefile.PL now looks for ../apache_1.1.1/src/, apache_1.2*/src/ to configure 
+against
+
+Fixed Makefile.PL bug spotted by Frank Cringle <fdc@CLIWE.PING.DE>, 
+when no apache source was present or chosen to configure against
+
+'make clean' will now cd $(APACHE_SRC) && $(MAKE) clean
+
+applied patch from Rob Hartill <robh@imdb.com> to bring us up-to-date
+with apache_1.2b0
+
+$r->content now calls $r->read instead of $r->read_client_block
+
+$r->read is no longer an alias for $r->read_client_block
+The new $r->read implementation is based on patches and ideas from 
+Milan Votava <ms.anet.cz@MS.ANET.CZ>,
+Joonsuk Bae <bae@yahoo.com>,
+and Gisle
+
 =item 0.85_01
 
 added 'tar_Apache' target for copying the perl-side of mod_perl to other 

@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.34 1996/11/13 15:57:07 dougm Exp $ */
+/* $Id: Apache.xs,v 1.35 1996/11/27 16:59:45 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -116,7 +116,7 @@ void perl_clear_env()
 void perl_set_pid()
 {
   GV *tmpgv;
-  if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
+  if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))  /*" unconfuse emacs */
     sv_setiv(GvSV(tmpgv), (I32)getpid());
 }
 
@@ -142,7 +142,7 @@ char *mod;
     perl_eval_sv(sv, G_DISCARD);
 }
 
-#ifdef USE_SFIO 
+#ifdef USE_SFIO
 
 typedef struct {
    Sfdisc_t     disc;   /* the sfio discipline structure */
@@ -157,7 +157,7 @@ int             n;      /* number of bytes to send */
 Sfdisc_t*       disc;   /* discipline */        
 {
     request_rec	*r = ((Apache_t*)disc)->r;
-    CTRACE(stderr, "sfapachewrite: send %d bytes\n", n);
+    /* CTRACE(stderr, "sfapachewrite: send %d bytes\n", n); */
     SENDN_TO_CLIENT;
     return n;
 }
@@ -172,7 +172,7 @@ Sfdisc_t*       disc;   /* discipline */
     long nrd;
     int extra = 0;
     request_rec	*r = ((Apache_t*)disc)->r;
-    CTRACE(stderr, "sfapacheread: want %d bytes\n", bufsiz);
+    /* CTRACE(stderr, "sfapacheread: want %d bytes\n", bufsiz); */
     PERL_READ_FROM_CLIENT;
     return bufsiz;
 }
@@ -185,7 +185,7 @@ sfdcnewapache(request_rec *r)
     if(!(disc = (Apache_t*)malloc(sizeof(Apache_t))) )
       return (Sfdisc_t *)disc;
     CTRACE(stderr, "sfdcnewapache(r)\n");
-    disc->disc.readf = sfapacheread; /* (Sfread_f)NULL;  */
+    disc->disc.readf = sfapacheread; 
     disc->disc.writef = sfapachewrite;
     disc->disc.seekf = (Sfseek_f)NULL;
     disc->disc.exceptf = (Sfexcept_f)NULL;
@@ -202,14 +202,10 @@ perl_stdout2client(request_rec *r)
     sfdisc(PerlIO_stdout(), SF_POPDISC);
     sfdisc(PerlIO_stdout(), sfdcnewapache(r));
 #else
-/*  no support for attempts with older versions, play if you like  
-    GV *tmpgv;
-
-     tmpgv = gv_fetchpv("STDOUT",FALSE, SVt_PVIO);
-    GvMULTI_on(tmpgv);
-     IoOFP(GvIOp(tmpgv)) = IoIFP(GvIOp(tmpgv)) = r->connection->client;
-    setdefout(tmpgv);
-*/
+    CTRACE(stderr, "tie *STDOUT => Apache\n");
+    sv_magic((SV *)gv_fetchpv("STDOUT", TRUE, SVt_PVIO), 
+	     (SV *)perl_bless_request_rec(r),
+	     'q', Nullch, 0);
 #endif
 }
 
@@ -221,12 +217,11 @@ perl_stdin2client(request_rec *r)
     sfdisc(PerlIO_stdin(), sfdcnewapache(r));
     sfsetbuf(PerlIO_stdin(), NULL, 0);
 #else
-/*
-    GV *tmpgv;
-
-    tmpgv = gv_fetchpv("STDIN",FALSE, SVt_PVIO);
-    GvMULTI_on(tmpgv);
-    IoIFP(GvIOp(tmpgv)) = r->connection->request_in;
+/* XXX patch pp_sys.c ?
+    CTRACE(stderr, "tie *STDIN => Apache (doesn't work yet)\n");
+    sv_magic((SV *)gv_fetchpv("STDIN", TRUE, SVt_PVIO), 
+	     (SV *)perl_bless_request_rec(r),
+	     'q', Nullch, 0);
 */
 #endif
 }
@@ -246,13 +241,8 @@ Apache r
     if(items > 1)
         sts = (int)SvIV(ST(1));
 
-    /* make sure we log the transaction */
-#if MODULE_MAGIC_NUMBER > 19960526
-    multi_log_transaction(r);
-#else
-    common_log_transaction(r);
-#endif
-
+    /* make sure we log the transaction, etc. */
+    PERL_EXIT_CLEANUP;
     exit(sts);
     }
      
@@ -385,9 +375,6 @@ read_client_block(r, buffer, bufsiz)
     char    *buffer
     int      bufsiz
 
-    ALIAS:
-    Apache::read = 1
-
     PPCODE:
      {
        long nrd;
@@ -409,6 +396,7 @@ write_client(r, ...)
 
     ALIAS:
     Apache::print = 1
+    Apache::PRINT = 2
 
     CODE:
     {    
@@ -417,8 +405,8 @@ write_client(r, ...)
     STRLEN n;
 
     for(i = 1; i <= items - 1; i++) {
-       buffer = SvPV(ST(i), n);
-       RETVAL += SENDN_TO_CLIENT;
+	buffer = SvPV(ST(i), n);
+	RETVAL += SENDN_TO_CLIENT;
     }
     }
 
@@ -431,10 +419,6 @@ internal_redirect_handler(r, location)
 
     CODE:
     internal_redirect_handler(location, r);
-
-int
-common_log_transaction(r)
-Apache r
 
 #functions from http_log.c
 # Beware, we have changed the order of the arguments for the log_reason()

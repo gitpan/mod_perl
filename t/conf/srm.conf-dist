@@ -12,7 +12,7 @@
 # documents. By default, all requests are taken from this directory, but
 # symbolic links and aliases may be used to point to other locations.
 
-DocumentRoot /users/dougm/public_html
+DocumentRoot /users/dougm/www/data
 
 # UserDir: The name of the directory which is appended onto a user's home
 # directory if a ~user request is recieved.

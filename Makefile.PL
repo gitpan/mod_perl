@@ -3,20 +3,24 @@ use Config;
 use Cwd;
 
 $PWD = cwd();
+$VERSION = "0.85_02";
 
+print "WARNING: \$r->read is no longer an alias for $r->read_client_block\n",
+      "          see perldoc Apache for more information\n";
+ 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
             <src/Makefile.tmpl*>, "src/modules/perl/Makefile";
 
 # Automatic setup support for current Apache release
-my(@adirs) = qw(../apache_1.2-dev/src ../apache_1.1.1/src);
-my(%mft_map);
-@mft_map{@adirs} = qw(Makefile.tmpl-1.2 Makefile.tmpl);
+my(@adirs) = (qw(../apache_1.1.1/src), <../apache_1.2*/src>);
+my(%mft_map, $conf, $ans);
+@mft_map{@adirs} = (qw(Makefile.tmpl), ('Makefile.tmpl-1.2') x $#adirs);
 
 foreach $adir (@adirs) {
-    my $conf = "$adir/Configuration";
+    $conf = "$adir/Configuration";
     if (-e $conf) {
-	my $ans = prompt "Configure mod_perl with $adir ?", "y";
+	$ans = prompt "Configure mod_perl with $adir ?", "y";
 	next unless $ans eq "y";
 	system "cp", "$adir/Makefile.tmpl", "$adir/Makefile.tmpl.bak";
 	system "cp", "src/$mft_map{$adir}", "$adir/Makefile.tmpl";
@@ -40,6 +44,8 @@ foreach $adir (@adirs) {
 
 # Embed a perl interpreter
 Module perl_module         modules/perl/libmodperl.a
+
+
 EOT
             close(CONF);
        } else {
@@ -55,7 +61,7 @@ EOT
 
 WriteMakefile(
     NAME	=> "mod_perl",
-    VERSION => "0.85_01",
+    VERSION => $VERSION,
     macro => {
         APACHE_SRC => $APACHE_SRC,
 	ARCHNAME => $Config{archname},
@@ -71,15 +77,23 @@ WriteMakefile(
     }
 );
 
+sub MY::clean {
+    my $self = shift;
+    my $string = $self->MM::clean;
+    return $string unless $APACHE_SRC;
+    $string .= "\t-cd \$(APACHE_SRC) && \$(MAKE) clean\n";
+    $string;
+}
+
 sub MY::top_targets {
-    return unless $APACHE_SRC;
     my $self = shift;
     my $string = $self->MM::top_targets;
+    return $string unless $APACHE_SRC;
     $string =~ s/(pure_all\s+::\s+)(.*)/$1 apache_httpd $2/;
     $string .= <<'EOF';
 
 apache_httpd: $(APACHE_SRC)/Configuration	
-	(cd $(APACHE_SRC); make;)
+	(cd $(APACHE_SRC); $(MAKE);)
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \

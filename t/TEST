@@ -32,7 +32,7 @@ if (@ARGV) {
 	}
     }
 } else {
-    @tests = (<constants/*>);
+    @tests = (<constants/*.t>);
     push(@tests, <net/*.t>) if -f "net/config.pl";
 }
 

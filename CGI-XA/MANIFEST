@@ -7,4 +7,3 @@ eg/rgy-cgi-pm2.client    Client side of the demo
 lib/CGI/XA.pm            reworked CGI.pm
 lib/CGI/Switch.pm        switch between your favorite CGI libraries
 lib/Apache/CGI.pm        a compatible Apache::CGI
-test.pl

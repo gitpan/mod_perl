@@ -1,0 +1,209 @@
+=head1 NAME 
+
+mod_perl - Embed a Perl interpreter in the Apache server 
+
+
+=head1 DESCRIPTION
+
+
+This Apache module embeds a perl interpreter in the HTTP server.  
+One benefit of this is that we are able to run scripts without 
+going through the expensive (fork/exec/parameter passing/parsing, 
+perl-startup time, etc.) CGI interface.  
+Not only will scripts run faster, they have direct access to the C API 
+of the server, allowing the developer to extend Apache server 
+functionality with modules written in Perl.
+
+The current approach of mod_perl is to allocate and construct one
+perl interpreter when the server starts.  At the same time, load,
+parse and run one perl script, which may pull in other perl code such
+as your favorite modules.  This also allows you to initiate persistent
+connections such as to a database server.  Then, a subroutine in
+memory is called to handle each request.  The interpreter is destroyed
+upon restart or shutdown of the server.
+
+
+=head1 FAQ
+
+Patrick Kane <modus@enews.com> maintains the mod_perl FAQ available at:
+http://chaos.dc.enews.com/mod_perl/
+
+
+=head1 Apache/Perl API
+
+See 'perldoc Apache' for info on how to use the Perl-Apache API.
+
+See the lib/ directory for example modules.
+
+See the eg/ directory for example scripts.
+
+
+=head1 mod_perl
+
+To tell Apache you want mod_perl to handle your scripts add to
+your srm.conf:
+
+    AddHandler perl-script .fpl
+
+Now, any file with the extension '.fpl' will be executed by mod_perl.
+However, if your PerlHandler is Apache::Registry::handler, this module
+will check to see if 'ExecCGI' is allowed in that directory before
+executing it.
+See the Apache::Registry module for details.
+ 
+You may perl load modules via
+
+    PerlModule Apache::Registry Apache::SSI SomeOther::Module
+
+Optionally:
+
+    PerlScript  /full/path/to/script_to_load_at_startup.pl
+
+This script will be loaded when the server starts. See eg/mpf_eg.pl
+for an example to start with.
+
+In an access.conf <Directory /foo> or .htaccess you need:
+
+    PerlHandler sub_routine_name
+
+This is the name of the subroutine to call to handle each request. 
+e.g. 
+in the PerlScript mpf_eg.pl this is "main::handler".
+in the PerlModule Apache::Registry this is "Apache::Registry::handler".
+
+The recommended configuration is as follows:
+
+ Alias /perl/  /real/path/to/perl-scripts/
+ PerlModule Apache::Registry
+
+ <Location /perl>
+ SetHandler perl-script
+ PerlHandler Apache::Registry::handler
+ Options ExecCGI
+ </Location>
+
+By default, mod_perl does not send any headers by itself, however, you
+may wish to change this:
+
+    PerlSendHeader On	
+
+By default, mod_perl does not setup %ENV, you may wish to change this:
+
+    PerlSetupEnv On
+
+With the recommended configuration, these options and Perl linked with sfio 
+(see I/O section), scripts running under Apache::Registry will look just like 
+"normal" CGI scripts.  See eg/perlio.pl as an example.
+
+There are several stages of a request where the Apache API allows a module
+to step and do something.  The Apache documentation will tell you all about
+those stages and what your modules can do.  
+By default, these hooks are disabled at compile time, to change the defaults,
+simply edit mod_perl's Makefile (src/modules/perl/Makefile).  
+The following configuration directives take one argument, which is the name
+of the subroutine to call. 
+
+    PerlTransHandler    
+    PerlAuthenHandler
+    PerlAuthzHandler
+    PerlAccessHandler
+    PerlTypeHandler
+    PerlFixupHandler
+    PerlLogHandler
+
+=head1 I/O
+
+Apache's i/o is not stream oriented.  So, by default, you cannot 
+print() to STDOUT from your script, use $r->print() instead.  
+Nor can you read() from STDIN, use $r->read*() or the $r->content 
+methods to read POST data.
+As of Perl5.003_02, there are two mechanisms in place for redirecting
+the STDIN and STDOUT streams.  
+
+One mechanism takes advantage of the PerlIO abstraction and sfio discipline
+structures, such that STDIN and STDOUT are hooked up to the client by default
+if you configured perl with -Dusesfio (see Perl's INSTALL doc).
+
+Otherwise, mod_perl will tie() STDOUT to the client.  In order for this to 
+work, you must have Perl 5.003_02+ or apply the pp_hot.patch to your Perl 
+source.  There is no magic method to read from a tie'd STDIN, so for now
+you must use $r->read*() or $r->content to fetch client data.
+
+
+=head1 Using CGI.pm and CGI::*
+
+For users of CGI.pm, see the Apache::CGI, CGI::XA and CGI::Switch 
+modules.
+
+The CGI::* modules (CGI::Request etal.) can be used untouched if
+your Perl is configured to use sfio and the following directives
+are present in the directory configuration:
+
+    PerlSendHeader On	
+    PerlSetupEnv   On
+
+
+=head1 MEMORY CONSUMPTION
+
+No matter what, your httpd will be larger than normal to start, 
+simply because you've linked with perl's runtime.
+
+Here's I'm just running
+
+ % /usr/bin/perl -e '1 while 1'
+
+   PID USERNAME PRI NICE   SIZE   RES STATE   TIME   WCPU    CPU COMMAND
+ 10214 dougm     67    0   668K  212K run     0:04 71.55% 21.13% perl
+
+Now with a few random modules:
+
+ % /usr/bin/perl -MDBI -MDBD::mSQL -MLWP::UserAgent -MFileHandle -MIO -MPOSIX -e '1 while 1'
+
+ 10545 dougm     49    0  3732K 3340K run     0:05 54.59% 21.48% perl
+
+Here's my httpd linked with libperl.a, not having served a single request:
+
+ 10386 dougm      5    0  1032K  324K sleep   0:00  0.12%  0.11% httpd-a
+
+You can reduce this if you configure perl 5.003_xx+ with -Duseshrplib.
+Here's my httpd linked with libperl.sl, not having served a single request:
+
+ 10393 dougm      5    0   476K  368K sleep   0:00  0.12%  0.10% httpd-s
+
+Now, once the server starts receiving requests, the embedded interpreter
+will compile code for each 'require' file it has not seen yet,
+each new Apache::Registry subroutine that's compiled, along with whatever
+modules it's use'ing or require'ing.  Not to mention AUTOLOADing.
+(Modules that you 'use' will be compiled when the server starts unless 
+they are inside an eval block.)
+httpd will grow just as big as our /usr/bin/perl would, or a CGI process
+for that matter, it all depends on your setup.
+
+For me, once everything is compiled, the processes no longer grow, I can live
+with the size at that point. For others, this size might be too big, or they 
+might be using a module that leaks or have code of their own that leaks, in
+any case using the apache configuration directive 'MaxRequestsPerChild' is 
+your best bet to keep the size down, but at the same time, you'll be slowing 
+things down when Apache::Registry scripts have to recompile.  
+Tradeoffs...
+
+
+=head1 WARNINGS
+
+Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin) directory.
+
+Your scripts *will not* run from the command line (yet) unless you use
+CGI::Switch and no direct calls to Apache->methods.
+
+=head1 SUPPORT
+
+For comments, questions, bug-reports, announcements, etc., send mail
+to majordomo@listproc.itribe.net with the string "subscribe modperl"
+in the body.  
+
+=head1 AUTHOR
+
+Doug MacEachern <dougm@osf.org>
+
+
+

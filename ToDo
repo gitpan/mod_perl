@@ -1,0 +1,22 @@
+
+in no particular order:
+
+make sure $r->read* problems are solved
+
+find a good solution to installing the Perl side of mod_perl
+when no apache source tree is present
+
+timeout handling
+
+Apache::Registry should parse command line if present in scripts
+e.g. #!/usr/local/bin/perl -w
+
+figure out ErrorDocument + $r->status problem
+
+Apache::DBI module for managing persistent database connections
+
+provide an optional and configurable Safe wrapper around embedded scripts
+
+more tests for the test suites
+
+clean up lousy examples

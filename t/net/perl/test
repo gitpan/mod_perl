@@ -22,8 +22,8 @@ while (($key,$val) = each %ENV) {
 }
 
 if ($ENV{CONTENT_LENGTH}) {
-    $len = $ENV{CONTENT_LENGTH};
-    $n = $r->read_client_block($content, $len);
+    #$len = $ENV{CONTENT_LENGTH};
+    $content = $r->content;
     
-    print "\nContent\n-------\n$content";
+    $r->write_client("\nContent\n-------\n$content");
 }
