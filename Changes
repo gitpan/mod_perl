@@ -16,6 +16,66 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 1.03 - 10/23/97
+
+configure/build/INSTALL enhancements with much help from Bowen Dwelle:
+- to use an apache Configuration file that mod_perl will not edit:
+  perl Makefile.PL CONFIG=Configuration.custom
+
+- perl Makefile.PL DYNAMIC=1 ALL_HOOKS=1 ...
+  Configure mod_perl with ../apache_1.2.4/src ? [y]
+  Shall I build httpd in ../apache_1.2.4/src for you? [y] n   
+  now, $APACHE_SRC/modules/perl/Makefile will be enabled with those hooks
+ 
+- to aid EXTRA_CFLAGS when building by hand or using a custom
+  Configuration file: `perl -Mmod_perl -e subversion` prints:
+    SERVER_SUBVERSION=\"mod_perl/$mod_perl::VERSION\"
+
+- fixed up INSTALL quite a bit
+
+added $r->post_connection alias for $r->cleanup_handler
+
+if 1.3b2+, drop log_error(), use new aplog_error() instead (everywhere)
+
+if Tie::IxHash can't be loaded for <Perl> sections, don't complain
+
+applied patch from Rob so mod_perl.pm is in the tar_Apache target
+
+removed Apache->request depreciation warning
+
+added redirect.t test to test remote redirect and internal redirects
+
+fixed internal re-direction handling of Location: /local/file.html
+
+removed several eg/ scripts that were "ports" of CGI.pm-x.xx/examples 
+now that CGI.pm runs solid under mod_perl and mod_perl requires
+5.004+, there's no need for $r->print and CGI::Switch, so those
+examples don't need "porting"
+
+force 'PerlSendHeader On' for sub-requests, e.g. Apache::Sandwich
+so headers don't show up in the browser
+
+fixed PerlSendHeader bug with virtual includes spotted by Scott Holdren
+
+make lib/mod_perl.pm -> mod_perl.pm symlink (for 'make test') relative,
+suggested by Bowen Dwelle
+
+applied patch from Andreas to add a new $r->subprocess_env method
+
+fixed Apache::StatINC brokeness spotted by Bowen Dwelle and applied a
+StatINC doc patch from him too
+
+fixed bug with PERL_TRACE=1 spotted by Jimmy Oh
+
+restarting httpd ala kill -HUP will now reload all modules and flush
+the Apache::Registry cache 
+(must set 'PerlFreshRestart On' in httpd.conf for this to work)
+ 
+=item 1.02 - 10/17/97
+
+have Makefile.PL edit t/net/perl/cgi.pl's #! line to fix perl location
+thanks to Frank Cringle for spotting this
+
 =item 1.01 - 10/16/97
 
 removed undocumented auto-import of qw(OK DECLINED) use to short-cut

@@ -23,9 +23,9 @@ sub first_one {
     return 0;
 }
 
-$r->register_cleanup(sub {
+$r->post_connection(sub {
     my $r = shift;
-    $r->warn("registered cleanup called for ", $r->uri);
+    $r->warn("post connection handler called for ", $r->uri);
 });
 
 if(Apache->can_stack_handlers) {

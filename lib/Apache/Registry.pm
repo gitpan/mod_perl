@@ -6,8 +6,8 @@ use FileHandle ();
 use File::Basename ();
 use Cwd ();
 
-#$Id: Registry.pm,v 1.38 1997/10/16 23:21:47 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.38 $)[1];
+#$Id: Registry.pm,v 1.39 1997/10/24 03:33:02 dougm Exp $
+$Apache::Registry::VERSION = (qw$Revision: 1.39 $)[1];
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -19,7 +19,7 @@ my $Is_Win32 = $^O eq "MSWin32";
 
 sub handler {
     my $r = shift;
-    Apache->request($r);
+    $r->request($r);
     my $filename = $r->filename;
     #local $0 = $filename; #this core dumps!?
     *0 = \$filename;

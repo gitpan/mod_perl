@@ -143,35 +143,36 @@ Tests are run with 'SSLDisable'
 
 =back
 
+=head1 Using an alternative Configuration file
+
+=over 3
+
+If you wish to use a B<Configuration> file without having mod_perl's
+Makefile.PL give it's copy to apache's B<Configuration>, configure
+like so:
+
+ perl Makefile.PL CONFIG=Configuration.custom
+
+Where B<Configuration.custom> is the name of any file relative to the
+apache source tree you build against.  See the "building apache and
+mod_perl by hand" instructions below on how to add the mod_perl
+information to your custom Configuration file.
+
+=back
+
 =head1 Building apache and mod_perl by hand
 
 =over 3
 
 ** Only if you did not let Makefile.PL take care of this already **
  
-=item mod_perl source files
+=item mod_perl Makefile
 
-If you wish to link the Apache:: extensions static with httpd,
-edit src/modules/perl/Makefile and uncomment these lines:
+When Makefile.PL is run $APACHE_SRC/modules/perl/Makefile will be
+modified to enable options (e.g. ALL_HOOKS=1)
 
- #STATIC_SRC = Apache.c Constants.c
- #STATIC_EXTS = Apache Apache::Constants
-
-Or, to build the Apache:: extensions as shared libraries:
-(note: this does not work on some systems, such as aix and unixware)
-
-Run:
-
- % perl Makefile.PL DYNAMIC=1 && make
-
-When prompted, you must tell Makefile.PL where to find apache sources
-(for header files), answer 'n' when asked 
-"Shall I build httpd in ../apache_x.x.x/src for you?"
-
-Now copy the source files into the apache build directory:
-(For apache versions < 1.2 you'll need to mkdir src/modules/ first)
-
-	cp -r src/modules/perl  apache_xxx/src/modules/
+You may also edit mod_perl-x.xx/src/modules/perl/Makefile before
+or after running Makefile.PL if you wish  
 
 =item Makefile.tmpl
 
@@ -191,6 +192,26 @@ you want your callback hooks to have precedence over core handlers.
 Add the following to EXTRA_LIBS:
 
 	EXTRA_LIBS=`perl -MExtUtils::Embed -e ldopts`
+
+Add the following to EXTRA_CFLAGS:
+
+	EXTRA_CFLAGS=`perl -MExtUtils::Embed -e ccopts` \ 
+	             `perl -Mmod_perl -e subversion`
+
+=item mod_perl source files
+
+Copy the source files into the apache build directory:
+(For apache versions < 1.2 you'll need to mkdir src/modules/ first)
+
+	cp -r src/modules/perl  apache_xxx/src/modules/
+
+Run:
+
+ % perl Makefile.PL DYNAMIC=1 && make install
+
+When prompted, you must tell Makefile.PL where to find apache sources
+(for header files), answer 'n' when asked 
+"Shall I build httpd in ../apache_x.x.x/src for you?"
 
 Follow the apache install docs from there
 

@@ -2,24 +2,30 @@ package Apache::StatINC;
 
 use strict;
 
-$Apache::StatINC::VERSION = "1.00";
+$Apache::StatINC::VERSION = "1.01";
 
 my %Stat = ();
 
 sub handler {
-    my($key,$file);
+    my $r = shift;
 
-    while(($key,$file) = each %INC) {
-	my $mtime = (stat $file)[9];
-
-	if(exists $Stat{$file}) {
-	    if($mtime > $Stat{$file}) {
-		delete $INC{$key};
-		local $^W = 0;
-		require $key;
-	    }
+    if($r and my $pat = $r->dir_config("DeleteINC")) {
+	for my $file (delete @INC{ grep /$pat/, keys %INC }) {
+	    require $file;
 	}
+    }
 
+    while(my($key,$file) = each %INC) {
+	local $^W = 0;
+	my $mtime = (stat $file)[9];
+	unless(defined $Stat{$file}) { 
+	    $Stat{$file} = $^T;
+	}
+	if($mtime > $Stat{$file}) {
+	    delete $INC{$key};
+	    require $key;
+	    warn "process $$ reloading $key\n";
+	}
 	$Stat{$file} = $mtime;
     }
 
@@ -47,6 +53,14 @@ global hash C<%INC>.  The next time Perl tries to C<require> the same
 file, it sees the file in C<%INC> and does not reload from disk.  This
 module's handler iterates over C<%INC> and reloads the file if it has
 changed on disk. 
+
+Note that since StatINC operates above the context of any 'use lib' statments
+you might have in your handler modules or scripts, you must set the PERL5LIB
+variable in the httpd's environment to include any non-standard 'lib' 
+directories that you want StatINC to monitor. For example, you might use a
+script called 'start_httpd' to start apache, and include a line like this:
+
+        PERL5LIB=/usr/local/foo/myperllibs; export PERL5LIB
 
 =head1 SEE ALSO
 

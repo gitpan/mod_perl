@@ -4,7 +4,7 @@ use Exporter ();
 use Apache::Constants qw(OK DECLINED);
 
 @Apache::EXPORT_OK = qw(exit warn);
-$Apache::VERSION = "1.18";
+$Apache::VERSION = "1.19";
 
 *import = \&Exporter::import;
 
@@ -645,6 +645,26 @@ writing handlers in mod_perl you can use Perl variables for this.
    $r->notes("MY_HANDLER", OK);
    $val = $r->notes("MY_HANDLER");
 
+=item $r->subprocess_env( $key, [$value] )
+
+Return the value of a named entry in the Apache C<subprocess_env>
+table, or optionally set the value of a named entry. This table is
+used by Apache's mod_include. By setting some custom variables inside
+a perl handler it is possible to combine perl with mod_include nicely.
+If you say, e.g. in a PerlHeaderParserHandler
+
+   $r->subprocess_env("MyLanguage", "de");
+
+you can then write in your .shtml document:
+
+   <!--#if expr="$MyLanguage = en" -->
+   English
+   <!--#elif expr="$MyLanguage = de" -->
+   Deutsch
+   <!--#else -->
+   Sorry
+   <!--#endif -->
+
 =item $r->content_type( [$newval] )
 
 Get or set the content type being sent to the client.  Content types
@@ -867,7 +887,9 @@ Uh, oh.  Write a message to the server errorlog.
 
 =item $r->warn($message)
 
-An alias for Apache->log_error.
+For pre-1.3 versions of apache, this is just an alias for
+C<log_error>.  With 1.3+ versions of apache, this message will only be
+send to the error_log if B<LogLevel> is set to B<warn> or higher. 
 
 =back
 

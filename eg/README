@@ -6,6 +6,10 @@ handlers for other stages of a request to the Apache httpd.
 Also see:
 
 The Apache/Perl module list:
-http://www.perl.com/CPAN/modules/by-module/Apache/apache-modlist.html
+http://perl.apache.org/dist/apache-modlist.html
 
 The Apache/Perl contributed modules and examples:
+http://perl.apache.org/src/contrib/
+
+CGI.pm's examples/ directory
+

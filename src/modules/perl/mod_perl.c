@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.65 1997/10/16 23:21:47 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.66 1997/10/24 03:33:02 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -83,6 +83,9 @@ static command_rec perl_cmds[] = {
     { "<Perl>", perl_section, NULL, OR_ALL, RAW_ARGS, "Perl code" },
     { "</Perl>", perl_end_section, NULL, OR_ALL, NO_ARGS, NULL },
 #endif
+    { "PerlFreshRestart", perl_cmd_fresh_restart,
+      NULL,
+      RSRC_CONF, FLAG, "Tell mod_perl to reload modules and flush Apache::Registry cache on restart" },
     { "PerlTaintCheck", perl_cmd_tainting,
       NULL,
       RSRC_CONF, FLAG, "Turn on -T switch" },
@@ -206,9 +209,10 @@ static void seqno_check_max(request_rec *r, int seqno)
     if(max && (seqno >= atoi(max))) {
 	child_terminate(r);
 	MP_TRACE(fprintf(stderr, "mod_perl: terminating child %d after serving %d requests\n", 
-		getpid(), seqno));
+		(int)getpid(), seqno));
     }
 #endif
+    max = NULL; 
 }
 
 void perl_shutdown (server_rec *s, pool *p)
@@ -250,6 +254,48 @@ void perl_shutdown (server_rec *s, pool *p)
 #endif
 }
 
+void perl_load_startup_script(server_rec *s, pool *p, I32 my_warn)
+{
+    dPSRV(s);
+    char *script;
+    if(!cls->PerlScript) {
+	MP_TRACE(fprintf(stderr, "no PerlScript to load\n"));
+	return;
+    }
+    script = server_root_relative(p, cls->PerlScript);
+    MP_TRACE(fprintf(stderr, "attempting to load `%s'\n", script));
+    ENTER;
+    save_hptr(&curstash);
+    curstash = defstash;
+    SAVEI32(dowarn);
+    dowarn = my_warn;
+    perl_require_pv(script);
+    (void)hv_delete(GvHV(incgv), script, strlen(script), G_DISCARD);
+    LEAVE;
+} 
+
+void perl_restart(server_rec *s, pool *p)
+{
+    /* restart as best we can */
+    SV *rgy_cache = perl_get_sv("Apache::Registry", FALSE);
+    HV *rgy_symtab = (HV*)gv_stashpv("Apache::ROOT", FALSE);
+
+    /* the file-stat cache */
+    if(rgy_cache)
+	sv_setsv(rgy_cache, &sv_undef);
+
+    /* the symbol table we compile registry scripts into */
+    if(rgy_symtab)
+	hv_clear(rgy_symtab);
+
+    /* reload modules and PerlScript */
+    perl_reload_inc();
+    perl_load_startup_script(s, p, FALSE);
+
+    mod_perl_notice(s, "mod_perl restarted"); 
+    MP_TRACE(fprintf(stderr, "perl_restart: ok\n"));
+}
+
 void perl_startup (server_rec *s, pool *p)
 {
     char *argv[] = { NULL, "-I.", "-Mmod_perl", NULL, NULL, NULL };
@@ -261,14 +307,27 @@ void perl_startup (server_rec *s, pool *p)
     argv[0] = server_argv0;
 #endif
 
-    if(perl_is_running++) {
-#if 0
-      perl_shutdown(s, p);
+#ifdef APACHE_SSL
+#define DONE_STARTUP 1
 #else
-      MP_TRACE(fprintf(stderr, "perl_startup: perl aleady running...ok\n"));
-      return;
+#define DONE_STARTUP 2
 #endif
+
+    if(perl_is_running == 0) {
+	/* we'll boot Perl below */
     }
+    else if(perl_is_running < DONE_STARTUP) {
+	/* skip the -HUP at server-startup */
+	perl_is_running++;
+	MP_TRACE(fprintf(stderr, "perl_startup: perl aleady running...ok\n"));
+	return;
+    }
+    else {
+	if(cls->FreshRestart)
+	    perl_restart(s, p);
+	return;
+    }
+    perl_is_running++;
 
     MP_TRACE(fprintf(stderr, "allocating perl interpreter..."));
     if((perl = perl_alloc()) == NULL) {
@@ -289,13 +348,13 @@ void perl_startup (server_rec *s, pool *p)
 	argv[argc++] = "-w";
 
     if(cls->PerlScript) {
-	argv[argc++] = server_root_relative(p, cls->PerlScript);
+        argv[argc++] = server_root_relative(p, cls->PerlScript);
     }
     else {
-	argv[argc++] = "-e";
-	argv[argc++] = "0";
-    } 
-
+        argv[argc++] = "-e";
+        argv[argc++] = "0";
+    }
+     
     MP_TRACE(fprintf(stderr, "parsing perl script: "));
     for(i=1; i<argc; i++)
 	MP_TRACE(fprintf(stderr, "'%s' ", argv[i]));
@@ -334,7 +393,7 @@ void perl_startup (server_rec *s, pool *p)
 
     MP_TRACE(fprintf(stderr, 
 	     "mod_perl: %d END blocks encountered during server startup\n",
-	     AvFILL(endav)+1));
+	     endav ? AvFILL(endav)+1 : 0));
 #if MODULE_MAGIC_NUMBER < 19970728
     if(endav)
 	fprintf(stderr, "mod_perl: cannot run END blocks encoutered at server startup without apache_1.3b1+\n");
@@ -358,6 +417,8 @@ void perl_startup (server_rec *s, pool *p)
     }
 
     orig_inc = av_copy_array(GvAV(incgv));
+
+    (void)gv_fetchpv("Apache::FreshRestart", GV_ADDMULTI, SVt_PV);
 
     {
 	GV *gv = gv_fetchpv("Apache::__T", GV_ADDMULTI, SVt_PV);
@@ -395,6 +456,15 @@ int perl_handler(request_rec *r)
 {
     dSTATUS;
     dPPDIR;
+
+    /* force 'PerlSendHeader On' for sub-requests
+     * e.g. Apache::Sandwich 
+     */
+    if(r->main != NULL)
+	MP_SENDHDR_on(cld); 
+
+    if(MP_SENDHDR(cld)) 
+	MP_SENTHDR_off(cld);
 
     table_set(r->subprocess_env, "MOD_PERL", MOD_PERL_VERSION);
 
@@ -946,8 +1016,8 @@ callback:
         status = SERVER_ERROR;
     }
     else if (count != 1) {
-	log_error("perl_call did not return a status arg, assuming OK",
-		  r->server);
+	mod_perl_error(r->server,
+		       "perl_call did not return a status arg, assuming OK");
 	status = OK;
     }
     else {

@@ -52,7 +52,7 @@
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.62 1997/10/16 23:21:47 dougm Exp $ */
+/* $Id: Apache.xs,v 1.63 1997/10/24 03:33:02 dougm Exp $ */
 
 #if MODULE_MAGIC_NUMBER < 19970909
 static void
@@ -133,6 +133,12 @@ void
 mod_perl_register_cleanup(r, sv)
     Apache     r
     SV *sv
+
+    ALIAS:
+    Apache::post_connection = 1
+
+    PREINIT:
+    ix = ix; /* avoid -Wall warning */
 
 void
 mod_perl_clear_rgy_endav(r, sv)
@@ -576,26 +582,21 @@ log_error(...)
     }
     else
         errstr = SvPVX(ST(i));
-#if MODULE_MAGIC_NUMBER > 19970909
-    {
-	int level = APLOG_ERR | APLOG_NOERRNO;
 
-	switch((ix = XSANY.any_i32)) {
+    switch((ix = XSANY.any_i32)) {
 	case 0:
-	    break;
+	mod_perl_error(r->server, errstr);
+	break;
 
 	case 1:
-	    level = APLOG_WARNING | APLOG_NOERRNO; 
-	    break;
+	mod_perl_warn(r->server, errstr);
+	break;
 
-	default:
-	    break;
-	}
-	aplog_error(APLOG_MARK, level, r->server, errstr);
+        default:
+	mod_perl_error(r->server, errstr);
+	break;
     }
-#else
-    log_error(errstr, r->server);
-#endif
+
     if(sv) SvREFCNT_dec(sv);
 
 #methods for creating a CGI environment
@@ -631,27 +632,40 @@ cgi_env(r, ...)
     else
         croak("need an argument in scalar context"); 
    
+
+SV *
+subprocess_env(r, key, ...)
+    Apache    r
+    char *key
+
+    PREINIT:
+    char *val;
+
+    CODE:
+    if((val = table_get(r->subprocess_env, key)))
+      RETVAL = newSVpv(val, 0);
+    else
+      RETVAL = newSV(0);
+
+    if(items > 2)
+        table_set(r->subprocess_env, key, SvPVX(ST(2)));
+
+    OUTPUT:
+    RETVAL
+
+
 #see httpd.h
 #struct request_rec {
 
 void
-request(self, ...)
+request(self, r=NULL)
     SV *self
-	
-    PREINIT:
-    SV *sv = perl_get_sv("Apache::Request", TRUE);
+    Apache r
 
     PPCODE: 
-    if(items > 1) {
-	sv_setsv(sv, ST(1));
-    }
-    else {
-	if(!SvTRUE(sv)) {
-	    warn("use of Apache->request outside of Apache::Registry depreciated");
-	    sv = perl_bless_request_rec(perl_request_rec(NULL));
-	}
-    }
-    XPUSHs(sv);
+    self = self;
+    if(items > 1) perl_request_rec(r);
+    XPUSHs(perl_bless_request_rec(perl_request_rec(NULL)));
 
 #  pool *pool;
 #  conn_rec *connection;
@@ -1011,8 +1025,19 @@ cgi_header_out(r, key, ...)
             r->status_line = pstrdup(r->pool, val);
         }
         else if(!strncasecmp(key, "Location", 8)) {
-	    table_set (r->headers_out, key, val);
-	    r->status = 302;
+	    if (val && val[0] == '/' && r->status == 200) {
+		r->method = pstrdup(r->pool, "GET");
+	        r->method_number = M_GET;
+
+		table_unset(r->headers_in, "Content-Length");
+
+		internal_redirect_handler(val, r);
+		perl_call_halt();
+	    }
+	    else {
+		table_set (r->headers_out, key, val);
+		r->status = 302;
+	    }
         }   
         else if(!strncasecmp(key, "Content-Length", 14)) {
 	    table_set (r->headers_out, key, val);

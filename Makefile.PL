@@ -25,7 +25,7 @@ my %mcache = (); #MODULE_MAGIC_NUMBER
     for (@_) { -e $_ or die $! }
 } if $File::Copy::VERSION < 2.0;
 
-$VERSION = "1.02";
+$VERSION = "1.03";
 
 use subs qw(_prompt iedit asrc);
 
@@ -71,12 +71,16 @@ my(@do_clean) = qw{
    Apache/Apache.xs
    Constants/Constants.xs
    t/modules/ssi.t       
+   /tmp/mod_perl_error_log
+   /tmp/mod_perl_srm.conf
+   /tmp/mod_perl_httpd.pid
 };
 #t/conf/httpd.conf
 #t/net/config.pl
 
 for(@do_clean) { unlink $_ }
 rmtree "t/docs/stacked", 0, 0;
+rmtree "t/docs/subr", 0, 0;
 
 my(@test_pre_init) = qq(
 test_pre_init:
@@ -108,10 +112,12 @@ $PERL_SSI = 0;
 $ADD_VERSION = 1;
 $STATIC = 1;
 $DYNAMIC = 0;
+$CONFIG = "";
 
 my @mp_args = 
-    qw(EVERYTHING DO_HTTPD NO_HTTPD 
+    qw(EVERYTHING DO_HTTPD NO_HTTPD CONFIG
        ALL_HOOKS APACHE_SRC ADD_VERSION STATIC DYNAMIC);
+
 sub is_mp_arg {
     my $arg = shift; 
     for (@mp_args) {
@@ -151,6 +157,7 @@ while($_ = shift) {
 
 @ARGV = @mm_args;
 $STATIC = 0 if $DYNAMIC;
+$Configuration = $CONFIG || "Configuration";
 
 for (keys %callback_alias) {
     $callback_hooks{$callback_alias{$_}}++ 
@@ -214,7 +221,7 @@ unless (@adirs) {
 }
 
 for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
-    $conf = "$adir/Configuration";
+    $conf = "$adir/$Configuration";
     $httpd_h = asrc($adir)."/httpd.h";
 
     if (-e $httpd_h) {
@@ -271,11 +278,12 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 
     unless ($NO_HTTPD) {
 	$conf = "src/Configuration";
-	my $dash_make;
+	my($dash_make, $cfgfile);
 	$dash_make = " -make $PWD/src/$mft_map{$adir} "
 	    if $can_dash_make{asrc $adir} and $mft_map{$adir};
 	#print STDERR "(cd $adir; ./Configure${dash_make} -file $PWD/$conf)\n";
-	system "(cd $adir && ./Configure${dash_make} -file $PWD/$conf)";
+	$cfgfile = $CONFIG ? $CONFIG : "$PWD/$conf";
+	system "(cd $adir && ./Configure${dash_make} -file $cfgfile)";
     }
 
     open FH, "$APACHE_SRC/Makefile";
@@ -294,7 +302,7 @@ if($DYNAMIC) {
     }
 }
 
-unless ($NO_HTTPD) {
+if($APACHE_SRC) {
     ++$STATIC if $Config{osname} =~ /^(aix|svr4|unixware)$/i;
 
     my $mmn    = magic_number($APACHE_SRC);
@@ -309,19 +317,19 @@ unless ($NO_HTTPD) {
     unless($httpdv >= 130) {
 	$callback_hooks{PERL_CHILD_INIT} = 0;
 	$cant_hook{PERL_CHILD_INIT} = 
-	    "(need 1.3a1 or higher)";
+	    "(need 1.3b2 or higher)";
     }
 
     unless($mmn >= 19970728) {
 	$callback_hooks{PERL_CHILD_EXIT} = 0;
 	$cant_hook{PERL_CHILD_EXIT} = 
-	    "(need 1.3b1 or higher)";
+	    "(need 1.3b2 or higher)";
     }
 
     unless($mmn >= 19970825) {
 	$callback_hooks{PERL_POST_READ_REQUEST} = 0;
 	$cant_hook{PERL_POST_READ_REQUEST} = 
-	    "(need 1.3b1 or higher)";
+	    "(need 1.3b2 or higher)";
     }
 
     setup_for_static();
@@ -539,6 +547,9 @@ sub write_extra_tests {
 	cp "t/modules/ssi.test", "t/modules/ssi.t";
     }
 
+    mkdir "t/docs/subr", 0755;
+    system "date > t/docs/subr/index.html";
+
     return unless 
 	$callback_hooks{PERL_STACKED_HANDLERS} 
     and $callback_hooks{PERL_FIXUP};
@@ -588,7 +599,7 @@ WriteMakefile(
 );
 
 unless (-l "mod_perl.pm") {
-    system "$Config{lns} $PWD/lib/mod_perl.pm $PWD/mod_perl.pm";
+    system "$Config{lns} lib/mod_perl.pm mod_perl.pm";
 }
 
 print "*** BSDI users: be sure to read the INSTALL `Notes' section ***\n"
@@ -609,19 +620,19 @@ sub MY::clean {
 sub MY::top_targets {
     my $self = shift;
     my $string = $self->MM::top_targets;
-    return $string unless $APACHE_SRC and -f "$APACHE_SRC/Configuration";
+    return $string unless $APACHE_SRC and -f "$APACHE_SRC/$Configuration";
     my $asrc = asrc $APACHE_SRC;
     if(-e "$asrc/http_main.c" and !$NO_HTTPD) {
         $string =~ s/(pure_all\s+::\s+)(.*)/$1 apache_httpd $2/;
     }
     $string .= <<'EOF';
 
-apache_httpd: $(APACHE_SRC)/Configuration	
+apache_httpd: $(APACHE_SRC)/Makefile.tmpl
 	(cd $(APACHE_SRC) && $(MAKE) CC="$(CC)";)
 
 tar_Apache:
 	(cd $(INSTALLSITELIB); \
-	     $(TAR) -cf $(PWD)/Apache.tar Apache.pm Apache $(ARCHNAME)/auto/Apache; )
+	     $(TAR) -cf $(PWD)/Apache.tar mod_perl.pm Apache.pm Apache $(ARCHNAME)/auto/Apache; )
 
 offsite-tar:
 	$(CP) MANIFEST MANIFEST.orig

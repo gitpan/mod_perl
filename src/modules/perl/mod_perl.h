@@ -148,6 +148,26 @@ if((add->flags & f) || (base->flags & f)) \
 #endif
 
 /* some 1.2.x/1.3.x compat stuff */
+
+#if MODULE_MAGIC_NUMBER > 19970909
+
+#define mod_perl_warn(s,msg) \
+    aplog_error(APLOG_MARK, APLOG_WARNING | APLOG_NOERRNO, s, msg)
+
+#define mod_perl_error(s,msg) \
+    aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, s, msg)
+
+#define mod_perl_notice(s,msg) \
+    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, s, msg)
+
+#else
+
+#define mod_perl_error(s,msg) log_error(msg,s)
+#define mod_perl_warn   mod_perl_error
+#define mod_perl_notice mod_perl_error
+
+#endif                    
+
 #if MODULE_MAGIC_NUMBER < 19970719
 #define is_initial_req(r) ((r->main == NULL) && (r->prev == NULL)) 
 #endif
@@ -540,6 +560,7 @@ typedef struct {
     int  NumPerlModules;
     int  PerlTaintCheck;
     int  PerlWarn;
+    int FreshRestart;
     PERL_CMD_TYPE *PerlPostReadRequestHandler;
     PERL_CMD_TYPE *PerlTransHandler;
     PERL_CMD_TYPE *PerlChildInitHandler;
@@ -626,6 +647,7 @@ void perl_call_halt(void);
 CV *empty_anon_sub(void);
 void perl_reload_inc(void);
 int perl_require_module(char *, server_rec *);
+void perl_load_startup_script(server_rec *s, pool *p, I32 my_warn);
 void newCONSTSUB(HV *stash, char *name, SV *sv);
 void perl_clear_env(void);
 void mod_perl_init_ids(void);
@@ -664,6 +686,7 @@ CHAR_P perl_cmd_env (cmd_parms *cmd, perl_dir_config *rec, int arg);
 CHAR_P perl_cmd_sendheader (cmd_parms *cmd, perl_dir_config *rec, int arg);
 CHAR_P perl_cmd_tainting (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg);
+CHAR_P perl_cmd_fresh_restart (cmd_parms *parms, void *dummy, int arg);
 
 CHAR_P perl_cmd_init_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);
 CHAR_P perl_cmd_cleanup_handlers (cmd_parms *parms, perl_dir_config *rec, char *arg);

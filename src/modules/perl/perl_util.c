@@ -178,7 +178,7 @@ void perl_run_rgy_endav(char *s)
     }
 
     MP_TRACE(fprintf(stderr, 
-	     "running %d END blocks for %s\n", AvFILL(rgyendav)+1, s));
+	     "running %d END blocks for %s\n", rgyendav ? AvFILL(rgyendav)+1 : 0, s));
     if((endav = rgyendav)) 
 	perl_run_blocks(scopestack_ix, endav);
     if(rgyendav)
@@ -224,7 +224,6 @@ void perl_call_halt()
     sv_unmagic(GvSV(errgv), 'U');
 }
 
-#if 0
 void perl_reload_inc(void)
 {
     SV *val;
@@ -247,7 +246,6 @@ void perl_reload_inc(void)
 
     LEAVE;
 }
-#endif
 
 int perl_require_module(char *mod, server_rec *s)
 {
@@ -256,10 +254,17 @@ int perl_require_module(char *mod, server_rec *s)
     MP_TRACE(fprintf(stderr, "loading perl module '%s'...", mod)); 
     sv_catpv(sv, mod);
     perl_eval_sv(sv, G_DISCARD);
-    if(perl_eval_ok(s) != OK) {
+    if(s) {
+	if(perl_eval_ok(s) != OK) {
+	    MP_TRACE(fprintf(stderr, "not ok\n"));
+	    return -1;
+	}
+    }
+    else if(SvTRUE(GvSV(errgv))) {
 	MP_TRACE(fprintf(stderr, "not ok\n"));
 	return -1;
     }
+
     MP_TRACE(fprintf(stderr, "ok\n"));
     return 0;
 }
@@ -304,7 +309,7 @@ int perl_eval_ok(server_rec *s)
     sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
     if(SvTRUE(sv)) {
 	MP_TRACE(fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na)));
-	log_error(SvPV(sv, na), s);
+	mod_perl_error(s, SvPV(sv, na));
 	return -1;
     }
     return 0;

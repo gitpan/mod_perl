@@ -183,6 +183,7 @@ void *perl_create_server_config (pool *p, server_rec *s)
     cls->PerlScript = NULL;
     cls->PerlTaintCheck = 0;
     cls->PerlWarn = 0;
+    cls->FreshRestart = 0;
     PERL_POST_READ_REQUEST_CREATE(cls);
     PERL_TRANS_CREATE(cls);
     PERL_CHILD_INIT_CREATE(cls);
@@ -366,6 +367,14 @@ CHAR_P perl_cmd_warn (cmd_parms *parms, void *dummy, int arg)
 #ifdef PERL_SECTIONS
     if(arg && PERL_RUNNING()) dowarn = TRUE;
 #endif
+    return NULL;
+}
+
+CHAR_P perl_cmd_fresh_restart (cmd_parms *parms, void *dummy, int arg)
+{
+    dPSRV(parms->server);
+    MP_TRACE(fprintf(stderr, "perl_cmd_fresh_restart: %d\n", arg));
+    cls->FreshRestart = arg;
     return NULL;
 }
 
@@ -832,7 +841,7 @@ CHAR_P perl_section (cmd_parms *cmd, void *dummy, const char *arg)
 	return NULL;
     }
 
-    if((perl_require_module("Tie::IxHash", cmd->server) == OK))
+    if((perl_require_module("Tie::IxHash", NULL) == OK))
 	dotie = TRUE;
 
     perl_section_hash_init("ApacheReadConfig::Location", dotie);

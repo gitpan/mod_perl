@@ -7,8 +7,6 @@ win32:
 
 cleanup Makefile.PL!!!
 
-get rid of basic_http_header usage (almost there)
-
 extend $r->notes method so we can store arbitrary Perl structures
 
 think about re-introducing perl_alloc..perl_free option for each
@@ -41,7 +39,7 @@ figure out good way to route request to specific child to maintain state
 
 find a good way to make Apache::exit override CORE::exit no matter where we are
 
-find good ways to decrease size of httpd (perl-runtime!)
+find more ways to decrease size of httpd (perl-runtime!)
 
 more tests for the test suite
 

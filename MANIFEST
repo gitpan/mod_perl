@@ -14,12 +14,9 @@ mod_perl_tuning.pod
 cgi_to_mod_perl.pod
 mod_perl_traps.pod
 eg/perl_sections.txt
-eg/cgi-pm.pl
-eg/file_upload.pl
 eg/startup.pl
 eg/perlio.pl
 eg/registry.pl
-eg/rgy-cgi-pm.pl
 eg/README
 lib/mod_perl.pm
 lib/Apache/Debug.pm
@@ -60,6 +57,7 @@ t/core/headers.t
 t/core/hooks.t
 t/core/http-get.t
 t/core/http-post.t
+t/core/redirect.t
 t/core/taint.t
 t/net/perl/hooks.pl
 t/net/perl/api.pl
@@ -68,6 +66,7 @@ t/net/perl/cgi.pl
 t/net/perl/ssi.pl
 t/net/perl/test
 t/net/perl/taint.pl
+t/net/perl/io/redir.pl
 t/net/perl/io/perlio.pl
 t/net/perl/io/ssi1.pl
 t/net/perl/io/ssi2.pl
@@ -81,6 +80,7 @@ t/docs/test.html
 t/docs/rgy-include.shtml
 t/docs/startup.pl
 t/docs/LoadClass.pm
+t/docs/content.html
 benchmark/lwp-simple.pod
 benchmark/stopwatch.pod
 faq/Makefile

@@ -39,7 +39,7 @@ type check, fixup and logger stages of a request.
 The mod_perl FAQ is maintained by Frank Cringle <fdc@cliwe.ping.de>:
 http://perl.apache.org/faq/
 
-Mike Stok <mike@stok.co.uk> maintains mirrors the mod_perl FAQ at
+Mike Stok <mike@stok.co.uk> maintains mirrors of the mod_perl FAQ at:
 
   http://www.stok.co.uk/~mike/mod_perl/
 
@@ -118,6 +118,16 @@ assumes it is a package name which implements a 'handler' subroutine.
 Only ChildInit, ChildExit, PostReadRequest and Trans handlers are not
 allowed in .htaccess files.
 
+=head1 RESTARTING
+
+By default, if a server is restarted 
+(ala kill -USR1 `cat logs/httpd.pid`), Perl scripts and modules are
+not reloaded.  To reload B<PerlScript>, B<PerlModule>'s, other
+use()'d modules and flush the B<Apache::Registry> cache, enable with 
+this command:
+
+ PerlFreshRestart On  
+ 
 =head1 ENVIRONMENT
 
 Under CGI the Perl hash C<%ENV> is magical in that it inherits
