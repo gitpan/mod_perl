@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_cgi - running CGI scripts under mod_perl ($Date: 1997/12/22 08:43:56 $)
+Mod_perl_cgi - running CGI scripts under mod_perl ($Date: 1998/02/10 08:58:18 $)
 
 =head1 DESCRIPTION
 
@@ -142,6 +142,12 @@ or declare this variable to be global,
 
   use vars qw($q);
   $q = CGI->new();
+
+The reason why Perl works this way is explained in a news posting by
+Mike Guy that is included with this FAQ (mjtg-news.txt).
+
+=for html
+ <a href="mjtg-news.txt">mjtg-news.txt</a>
 
 =head2 Variables B<still> retain their value from one request to the next
 

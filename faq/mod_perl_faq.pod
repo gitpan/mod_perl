@@ -1,6 +1,6 @@
 =head1 NAME
 
-Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1997/12/22 08:43:56 $)
+Mod_perl_faq - frequently asked questions about mod_perl ($Date: 1998/02/10 08:58:18 $)
 
 =head1 DESCRIPTION
 
@@ -378,7 +378,7 @@ There is a mailing-list dedicated to mod_perl.  It is archived at
 http://outside.organic.com/mail-archives/modperl/
 
 You can subscribe to the list by sending a mail with the line C<subscribe
-modperl> to C<majordomo@listproc.itribe.net>.
+modperl> to C<listserv@listproc.itribe.net>.
 
 The mod_perl homepage http://perl.apache.org/ has links to other
 mod_perl resources.

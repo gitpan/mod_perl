@@ -5,7 +5,7 @@ use vars qw($Debug);
 use BSD::Resource qw(setrlimit getrlimit get_rlimits);
 
 $Debug ||= 0;
-$Apache::Resource::VERSION = (qw$Revision: 1.13 $)[1];
+$Apache::Resource::VERSION = (qw$Revision: 1.14 $)[1];
 
 sub MB ($) { 
     my $num = shift;
@@ -114,8 +114,6 @@ if($ENV{MOD_PERL}) {
 1;
 
 __END__
-
-=pod
 
 =head1 NAME
 
