@@ -40,6 +40,7 @@ lib/Apache/TieHandle.pm
 pp_hot.patch
 src/Makefile.tmpl
 src/Makefile.tmpl-1.2
+src/Makefile.tmpl-1.2b5
 src/modules/perl/Apache.xs
 src/modules/perl/typemap
 src/modules/perl/ldopts

@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.35 1997/01/20 05:21:52 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.36 1997/01/23 00:07:19 dougm Exp $ */
 
 /* 
  * And so it was decided the camel should be given magical multi-colored
@@ -59,6 +59,8 @@
  */
 
 #include "mod_perl.h"
+
+#define DEFINED_SUB(sub) (perl_get_cv(sub, FALSE) || GvCV(gv_fetchmethod(NULL, sub)))
 
 static int avoid_alloc_hack = 0;
 
@@ -148,6 +150,7 @@ module perl_module = {
 void perl_init (server_rec *s, pool *p)
 {
   char *argv[3];
+  char *constants[] = { "Apache::Constants", "OK", "DECLINED", NULL };
   int status, i;
   perl_server_config *cls;
 
@@ -193,9 +196,12 @@ void perl_init (server_rec *s, pool *p)
   }
   CTRACE(stderr, "ok\n");
 
-  perl_require_module("Apache", s);
-  for(i = 0; i < cls->NumPerlModules; i++) 
-    perl_require_module(cls->PerlModules[i], s);
+  for(i = 0; i < cls->NumPerlModules; i++) {
+    if(perl_require_module(cls->PerlModules[i], s) != OK) {
+      fprintf(stderr, "Can't load Perl module `%s', exiting...\n", cls->PerlModules[i]);
+      exit(1);
+    }
+  }
 
   perl_clear_env();
 
@@ -208,6 +214,11 @@ void perl_init (server_rec *s, pool *p)
   }
   CTRACE(stderr, "ok\n");
 
+  /* import Apache::Constants qw(OK DECLINED) */
+  perl_call_argv("Apache::Constants::import", G_DISCARD | G_EVAL, constants);
+  if(perl_eval_ok(s) != OK) 
+    perror("Apache::Constants->import failed");
+    
   if (s->error_log)
     error_log2stderr(s);
 }
@@ -237,8 +248,10 @@ void *create_perl_server_config (pool *p, server_rec *s)
     (perl_server_config *)palloc(p, sizeof (perl_server_config));
 
   cls->PerlModules = (char **)NULL; 
-  cls->PerlModules = (char **)palloc(p, MAX_PERL_MODS*sizeof(char *));
-  cls->NumPerlModules = 0;
+  cls->PerlModules = (char **)palloc(p, (MAX_PERL_MODS+2)*sizeof(char *));
+  cls->PerlModules[0] = "Apache";
+  cls->PerlModules[1] = "Apache::Constants";
+  cls->NumPerlModules = 2;
   cls->PerlScript = NULL;
   PERL_TRANS_CREATE(cls);
   perl = NULL;
@@ -314,7 +327,7 @@ int PERL_TYPE_HOOK(request_rec *r)
   int status = DECLINED;
   perl_dir_config *cld = get_module_config (r->per_dir_config,
 					    &perl_module);   
-  PERL_CALLBACK_RETURN("authorize", cld->PerlTypeHandler);
+  PERL_CALLBACK_RETURN("type", cld->PerlTypeHandler);
 }
 #endif
 
@@ -352,7 +365,7 @@ int perl_call(char *imp, request_rec *r)
 {
     int count, status;
     SV *sv = newSVpv(imp,0);
-    
+
     dSP;
     ENTER;
     SAVETMPS;
@@ -363,12 +376,12 @@ int perl_call(char *imp, request_rec *r)
     /* reset $$ */
     perl_set_pid();
 
-    /* if a Perl*Handler is not a defined function name,
+   /* if a Perl*Handler is not a defined function name,
      * default to the class implementor's handler() function
      * attempt to load the class module if it is not already
      */
     if(instr(imp, "::")) {
-      if(!perl_get_cv(imp, FALSE) || !GvCV(gv_fetchmethod(NULL, imp))) { 
+      if(!DEFINED_SUB(imp)) {
 	if(!gv_stashpv(imp, FALSE)) {
 	  CTRACE(stderr, "%s symbol table not found, loading...\n", imp);
 	  perl_require_module(imp, r->server);
@@ -377,6 +390,7 @@ int perl_call(char *imp, request_rec *r)
 	CTRACE(stderr, "perl_call: defaulting to %s::handler\n", imp);
       }
     }
+
     /* use G_EVAL so we can trap errors */
     count = perl_call_sv(sv, G_EVAL | G_SCALAR);
     
@@ -410,6 +424,11 @@ CHAR_P push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
     get_module_config (parms->server->module_config, &perl_module);   
 
   CTRACE(stderr, "push_perl_modules: arg='%s'\n", arg);
+  if (cls->NumPerlModules >= MAX_PERL_MODS) {
+	fprintf(stderr, "mod_perl: There's a limit of %d PerlModules, use a PerlScript to pull in as many as you want\n", MAX_PERL_MODS);
+	exit(-1);
+  }
+	
   cls->PerlModules[cls->NumPerlModules++] = arg;
   return NULL;
 }

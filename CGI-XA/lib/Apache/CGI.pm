@@ -10,7 +10,7 @@ if ($@) {
     @ISA = qw(CGI::XA);
 }
 
-$VERSION = (qw$Revision: 1.17 $)[1];
+$VERSION = (qw$Revision: 1.18 $)[1];
 
 sub new {
     my($class) = shift;

@@ -38,14 +38,15 @@ for (qw(Access Authen Authz Fixup HeaderParser Log Type Trans)) {
     unless ($_ eq "Trans") { #must be in server configs
 	$retval = 0;
 	open FH, ">>$ht_access" or warn "can't open $ht_access" and next;
-	print FH "$hook ${package}::handler\n";
+	print FH "$hook $package\:\:handler\n";
 	close FH;
     }
 
+    undef &{"$package\:\:handler"}; #avoid warnings
     eval <<"PACKAGE";
 package $package;
 
-sub ${package}::handler {
+sub $package\:\:handler {
     my(\$r) = \@_;
     return -1 unless \$r->is_main;
     open FH, ">>$hooks_file" or die "can't open $hooks_file";

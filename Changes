@@ -15,6 +15,23 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.91 - 01/22/97
+
+perl_init now says 'use Apache::Constants qw(OK DECLINED)' (in C) so you can
+say 'Perl*Handler DECLINED', suggested by, you guessed it, Rob
+
+applied patch from Rob so Makefile.PL copies $APACHE_SRC/Configuration to src/
+if it has been changed
+
+added Makefile.tmpl-1.2b5 from Rob
+
+applied patch from Rob Hartill to stop $r->cgi_env($key) from core-dumping 
+if $key does not exist
+
+applied PerlModule overflow check patch from Rob Hartill
+
+added $r->as_string method
+
 =item 0.90_01
 
 depreciation of Apache->request use outside of Apache::CGI and scripts

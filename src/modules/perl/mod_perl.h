@@ -23,6 +23,7 @@ extern "C" {
 #define CTRACE
 #endif
 
+#define PERL_GATEWAY_INTERFACE "CGI-Perl/1.1"
 /* Apache::SSI */
 #define PERL_APACHE_SSI_TYPE "text/x-perl-server-parsed-html"
 /* PerlSetVar */
@@ -244,6 +245,7 @@ int perl_access(request_rec *r);
 int perl_type_checker(request_rec *r);
 int perl_fixup(request_rec *r);
 int perl_logger(request_rec *r);
+int perl_header_parser(request_rec *r);
 CHAR_P set_perl_script (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P push_perl_modules (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val);
@@ -259,7 +261,7 @@ void perl_set_request_rec(request_rec *);
 void perl_set_pid(void);
 void perl_stdin2client(request_rec *);
 void perl_stdio2client(request_rec *); 
-void perl_require_module(char *, server_rec *);
+int perl_require_module(char *, server_rec *);
 int  perl_eval_ok(server_rec *);
 void perl_setup_env(request_rec *r);
 void perl_clear_env(void);

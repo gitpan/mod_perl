@@ -3,7 +3,7 @@ use Config;
 use FileHandle ();
 use Cwd;
 
-$VERSION = "0.90_01";
+$VERSION = "0.91";
 
 my $PWD = cwd;
 
@@ -34,10 +34,10 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
 %vers_map = (
    '1.1.1' => "Makefile.tmpl",
    '1.1.3' => "Makefile.tmpl",
-   '1.2'   => "Makefile.tmpl-1.2",
+   '1.2'  => "Makefile.tmpl-1.2",
+   '1.2b5' => "Makefile.tmpl-1.2b5",	     
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
 );	     
-
 
 $Port = $PORT = 8529;
 $NO_HTTPD = $ENV{NO_HTTPD} || 0;
@@ -75,6 +75,7 @@ foreach $src_dir ($APACHE_SRC, qw(../apache_1.1.1/src), <../apache_1.2*/src>,
     next unless -d $src_dir;
     next if $seen{$src_dir}++;
     next unless $vers = httpd_version($src_dir);
+    $no_header_parser{$src_dir}++ if $no_header_parser{$vers};
     unless($mft_map{$src_dir} = $vers_map{$vers}) {
 	print STDERR "Apache version '$vers' unsupported\n";
 	next;
@@ -111,7 +112,7 @@ foreach $adir (@adirs) {
 	    $APACHE_SRC = $adir;
 	}
 	$IsBenSSL = -e "$adir/apache_ssl.c";
-	last unless -e $conf; #building from 'make offsite-tar' 
+	last unless(-e $conf || -e "$conf.tmpl"); #building from 'make offsite-tar' 
 	unless ($NO_HTTPD) {
 	    $ans = prompt "Shall I build httpd in $adir for you?", "y";
 	    ++$NO_HTTPD unless $ans =~ /^y$/i;
@@ -145,7 +146,10 @@ foreach $adir (@adirs) {
 	}
 	close MANI;
 	$adir .= "/src";
-	unless(-e "src/Configuration") {
+	unless(-e "src/Configuration" and (-M "src/Configuration" < -M $conf)) {
+	    unless(-e $conf) {
+		system "cp", "$conf.tmpl", $conf;
+	    }
 	    system $Config{cp}, $conf, "src/";
 	    $conf = "src/Configuration";
 	    open(CONF, $conf) || die "Can't open $conf: $!";
@@ -181,6 +185,11 @@ EOT
 }
 
 unless ($NO_HTTPD) {
+    if($no_header_parser{$APACHE_SRC}) {
+	$callback_hooks{PERL_HEADER_PARSER} = 0;
+	$cant_hook{PERL_HEADER_PARSER} = 
+	    "(need 1.2b5 or higher)";
+    }
     for (@callback_hooks) {
 	($k,$v) = ($_,$callback_hooks{$_});
 	system $^X, "-pi~", "-e", 
@@ -385,13 +394,14 @@ sub httpd_version {
 
 	    if($fserver eq "Apache") {
 		($server, $version) = ($fserver, $fversion);
-		if($version == 1.2 and $frest =~ s/^b(\d)$/$1/) {
-		    ++$can_dash_make{$dir} if $frest >= 3;
+		if($version == 1.2 and $frest =~ s/^b(\d).*/$1/) {
 		    if($frest < 5) {
-			$callback_hooks{PERL_HEADER_PARSER} = 0;
-			$cant_hook{PERL_HEADER_PARSER} = 
-			    "(need 1.2b5 or higher)";
+			$no_header_parser{"$version$extra"}++;
 		    }
+		    else {
+			$extra = "b5";
+		    }
+		    ++$can_dash_make{$dir} if $frest >= 3;
 		}
 		elsif($version >= 1.2) {
 		    $can_dash_make{$dir}++;

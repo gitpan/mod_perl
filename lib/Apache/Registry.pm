@@ -5,8 +5,8 @@ use Apache::Constants qw(:common &OPT_EXECCGI);
 use FileHandle ();
 
 use vars qw($VERSION $Debug);
-#$Id: $
-$VERSION = (qw$Revision: 1.21 $)[1];
+#$Id: Registry.pm,v 1.22 1997/01/23 00:07:50 dougm Exp $
+$VERSION = (qw$Revision: 1.22 $)[1];
 
 $Debug ||= 0;
 # 1 => log recompile in errorlog
@@ -39,8 +39,9 @@ sub handler {
 	# turn into a package name
 	$r->log_error("Apache::Registry::handler checking out $script_name")
 	    if $Debug & 4;
-	my $script_name = 
-	    substr($r->uri, 0, length($r->uri)-length($r->path_info));
+	my $script_name = $r->path_info ?
+	    substr($r->uri, 0, length($r->uri)-length($r->path_info)) :
+		$r->uri;
 
 	# Escape everything into valid perl identifiers
 	$script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
@@ -70,6 +71,7 @@ sub handler {
 	    undef $fh;
 	    # compile this subroutine into the uniq package name
             $r->log_error("Apache::Registry::handler eval-ing") if $Debug & 4;
+ 	    undef &{"$package\:\:handler"}; #avoid warnings 
             my $eval = qq{package $package; sub handler { $sub; }};
             {
                 # hide our variables within this block

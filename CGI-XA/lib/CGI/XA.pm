@@ -3,7 +3,7 @@ package CGI::XA;
 use strict;
 use vars qw($SL $CRLF $VERSION $Revision);
 
-$VERSION = (qw$Revision: 1.13 $)[1];
+$VERSION = (qw$Revision: 1.14 $)[1];
 
 # Preloaded methods go here.
 
@@ -25,7 +25,7 @@ use FileHandle ();
 # this package will be. If Lincoln integrates the changes, I'll drop
 # it.
 
-$Revision = q$Id: XA.pm,v 1.13 1996/12/18 22:28:22 dougm Exp dougm $;
+$Revision = q$Id: XA.pm,v 1.14 1997/01/23 00:07:50 dougm Exp $;
 
 # The path separator is a slash, backslash or semicolon, depending
 # on the paltform.

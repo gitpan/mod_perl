@@ -63,7 +63,7 @@ extern "C" {
 
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.34 1996/11/13 15:57:07 dougm Exp dougm $ */
+/* $Id: Apache.xs,v 1.39 1997/01/23 00:07:50 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -96,12 +96,14 @@ typedef server_rec  * Apache__Server;
        int i; \
        char *tz; \
        table_entry *elts; \
-       add_common_vars(r); \
-       add_cgi_vars(r); \
-       elts = (table_entry *)env_arr->elts; \
-       tz = getenv("TZ"); \
-       table_set (env_arr, "PATH", DEFAULT_PATH); \
-       table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1") 
+       if(!(table_get (env_arr, "GATEWAY_INTERFACE") == PERL_GATEWAY_INTERFACE)) { \
+           add_common_vars(r); \
+           add_cgi_vars(r); \
+           elts = (table_entry *)env_arr->elts; \
+           tz = getenv("TZ"); \
+           table_set (env_arr, "PATH", DEFAULT_PATH); \
+           table_set (env_arr, "GATEWAY_INTERFACE", PERL_GATEWAY_INTERFACE); \
+       }
 
 static IV perl_apache_request_rec;
 
@@ -122,17 +124,17 @@ SV *perl_bless_request_rec(request_rec *r)
 
 void perl_setup_env(request_rec *r)
 { 
-    HV *cgienv = GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV));
     array_header *env_arr = table_elts (r->subprocess_env); 
+    HV *cgienv = GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV));
     CGIENVinit; 
 
     if (tz != NULL) 
-       hv_store(cgienv, "TZ", 2, newSVpv(tz,0), 0);
+	hv_store(cgienv, "TZ", 2, newSVpv(tz,0), 0);
     
     for (i = 0; i < env_arr->nelts; ++i) {
-       if (!elts[i].key) continue;
-       hv_store(cgienv, elts[i].key, strlen(elts[i].key), 
-       newSVpv(elts[i].val,0), 0);
+	if (!elts[i].key) continue;
+	hv_store(cgienv, elts[i].key, strlen(elts[i].key), 
+		 newSVpv(elts[i].val,0), 0);
     }
     CTRACE(stderr, "perl_setup_env...%d keys\n", i);
 }
@@ -162,7 +164,7 @@ int perl_eval_ok(server_rec *s)
   return 0;
 }
 
-void perl_require_module(char *mod, server_rec *s)
+int perl_require_module(char *mod, server_rec *s)
 {
     SV *sv = sv_newmortal();
     SV *m = newSVpv(mod,0);
@@ -172,10 +174,10 @@ void perl_require_module(char *mod, server_rec *s)
     perl_eval_sv(sv, G_DISCARD);
     if(perl_eval_ok(s) != OK) {
       CTRACE(stderr, "not ok\n");
-      perror("require");
-      exit(1);
+      return -1;
     }
     CTRACE(stderr, "ok\n");
+    return 0;
 }
 
 #ifdef USE_SFIO
@@ -586,8 +588,10 @@ cgi_env(r, ...)
 	   PUSHelt(elts[i].key, elts[i].val, 0);
        }
    }
-   else if(key) 
-       XPUSHs(sv_2mortal((SV*)newSVpv(table_get(env_arr, key), 0)));
+   else if(key) {
+       char *value = table_get(env_arr, key);
+       XPUSHs(value ? sv_2mortal((SV*)newSVpv(value, 0)) : &sv_undef);
+   }
    else
       croak("need an argument in scalar context"); 
    }

@@ -69,9 +69,13 @@ With the recommended configuration, these options and Perl linked with sfio
 (see I/O section), scripts running under Apache::Registry will look just like 
 "normal" CGI scripts.  See eg/perlio.pl as an example.
  
-You may load additional modules via
+You may load additional modules via:
 
     PerlModule Apache::SSI SomeOther::Module
+
+There is a limit of 10 PerlModule's, if you need more to be loaded when the 
+server starts, use one PerlModule to pull in many or use the PerlScript 
+directive described below.
 
 Optionally:
 
@@ -90,7 +94,7 @@ in the PerlScript MyPackage.pl this is "MyPackage::handler".
 in the PerlModule Apache::Registry this is "Apache::Registry::handler".
 
 There are several stages of a request where the Apache API allows a module
-to step and do something.  The Apache documentation will tell you all about
+to step in and do something.  The Apache documentation will tell you all about
 those stages and what your modules can do.  
 By default, these hooks are disabled at compile time, see the INSTALL
 document for information on enabling these hooks.
@@ -105,8 +109,24 @@ assumes it is a class name which implements a 'handler' subroutine.
     PerlTypeHandler
     PerlFixupHandler
     PerlLogHandler
+    PerlHeaderParser (requires apache1.2b5 or higher)
 
-=head1 I/O
+Two subroutines 'OK' and 'DECLINED' are defined when the server starts to
+help you configure nested Perl*Handlers.  Example, let's say you want to 
+configure a default PerlLogHandler and turn it off for certain 
+sub-directories or files.
+
+ <Location />
+ PerlLogHandler MyLogger
+ ....
+ </Location> 
+
+ #don't log requests for gif files
+ <Files *.gif>
+ PerlLogHandler DECLINED
+ </Files>
+
+=head1 I/O 
 
 Apache's i/o is not stream oriented.  So, by default, you cannot 
 print() to STDOUT from your script, use $r->print() instead.  

@@ -50,7 +50,7 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.16 1997/01/20 05:21:52 dougm Exp $
+# $Id: Makefile,v 1.17 1997/01/23 00:07:50 dougm Exp $
 #
 
 SHELL = /bin/sh
@@ -68,9 +68,11 @@ PERL_ACCESS = -DNO_PERL_ACCESS
 PERL_TYPE   = -DNO_PERL_TYPE 
 PERL_FIXUP  = -DNO_PERL_FIXUP 
 PERL_LOG    = -DNO_PERL_LOG 
+PERL_HEADER_PARSER = -DNO_PERL_HEADER_PARSER
 
 PERL_HOOKS = $(PERL_TRANS) $(PERL_AUTHEN) $(PERL_AUTHZ) \
- $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOG) 
+ $(PERL_ACCESS) $(PERL_TYPE) $(PERL_FIXUP) $(PERL_LOG) \
+$(PERL_HEADER_PARSER)
 
 #TRACE = -DPERL_TRACE
 PERL=/afs/ri/project/perl/bin/perl

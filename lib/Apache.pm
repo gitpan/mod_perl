@@ -1,7 +1,7 @@
 package Apache;
-
+use strict;
 use vars qw($VERSION);
-use Apache::Constants ();
+use Apache::Constants qw(OK);
 
 $VERSION = "1.10";
 
@@ -9,7 +9,8 @@ bootstrap Apache $VERSION;
 
 sub parse_args {
     my($wantarray,$string) = @_;
-    if($wantarray) {
+    return unless defined $string and $string;
+    if(defined $wantarray and $wantarray) {
 	return map { Apache::unescape_url($_) } split /[=&]/, $string;
     }
     $string;
@@ -39,7 +40,7 @@ sub read {
     my($r, $bufsiz) = @_[0,2];
     my($nrd, $buf, $total);
     $r->hard_timeout("Apache->read");
-
+    local($^W) = 0;
     while($bufsiz) {
 	$nrd = $r->read_client_block($buf, $bufsiz);
 	if($nrd > 0) {
@@ -108,6 +109,29 @@ sub send_cgi_header {
 	}
     }
     $r->send_http_header;
+}
+
+sub as_string {
+    my($r) = @_;
+    my($k,$v,@retval);
+    my(%headers_in) = $r->headers_in;
+
+    push @retval, join " ", $r->method, $r->uri, $r->protocol;
+    while(($k,$v) = each %headers_in) {
+	push @retval, "$k: $v";
+    }
+
+    push @retval, "";
+
+    push @retval, $r->status_line;
+    for (qw(err_headers_out headers_out)) {
+	my(%headers_out) = $r->$_();
+
+	while(($k,$v) = each %headers_out) {
+	    push @retval, "$k: $v";
+	}
+    }    
+    join "\n", @retval;
 }
 
 1;
