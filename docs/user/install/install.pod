@@ -73,7 +73,8 @@ with CPAN.pm shell:
 =head2 Create the build environment
 
    % cd modperl-2.0
-   % perl Makefile.PL MP_APXS=$apache_prefix/bin/apxs && make
+   % perl Makefile.PL MP_AP_PREFIX=/home/stas/src/httpd-2.0.xx
+   % make
 
 I<options> an optional list of (key,value) pairs.
 
@@ -93,11 +94,40 @@ Default is 1, set to 0 to disable.
 
 =item MP_USE_DSO
 
-Build mod_perl as a DSO. This is the default.
+Build mod_perl as a DSO (I<mod_perl.so>). This is the default. It'll
+be turned off if C<MP_USE_STATIC=1> is used.
 
 =item MP_USE_STATIC
 
-Build mod_perl static.
+Build static mod_perl (I<mod_perl.a>). This is the default. It'll be
+turned off if C<MP_USE_DSO=1> is used.
+
+C<MP_USE_DSO> and C<MP_USE_STATIC> are both enabled by default. So
+mod_perl is built once as I<mod_perl.a> and I<mod_perl.so>, but
+afterwards you can choose which of the two to use.
+
+META: The following is not implemented yet.
+
+  mod_perl and ends up with a src/modules/perl/mod_perl.{so,a} and
+  src/modules/perl/ldopts.  to link modperl static with httpd, we just
+  need some config.m4 magic to add `ldopts` and mod_perl.a to the build.
+  so one could then build httpd like so:
+  
+  ln -s ~/apache/modperl-2.0/src/modules/perl $PWD/src/modules
+  ./configure --with-mpm=prefork --enable-perl=static ...
+  
+  we not be configuring/building httpd for the user as 1.x attempted.
+  
+  downside is one will need to have configured httpd first, so that
+  headers generated.  so it will probably be more like:
+  
+  ./configure --with-mpm=prefork ...
+  (go build modperl)
+  ./config.nice --enable-perl=static && make
+  
+  we could of course provide a wrapper script todo this, but don't want
+  to have this stuff buried and tangled like it is in 1.x
+
 
 =item MP_STATIC_EXTS
 
@@ -142,12 +172,14 @@ Path to C<apxs>. For example if you've installed Apache 2.0 under
 I</home/httpd/httpd-2.0> as DSO, the default location would be
 I</home/httpd/httpd-2.0/bin/apxs>.
 
+META: this option most likely will go away, use MP_AP_PREFIX
+
 =item MP_AP_PREFIX
 
-Apache installation prefix. This option can be used to derive C<apxs>
-values on platforms where C<apxs> is not supported (e.g., on Win32).
-For example if you've have installed Apache 2.0 in C<\Apache2> on
-Win32, you should use:
+Apache installation prefix, under which the Apache I<include/>
+directory can be found. If Apache is not installed yet, you can point
+to the source directory. For example if you've have installed Apache
+2.0 in C<\Apache2> on Win32, you should use:
 
   MP_AP_PREFIX=\Apache2
 

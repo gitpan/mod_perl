@@ -24,7 +24,7 @@ my %string_size = (
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 45;
+    plan $r, tests => 48;
 
     $r->send_http_header('text/plain');
 
@@ -231,6 +231,13 @@ sub handler {
 
     ok t_cmp('APR::Table', $t_class, "Apache::Table->new");
 
+    ok t_cmp(!$r->main, $r->is_main,
+             '$r->is_main');
+
+    ok t_cmp(Apache::exists_config_define('MODPERL2'),
+             Apache->define('MODPERL2'),
+             'Apache->define');
+
     #note these are not actually part of the tests
     #since i think on platforms where crypt is not supported,
     #these tests will fail.  but at least we can look with t/TEST -v
@@ -239,6 +246,9 @@ sub handler {
     t_cmp(0, Apache::Util::validate_password("mguod", $hash));
 
     $r->post_connection(sub { OK });
+
+    Apache::log_error("Apache::log_error test ok");
+    ok 1;
 
     OK;
 }

@@ -6,7 +6,11 @@
 
 #define MP_COMPAT_1X /* backwards compat */
 
+#ifdef WIN32
+#define MP_THREADED 1
+#else
 #define MP_THREADED (defined(USE_ITHREADS) && APR_HAS_THREADS)
+#endif
 
 extern module AP_MODULE_DECLARE_DATA perl_module;
 
@@ -64,8 +68,8 @@ extern module AP_MODULE_DECLARE_DATA perl_module;
 void modperl_init(server_rec *s, apr_pool_t *p);
 int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog, 
                       apr_pool_t *ptemp, server_rec *s);
-void modperl_pre_config_handler(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp);
+int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,
+                            apr_pool_t *ptemp);
 void modperl_register_hooks(apr_pool_t *p);
 apr_pool_t *modperl_server_pool(void);
 PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p);

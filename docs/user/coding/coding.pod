@@ -8,14 +8,91 @@ This chapter covers the mod_perl coding specifics, different from normal Perl co
 
 =head1 Prerequisites
 
-=head1 Installing from Source
+=head1 Goodies Toolkit
 
-=head1 Installing from Binary Packages
+=head2 Environment Variables
+
+mod_perl sets the following environment variables:
+
+=over
+
+=item * 
+
+C<MOD_PERL> - is set to the mod_perl version the server is running
+under. e.g.:
+
+  mod_perl/1.99_03-dev
+
+If this C<$ENV{MOD_PERL}> doesn't exist, most likely you are
+not running under mod_perl.
+
+=item *
+
+C<GATEWAY_INTERFACE> - is set to C<CGI-Perl/1.1> for compatibility
+with mod_perl 1.0. This variable is deprecated in mod_perl 2.0. Use
+C<MOD_PERL> instead.
+
+=back
+
+mod_perl passes (exports) the following shell environment variables
+(if they are set) :
+
+=over
+
+=item * 
+
+C<PATH> - Executables search path.
+
+=item * 
+
+C<TZ> - Time Zone.
+
+=back
+
+Any of these environment variables can be accessed via C<%ENV>.
+
+=head2 Threaded MPM or not?
+
+If the code needs to behave differently depending on whether it's
+running under one of the threaded MPMs, or not, the
+C<Apache::MPM_IS_THREADED> constant can be used. For example:
+
+  if (Apache::MPM_IS_THREADED) {
+      my $id = APR::OS::thread_current();
+      print "current thread id: $id";
+  }
+  else {
+      print "current process id: $$";
+  }
+
+This code prints the current thread id if running under a threaded
+MPM, otherwise it prints the process id.
+
+
+
 
 =head1 Perl Specifics in mod_perl Environment
 
 In the following sections we discuss the specifics of Perl behavior
 under mod_perl.
+
+=head2 Request-localized Globals
+
+Under the handler:
+
+  SetHandler perl-script
+
+Several special global Perl variables are saved before the handler is
+called and restored afterwards. This includes: C<%ENV>, C<@INC>,
+C<$/>, C<STDOUT>'s C<$|> and C<END> blocks array (C<PL_endav>).
+
+Under:
+
+  SetHandler modperl
+
+nothing is restored, so you should be especially careful to remember
+localize all special Perl variables so the local changes won't affect
+other handlers.
 
 =head2 exit()
 

@@ -95,11 +95,10 @@ static void modperl_refgen_ops_fixup(void)
 
 #endif /* MP_REFGEN_FIXUP */
 
-static void modperl_boot(void *data)
+static void modperl_boot(pTHX_ void *data)
 {
     MP_dBOOT_DATA;
     MP_dSCFG(s);
-    dTHX; /* XXX: not too worried since this only happens at startup */
     int i;
     
 #ifdef MP_REFGEN_FIXUP
@@ -129,6 +128,8 @@ static void modperl_boot(void *data)
      */
     modperl_require_module(aTHX_ "DynaLoader", FALSE);
 #endif
+
+    IoFLUSH_on(PL_stderrgv); /* unbuffer STDERR */
 }
 
 static void modperl_xs_init(pTHX)
@@ -422,12 +423,18 @@ int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog,
     return OK;
 }
 
-void modperl_pre_config_handler(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp)
+int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,
+                            apr_pool_t *ptemp)
 {
+    /* for <IfDefine MODPERL2> and Apache->define("MODPERL2") */
+    *(char **)apr_array_push(ap_server_config_defines) =
+        apr_pstrdup(p, "MODPERL2");
+
     /* XXX: htf can we have PerlPreConfigHandler
      * without first configuring mod_perl ?
      */
+
+    return OK;
 }
 
 static int modperl_hook_pre_connection(conn_rec *c, void *csd)
@@ -520,11 +527,14 @@ static void modperl_hook_child_init(apr_pool_t *p, server_rec *s)
 
 void modperl_register_hooks(apr_pool_t *p)
 {
+    ap_hook_pre_config(modperl_hook_pre_config,
+                       NULL, NULL, APR_HOOK_MIDDLE);
+
     ap_hook_open_logs(modperl_hook_init,
-                      NULL, NULL, APR_HOOK_MIDDLE);
+                      NULL, NULL, APR_HOOK_FIRST);
 
     ap_hook_post_config(modperl_hook_post_config,
-                        NULL, NULL, APR_HOOK_MIDDLE);
+                        NULL, NULL, APR_HOOK_FIRST);
 
     ap_hook_handler(modperl_response_handler,
                     NULL, NULL, APR_HOOK_MIDDLE);
@@ -567,7 +577,7 @@ void modperl_register_hooks(apr_pool_t *p)
                           NULL, NULL, APR_HOOK_FIRST);
 
     ap_hook_child_init(modperl_hook_child_init,
-                       NULL, NULL, APR_HOOK_MIDDLE);
+                       NULL, NULL, APR_HOOK_FIRST);
 
     modperl_register_handler_hooks();
 }

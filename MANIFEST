@@ -66,6 +66,7 @@ build/config.pl
 build/make_etags
 build/source_scan.pl
 build/xs_generate.pl
+docs/TODO
 docs/api/ModPerl-Registry/ModPerl/PerlRun.pod
 docs/api/ModPerl-Registry/ModPerl/Registry.pod
 docs/api/ModPerl-Registry/ModPerl/RegistryBB.pod
@@ -76,6 +77,7 @@ docs/api/config.cfg
 docs/api/index_bot.html
 docs/api/mod_perl-2.0/APR/PerlIO.pod
 docs/api/mod_perl-2.0/APR/Table.pod
+docs/api/mod_perl-2.0/Apache/Log.pod
 docs/api/mod_perl-2.0/Apache/Reload.pod
 docs/api/mod_perl-2.0/Apache/RequestRec.pod
 docs/api/mod_perl-2.0/Apache/ServerUtil.pod
@@ -91,6 +93,7 @@ docs/devel/modperl_style/modperl_style.pod
 docs/devel/perf_sizeof/perf_sizeof.pod
 docs/devel/porting_from_1.x/porting_from_1.x.pod
 docs/devel/testing/testing.pod
+docs/os/config.cfg
 docs/os/win32/Changes.pod
 docs/os/win32/config.cfg
 docs/os/win32/config.pod
@@ -101,6 +104,7 @@ docs/user/compat/compat.pod
 docs/user/config.cfg
 docs/user/config/config.pod
 docs/user/design/design.pod
+docs/user/handlers/handlers.pod
 docs/user/help/help.pod
 docs/user/install/install.pod
 docs/user/intro/start_fast.pod
@@ -248,6 +252,7 @@ t/response/TestAPR/perlio.pm
 t/response/TestAPR/pool.pm
 t/response/TestAPR/string.pm
 t/response/TestAPR/table.pm
+t/response/TestAPR/util.pm
 t/response/TestAPR/uuid.pm
 t/response/TestApache/cgihandler.pm
 t/response/TestApache/compat.pm

@@ -19,6 +19,7 @@ use strict;
 #</Location>
 
 use Apache::RequestRec ();
+use Apache::SubRequest ();
 use Apache::Connection ();
 use Apache::Server ();
 use Apache::ServerUtil ();
@@ -96,6 +97,15 @@ sub module {
 
 sub gensym {
     return Symbol::gensym();
+}
+
+sub define {
+    shift if @_ == 2;
+    exists_config_define(@_);
+}
+
+sub log_error {
+    Apache->server->log_error(@_);
 }
 
 package Apache::Constants;
@@ -319,6 +329,8 @@ sub send_fd {
     my($r, $fh) = @_;
     $r->send_fd_length($fh, -1);
 }
+
+sub is_main { !shift->main }
 
 package Apache::File;
 

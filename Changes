@@ -8,6 +8,30 @@ all changes without author attribution are by Doug MacEachern
 
 =over 3
 
+=item 1.99_03 - June 15, 2002
+
+win32 fix for the global Apache->request object to make sure it uses
+the thread local storage mechanism
+
+add a reference count mechanism to interpreters for use in threaded MPMs,
+so if APR::Pool cleanups have been registered the interpreter is not
+putback into the interpreter pool until all cleanups have run.
+
+unbuffer STDERR (by turning on autoflush by default)
+
+add support for Perl*Handler +Apache::Foo
+
+fix open_logs,post_config,child_init hooks to run in the proper order
+
+adjust to apr_bucket_type_t changes in 2.0.37-dev
+[Mladen Turk <mturk@mappingsoft.com>]
+
+add MODPERL2 config define, as if the server had been started with -DMODPERL2
+
+compat additions and fixes: $r->lookup_{file,uri}, $r->is_main, Apache->define
+
+added compat for Apache::log_error [Stas Bekman]
+
 =item 1.99_02 - June 1, 2002
 
 pass the PATH and TZ environment variables at startup by default as 1.xx did
