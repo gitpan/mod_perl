@@ -33,8 +33,23 @@ my $Is_dougm = (defined($ENV{USER}) && ($ENV{USER} eq "dougm"));
 my $USE_THREADS = 
     (defined($Config{usethreads}) && ($Config{usethreads} eq "define"));
    
-require "./mod_perl.pm_version";
+require "./lib/mod_perl.pm";
 $VERSION = $mod_perl::VERSION = $mod_perl::VERSION;
+{
+    $VERSION =~ s/(\d\d)(\d\d)$/$1_$2/;
+}
+{
+    local *FH;
+    open FH, "Changes";
+    while(<FH>) {
+	if(/^=item.*-dev/) {
+	    $VERSION .= "-dev";
+	    last;
+	}
+	last if /^=item/;
+    }
+    close FH;
+}
 
 use subs qw(_prompt iedit asrc);
 
@@ -120,6 +135,7 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
     NONE => "", 
 );	     
 
+$LIBPERL = "DEFAULT";
 $USE_APACI = $USE_DSO = $USE_APXS = 0;
 $WITH_APXS = "";
 $APACI_ARGS = "";
@@ -149,6 +165,8 @@ $ADD_MODULE = "";
 $PERL_DIRECTIVE_HANDLERS = 0;
 $PERL_TIE_TABLES = 0;
 $PERL_LOG_API = 0;
+$PERL_URI_API = 0;
+$PERL_UTIL_API = 0;
 my %experimental = map { $_,1 } qw{
 PERL_GET_SET_HANDLERS
 PERL_MARK_WHERE
@@ -158,12 +176,13 @@ PERL_SECTIONS_SELF_BOOT
 PERL_RESTART_HANDLER
 PERL_TIE_SCRIPTNAME
 PERL_STASH_POST_DATA
+XS_IMPORT
 };
 
 my @mp_args = 
     qw(EVERYTHING DO_HTTPD NO_HTTPD CONFIG ADD_MODULE APACHE_PREFIX
        USE_APACI USE_DSO USE_APXS WITH_APXS APACI_ARGS PREP_HTTPD
-       ALL_HOOKS ADD_VERSION STATIC DYNAMIC PORT);
+       ALL_HOOKS ADD_VERSION STATIC DYNAMIC PORT XS_IMPORT);
 
 sub is_mp_arg {
     my $arg = shift; 
@@ -190,6 +209,8 @@ sub is_mp_arg {
    PERL_DIRECTIVE_HANDLERS
    PERL_TIE_TABLES
    PERL_LOG_API
+   PERL_URI_API
+   PERL_UTIL_API
 };
 
 $callback_alias{PERL_INIT} = "PERL_HEADER_PARSER";
@@ -247,8 +268,8 @@ if($USE_APXS) {
 }
 elsif($USE_APACI) {
     print "Will configure via APACI";
+    gen_script("apaci/load_modules.pl");
     if($USE_DSO) {
-        gen_script("apaci/load_modules.pl");
         print " (DSO enabled)";
     }
     $NO_HTTPD = 1 if $PREP_HTTPD;
@@ -266,7 +287,7 @@ for (keys %callback_alias) {
 
 if($EVERYTHING) {
     @callback_hooks{qw(PERL_STACKED_HANDLERS PERL_METHOD_HANDLERS)} = (1) x 2;
-    for(qw(ALL_HOOKS PERL_SSI PERL_SECTIONS PERL_TIE_TABLES PERL_DIRECTIVE_HANDLERS PERL_LOG_API)) {
+    for(qw(ALL_HOOKS PERL_SSI PERL_SECTIONS PERL_TIE_TABLES PERL_DIRECTIVE_HANDLERS PERL_LOG_API PERL_URI_API PERL_UTIL_API)) {
        $$_ = 1;
     }
 }
@@ -280,7 +301,8 @@ if($ALL_HOOKS) {
 }
 
 if($DYNAMIC) {
-    $PERL_DIRECTIVE_HANDLERS = $PERL_TIE_TABLES = $PERL_LOG_API = 1;
+    $PERL_DIRECTIVE_HANDLERS = $PERL_TIE_TABLES = 
+	$PERL_LOG_API = $PERL_URI_API = $PERL_UTIL_API = 1;
 }
 
 my @xs_modules = qw(Apache Apache::Constants);
@@ -354,9 +376,15 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	    $USE_APACI = $USE_DSO = 0;
 	    
 	}
-	if(($mmn < MMN_130) and $PERL_LOG_API) { #1.3.0
-	    $PERL_LOG_API = 0;
-	    $cant_hook{PERL_LOG_API} = "(need 1.3.0 or higher)";
+	for (qw(PERL_LOG_API PERL_URI_API PERL_UTIL_API)) {
+	    if(($mmn < MMN_130) and $$_) { #1.3.0
+		$$_ = 0;
+		$cant_hook{$_} = "(need 1.3.0 or higher)";
+	    }
+	}
+	if($USE_DSO and $PERL_SSI) {
+	    $PERL_SSI=0;
+	    $cant_hook{PERL_SSI} = "(doesn't work w/ USE_DSO=1)";
 	}
 	unless ($DO_HTTPD or $NO_HTTPD) {
 	    $ans = _prompt("Shall I build httpd in $adir for you?", "y");
@@ -420,7 +448,8 @@ for $adir (sort {$modified{$b} <=> $modified{$a}} @adirs) {
 	if($PERL_DEBUG) {
 	    my $lib = "$Config{archlibexp}/CORE/libperld$Config{lib_ext}";
 	    if (-e $lib) {
-		$libperl = " -- -lperld";
+		$LIBPERL = "-lperld";
+		$libperl = " -- $LIBPERL";
 	    }
 	    $PERL_EXTRA_CFLAGS .= " -g";
 	    $PERL_TRACE=1;
@@ -496,9 +525,13 @@ if($PERL_TIE_TABLES) {
     push @xs_modules, "Apache::Tie";
     $callback_hooks{PERL_TIE_TABLES} = 1;
 }
-if($PERL_LOG_API) {
-    push @xs_modules, "Apache::Log";
-    $callback_hooks{PERL_LOG_API} = 1;
+
+for (qw(Log URI Util)) {
+    my $s = "PERL_".uc($_)."_API";
+    if($$s) {
+	push @xs_modules, "Apache::$_";
+	$callback_hooks{$s} = 1;
+    }
 }
 
 my @xs_mod_snames = map { (my $s = $_) =~ s/.*:://; $s } @xs_modules;
@@ -813,17 +846,16 @@ write_my_config($APACHE_SRC);
     $pmv =~ s/-dev$//;
     my $hooks = "@mod_perl_hooks";
     my $dummy = "hooks=`$hooks'\n" unless $hooks;
-    cp "lib/mod_perl.pm.PL", "lib/mod_perl.pm"; 
-    iedit "lib/mod_perl.pm", qq(s/VERSION .*/VERSION = "$pmv";/);
+    cp "lib/mod_perl_hooks.pm.PL", "lib/mod_perl_hooks.pm"; 
 
-    iedit "lib/mod_perl.pm", 
-    qq(s/sub hooks.*/sub hooks { qw($hooks) }/);
+    iedit "lib/mod_perl_hooks.pm", 
+    qq(s/sub mod_perl::hooks.*/sub mod_perl::hooks { qw($hooks) }/);
 
-    require "lib/mod_perl.pm";
+    require "lib/mod_perl_hooks.pm";
     my @list = mod_perl::hooks();
-    @list == @mod_perl_hooks or die "Edit of lib/mod_perl.pm failed $!\n";
+    @list == @mod_perl_hooks or die "Edit of lib/mod_perl_hooks.pm failed $!\n";
 
-    unlink "lib/mod_perl.pm~";
+    unlink "lib/mod_perl_hooks.pm~";
 }
 
 #checking for LWP code, borrowed from LWP's own Makefile.PL :-)
@@ -892,6 +924,13 @@ sub write_extra_tests {
     (map { "$PWD/$_\n" } qw(blib/lib blib/arch)),
     ");\n1;\n";
     close FH;
+
+    for my $f (qw(.htaccess hooks.txt)) {
+	open FH, ">t/docs/$f";
+	print FH " ";
+	close FH;
+	chmod 0666, "t/docs/$f";#make sure httpd can write to it
+    }
 
     if($PERL_SSI) {
 	cp "t/modules/ssi.test", "t/modules/ssi.t";
@@ -1031,6 +1070,10 @@ sub MY::top_targets {
 
     $string .= <<'EOF';
 
+gen_exports:
+	$(PERL) -MExtUtils::testlib -MApache::Constants::Exports \
+	-e 'Apache::Constants::Exports->gen_ctags' > Exports.c
+
 apxs_distclean:
 	(cd ./apaci && $(MAKE) distclean)
 
@@ -1105,8 +1148,9 @@ q(
 test:	pure_all start_httpd run_tests kill_httpd
 
 );
+    my $have_so = $USE_DSO || ($APACI_ARGS =~ /--enable-shared=/); 
     push @test_pre_init, "\t", 
-    './apaci/load_modules.pl $(APACHE_SRC)', "\n" if $USE_DSO;
+    './apaci/load_modules.pl $(APACHE_SRC)', "\n" if $have_so;
  
     join '', @test_pre_init,
     qq(
@@ -1192,7 +1236,7 @@ cvs_export :
 
 cvs_rtag :
 	cvs -d $(CVSROOT) rtag v$(VERSION_SYM) modperl
-	@echo update mod_perl.pm_version's VERSION now
+	@echo update mod_perl.pm's VERSION now
 
 EOF
 }
@@ -1711,11 +1755,12 @@ MOD_PERL_VERSION = $VERSION
 
 #   Perl interpreter to use 
 PERL = $^X
-
+LIBPERL = $LIBPERL
 PERL_STATIC_EXTS = @xs_modules $PERL_STATIC_EXTS
 PERL_STATIC_SRCS = @static_src
 
 EOF
+
     for (qw(PERL_SECTIONS PERL_SSI PERL_TRACE)) {
 	my $yes_no = $$_ ? "yes" : "no";
 	print $apaci_cfg "$_ = $yes_no\n";

@@ -214,7 +214,7 @@ if(arg) \
     my_setenv(key, val); \
 }
 
-#define mp_debug mod_perl_debug
+#define mp_debug mod_perl_debug_flags
 
 extern U32	mp_debug;
 
@@ -378,6 +378,9 @@ if((add->flags & f) || (base->flags & f)) \
 #define mod_perl_notice(s,msg) \
     aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_NOTICE, s, msg)
 
+#define mod_perl_debug(s,msg) \
+    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, s, msg)
+
 #define mod_perl_log_reason(msg, file, r) \
     aplog_error(APLOG_MARK, APLOG_ERR | APLOG_NOERRNO, r->server, \
                 "access to %s failed for %s, reason: %s", \
@@ -389,6 +392,7 @@ if((add->flags & f) || (base->flags & f)) \
 #else
 
 #define mod_perl_error(s,msg) log_error(msg,s)
+#define mod_perl_debug  mod_perl_error
 #define mod_perl_warn   mod_perl_error
 #define mod_perl_notice mod_perl_error
 #define mod_perl_log_reason log_reason
@@ -923,6 +927,7 @@ request_rec *perl_request_rec(request_rec *);
 void perl_setup_env(request_rec *r);
 SV  *perl_bless_request_rec(request_rec *); 
 void perl_set_request_rec(request_rec *); 
+void mod_perl_cleanup_av(void *data);
 void mod_perl_cleanup_handler(void *data);
 void mod_perl_end_cleanup(void *data);
 void mod_perl_register_cleanup(request_rec *r, SV *sv);

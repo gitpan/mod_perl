@@ -1031,16 +1031,18 @@ write_client(r, ...)
 	        buffer += HUGE_STRING_LEN;
 	    }
 	    if(sent < 0) {
-	        mod_perl_warn(r->server, "mod_perl: rwrite returned -1");
-	        break;
+	        mod_perl_debug(r->server, "mod_perl: rwrite returned -1");
+                if(r->connection->aborted) break;
+                else continue;   
 	    }
 	    len -= sent;
 	    RETVAL += sent;
         }
 #else
         if((sent = rwrite(buffer, len, r)) < 0) {
-	    mod_perl_warn(r->server, "mod_perl: rwrite returned -1");
-	    break;
+	    mod_perl_debug(r->server, "mod_perl: rwrite returned -1");
+	    if(r->connection->aborted) break;
+	    else continue;
         }
         RETVAL += sent;
 #endif

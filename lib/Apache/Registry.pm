@@ -3,8 +3,7 @@ use Apache ();
 #use strict; #eval'd scripts will inherit hints
 use Apache::Constants qw(:common &OPT_EXECCGI &REDIRECT);
 
-#$Id: Registry.pm,v 1.12 1998/07/08 23:00:41 dougm Exp $
-$Apache::Registry::VERSION = (qw$Revision: 1.12 $)[1];
+$Apache::Registry::VERSION = '2.00';
 
 $Apache::Registry::Debug ||= 0;
 # 1 => log recompile in errorlog

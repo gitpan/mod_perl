@@ -1,13 +1,14 @@
 <html>
 <head>
 <title>The Apache/Perl Module List</title>
-<!-- Changed by: Doug MacEachern, 13-Jul-1998 -->
+<!-- Changed by: Gerald Richter, 17-Jul-1998 -->
+<!-- Changed by: Doug MacEachern, 18-Jul-1998 -->
 </head>
 <body>
 <h1>The Apache/Perl Module List</h1>
 
 Maintained by <a href="mailto:dougm@pobox.com">Doug MacEachern</a>,
-<br><i> $Revision: 1.24 $ $Date: 1998/07/13 14:57:58 $</i>
+<br><i> $Revision: 1.28 $ $Date: 1998/07/18 14:44:13 $</i>
 
 <h3>Contents</h3>
 <a href="#intro">Introduction</a><br>
@@ -68,11 +69,11 @@ Apache::
 
 * PerlHandler's
 Archive		i	List archive contents			PETERSON
-ASP		i	Implement Active Server Pages		CHAMAS
+ASP		bdpO	Implement Active Server Pages		CHAMAS
 BBS		bdpO 	BBS like System for Apache		MKOSS
 CallHandler	cdpf	Map filenames to subroutine calls	GKNOPS
 Dir		i	OO (subclassable) mod_dir replacement 	DOUGM
-Embperl		bdcf	Embed Perl in HTML			GRICHTER
+Embperl		Rmcf	Embed Perl in HTML			GRICHTER
 ePerl		Rdpr  	Fast emulated Embedded Perl (ePerl)	RSE            
 FTP		i	Full-fledged FTP proxy			PMKANE
 GzipChain	bmpf	Compress files on the fly		ANDK
@@ -178,7 +179,8 @@ Scoreboard	cmcO	Interface to scoreboard API		DOUGM
 Servlet		ampO	Interface to the Java Servlet engine	IKLUFT
 Sfio		cmcO	Interface to r-&gt;connection-&gt;client-&gt;sf* DOUGM
 Tie		bmcO	Tie interfaces to Apache structures 	APML
-Util		cmcf	Interface to Apache's util*.c functions	APML
+URI		bmfO	URI component parsing and unparsing	APML
+Util		bmcf	Interface to Apache's util*.c functions	APML
 
 * Development and Debug tools
 Debug		Rmpf	mod_perl debugging utilities		APML

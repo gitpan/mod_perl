@@ -50,13 +50,13 @@
 # 
 # Makefile for the Apache mod_perl library
 # 
-# $Id: Makefile,v 1.7 1998/05/10 04:14:53 dougm Exp $
+# $Id: Makefile,v 1.8 1998/07/15 15:05:14 dougm Exp $
 #
 
 #__ORIGINAL__
 
 
-INCLUDES=$(INCLUDES1) $(INCLUDES_DEPTH2) $(EXTRA_INCLUDES)
+INCLUDES=$(INCLUDES1) $(INCLUDES0) $(INCLUDES_DEPTH2) $(EXTRA_INCLUDES)
 
 SHELL = /bin/sh
 

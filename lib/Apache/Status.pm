@@ -1,7 +1,7 @@
 package Apache::Status;
 use strict;
 
-$Apache::Status::VERSION = (qw$Revision: 1.7 $)[1];
+$Apache::Status::VERSION = (qw$Revision: 1.9 $)[1];
 
 my %is_installed = ();
 
@@ -110,6 +110,7 @@ sub status_section_config {
 sub status_hooks {
     my($r,$q) = @_;
     require mod_perl;
+    require mod_perl_hooks;
     my @retval = qw(<table>);
     my @list = mod_perl::hooks();
     for my $hook (sort @list) {
@@ -132,6 +133,7 @@ sub status_inc {
     "</tr>";
 
     foreach $file (sort keys %INC) {
+	local $^W = 0;
 	next if $file =~ m:^/:;
 	next unless $file =~ m:\.pm:;
 	next unless $INC{$file}; #e.g. fake Apache/TieHandle.pm

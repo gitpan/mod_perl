@@ -115,6 +115,8 @@ KNOWN BUGS
 NEW STUFF
 ---------------------------------------------------------------------------
 
+- make Apache->server->register_cleanup work
+
 - mod_perl C code symbols, should look at cleaning up names with a
   common prefix, e.g. mp_, mod_perl_, mperl_ ?
   also static-ize those functions we can 
@@ -131,8 +133,6 @@ NEW STUFF
   from http_main.c) 
 	Doug Bagley <doug@dejanews.com>
 
-- Apache::URI interface to uri_components structure
- 
 - provide namespace protection when 'use Foo' might be two different modules
   i.e. re-visit Apache::Safe
 
@@ -232,8 +232,6 @@ NEW MODULE STUFF
 
 - should Apache::Registry use filename instead of vhost_name+uri?
               Ben Laurie <ben@algroup.co.uk>
-
-- Apache::Util: functions from apache's util*.c files
 
 - apache.pm: use apache '1.3b3';
 
