@@ -14,7 +14,6 @@ Constants/Constants.pm
 Constants/Constants.xs
 Constants/MANIFEST
 Constants/Makefile.PL
-Constants/test.pl
 FileHandle.patch
 INSTALL
 MANIFEST
@@ -45,4 +44,14 @@ src/modules/perl/ldopts
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/typemap
-src/modules/perl/Makefile
+t/README
+t/TEST
+t/conf/access.conf-dist
+t/conf/httpd.conf-dist
+t/conf/mime.types
+t/conf/srm.conf-dist
+t/constants/export.t
+t/net/config.pl.dist
+t/net/http-get.t
+t/net/http-post.t
+t/net/perl/test

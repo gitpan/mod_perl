@@ -50,7 +50,7 @@
  *
  */
 
-/* $Id: mod_perl.c,v 1.27 1996/10/25 13:25:10 dougm Exp $ */
+/* $Id: mod_perl.c,v 1.27 1996/10/25 13:25:10 dougm Exp dougm $ */
 
 #include "mod_perl.h"
 

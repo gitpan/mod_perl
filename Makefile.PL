@@ -7,7 +7,7 @@ system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
 
 WriteMakefile(
     NAME	=> "mod_perl",
-    VERSION => "0.84",
+    VERSION => "0.85",
 #    SKIP      => [qw(static dynamic)], #for now
 #    'linkext' => {LINKTYPE => '' }, 	      
 #    MAP_TARGET	=> "httpd",
@@ -24,3 +24,12 @@ WriteMakefile(
     }
 );
 
+sub MY::test {
+    q(
+TEST_VERBOSE=0
+
+test:
+	$(FULLPERL) t/TEST $(TEST_VERBOSE)
+
+);
+}

@@ -83,7 +83,7 @@ and writing Apache/Perl scripts and modules.
  
 Using PerlIO
 ------------
-When you Configure Perl as of 5.002_02, you will be given the option to
+When you Configure Perl as of 5.003_02, you will be given the option to
 use sfio rather than stdio.  If you choose this option, STDOUT will be
 hooked up to the client for writing (or print'ing), as will STDIN for
 reading.

@@ -3,7 +3,7 @@ package Apache;
 use vars qw($VERSION);
 use Apache::Constants;
 
-$VERSION = "1.05";
+$VERSION = "1.06";
 
 bootstrap Apache $VERSION;
 
@@ -454,6 +454,10 @@ you can say:
   else {
      #do normal CGI stuff
   }
+
+When given a key => value pair, this will set an environment variable.
+
+ $r->cgi_env(REMOTE_GROUP => "camels");
 
 =item $r->send_cgi_header()
 

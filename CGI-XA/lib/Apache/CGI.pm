@@ -15,9 +15,10 @@ $VERSION = sprintf("%d.%02d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
 sub new {
     my($class) = shift;
     #tie *STDOUT => 'Apache::TieHandle';
-    %ENV = Apache->request->cgi_env;
+    my($r) = Apache->request;
+    %ENV = $r->cgi_env;
     my $self = $class->SUPER::new(@_);
-    $self->{'.req'} = Apache->request;
+    $self->{'.req'} = $r;
     $self;
 }
 

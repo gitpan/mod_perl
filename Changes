@@ -15,6 +15,21 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.85
+
+added the start of a mod_perl test suite
+
+got rid of conditional perl*rec members, which was causing compile problems
+for some people
+
+$r->exit now logs transactions before exit()'ing the process
+
+applied clean-up and debug enhancement patch to Apache::Registry from Andreas
+
+applied patch from Andreas to reduce Apache->request calls in Apache::CGI
+
+$r->cgi_env now accepts arguments for setting variables
+
 =item 0.84 - October 27, 1996
 
 added pointer to Patrick Kane's <modus@enews.com> FAQ
@@ -473,7 +488,7 @@ Changes for Apache 1.1x
 -rprintf to bputs, etc.
 
 
-=item March ?? 1996
+=item March 25, 1996
 
 Initial version of mod_perl.c and perl_glue.xs
 by Gisle Aas <aas@oslonett.no>

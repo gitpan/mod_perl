@@ -1,0 +1,13 @@
+package net;
+
+# Configure these for your local system
+$httpserver  = "localhost:8005";
+$perldir      = "/perl/t";
+#######################################
+
+{
+    package main;
+    sub test { print $_[1] ? "ok $_[0]\n" : "not ok $_[0]\n" }
+}
+  
+1;

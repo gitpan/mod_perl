@@ -1,15 +1,17 @@
 package Apache::Registry;
-require Apache;
-require Apache::Debug;
-use Apache::Options qw(&OPT_EXECCGI);
-require FileHandle;
+use Apache ();
+use Apache::Debug ();
+use Apache::Constants qw(:common &OPT_EXECCGI);
+use FileHandle ();
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.16 1996/10/25 13:25:10 dougm Exp $
+#$Id: Registry.pm,v 1.16 1996/10/25 13:25:10 dougm Exp dougm $
 $VERSION = sprintf("%d.%02d", q$Revision: 1.16 $ =~ /(\d+)\.(\d+)/);
 
-#should really just use for developing.
 $Apache::Registry::Debug ||= 0;
+# 1 => log recompile in errorlog
+# 2 => Apache::Debug::dump in case of $@
+# 4 => trace pedantically
 
 sub handler {
     my($r) = @_; #Apache->request;
@@ -19,22 +21,25 @@ sub handler {
 	if (!($r->allow_options & OPT_EXECCGI) && (!$r->is_perlaliased)) {
 	    $r->log_reason("Options ExecCGI is off in this directory", 
 			   $filename);
-	    return 403; #FORBIDDEN;
+	    return FORBIDDEN;
 	}
 	if (-d _) {
 	    $r->log_reason("attempt to invoke directory as script", $filename);
-	    return 403; #FORBIDDEN;
+	    return FORBIDDEN;
 	}
 	unless (-x _) {
 	    $r->log_reason("file permissions deny server execution", 
 			   $filename);
-	    return 403; #FORBIDDEN;
+	    return FORBIDDEN;
 	}
 
 	my $mtime = -M _;
 
 	# turn into a package name
-	my $script_name = substr($r->uri, 0, length($r->uri)-length($r->path_info));
+	$r->log_error("Apache::Registry::handler checking out script_name")
+	    if $Debug & 4;
+	my $script_name = 
+	    substr($r->uri, 0, length($r->uri)-length($r->path_info));
 
 	# Escape everything into valid perl identifiers
 	$script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
@@ -44,8 +49,9 @@ sub handler {
 	# Dress it up as a real package name
 	$script_name =~ s|/|::|g;
 	my $package = "Apache::ROOT$script_name";
+       $r->log_error("Apache::Registry::handler determined package as $package") 
+	   if $Debug & 4;
 
-	my $eval;
 	if (
 	    defined $Apache::Registry->{$package}{mtime}
 	    &&
@@ -53,33 +59,42 @@ sub handler {
 	   ){
 	    # we have compiled this subroutine already, nothing left to do
 	} else {
+           $r->log_error("Apache::Registry::handler reading $filename")
+	       if $Debug & 4;
 	    my $fh = new FileHandle $filename;
 	    local($/);
 	    undef $/;
 	    my $sub = <$fh>;
 	    $fh->close;
-
+	    undef $fh;
 	    # compile this subroutine into the uniq package name
-            $eval = qq{package $package; sub handler { $sub; }};
-	    eval $eval;
+            $r->log_error("Apache::Registry::handler eval-ing") if $Debug & 4;
+            my $eval = qq{package $package; sub handler { $sub; }};
+            {
+                # hide our variables within this block
+                my($r,$filename,$script_name,$mtime,$package,$sub);
+                eval $eval;
+            }
 	    if ($@) {
 		$r->log_error($@);
-		return 500 unless $Debug;
-		return Apache::Debug::dump($r, 500);
+		return SERVER_ERROR unless $Debug & 2;
+		return Apache::Debug::dump($r, SERVER_ERROR);
 	    }
+            $r->log_error(qq{Compiled package \"$package\" for process $$})
+	       if $Debug & 1;
 	    $Apache::Registry->{$package}{mtime} = $mtime;
 	}
 
 	eval {$package->handler;};
 	if ($@) {
 	    $r->log_error($@);
-	    return 500 unless $Debug;
-	    return Apache::Debug::dump($r, 500);
+	    return SERVER_ERROR unless $Debug & 2;
+	    return Apache::Debug::dump($r, SERVER_ERROR);
 	}
 	return $r->status;
     } else {
-	return 404 unless $Debug;
-	return Apache::Debug::dump($r, 404);
+	return NOT_FOUND unless $Debug & 2;
+	return Apache::Debug::dump($r, NOT_FOUND);
     }
 }
 

@@ -75,12 +75,10 @@ extern "C" {
     NULL, \
     RSRC_CONF, TAKE1, "the Perl Translation handler routine name"  
 
-#define PERL_TRANS_MEMBER char *PerlTransHandler
 #define PERL_TRANS_CREATE(s) s->PerlTransHandler = NULL
 #else
 #define PERL_TRANS_HOOK NULL
 #define PERL_TRANS_CMD_ENTRY NULL
-#define PERL_TRANS_MEMBER
 #define PERL_TRANS_CREATE(s) 
 #endif
 
@@ -94,12 +92,10 @@ extern "C" {
     (void*)XtOffsetOf(perl_dir_config, PerlAuthnHandler), \
     OR_ALL, TAKE1, "the Perl Authentication handler routine name"
 
-#define PERL_AUTHEN_MEMBER char *PerlAuthnHandler
 #define PERL_AUTHEN_CREATE(s) s->PerlAuthnHandler = NULL
 #else
 #define PERL_AUTHEN_HOOK NULL
 #define PERL_AUTHEN_CMD_ENTRY NULL
-#define PERL_AUTHEN_MEMBER
 #define PERL_AUTHEN_CREATE(s)
 #endif
 
@@ -113,11 +109,9 @@ extern "C" {
     (void*)XtOffsetOf(perl_dir_config, PerlAuthzHandler), \
     OR_ALL, TAKE1, "the Perl Authorization handler routine name" 
 #define PERL_AUTHZ_CREATE(s) s->PerlAuthzHandler = NULL
-#define PERL_AUTHZ_MEMBER char *PerlAuthzHandler
 #else
 #define PERL_AUTHZ_HOOK NULL
 #define PERL_AUTHZ_CMD_ENTRY NULL
-#define PERL_AUTHZ_MEMBER
 #define PERL_AUTHZ_CREATE(s)
 #endif
 
@@ -131,12 +125,10 @@ extern "C" {
     (void*)XtOffsetOf(perl_dir_config, PerlAccessHandler), \
     OR_ALL, TAKE1, "the Perl Access handler routine name" 
 
-#define PERL_ACCESS_MEMBER char *PerlAccessHandler
 #define PERL_ACCESS_CREATE(s) s->PerlAccessHandler = NULL
 #else
 #define PERL_ACCESS_HOOK NULL
 #define PERL_ACCESS_CMD_ENTRY NULL
-#define PERL_ACCESS_MEMBER
 #define PERL_ACCESS_CREATE(s)
 #endif
 
@@ -152,12 +144,10 @@ extern "C" {
     (void*)XtOffsetOf(perl_dir_config, PerlTypeHandler), \
     OR_ALL, TAKE1, "the Perl Type check handler routine name" 
 
-#define PERL_TYPE_MEMBER char *PerlTypeHandler
 #define PERL_TYPE_CREATE(s) s->PerlTypeHandler = NULL
 #else
 #define PERL_TYPE_HOOK NULL
 #define PERL_TYPE_CMD_ENTRY NULL
-#define PERL_TYPE_MEMBER 
 #define PERL_TYPE_CREATE(s) 
 #endif
 
@@ -171,12 +161,10 @@ extern "C" {
     (void*)XtOffsetOf(perl_dir_config, PerlFixupHandler), \
     OR_ALL, TAKE1, "the Perl Fixup handler routine name" 
 
-#define PERL_FIXUP_MEMBER char *PerlFixupHandler
 #define PERL_FIXUP_CREATE(s) s->PerlFixupHandler = NULL
 #else
 #define PERL_FIXUP_HOOK NULL
 #define PERL_FIXUP_CMD_ENTRY NULL
-#define PERL_FIXUP_MEMBER 
 #define PERL_FIXUP_CREATE(s)
 #endif
 
@@ -190,12 +178,10 @@ extern "C" {
     (void*)XtOffsetOf(perl_dir_config, PerlLogHandler), \
     OR_ALL, TAKE1, "the Perl Log handler routine name" 
 
-#define PERL_LOGGER_MEMBER char *PerlLogHandler
 #define PERL_LOGGER_CREATE(s) s->PerlLogHandler = NULL
 #else
 #define PERL_LOGGER_HOOK NULL
 #define PERL_LOGGER_CMD_ENTRY NULL
-#define PERL_LOGGER_MEMBER char *PerlLogHandler
 #define PERL_LOGGER_CREATE(s) s->PerlLogHandler = NULL
 #endif
 
@@ -204,18 +190,18 @@ extern "C" {
 typedef struct {
    char *PerlScript;
    char **PerlModules;
-   PERL_TRANS_MEMBER;
+   char *PerlTransHandler;
    int  NumPerlModules;
 } perl_server_config;
 
 typedef struct {
    char *PerlHandler;
-   PERL_AUTHEN_MEMBER;
-   PERL_AUTHZ_MEMBER;
-   PERL_ACCESS_MEMBER;
-   PERL_TYPE_MEMBER;
-   PERL_FIXUP_MEMBER;
-   PERL_LOGGER_MEMBER;
+   char *PerlAuthnHandler;
+   char *PerlAuthzHandler;
+   char *PerlAccessHandler;
+   char *PerlTypeHandler;
+   char *PerlFixupHandler;
+   char *PerlLogHandler;
    table *vars;
    int  sendheader;
    int setup_env;

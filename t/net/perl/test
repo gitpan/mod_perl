@@ -1,0 +1,29 @@
+use Apache ();
+my $r = Apache->request;
+%ENV = $r->cgi_env;
+
+$r->content_type("text/html");
+$r->send_http_header;
+
+my(@args);
+
+if (@args = $r->args) {
+    $r->write_client(
+       "ARGS: ",
+       join(", ", map { $_ = qq{"$_"} } @args),
+       "\n\n");
+} else {
+    $r->write_client("No command line arguments passed to script\n\n");
+}
+
+my($key,$val);
+while (($key,$val) = each %ENV) {
+   $r->write_client("$key=$val\n");
+}
+
+if ($ENV{CONTENT_LENGTH}) {
+    $len = $ENV{CONTENT_LENGTH};
+    $n = $r->read_client_block($content, $len);
+    
+    print "\nContent\n-------\n$content";
+}

@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.33 1996/10/25 13:25:10 dougm Exp $ */
+/* $Id: Apache.xs,v 1.33 1996/10/25 13:25:10 dougm Exp dougm $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -236,7 +236,8 @@ MODULE = Apache  PACKAGE = Apache
 PROTOTYPES: DISABLE
 
 void
-exit(...)
+exit(r, ...)
+Apache r
 
     CODE:
     {
@@ -244,6 +245,13 @@ exit(...)
     
     if(items > 1)
         sts = (int)SvIV(ST(1));
+
+    /* make sure we log the transaction */
+#if MODULE_MAGIC_NUMBER > 19960526
+    multi_log_transaction(r);
+#else
+    common_log_transaction(r);
+#endif
 
     exit(sts);
     }
@@ -424,6 +432,10 @@ internal_redirect_handler(r, location)
     CODE:
     internal_redirect_handler(location, r);
 
+int
+common_log_transaction(r)
+Apache r
+
 #functions from http_log.c
 # Beware, we have changed the order of the arguments for the log_reason()
 # funtion.
@@ -445,39 +457,50 @@ log_error(r, mess)
     CODE:
     log_error(mess, r->server);
 
-
 #methods for creating a CGI environment
 void
-cgi_env(r)
+cgi_env(r, ...)
     Apache	r
 
     PPCODE:
-{
-    array_header *env_arr;
-    table_entry *elts;
-    int i;
-    char *tz;
+   {
 
-    add_common_vars(r);
-    add_cgi_vars(r);
-    env_arr = table_elts (r->subprocess_env);
-    elts = (table_entry *)env_arr->elts;
-    tz = getenv("TZ");
-    table_set (env_arr, "PATH", DEFAULT_PATH);
-    table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1"); 
+   array_header *env_arr = table_elts (r->subprocess_env);
+   char *key;
 
-    if (tz!= NULL) {
-	EXTEND(sp, 2);
-	PUSHs(sv_2mortal((SV*)newSVpv("TZ", 2)));
-	PUSHs(sv_2mortal((SV*)newSVpv(tz, strlen(tz))));
-    }
-    for (i = 0; i < env_arr->nelts; ++i) {
-	if (!elts[i].key) continue;
-	EXTEND(sp, 2);	   
-	PUSHs(sv_2mortal((SV*)newSVpv(elts[i].key, strlen(elts[i].key))));
-	PUSHs(sv_2mortal((SV*)newSVpv(elts[i].val, strlen(elts[i].val))));
-    }
-}
+   if(items > 1) {
+       key = SvPV(ST(1),na);
+       if(items > 2) 
+	   table_set(env_arr, key, SvPV(ST(2),na));
+   }
+   if(GIMME == G_ARRAY) {
+       int i;
+       char *tz;
+       table_entry *elts;
+       add_common_vars(r);
+       add_cgi_vars(r);
+       elts = (table_entry *)env_arr->elts;
+       tz = getenv("TZ");
+       table_set (env_arr, "PATH", DEFAULT_PATH);
+       table_set (env_arr, "GATEWAY_INTERFACE", "CGI-Perl/1.1"); 
+       
+       if (tz!= NULL) {
+	   EXTEND(sp, 2);
+	   PUSHs(sv_2mortal((SV*)newSVpv("TZ", 2)));
+	   PUSHs(sv_2mortal((SV*)newSVpv(tz, strlen(tz))));
+       }
+       for (i = 0; i < env_arr->nelts; ++i) {
+	   if (!elts[i].key) continue;
+	   EXTEND(sp, 2);	   
+	   PUSHs(sv_2mortal((SV*)newSVpv(elts[i].key, strlen(elts[i].key))));
+	   PUSHs(sv_2mortal((SV*)newSVpv(elts[i].val, strlen(elts[i].val))));
+       }
+   }
+   else if(key) 
+       XPUSHs(sv_2mortal((SV*)newSVpv(table_get(env_arr, key), 0)));
+
+   }
+   
 
 void
 client_to_stdout(r)

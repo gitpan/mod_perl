@@ -1,0 +1,34 @@
+Self test suite for the mod_perl library 
+adapted from the libwww-perl test suite
+-------------------------------------------
+
+Tests are invoked by running the ./TEST script, but usually you run
+the tests with "make test" at the top mod_perl directory.  Use -v
+option for verbose tests.  You might run an individual test like this:
+
+  ./TEST -v net/http-get
+
+or all tests in a directory like this
+
+  ./TEST net
+
+You enable network tests by creating the "net/config.pl" file.  A good
+start is to make a copy of the "net/config.pl.dist" file.  For network
+tests you should also make a link from the perl directory of your
+http server to the "net/perl" directory.  
+
+You *must* have libwww-perl installed:
+http://www.perl.com/cgi-bin/cpan_mod?module=LWP
+
+You will also need to modify "conf/*" and start an httpd with the mod_perl
+configuration specified in httpd.conf-dist
+
+The following setup works for my site:
+
+  ln -s `pwd`/conf ~/www/httpd/conf
+  emacs conf/*.conf			     #modify for your system	
+  ln -s `pwd`/net/perl ~/www/apache_perl/t
+  cp net/config.pl.dist net/config.pl
+  emacs net/config.pl                        # fix if necessary
+  httpd -d `pwd` 	
+  ./TEST net
