@@ -11,6 +11,56 @@ For getting this effort started
 
 Other contributors are mentioned below:
 
+=item 0.83_02
+
+bug patch to Apache::Registry from Andreas
+
+=item 0.83_01
+
+minor clean-up
+
+fixed port and query_string related bugs in Apache::Msql example
+
+applied patch from Salvador Garcia <sortiz@cfe.gob.mx> to fix PerlTransHandler bugs
+spotted by Hugues Lafarge <Hugues.Lafarge@afp.com>
+
+applied Apache::Registry patch from Andreas  
+- allows filanames to start with a digit (you probably saw a "bad
+  symbol after ::" error)
+
+- strips path_info before deciding which package the script is compiled
+  into.
+
+=head1 *developer's release* release 0.83 - September 12, 1996
+
+added Apache::Msql module
+
+added $r->handler method
+
+added $r->proxyreq method
+
+added PerlTransHandler directive
+
+minor clean-up
+
+=head1 *developer's test* release 0.82 - September 11, 1996
+
+added Apache::Authen and Apache::AuthenDBI modules
+
+added $r->get_basic_auth_pw method
+
+added $r->note_basic_auth_failure method
+
+added PerlAuthHandler directive
+
+added $r->dir_config method 
+
+added PerlSetVar directive
+
+we now have mod_perl.h
+
+fix for using mod_perl_fast with Apache-SSL
+
 =head1 release 0.81 - September 08, 1996
 
 added Apache::CGI->exit method as suggested by Andreas

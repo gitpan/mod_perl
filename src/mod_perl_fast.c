@@ -50,46 +50,13 @@
  *
  */
 
-/* $Id: mod_perl_fast.c,v 1.20 1996/09/06 21:29:41 dougm Exp $ */
+/* $Id: mod_perl_fast.c,v 1.23 1996/10/02 14:53:36 dougm Exp $ */
 
-#include "httpd.h"
-#include "http_config.h"
-#include "http_protocol.h"
-#include "http_log.h"
-#include "http_main.h"
-#include "http_core.h"
-
-#include <EXTERN.h>
-#include <perl.h>
-
-#ifdef PERL_TRACE
-#define CTRACE fprintf
-#else
-#define CTRACE
-#endif
-
-#define PERL_APACHE_SSI_TYPE "text/x-perl-server-parsed-html"
+#include "mod_perl.h"
 
 static int avoid_first_alloc_hack = 0;
 
-typedef struct {
-   char *PerlScript;
-   char **PerlModules;
-   int  NumPerlModules;
-} perl_server_config;
-
-typedef struct {
-   char *PerlHandler;
-   int  sendheader;
-   int setup_env;
-} perl_dir_config;
-
 static PerlInterpreter *perl = NULL;
-
-void xs_init _((void));
-void perl_set_request_rec(request_rec *);
-
-module perl_fast_module;
 
 void perl_init (server_rec *s, pool *p)
 {
@@ -100,13 +67,14 @@ void perl_init (server_rec *s, pool *p)
   perl_server_config *cls;
   char *fname; 
 
+#ifndef APACHE_SSL  
   if(avoid_first_alloc_hack++ == 0)
     return;
+#endif
 
   cls = get_module_config (s->module_config,
 			    &perl_fast_module);   
   fname = cls->PerlScript;
-
 
   if (perl != NULL) {
     CTRACE(stderr, "perl_init: freeing perl interpreter\n");
@@ -132,7 +100,6 @@ void perl_init (server_rec *s, pool *p)
     argv[1] = fname;
   }
 
-
   CTRACE(stderr, "perl_init: loading perl script: %s\n", argv[1]);
   status = perl_parse(perl, xs_init, 2, argv, NULL);
   if (status != 0) {
@@ -148,12 +115,17 @@ void perl_init (server_rec *s, pool *p)
 
     CTRACE(stderr, "Loading Perl module '%s'...", mod); 
     perl_require_module(module);
-    CTRACE(stderr, "ok\n");
-    if(perl_eval_ok(s) != 0) 
+    if(perl_eval_ok(s) != 0) {
       fprintf(stderr, "Couldn't load Perl module '%s'\n", mod);
+      perror("require");
+      exit(1);
+    }
+    else
+      CTRACE(stderr, "ok\n");
   }
 
   perl_clear_env();
+
   status = perl_run(perl);
   if (status != 0) {
      CTRACE(stderr,"httpd: perl_run failed: %s. Status: %d\n",fname,status);
@@ -170,8 +142,9 @@ void *create_perl_dir_config (pool *p, char *dirname)
 {
   perl_dir_config *cls =
     (perl_dir_config *)palloc(p, sizeof (perl_dir_config));
-
+  cls->vars = make_table(p, MAX_PERL_CONF_VARS); 
   cls->PerlHandler = NULL;
+  cls->PerlAuthenHandler = NULL;
   return (void *)cls;
 }
 
@@ -181,9 +154,10 @@ void *create_perl_server_config (pool *p, server_rec *s)
     (perl_server_config *)palloc(p, sizeof (perl_server_config));
 
   cls->PerlModules = (char **)NULL; 
-  cls->PerlModules = (char **)palloc(p, 10*sizeof(char *));
+  cls->PerlModules = (char **)palloc(p, MAX_PERL_MODS*sizeof(char *));
   cls->NumPerlModules = 0;
   cls->PerlScript = NULL;
+  cls->PerlTransHandler = NULL;
   perl = NULL;
 
   return (void *)cls;
@@ -208,24 +182,47 @@ int perl_fast_handler(request_rec *r)
 
   if(cld->PerlHandler != NULL) {
     CTRACE(stderr, "calling PerlHandler '%s'\n", cld->PerlHandler);
-    status = perl_call(perl, cld->PerlHandler, r->server);
+    status = perl_call(cld->PerlHandler, r->server);
   }
   else {
     log_error("perl_call failed, must set a PerlHandler", r->server);
     return SERVER_ERROR;
   }
 
-  if (status == 65535)  /* this is what we get by exit(-1) in perl */
-    status = SERVER_ERROR;
-
   CTRACE(stderr, "perl_call returned status: '%d'\n", status);
-  if((status == 1) || (status == 200)) /* OK */
-    status = OK;
-
-  return status;
+  PERL_RETURN_STATUS;
 }
 
-int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
+int perl_authenticate(request_rec *r)
+{
+  int status = DECLINED;
+  perl_dir_config *cld = get_module_config (r->per_dir_config,
+					    &perl_fast_module);   
+
+  if (cld->PerlAuthenHandler != NULL) {
+    perl_set_request_rec(r);
+    CTRACE(stderr, "perl_authenticate handler: '&%s' \n", 
+	 cld->PerlAuthenHandler);
+    status = perl_call(cld->PerlAuthenHandler, r->server);
+  }
+  PERL_RETURN_STATUS;
+}
+
+int perl_translate(request_rec *r)
+{
+  int status = DECLINED;
+  perl_server_config *cld = get_module_config (r->server->module_config,
+					    &perl_fast_module);   
+  if (cld->PerlTransHandler != NULL) {
+    perl_set_request_rec(r);
+    CTRACE(stderr, "perl_translate handler: '&%s' \n", 
+	   cld->PerlTransHandler);
+    status = perl_call(cld->PerlTransHandler, r->server);
+  }
+  PERL_RETURN_STATUS;
+}
+
+int perl_call(char *perlsub, server_rec *s)
 {
     int count, status;
     SV *sv;
@@ -260,16 +257,6 @@ int perl_call(PerlInterpreter *perl, char *perlsub, server_rec *s)
     return status;
 }
 
-char *set_perl_script (cmd_parms *parms, void *dummy, char *arg)
-{
-  perl_server_config *cls = get_module_config (parms->server->module_config,
-                                       &perl_fast_module);   
-
-  CTRACE(stderr, "set_perl_script: arg='%s'\n", arg);
-  cls->PerlScript = arg;
-  return NULL;
-}
-
 char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
 {
   perl_server_config *cls = get_module_config (parms->server->module_config,
@@ -280,6 +267,14 @@ char *push_perl_modules (cmd_parms *parms, void *dummy, char *arg)
   return NULL;
 }
 
+char *set_perl_trans (cmd_parms *parms, void *dummy, char *arg)
+{
+  perl_server_config *cls = get_module_config (parms->server->module_config,
+                                       &perl_fast_module);   
+  CTRACE(stderr, "set_perl_trans: %s\n", arg);
+  cls->PerlTransHandler = arg;
+  return NULL;
+}
 
 char *perl_sendheader_on (cmd_parms *cmd, void *rec, int arg) {
   ((perl_dir_config *)rec)->sendheader = arg;
@@ -291,34 +286,41 @@ char *perl_set_env_on (cmd_parms *cmd, void *rec, int arg) {
   return NULL;
 }
 
-char *set_perl_var(cmd_parms *cmd, void *dummy, char *key, char *val)
+char *set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val)
 {
+  table_set(((perl_dir_config *)rec)->vars, key, val);
+  CTRACE(stderr, "set_perl_var: '%s' = '%s'\n", key, val);
   return NULL;
 }
   
 command_rec perl_cmds [] = {
-  { "PerlScript", set_perl_script,
-    NULL,
-    RSRC_CONF, TAKE1, "the Perl script name" },
+  { "PerlScript", set_string_slot,
+    (void*)XtOffsetOf(perl_server_config, PerlScript), 
+    RSRC_CONF, TAKE1, "A Perl script name" },
   { "PerlModule", push_perl_modules,
     NULL,
-    RSRC_CONF, ITERATE, "A Perl module" },
-  { "PerlResponse", set_string_slot, 
-    (void*)XtOffsetOf(perl_dir_config, PerlHandler), 
-    OR_ALL, TAKE1, "the Perl handler routine name" },
+    RSRC_CONF, ITERATE, "List of Perl modules" },
   { "PerlHandler", set_string_slot, 
     (void*)XtOffsetOf(perl_dir_config, PerlHandler), 
     OR_ALL, TAKE1, "the Perl handler routine name" },
+  { "PerlAuthenHandler", set_string_slot, 
+    (void*)XtOffsetOf(perl_dir_config, PerlAuthenHandler), 
+    OR_ALL, TAKE1, "the Perl Authentication handler routine name" },
+  { "OrigPerlTransHandler", set_string_slot, 
+    (void*)XtOffsetOf(perl_server_config, PerlTransHandler), 
+    RSRC_CONF, TAKE1, "the Perl Translation handler routine name" },
+  { "PerlTransHandler", set_perl_trans, 
+    NULL,
+    RSRC_CONF, TAKE1, "the Perl Translation handler routine name" },
   { "PerlSetVar", set_perl_var, 
     NULL,  
-    OR_ALL, TAKE2, "Perl var and value" },
+    OR_ALL, TAKE2, "Perl config var and value" },
   { "PerlSendHeader", perl_sendheader_on,
     NULL, 
     OR_ALL, FLAG, "Tell mod_perl_fast to send basic_http_header" },
   { "PerlSetupEnv", perl_set_env_on,
     NULL, 
     OR_ALL, FLAG, "Tell mod_perl_fast to setup %ENV by default" },
-
   { NULL }
 };
 
@@ -339,9 +341,9 @@ module perl_fast_module = {
    NULL,			/* merge per-server config structures */
    perl_cmds,			/* command table */
    perl_fast_handlers,		/* handlers */
-   NULL, 		        /* translate_handler */
-   NULL,			/* check_user_id */
-   NULL,   		        /* check auth */
+   perl_translate, 		        /* translate_handler */
+   perl_authenticate,		/* check_user_id */
+   NULL,	                /* check auth */
    NULL, 		        /* check access */
    NULL,			/* type_checker */
    NULL,			/* pre-run fixups */

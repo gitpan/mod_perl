@@ -28,7 +28,9 @@ eg/registry.fpl
 eg/rgy-cgi-pm.pl
 eg/tiehandle.fpl
 lib/Apache.pm
+lib/Apache/Authen.pm
 lib/Apache/Debug.pm
+lib/Apache/Msql.pm
 lib/Apache/Options.pm
 lib/Apache/Registry.pm
 lib/Apache/SSI.pm
@@ -37,5 +39,6 @@ pp_hot.patch
 src/Apache.xs
 src/mod_alias.patch
 src/mod_perl.c
+src/mod_perl.h
 src/mod_perl_fast.c
 src/typemap

@@ -2,3 +2,5 @@ TYPEMAP
 Apache			T_PTROBJ
 Apache::Connection	T_PTROBJ
 Apache::Server		T_PTROBJ
+Apache::conf_vector	T_PTROBJ
+Apache::ModuleConfig    T_PTROBJ

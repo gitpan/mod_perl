@@ -5,8 +5,8 @@ use Apache::Options qw(&OPT_EXECCGI);
 require FileHandle;
 
 use vars qw($VERSION);
-#$Id: Registry.pm,v 1.13 1996/09/06 21:29:41 dougm Exp $
-$VERSION = sprintf("%d.%02d", q$Revision: 1.13 $ =~ /(\d+)\.(\d+)/);
+#$Id: Registry.pm,v 1.14 1996/10/02 14:53:36 dougm Exp dougm $
+$VERSION = sprintf("%d.%02d", q$Revision: 1.14 $ =~ /(\d+)\.(\d+)/);
 
 #should really just use for developing.
 $Apache::Registry::Debug ||= 0;
@@ -34,14 +34,16 @@ sub handler {
 	my $mtime = -M _;
 
 	# turn into a package name
-	my $uri = $r->uri;
+	my $script_name = substr($r->uri, 0, length($r->uri)-length($r->path_info));
 
 	# Escape everything into valid perl identifiers
-	$uri =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
+	$script_name =~ s/([^A-Za-z0-9\/])/sprintf("_%2x",unpack("C",$1))/eg;
+	# second pass only for words starting with a digit
+	$script_name =~ s|/(\d)|sprintf("/_%2x",unpack("C",$1))|eg;
 
 	# Dress it up as a real package name
-	$uri =~ s|/|::|g;
-	my $package = "Apache::ROOT$uri";
+	$script_name =~ s|/|::|g;
+	my $package = "Apache::ROOT$script_name";
 
 	my $eval;
 	if (
