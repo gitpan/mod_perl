@@ -41,7 +41,7 @@ extern "C" {
   return status
 
     /* bleh */
-#if MODULE_MAGIC_NUMBER >= 19960526 
+#if MODULE_MAGIC_NUMBER > 19960526 
 #define PERL_READ_SETUP \
        setup_client_block(r); \
        extra = 1; 

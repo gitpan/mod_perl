@@ -11,6 +11,20 @@ For getting this effort started
 
 Other contributors are mentioned below:
 
+=item 0.83_06
+
+brought back Makefile.tmpl for current public release
+
+added src/modules/perl/ldopts script, rather than using 'make ldopts'
+
+INSTALL doc fix so 1.1.1 users define RANLIB
+ 
+MODULE_MAGIC_NUMBER fix so we still build with 1.1.1
+ 
+no longer pstrdup when fetching r->args
+
+dropped undocumented SKIP_AUTH_HEADER thingy
+
 =item 0.83_05
 
 added missing Makefile to src/modules/perl/

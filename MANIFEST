@@ -40,10 +40,11 @@ lib/Apache/Registry.pm
 lib/Apache/SSI.pm
 lib/Apache/TieHandle.pm
 pp_hot.patch
+src/Makefile.tmpl
 src/mod_alias.patch
 src/modules/perl/Apache.xs
+src/modules/perl/ldopts
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/mod_perl_fast.c
 src/modules/perl/typemap
-src/modules/perl/Makefile

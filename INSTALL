@@ -52,11 +52,18 @@ For mod_perl_fast add:
 
 	Module perl_fast_module	   modules/perl/libmodperl.a	
 
-Edit apache_xxx/src/Makefile.tmpl adding:
+If you are using the most current public release of apache '1.1.1',
+you can simply copy the src/Makefile.tmpl to apache_xxx/src/Makefile.tmpl
+
+Otherwise, edit apache_xxx/src/Makefile.tmpl adding:
 
 ---%<----
+
+#only for apache versions < 1.2
+#RANLIB=ranlib
+
 PERL=/usr/local/bin/perl
-PERL_LD_OPTS=`make -f modules/perl/Makefile ldopts PERL=$(PERL)`
+PERL_LD_OPTS=`$(PERL) modules/perl/ldopts`
 
 modules/perl/libmodperl.a:
 	(cd modules/perl; \

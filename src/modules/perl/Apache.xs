@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.29 1996/10/15 13:02:05 dougm Exp $ */
+/* $Id: Apache.xs,v 1.30 1996/10/17 03:35:47 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -81,13 +81,6 @@ typedef server_rec  * Apache__Server;
 
 #define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
 #define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
-
-/* eh, need a better way */
-#ifdef HIDE_AUTH
-#define SKIP_AUTH_HEADER if (!strcasecmp (key, "Authorization")) continue;
-#else
-#define SKIP_AUTH_HEADER
-#endif
 
 static IV perl_apache_request_rec;
 
@@ -734,8 +727,6 @@ headers_in(r)
 	if (!key) continue;
 	val = hdrs[i].val;
 
-	SKIP_AUTH_HEADER;
-
 	EXTEND(sp, 2);	   
 	PUSHs(sv_2mortal((SV*)newSVpv(key, strlen(key))));
 	PUSHs(sv_2mortal((SV*)newSVpv(val, strlen(val))));
@@ -884,8 +875,8 @@ char *
 query_string(r)
     Apache	r
 
-    CODE:
-    RETVAL = pstrdup(r->pool, r->args);
+    CODE: 
+    RETVAL = r->args;
 
     OUTPUT:
     RETVAL
