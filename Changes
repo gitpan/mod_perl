@@ -16,6 +16,10 @@ Other contributors are mentioned below.
 
 =over 3
 
+=item 0.98_11
+
+switch Apache::parse_args behavior back to pre-0.98_09
+
 =item 0.98_10
 
 if mod_php is in Configuration, keep Makefile.tmpl link order as is,

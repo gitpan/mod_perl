@@ -10,7 +10,7 @@ use File::Copy qw(cp);
 #version 1.5 that ships with 5.003 is broken!
 *cp = sub { system "cp @_"; } if($File::Copy::VERSION < 2.0);
 
-$VERSION = "0.98_10";
+$VERSION = "0.98_11";
 
 use subs qw(_prompt iedit);
 

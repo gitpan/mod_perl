@@ -34,21 +34,7 @@ sub parse_args {
     my($wantarray,$string) = @_;
     return unless defined $string and $string;
     if(defined $wantarray and $wantarray) {
-	my(@retval);
-	for (split /&/, $string) {
-	    my($k,$v); 
-	    if(/^(.+?)=(.*)$/) {
-		$k = $1; Apache->taint($k);
-		$v = $2; Apache->taint($v);
-		push @retval, 
-		unescape_url_info($k),
-		unescape_url_info($v);
-	    }
-	    else {
-		push @retval,
-		unescape_url_info($_), undef;
-	    }
-	}
+	return map { Apache::unescape_url_info($_) } split /[=&]/, $string;
     }
     $string;
 }
