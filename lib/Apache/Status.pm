@@ -9,29 +9,34 @@ my(%status) = (
 
 sub handler {
     my($r) = @_;
-    Apache->request($r);
+    Apache->request($r); #for Apache::CGI
     require Apache::CGI;
     my $q = new Apache::CGI;
     my $qs = $r->args;
     my $sub = "status_$qs";
-    $r->write_client($q->header, $q->start_html, $q->start_form);
+    $r->print($q->header, $q->start_html, $q->start_form);
     no strict 'refs';
     if(defined &$sub) {
-	$r->write_client(@{ &{$sub}($r,$q) });
+	$r->print(header(), @{ &{$sub}($r,$q) });
     }
     elsif (exists $Apache::Registry->{$qs}) { 
-	$r->write_client(symdump($qs));
+	$r->print(header(), symdump($qs));
     }
     else {
 	my $uri = $r->uri;
-	my $start = scalar localtime $^T;
-	$r->write_client(
-            "Perl Status for process <b>$$</b>, running since $start<hr>\n",
+	$r->print(header(),
  	    map { qq[<a href="$uri?$_">$status{$_}</a><br>\n] } keys %status
         );
     }
 
     1;
+}
+
+sub header {
+    my $start = scalar localtime $^T;    
+    my $srv = Apache::Constants::SERVER_VERSION();
+    "Embedded Perl version <b>$]</b> for <b>$srv</b> process <b>$$</b>, <br>
+     running since $start<hr>\n";
 }
 
 sub symdump {
@@ -45,15 +50,18 @@ sub status_symdump { [symdump('main')] }
 
 sub status_inc {
     my($r,$q) = @_;
-    my(@retval, $module);
-    local $_;
+    my(@retval, $module, $v);
     foreach $module ($q->param("INC")) {
 	delete $INC{$module};
     }
     $q->delete("INC");
-    foreach (sort keys %INC) {
+    foreach $module (sort keys %INC) {
+	no strict 'refs';
+	$module =~ s,/,::,g;
+	$module =~ s,\.pm$,,;
+	$v = ${"$module\:\:VERSION"} || '0.00';
 	push @retval, 
-	"$_ <br>\n";
+	"$module ($v) <br>\n";
 	#$q->checkbox(-name => "INC", -value => $_, -label => $_), "<br>";
     }
     push @retval, "<hr>"; #, $q->submit(-value => "Delete");

@@ -10,7 +10,7 @@ if ($@) {
     @ISA = qw(CGI::XA);
 }
 
-$VERSION = (qw$Revision: 1.19 $)[1];
+$VERSION = (qw$Revision: 1.20 $)[1];
 
 sub new {
     my($class) = shift;
@@ -48,7 +48,6 @@ sub new_MultipartBuffer {
 
 sub exit {
     my($self, $s) = @_;
-    $self->{'.req'}->connection->close;
     $self->{'.req'}->exit($s);
 }
 

@@ -15,7 +15,7 @@ my(%Config) = (
 
 sub handler {
     my($r) = @_;
-    return unless $r->is_main; #don't bother with sub-requests
+    return OK unless $r->is_initial_req; #only the first internal request
     my($key,$val);
     my $attr = {
 	DBType => 'SQL',

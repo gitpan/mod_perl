@@ -1,3 +1,5 @@
+#!/usr/local/bin/perl -Tw
+
 use Apache ();
 use strict;
 use vars qw($Scalar @Array %Hash); #for testing perl-status

@@ -17,6 +17,13 @@ unless (-d "net") {
 unshift(@INC, "../blib/lib", "../blib/arch");
 #print "@INC\n";
 
+BEGIN {
+    #shutdown httpd before make aborts
+    $SIG{'__DIE__'} = sub {
+	system "kill `cat /tmp/mod_perl_httpd.pid`";
+        CORE::die(@_);
+    }
+}
 
 use Test::Harness;
 $Test::Harness::verbose = shift

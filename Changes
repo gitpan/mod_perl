@@ -4,16 +4,73 @@ Extra Thanks to:
 
 Andreas Koenig <andreas.koenig@franz.ww.tu-berlin.de>
 for *lots* of bug spotting, fixing and patching, 
-Apache::Registry and CGI.pm overhaul efforts (aka CGI::XA & CGI::Switch)
+Apache::Registry and CGI.pm overhaul efforts (aka CGI::XA &
+CGI::Switch) 
 
 Gisle Aas <aas@sn.no>
-For getting this effort started and many contributions since
+For getting this effort started and many contributions since 
 
 Other contributors are mentioned below.
 
 =head1 CHANGES
 
 =over 3
+
+=item 0.93_01 - 03/04/97
+
+added 'use ExtUtils::testlib' to t/docs/startup.pl since PERL5LIB
+is shutoff with -T!?!
+
+picky compilers should no longer complain of things reported
+by Mike Stok and George Hartlieb when sfio is configured in
+
+added (temporary?) `PerlWarn' directive to pass the -w switch
+to perl_parse
+
+bug fix so stderr is hooked to the error_log as it was and
+should be (unless PERL_TRACE is defined)
+
+argv[0] to perl_parse is now "httpd", making the value of 
+magic $^X "httpd"
+
+`PerlSetupEnv' now on by default
+
+Apache::Registry parses command line switches if it sees #!, 
+only -w and -T are recognized at the moment (not enough!)
+
+Apache::Registry now honors __END__
+
+added Apache->untaint method
+
+added `PerlTaintCheck' directive to startup with -T switch
+
+during 'make test' t/TEST now installs a die handler to shutdown httpd 
+before make aborts if a test fails as suggested by Gary Shea  
+
+we now passthru httpd's CFLAGS1 via MM's DEFINE
+(I needed this for -DHPUX10 + Apache::Constants)  
+
+we now define SERVER_SUBVERSION as suggested by Andreas
+
+fixed $$ bug in CGI::XA with fix from Salvador Garcia
+
+added $r->is_initial_req method, now used by these modules:
+Apache::AuthenDBI, Apache::AccessLimitNum, Apache::AuthzAge
+
+Apache::warn now overrides CORE::warn in Apache::Registry scripts,
+which is an alias for Apache::log_error 
+
+Apache::exit now overrides CORE::exit in Apache::Registry scripts,
+now converted CGI scripts can safely call plain 'ol exit;
+
+$r->exit will close the client connection for you, no need for
+$r->connection->close, which is no longer documented, and does 
+nothing but warn not to call it.
+
+fixed cookie bugs in CGI::XA spotted by Andrew Tennant
+
+#undef some symbols that caused clashes #ifdef HPUX10
+and ones on solaris spotted by Bowen Dwelle
 
 =item 0.93 
 

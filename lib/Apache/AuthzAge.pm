@@ -8,6 +8,7 @@ my $Flags = O_RDONLY;
  
 sub handler {
     my($r) = @_;
+    return OK unless $r->is_initial_req; #only the first internal request
     my $reqs_arr = $r->requires;
     return OK unless $reqs_arr;
 

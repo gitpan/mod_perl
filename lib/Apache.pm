@@ -1,9 +1,11 @@
 package Apache;
 use strict;
-use vars qw($VERSION);
+use vars qw($VERSION @ISA @EXPORT_OK);
 use Apache::Constants qw(OK);
 
-$VERSION = "1.10";
+@ISA = qw(Exporter);
+@EXPORT_OK = qw(exit warn);
+$VERSION = "1.11";
 
 bootstrap Apache $VERSION;
 
@@ -39,8 +41,11 @@ sub cgi_var {
 sub read {
     my($r, $bufsiz) = @_[0,2];
     my($nrd, $buf, $total);
+    $nrd = $total = 0;
+    $buf = "";
+    $_[1] ||= "";
     $r->hard_timeout("Apache->read");
-    local($^W) = 0;
+
     while($bufsiz) {
 	$nrd = $r->read_client_block($buf, $bufsiz);
 	if($nrd > 0) {
@@ -116,7 +121,7 @@ sub as_string {
     my($k,$v,@retval);
     my(%headers_in) = $r->headers_in;
 
-    push @retval, join " ", $r->method, $r->uri, $r->protocol;
+    push @retval, $r->the_request;
     while(($k,$v) = each %headers_in) {
 	push @retval, "$k: $v";
     }
@@ -131,7 +136,14 @@ sub as_string {
 	    push @retval, "$k: $v";
 	}
     }    
-    join "\n", @retval;
+    join "\n", @retval, "";
+}
+
+sub untaint {
+    my $self = shift;
+    for (@_) {
+	$_ =~ /^(.*)$/s; $_ = $1;
+    }
 }
 
 1;
@@ -148,7 +160,7 @@ Apache - Perl interface to the Apache server API
 
 =head1 DESCRIPTION
 
-This module provides a Perl interface the Apache API.  It's here
+This module provides a Perl interface the Apache API.  It is here
 mainly for B<mod_perl>, but may be used for other Apache modules that
 wish to embed a Perl interpreter.  We suggest that you also consult
 the description of the Apache C API at http://www.apache.org/docs/.
@@ -169,11 +181,11 @@ package, it is really a C<request_rec *> in disguise.
 
 The Apache->request method will return a reference to the request object.
 
-B<Perl*Handler>'s can obtain a reference to the request object when it
+B<Perl*Handler>s can obtain a reference to the request object when it
 is passed to them via C<@_>.  However, scripts that run under 
 L<Apache::Registry>, for example, need a way to access the request object.
 L<Apache::Registry> will make a request object availible to these scripts
-by passing it's object reference to C<Apache->request($r)>.
+by passing an object reference to C<Apache->request($r)>.
 If handlers use modules such as C<Apache::CGI> that need to access
 L<Apache->request>, they too should do this (e.g. Apache::Status).
 
@@ -186,6 +198,11 @@ reference to the main request structure.
 
 Returns true if the current request object is for the main request.
 
+=item $r->is_initial_req
+
+Returns true if the current request is the first internal request, 
+returns false if the request is a sub-request or interal redirect.  
+
 =back
 
 =head1 CLIENT REQUEST PARAMETERS
@@ -193,7 +210,8 @@ Returns true if the current request object is for the main request.
 First we will take a look at various methods that can be used to
 retrieve the request parameters sent from the client.
 In the following examples, B<$r> is a request object blessed into the 
-B<Apache> class, obtained by a handler's first parameter or I<Apache-E<gt>request>
+B<Apache> class, obtained by the first parameter passed to a handler subroutine
+or I<Apache-E<gt>request>
 
 =over 4
 
@@ -244,13 +262,13 @@ if you happen to be doing the translation.
 
 =item $r->path_info( [$path_info] )
 
-The $r->path_info method will return what's left in the path after the
+The $r->path_info method will return what is left in the path after the
 I<URI --E<gt> filename> translation, optionally changing it with the first 
 argument if you happen to be doing the translation.
 
 =item $r->args
 
-The $r->args method will return the contents of the URI's I<query
+The $r->args method will return the contents of the URI I<query
 string>.  When called in a scalar context, the entire string is
 returned.  When called in a list context, a list of parsed I<key> =>
 I<value> pairs are returned, i.e. it can be used like this:
@@ -299,7 +317,7 @@ C<$r->hard_timeout>
 
 =item $r->get_remote_host
 
-Lookup the client's DNS hostname.  Might return I<undef> if the
+Lookup the client DNS hostname.  Might return I<undef> if the
 hostname is not known.
 
 =back
@@ -327,9 +345,6 @@ $c->user; #Returns the remote username if authenticated.
 $c->auth_type; #Returns the authentication scheme used, if any.
 
 $c->aborted; #returns true if the client stopped talking to us
-
-$c->close; #Calling this method will close down the connection to the
-client
 
 
 =back
@@ -361,7 +376,7 @@ control, see L<Apache::AuthzAge> for an example.
 =item $r->allow_options
 
 The $r->allow_options method can be used for
-checking if it's ok to run a perl script.  The B<Apache::Options>
+checking if it is ok to run a perl script.  The B<Apache::Options>
 module provide the constants to check against.
 
  if(!($r->allow_options & OPT_EXECCGI)) {
@@ -402,7 +417,7 @@ Returns the wildcarded names for HostAlias servers.
 The following methods are used to set up and return the response back
 to the client.  This typically involves setting up $r->status(), the
 various content attributes and optionally some additional
-$r->header_out()'s before calling $r->send_http_header() which will
+$r->header_out() calls before calling $r->send_http_header() which will
 actually send the headers to the client.  After this a typical
 application will call the $r->print() method to send the response
 content to the client.
@@ -537,7 +552,7 @@ like this:
 
 =item $r->internal_redirect_handler( $newplace )
 
-Redirect to a location in the server's namespace without 
+Redirect to a location in the server namespace without 
 telling the client. For instance:
 
   $r->internal_redirect_handler("/home/sweet/home.html");
@@ -569,8 +584,8 @@ a soft_timeout just puts the connection to the client in an
 talk to the client, but otherwise allows the code to continue normally.
 hard_timeout(), by contrast, logs the request, and then aborts it
 completely --- longjmp()ing out to the accept() loop in http_main.
-Any resources tied into the request's resource pool will be cleaned up;
-everything that isn't will leak.
+Any resources tied into the request resource pool will be cleaned up;
+everything that is not will leak.
 
 soft_timeout() is recommended as a general rule, because it gives your
 code a chance to clean up.  However, hard_timeout() may be the most
@@ -648,15 +663,19 @@ The following methods can be used to log errors.
 
 =item $r->log_reason($message, $file)
 
-The request failed, why??  Write a message to the server's errorlog.
+The request failed, why??  Write a message to the server errorlog.
 
    $r->log_reason("Because I felt like it", $r->filename);
 
 =item $r->log_error($message)
 
-Uh, oh.  Write a message to the server's errorlog.
+Uh, oh.  Write a message to the server errorlog.
 
   $r->log_error("Some text that goes in the error_log");
+
+=item $r->warn($message)
+
+An alias for Apache->log_error.
 
 =back
 

@@ -1,0 +1,153 @@
+<html>
+<head>
+<title>The Apache/Perl Module List</title>
+<!-- Changed by: Doug MacEachern,  4-Mar-1997 -->
+</head>
+<body>
+<h1>The Apache/Perl Module List</h1>
+
+Maintained by <a href="mailto:dougm@osf.org">Doug MacEachern</a>,
+<br><i> $Revision: 1.13 $ $Date: 1997/03/05 03:13:58 $</i>
+
+<h3>Contents</h3>
+<a href="#intro">Introduction</a><br>
+<a href="#part">Playing Your Part</a><br>
+<a href="#modules">The Apache/Perl Modules</a><br>
+<a href="#where">Where Are The Modules Kept?</a><br>
+<a href="#contacts">Contacts</a><br>
+<a href="#info">More Info</a><br>
+<p>
+<a name="intro">
+<h3>Introduction</h3>
+The Apache/Perl module list is here for the same reason as the
+main <a href="http://www.perl.com/CPAN/modules/00modlist.long.html">
+Perl module list</a>, to change duplication of effort into cooperation 
+and help to save the world!  Apache/Perl modules are somewhat different
+from the many others found on CPAN.  Most Perl modules are
+"building blocks", developers use them
+to build applications or even more building blocks.  
+It just so happens
+that Apache/Perl modules are encapsulted inside a namespace and .pm file.  
+However, this does not make them all building blocks, many are just like
+apache modules written in C, you install, edit the server configuration
+files and you're done.   Before you start a new module, consider this:
+Apache/Perl modules are useless outside of mod_perl and Apache.  Do your best
+to design such that your <b>Apache::*</b> module will make good use of the 
+building blocks found on CPAN, putting together new building blocks where
+appropriate and simply glue them together with the Apache
+API, keeping the <b>Apache::*</b> modules very small.
+<p>
+These modules will also serve as good examples, showing you where modules
+can step in during a stage of a request with <b>Perl*Handler</b> callbacks.
+You'll also see how and when to use the Apache API methods.
+
+<a name="part">
+<h3>Playing Your Part</h3>
+Apache and Perl are world-wide collaborative efforts, naturally, the 
+Apache/Perl integration project is the same.<br>
+You've started on the right foot simply by reading this document, thanks!<br>
+Please be sure you've read the 
+main <a href="http://www.perl.com/CPAN/modules/00modlist.long.html">
+Perl module list</a>, all that is said there is relevant here!
+<p>
+If you have any additions or changes for the list, please send them to
+the Apache/Perl <a href="mailto:modperl@listproc.itribe.net"> mailing list </a>
+or to <a href="mailto:dougm@osf.org">me</a>.  
+<p>
+If you wish to share you module(s) the Perl way, by putting them on CPAN,
+send a request to <a href="mailto:dougm@osf.org">me</a> or 
+<a href="mailto:modules@perl.com">modules@perl.com</a> to get set up with a
+PAUSE user id and directory.
+<p>
+<b>HINT</b>:  For a nice set of template files try this:
+<pre>
+% h2xs -AX -n Apache::YourPackageName
+</pre>
+
+<a name="modules">
+<h3>The Apache/Perl modules</h3>
+<pre>
+Apache::
+
+* PerlHandler's
+Registry	Rmpf	Run unaltered CGI scripts 		APML
+Status		Rmpf	Embedded interpreter runtime status	APML
+SSI		bmpO	Implement server-side includes in Perl	APML
+Embperl		bdcf	Embed Perl in HTML			GRICHTER
+ePerl		bdpf	Adaptation of 'ePerl' for mod_perl	MARKIM
+FTP		i	Full-fledged FTP proxy			PMKANE
+WDB		cdpf	Database query/edit tool using DBI	JROWE
+
+* PerlHeaderParserHandler's
+AgentDeny	bdpf	Deny abusive User-Agents		ROBH
+
+* PerlAuthenHandler's
+DCELogin	bdpf	Obtain a DCE login context		DOUGM
+AuthenDBI	bmpO	Authenticate via Perl's DBI		APML
+Authen		bmpf	Perl Apache authentication utilities	APML
+AuthenDBIConnectbdpf	Authenticate to backend database 	JGROV
+
+* PerlAuthzHandler's
+AuthzAge	bmpf	Authorize based on age			APML
+AuthzDCE	cdpf	DFS/DCE ACL based access control	DOUGM
+RoleAuthz	i	Role-based authorization		DOUGM
+
+* PerlAccessHandler's
+AccessLimitNum	bmpf	Limit user access by number of requests	APML
+
+* PerlTypeHandler's
+AcceptLanguage	bdpf	Send file type based on language pref	ROBH
+ 
+* PerlTransHandler's    (May also include a PerlHandler)
+DynaRPC		i	Dynamically translate URIs into RPCs	DOUGM
+MsqlProxy	bmpf	Translate URI's into mSQL queries	APML
+ProxyPassThru	bdpO	Skeleton for vanilla proxy		DOUGM
+ProxyCache	i	Caching proxy				DOUGM
+Junction	i	Mount remote webserver namespace	DOUGM
+
+* PerlFixupHandler's
+HttpEquiv	bdpf	HTML HTTP-EQUIV tags to HTTP headers	ROBH
+
+* PerlLogHandler's
+DumpHeaders	bdpf	Watch HTTP transaction via headers	DOUGM
+
+* Misc
+Constants	Rmcf	Constants defined in httpd.h		APML
+Options		Rmpf	Import Apache::Constants 'options'	APML
+Debug		Rmpf	mod_perl debugging utilities		APML
+CGI		RmpO	Sub-class of CGI.pm for non-sfio users	APML
+DBI		cmpO	Persistent database connection mgmt.	APML
+Scoreboard	cmcO	Interface to scoreboard API		DOUGM
+ModuleConfig	cmcO	Interface to configuration API		DOUGM
+
+</pre>
+<a name="where">
+<h3>Where Are The Modules Kept?</h3>
+Modules listed with the <b>APML</b> as is contact are part of the 
+mod_perl distribution package.  Other modules can be found on CPAN
+the <a href="http://www.perl.com/CPAN/modules/by-module/Apache/">
+modules/by-module/Apache/</A> directory.  If they have not made it 
+to CPAN yet, they might be found in the mod_perl 
+<a href="http://www.osf.org/~dougm/apache/src/contrib/">contrib</a>
+directory, otherwise feel free to ask the contact author or the list
+how you can go about getting your hands on a copy.
+
+<a name="contacts">
+<h3>Contacts</h3>
+<pre>
+APML	 The Apache/Perl Mailing List &lt;modperl@listproc.itribe.net&gt;
+DOUGM	 Doug MacEachern &lt;dougm@osf.org&gt;
+GRICHTER Gerald Richter &lt;richter@ecos.de&gt;
+JGROV	 John D Groenveld &lt;groenvel@cse.psu.edu&gt;
+JROWE	 Jeff Rowe &lt;beowulf@cscsun4.larc.nasa.gov&gt;
+MARKIM	 Mark A. Imbriaco &lt;mark@itribe.net&gt;
+PMKANE	 Patrick Michael Kane &lt;modus@enews.com&gt;
+ROBH	 Rob Hartill &lt;robh@imdb.com&gt;
+
+</pre>
+
+<a name="info">
+<h3>More Info</h3>
+See the Apache/Perl <a href="http://www.osf.org/~dougm/apache/">homepage</a>.
+</body>
+</html>

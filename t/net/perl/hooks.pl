@@ -2,7 +2,7 @@ use Apache ();
 my $tests = 0;
 use Cwd;
 my $pwd = cwd;
-
+Apache->untaint($pwd);
 my $ht_access  = "$pwd/t/docs/.htaccess";
 my $hooks_file = "$pwd/t/docs/hooks.txt";
 

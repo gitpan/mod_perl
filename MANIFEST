@@ -18,6 +18,7 @@ INSTALL
 MANIFEST
 Makefile.PL
 README
+apache-modlist.html
 mod_perl.pod
 eg/cgi-pm.pl
 eg/file_upload.pl

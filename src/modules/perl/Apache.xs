@@ -50,20 +50,9 @@
  *
  */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-#undef pregcomp
-#ifdef __cplusplus
-}
-#endif
-
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.40 1997/01/28 00:57:21 dougm Exp $ */
+/* $Id: Apache.xs,v 1.41 1997/03/05 03:13:58 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -109,9 +98,9 @@ static IV perl_apache_request_rec;
 
 void perl_set_request_rec(request_rec *r)
 {
-  /* This will depreciate */
-  perl_apache_request_rec = (IV)r;
-  CTRACE(stderr, "perl_set_request_rec\n");
+    /* This will depreciate */
+	perl_apache_request_rec = (IV)r;
+    CTRACE(stderr, "perl_set_request_rec\n");
 }
 
 SV *perl_bless_request_rec(request_rec *r)
@@ -141,27 +130,27 @@ void perl_setup_env(request_rec *r)
 
 void perl_clear_env()
 {
-  /* flush %ENV */
-  hv_clear(GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV)));
+    /* flush %ENV */
+    hv_clear(GvHV(gv_fetchpv("ENV", FALSE, SVt_PVHV)));
 }
 
 void perl_set_pid()
 {
-  GV *tmpgv = gv_fetchpv("$", TRUE, SVt_PV);  /*" unconfuse emacs */
-  if(tmpgv)
-    sv_setiv(GvSV(tmpgv), (I32)getpid());
+    GV *tmpgv = gv_fetchpv("$", TRUE, SVt_PV); /*" unconfuse emacs */  
+    if(tmpgv)
+	sv_setiv(GvSV(tmpgv), (I32)getpid());
 }
 
 int perl_eval_ok(server_rec *s)
 {
-  SV *sv;
-  sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
-  if(SvTRUE(sv)) {
-    CTRACE(stderr, "perl_eval error: %s\n", SvPV(sv,na));
-    log_error(SvPV(sv, na), s);
-    return -1;
-  }
-  return 0;
+    SV *sv;
+    sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
+    if(SvTRUE(sv)) {
+	CTRACE(stderr, "perl_eval error: %s\n", SvPV(sv,na));
+	log_error(SvPV(sv, na), s);
+	return -1;
+    }
+    return 0;
 }
 
 int perl_require_module(char *mod, server_rec *s)
@@ -173,8 +162,8 @@ int perl_require_module(char *mod, server_rec *s)
     sv_catsv(sv, m);
     perl_eval_sv(sv, G_DISCARD);
     if(perl_eval_ok(s) != OK) {
-      CTRACE(stderr, "not ok\n");
-      return -1;
+	CTRACE(stderr, "not ok\n");
+	return -1;
     }
     CTRACE(stderr, "ok\n");
     return 0;
@@ -183,29 +172,27 @@ int perl_require_module(char *mod, server_rec *s)
 #ifdef USE_SFIO
 
 typedef struct {
-   Sfdisc_t     disc;   /* the sfio discipline structure */
-   request_rec	*r;
+    Sfdisc_t     disc;   /* the sfio discipline structure */
+    request_rec	*r;
 } Apache_t;
 
-static int
-sfapachewrite(f, buffer, n, disc)
-Sfio_t* f;      /* stream involved */
-char*           buffer;    /* buffer to read into */
-int             n;      /* number of bytes to send */
-Sfdisc_t*       disc;   /* discipline */        
+static int sfapachewrite(f, buffer, n, disc)
+    Sfio_t* f;      /* stream involved */
+    char*           buffer;    /* buffer to read into */
+    int             n;      /* number of bytes to send */
+    Sfdisc_t*       disc;   /* discipline */        
 {
     request_rec	*r = ((Apache_t*)disc)->r;
     /* CTRACE(stderr, "sfapachewrite: send %d bytes\n", n); */
-    SENDN_TO_CLIENT;
+	SENDN_TO_CLIENT;
     return n;
 }
 
-static int
-sfapacheread(f, buffer, bufsiz, disc)
-Sfio_t* f;      /* stream involved */
-char*           buffer;    /* buffer to read into */
-int             bufsiz;      /* number of bytes to read */
-Sfdisc_t*       disc;   /* discipline */        
+static int sfapacheread(f, buffer, bufsiz, disc)
+    Sfio_t* f;      /* stream involved */
+    char*           buffer;    /* buffer to read into */
+    int             bufsiz;      /* number of bytes to read */
+    Sfdisc_t*       disc;   /* discipline */        
 {
     long nrd;
     int extra = 0;
@@ -215,17 +202,16 @@ Sfdisc_t*       disc;   /* discipline */
     return bufsiz;
 }
 
-Sfdisc_t *
-sfdcnewapache(request_rec *r)
+Sfdisc_t * sfdcnewapache(request_rec *r)
 {
     Apache_t*   disc;
-  
+    
     if(!(disc = (Apache_t*)malloc(sizeof(Apache_t))) )
-      return (Sfdisc_t *)disc;
+	return (Sfdisc_t *)disc;
     CTRACE(stderr, "sfdcnewapache(r)\n");
-    disc->disc.readf = sfapacheread; 
-    disc->disc.writef = sfapachewrite;
-    disc->disc.seekf = (Sfseek_f)NULL;
+    disc->disc.readf   = (Sfread_f)sfapacheread; 
+    disc->disc.writef  = (Sfwrite_f)sfapachewrite;
+    disc->disc.seekf   = (Sfseek_f)NULL;
     disc->disc.exceptf = (Sfexcept_f)NULL;
     disc->r = r;
     return (Sfdisc_t *)disc;
@@ -233,8 +219,7 @@ sfdcnewapache(request_rec *r)
 #endif
 
 /* need Perl 5.003_02+, linked with sfio */
-void
-perl_stdout2client(request_rec *r)
+void perl_stdout2client(request_rec *r)
 {
 #ifdef USE_SFIO
     sfdisc(PerlIO_stdout(), SF_POPDISC);
@@ -247,83 +232,82 @@ perl_stdout2client(request_rec *r)
 #endif
 }
 
-void
-perl_stdin2client(request_rec *r)
+void perl_stdin2client(request_rec *r)
 {
 #ifdef USE_SFIO
     sfdisc(PerlIO_stdin(), SF_POPDISC);
     sfdisc(PerlIO_stdin(), sfdcnewapache(r));
     sfsetbuf(PerlIO_stdin(), NULL, 0);
 #else
-/* XXX patch pp_sys.c ?
+    /* XXX patch pp_sys.c ?
     CTRACE(stderr, "tie *STDIN => Apache (doesn't work yet)\n");
     sv_magic((SV *)gv_fetchpv("STDIN", TRUE, SVt_PVIO), 
 	     (SV *)perl_bless_request_rec(r),
 	     'q', Nullch, 0);
-*/
+    */
 #endif
-}
+    }
 
 static int
-perl_hook(char *name)
+    perl_hook(char *name)
 {
     switch (*name) {
 	case 'A':
-        if (strEQ(name, "Authen")) 
+	    if (strEQ(name, "Authen")) 
 #ifdef PERL_AUTHEN
-	return 1;
+		return 1;
 #else
 	return 0;    
 #endif
 	if (strEQ(name, "Authz"))
 #ifdef PERL_AUTHZ
-	return 1;
+	    return 1;
 #else
 	return 0;    
 #endif
 	if (strEQ(name, "Access"))
 #ifdef PERL_AUTHZ
-	return 1;
+	    return 1;
 #else
 	return 0;    
 #endif
 	break;
 	case 'F':
-        if (strEQ(name, "Fixup")) 
+	    if (strEQ(name, "Fixup")) 
 #ifdef PERL_FIXUP
-	return 1;
+		return 1;
 #else
 	return 0;    
 #endif
 	break;
 #if MODULE_MAGIC_NUMBER >= 19970103
 	case 'H':
-        if (strEQ(name, "HeaderParser")) 
+	    if (strEQ(name, "HeaderParser")) 
 #ifdef PERL_HEADER_PARSER
-	return 1;
+		return 1;
 #else
 	return 0;    
 #endif
 	break;
 #endif
 	case 'L':
-        if (strEQ(name, "Log")) 
+	    if (strEQ(name, "Log")) 
 #ifdef PERL_LOG
-	return 1;
+		return 1;
 #else
 	return 0;    
 #endif
 	break;
 	case 'T':
-        if (strEQ(name, "Trans")) 
+	    if (strEQ(name, "Trans")) 
 #ifdef PERL_TRANS
-	return 1;
+		return 1;
 #else
 	return 0;    
 #endif
         if (strEQ(name, "Type")) 
 #ifdef PERL_TYPE
-	return 1;
+	    return 1;
 #else
 	return 0;    
 #endif
@@ -340,19 +324,40 @@ int
 perl_hook(name)
 char *name
 
+#CORE::exit only causes trouble when we're embedded
 void
-exit(r, ...)
-Apache r
+exit(...)
 
     CODE:
     {
     int sts = 0;
-    
-    if(items > 1)
+    request_rec *r;
+
+    /* $r->exit */
+    if((items > 1) && sv_isa(ST(0), "Apache")) {
+	IV tmp = SvIV((SV*)SvRV(ST(0)));
+	r = (Apache) tmp;
         sts = (int)SvIV(ST(1));
+    }
+    else { /* Apache::exit() */
+	if(!sv_isa(ST(0), "Apache"))
+	    r = (request_rec *)perl_apache_request_rec;
+	if(SvTRUE(ST(0)) && SvIOK(ST(0)))
+	    sts = (int)SvIV(ST(0));
+    }
 
     /* make sure we log the transaction, etc. */
     PERL_EXIT_CLEANUP;
+
+    if (r &&  r->connection
+	&& !r->connection->aborted
+	&&  r->connection->client
+	&& (r->connection->client->fd >= 0)) {
+	bflush(r->connection->client);
+	bclose(r->connection->client);
+    }
+
+    kill_timeout(r);
     exit(sts);
     }
 
@@ -499,19 +504,19 @@ read_client_block(r, buffer, bufsiz)
     int      bufsiz
 
     PPCODE:
-     {
-       long nrd;
-       int extra = 0;
-       buffer = (char*)palloc(r->pool, bufsiz);
-       PERL_READ_FROM_CLIENT;
-       if ( nrd > 0 ) {
-	 XPUSHs(sv_2mortal(newSViv((long)nrd)));
-	 sv_setpvn((SV*)ST(1), buffer, nrd);
-       } 
-       else {
-	 ST(1) = &sv_undef;
-       }
-     }
+    {
+    long nrd;
+    int extra = 0;
+    buffer = (char*)palloc(r->pool, bufsiz);
+    PERL_READ_FROM_CLIENT;
+    if ( nrd > 0 ) {
+	XPUSHs(sv_2mortal(newSViv((long)nrd)));
+	sv_setpvn((SV*)ST(1), buffer, nrd);
+    } 
+    else {
+	ST(1) = &sv_undef;
+    }
+    }
 
 int
 write_client(r, ...)
@@ -556,19 +561,36 @@ log_reason(r, reason, filename)
     log_reason(reason, filename, r);
 
 void
-log_error(r, mess)
-    Apache	r
-    char *	mess
+log_error(...)
+
+    ALIAS:
+    Apache::warn = 1
 
     CODE:
-    log_error(mess, r->server);
+    {
+    request_rec *r;
+    int i=0;
+
+    if((items > 1) && sv_isa(ST(0), "Apache")) {
+	IV tmp = SvIV((SV*)SvRV(ST(0)));
+	r = (Apache) tmp;
+	i=1;
+    }
+    else { 
+	if(!sv_isa(ST(0), "Apache"))
+	    r = (request_rec *)perl_apache_request_rec;
+    }
+    for(; i<items; i++)
+	log_error(SvPV(ST(i),na), r->server);
+
+    }
 
 #methods for creating a CGI environment
 void
 cgi_env(r, ...)
     Apache	r
 
-    PPCODE:
+   PPCODE:
    {
    array_header *env_arr = table_elts (r->subprocess_env);
    char *key=NULL;
@@ -687,6 +709,21 @@ main(r)
  	ST(0) = perl_bless_request_rec((request_rec *)r->main);
     else
         ST(0) = &sv_undef;
+
+int
+is_initial_req(r)
+    Apache   r
+
+    CODE:
+    if(r->main != NULL) /* this is a sub-request */
+	RETVAL = 0;
+    else if(r->prev != NULL) /* this is an internal redirect */
+	RETVAL = 0;
+    else /* this is the initial main request, we only get here *once* per HTTP request */
+	RETVAL = 1;
+
+    OUTPUT:
+    RETVAL
 
 int 
 is_main(r)
@@ -1105,7 +1142,7 @@ close(conn)
     Apache::Connection	conn
 
     CODE:
-    bclose(conn->client);
+    warn("Do not call $r->connection->close!  Use $r->exit if you must");
 
 #  pool *pool;
 #  server_rec *server;

@@ -3,7 +3,7 @@ package CGI::XA;
 use strict;
 use vars qw($SL $CRLF $VERSION $Revision);
 
-$VERSION = (qw$Revision: 1.14 $)[1];
+$VERSION = (qw$Revision: 1.15 $)[1];
 
 # Preloaded methods go here.
 
@@ -25,7 +25,7 @@ use FileHandle ();
 # this package will be. If Lincoln integrates the changes, I'll drop
 # it.
 
-$Revision = q$Id: XA.pm,v 1.14 1997/01/23 00:07:50 dougm Exp $;
+$Revision = q$Id: XA.pm,v 1.15 1997/03/05 03:13:58 dougm Exp $;
 
 # The path separator is a slash, backslash or semicolon, depending
 # on the paltform.
@@ -262,6 +262,7 @@ sub initialize_it {
 	$self->{'.fieldnames'}->{$_}++;
     }
 
+    $self->{'.cookies'} ||= {}; 
     # Clear out our default submission button flag if present
     $self->delete('.submit');
     $self->delete('.cgifields');
@@ -1905,7 +1906,7 @@ sub cookie {
 	@p{qw/ name value path domain secure expires/} = @p;
     }
     unless (defined($p{value})) {
-	unless ($self->{'.cookies'}) {
+	unless (keys %{$self->{'.cookies'}}) {
 	    my(@pairs) = split("; ",$self->raw_cookie);
             my($key);
 	    foreach (@pairs) {
@@ -1914,13 +1915,13 @@ sub cookie {
 		$self->{'.cookies'}->{unescape($key)} = [@values];
 	    }
 	}
-	return wantarray ? @{$self->{'.cookies'}->{$p{name}}} : $self->{'.cookies'}->{$p{name}}->[0];
+	return wantarray ? @{$self->{'.cookies'}->{$p{name}} || []} : $self->{'.cookies'}->{$p{name}}->[0];
     }
     my(@values);
 
     @values = map escape($_),
-           ref($p{value}) eq 'ARRAY' ? @{$p{value}} : (ref($p{value}) eq 'HASH' ? %{$p{value}} : $p{value});
-
+           ref($p{value}) eq 'ARRAY' ? @{$p{value}} : (ref($p{value}) eq 'HASH' ? keys %{$p{value}} : $p{value});
+    print "\@VALUES = @values\n";
     my(@constant_values);
     push(@constant_values,"domain=$p{domain}") if $p{domain};
     push(@constant_values,"path=$p{path}") if $p{path};
@@ -2566,7 +2567,8 @@ $SL = $CGI::XA::SL;
     }
     $TMPDIRECTORY  ||= "." ;
 }
-$SEQUENCE="CGItemp$$0000";
+
+$SEQUENCE = join $$, qw(CGItemp 0000);
 
 sub as_string {
     my($self) = @_;

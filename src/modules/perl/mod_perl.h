@@ -4,7 +4,14 @@ extern "C" {
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+/* perl hides it's symbols in libperl when these macros are expanded to Perl_foo
+ * but some cause conflict when expanded in other headers files
+ */
 #undef pregcomp
+#undef setregid
+#undef setreuid
+#undef sync
+#undef my_memcmp
 #ifdef __cplusplus
 }
 #endif
@@ -32,14 +39,14 @@ extern "C" {
 #define MAX_PERL_MODS 10
 
 #define PERL_CALLBACK_RETURN(h,name) \
-  if(name != NULL) { \
+if(name != NULL) { \
     status = perl_call(name, r); \
     CTRACE(stderr, "perl_call %s handler '%s' returned: %d\n", h,name,status); \
-  } \
-  else { \
+} \
+else { \
     CTRACE(stderr, "mod_perl: declining to handle %s, no callback defined\n", h); \
-  } \
-  return status
+} \
+return status
 
 #if MODULE_MAGIC_NUMBER >= 19961007
 #define CHAR_P const char *
@@ -49,7 +56,7 @@ extern "C" {
 #define PERL_EXIT_CLEANUP common_log_transaction(r);
 #endif
 
-    /* bleh */
+/* bleh */
 #if MODULE_MAGIC_NUMBER >= 19961125 
 #define PERL_READ_SETUP setup_client_block(r, REQUEST_CHUNKED_ERROR); 
 #else
@@ -58,17 +65,17 @@ extern "C" {
 
 #if MODULE_MAGIC_NUMBER >= 19961125 
 #define PERL_READ_CLIENT \
-       if(should_client_block(r)) { \
-	   nrd = get_client_block(r, buffer, bufsiz); \
-       } 
+if(should_client_block(r)) { \
+    nrd = get_client_block(r, buffer, bufsiz); \
+} 
 #else 
 #define PERL_READ_CLIENT \
-       nrd = read_client_block(r, buffer, bufsiz); 
+nrd = read_client_block(r, buffer, bufsiz); 
 #endif       
 
 #define PERL_READ_FROM_CLIENT \
-       PERL_READ_SETUP; \
-       PERL_READ_CLIENT
+PERL_READ_SETUP; \
+PERL_READ_CLIENT
 
 /* on/off switches for callback hooks during request stages */
 
@@ -78,7 +85,7 @@ extern "C" {
 #define PERL_TRANS_HOOK perl_translate
 
 #define PERL_TRANS_CMD_ENTRY \
-    "PerlTransHandler", set_perl_trans, \
+"PerlTransHandler", set_perl_trans, \
     NULL, \
     RSRC_CONF, TAKE1, "the Perl Translation handler routine name"  
 
@@ -95,7 +102,7 @@ extern "C" {
 #define PERL_AUTHEN_HOOK perl_authenticate
 
 #define PERL_AUTHEN_CMD_ENTRY \
-    "PerlAuthenHandler", set_string_slot, \
+"PerlAuthenHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlAuthnHandler), \
     OR_ALL, TAKE1, "the Perl Authentication handler routine name"
 
@@ -112,7 +119,7 @@ extern "C" {
 #define PERL_AUTHZ_HOOK perl_authorize
 
 #define PERL_AUTHZ_CMD_ENTRY \
-    "PerlAuthzHandler", set_string_slot, \
+"PerlAuthzHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlAuthzHandler), \
     OR_ALL, TAKE1, "the Perl Authorization handler routine name" 
 #define PERL_AUTHZ_CREATE(s) s->PerlAuthzHandler = NULL
@@ -128,7 +135,7 @@ extern "C" {
 #define PERL_ACCESS_HOOK perl_access
 
 #define PERL_ACCESS_CMD_ENTRY \
-    "PerlAccessHandler", set_string_slot, \
+"PerlAccessHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlAccessHandler), \
     OR_ALL, TAKE1, "the Perl Access handler routine name" 
 
@@ -147,7 +154,7 @@ extern "C" {
 #define PERL_TYPE_HOOK perl_type_checker
 
 #define PERL_TYPE_CMD_ENTRY \
-    "PerlTypeHandler", set_string_slot, \
+"PerlTypeHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlTypeHandler), \
     OR_ALL, TAKE1, "the Perl Type check handler routine name" 
 
@@ -164,7 +171,7 @@ extern "C" {
 #define PERL_FIXUP_HOOK perl_fixup
 
 #define PERL_FIXUP_CMD_ENTRY \
-    "PerlFixupHandler", set_string_slot, \
+"PerlFixupHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlFixupHandler), \
     OR_ALL, TAKE1, "the Perl Fixup handler routine name" 
 
@@ -181,7 +188,7 @@ extern "C" {
 #define PERL_LOG_HOOK perl_logger
 
 #define PERL_LOG_CMD_ENTRY \
-    "PerlLogHandler", set_string_slot, \
+"PerlLogHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlLogHandler), \
     OR_ALL, TAKE1, "the Perl Log handler routine name" 
 
@@ -198,7 +205,7 @@ extern "C" {
 #define PERL_HEADER_PARSER_HOOK perl_header_parser
 
 #define PERL_HEADER_PARSER_CMD_ENTRY \
-    "PerlHeaderParserHandler", set_string_slot, \
+"PerlHeaderParserHandler", set_string_slot, \
     (void*)XtOffsetOf(perl_dir_config, PerlHeaderParserHandler), \
     OR_ALL, TAKE1, "the Perl Header Parser handler routine name" 
 
@@ -210,24 +217,26 @@ extern "C" {
 #endif
 
 typedef struct {
-   char *PerlScript;
-   char **PerlModules;
-   char *PerlTransHandler;
-   int  NumPerlModules;
+    char *PerlScript;
+    char **PerlModules;
+    char *PerlTransHandler;
+    int  NumPerlModules;
+    int  PerlTaintCheck;
+    int  PerlWarn;
 } perl_server_config;
 
 typedef struct {
-   char *PerlHandler;
-   char *PerlAuthnHandler;
-   char *PerlAuthzHandler;
-   char *PerlAccessHandler;
-   char *PerlTypeHandler;
-   char *PerlFixupHandler;
-   char *PerlLogHandler;
-   char *PerlHeaderParserHandler;
-   table *vars;
-   int  sendheader;
-   int setup_env;
+    char *PerlHandler;
+    char *PerlAuthnHandler;
+    char *PerlAuthzHandler;
+    char *PerlAccessHandler;
+    char *PerlTypeHandler;
+    char *PerlFixupHandler;
+    char *PerlLogHandler;
+    char *PerlHeaderParserHandler;
+    table *vars;
+    int  sendheader;
+    int setup_env;
 } perl_dir_config;
 
 extern module perl_module;
@@ -250,6 +259,8 @@ CHAR_P set_perl_script (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P push_perl_modules (cmd_parms *parms, void *dummy, char *arg);
 CHAR_P set_perl_var(cmd_parms *cmd, void *rec, char *key, char *val);
 CHAR_P perl_sendheader_on (cmd_parms *cmd, void *rec, int arg);
+CHAR_P set_perl_tainting (cmd_parms *parms, void *dummy, int arg);
+CHAR_P set_perl_warn (cmd_parms *parms, void *dummy, int arg);
 CHAR_P perl_set_env_on (cmd_parms *cmd, void *rec, int arg);
 CHAR_P set_perl_trans (cmd_parms *parms, void *dummy, char *arg);
 #ifdef APACHE_SSL
@@ -260,7 +271,7 @@ void xs_init _((void));
 void perl_set_request_rec(request_rec *);
 void perl_set_pid(void);
 void perl_stdin2client(request_rec *);
-void perl_stdio2client(request_rec *); 
+void perl_stdout2client(request_rec *); 
 int perl_require_module(char *, server_rec *);
 int  perl_eval_ok(server_rec *);
 void perl_setup_env(request_rec *r);

@@ -9,8 +9,8 @@ my $Flags = O_RDWR|O_CREAT;
 sub handler {
     my($r) = @_;
 
-    return DECLINED unless $r->is_main; #skip sub-requests
-    return DECLINED unless -e $r->filename;
+    return OK unless $r->is_initial_req; #only first internal request
+
     my $limit_num = $r->dir_config("AccessLimitNum") or
 	return DECLINED;
     my $dbm_file = $r->dir_config("AccessLimitNumFile") or
@@ -45,17 +45,13 @@ Apache::AccessLimitNum - Limit user access by number of requests
 
 =head1 SYNOPSIS
 
- #server config file
-
- PerlModule Apache::AccessLimitNum
-
- #access control directives
+ #server config or .htaccess
 
  #use any authentication module
  AuthName SomeRealm
  Auth[DBM]UserFile /path/to/password/file
  
- PerlAccessHandler Apache::AccessLimitNum::handler
+ PerlAccessHandler Apache::AccessLimitNum
  PerlSetVar        AccessLimitNum  100
  PerlSetVar        AccessLimitFile /path/to/limit/file
 

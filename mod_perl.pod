@@ -61,10 +61,6 @@ may wish to change this:
 
     PerlSendHeader On	
 
-By default, mod_perl does not setup %ENV, you may wish to change this:
-
-    PerlSetupEnv On
-
 With the recommended configuration, these options and Perl linked with sfio 
 (see I/O section), scripts running under Apache::Registry will look just like 
 "normal" CGI scripts.  See eg/perlio.pl as an example.
@@ -204,11 +200,24 @@ your best bet to keep the size down, but at the same time, you'll be slowing
 things down when Apache::Registry scripts have to recompile.  
 Tradeoffs...
 
+=head1 SWITCHES
+
+Normally when you run perl from the command line or have the shell
+invoke it with `#!', you may choose to pass perl switch arguments
+such as C<-w> or C<-T>.  Since the command line is only parsed once,
+when the server starts, these switches are unavailable to mod_perl
+scripts.  However, most command line arguments have a perl special
+variable equivilant.  For example, the C<$^W> variable coresponds
+to the C<-w> switch.  Consult L<perlvar> for more details.  The switch
+which enables taint checks does not have a special variable, so mod_perl
+provides the B<PerlTaintCheck> directive to turn on taint checks.  In
+httpd.conf, enable with: 
+
+ PerlTaintCheck On
+
+Now, any and all code compiled inside httpd will be checked.
 
 =head1 WARNINGS
-
-Your scripts *cannot* be in a ScriptAlias(ed) (which is usually /cgi-bin)
-directory.
 
 Your scripts *will not* run from the command line (yet) unless you use
 CGI::Switch and no direct calls to Apache->methods.
