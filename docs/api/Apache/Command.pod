@@ -10,13 +10,12 @@ Apache::Command - Perl API for accessing Apache module command information
   use Apache::Module ();
   use Apache::Command ();
   my $module = Apache::Module::find_linked_module('mod_perl.c');
-  my $cmd = $module->cmds();
   
-  while ($cmd) {
-    $cmd->args_how();
-    $cmd->errmsg();
-    $cmd->req_override();
-    $cmd = $cmd->next();
+  for (my $cmd = $module->cmds; $cmd; $cmd = $cmd->next) {
+      $cmd->args_how();
+      $cmd->errmsg();
+      $cmd->name();
+      $cmd->req_override();
   }
 
 
@@ -26,12 +25,8 @@ Apache::Command - Perl API for accessing Apache module command information
 
 =head1 Description
 
-Each Apache module can define a list of configuration commands it
-offers.  This interface gives access to information about these
-configuration commands.  Each module contains a chained-list of
-C<Apache::Command> objects, each representing a single directive.
-
-For example, C<PerlRequire> is a command offered by mod_perl.
+C<Apache::Command> provides the Perl API for accessing Apache module
+command information
 
 
 
@@ -49,18 +44,20 @@ C<Apache::Command> provides the following functions and/or methods:
 
 =head2 C<args_how>
 
-What the command expects as arguments
+What the command expects as arguments:
 
-  $obj->args_how();
+  $how = $cmd->args_how();
 
 =over 4
 
-=item obj: C<$obj>
+=item obj: C<$cmd>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
 
-=item ret: ( integer )
+=item ret: C<$how> ( C<L<Apache::Const :cmd_how
+constant|docs::2.0::api::Apache::Const/C__cmd_how_>> )
 
-The flag value representing the type of command (i.e. ITERATE/TAKE2)
+The flag value representing the type of this command
+(i.e. C<Apache::ITERATE>, C<Apache::TAKE2>).
 
 =item since: 1.99_12
 
@@ -70,18 +67,20 @@ The flag value representing the type of command (i.e. ITERATE/TAKE2)
 
 
 
+
+
 =head2 C<errmsg>
 
-'usage' message for that command, in case of syntax errors
+Get I<usage> message for that command, in case of syntax errors:
 
-  $obj->errmsg();
+  $error = $cmd->errmsg();
 
 =over 4
 
-=item obj: C<$obj>
+=item obj: C<$cmd>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
 
-=item ret: ( string )
+=item ret: C<$error> ( string )
 
 The error message
 
@@ -97,16 +96,16 @@ The error message
 
 =head2 C<name>
 
-Name of this command
+Get the name of this command:
 
-  $name      = $obj->name();
+  $name = $cmd->name();
 
 =over 4
 
-=item obj: C<$obj>
+=item obj: C<$cmd>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
 
-=item ret: ( string )
+=item ret: C<$name> ( string )
 
 The command name
 
@@ -118,19 +117,23 @@ The command name
 
 
 
+
 =head2 C<next>
 
-The next command in the chain of commands for this module
+Get the next command in the chain of commands for this module:
 
-  $ret = $cmd->next();
+  $next = $cmd->next();
 
 =over 4
 
 =item obj: C<$cmd>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
 
-=item ret: C<$ret>
+=item ret: C<$next>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
+
+Returns the next command in the chain for this module, C<undef> for
+the last command.
 
 =item since: 1.99_12
 
@@ -145,23 +148,30 @@ The next command in the chain of commands for this module
 
 =head2 C<req_override>
 
-What overrides need to be allowed to enable this command.
+What overrides need to be allowed to enable this command:
 
-  $obj->req_override
+  $override = $cmd->req_override
 
 =over 4
 
-=item obj: C<$obj>
+=item obj: C<$cmd>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
 
-=item ret: ( integer )
+=item ret: C<$override> ( C<L<Apache::Const :override
+constant|docs::2.0::api::Apache::Const/C__override_>> )
 
-The bit mask representing the overrides this command is allowed in (i.e OR_ALL/ACCESS_CONF)
+The bit mask representing the overrides this command is allowed in
+(i.e C<Apache::OR_ALL>/C<Apache::ACCESS_CONF>).
 
 =item since: 1.99_12
 
 =back
 
+For example:
+
+  use Apache::Const -compile => qw(:override);
+  $cmd->req_override() & Apache::OR_AUTHCFG;
+  $cmd->req_override() & Apache::OR_LIMIT;
 
 
 

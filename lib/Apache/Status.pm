@@ -67,7 +67,7 @@ delete $status{'hooks'} if $mod_perl::VERSION >= 1.9901;
 delete $status{'sig'} if IS_WIN32;
 
 # XXX: needs porting
-if ($Apache::Server::SaveConfig) {
+if ($Apache::PerlSections::Save) {
     $status{"section_config"} = "Perl Section Configuration";
 }
 
@@ -99,7 +99,7 @@ sub has {
     # if !$opt we skip the testing for the option
     return 0 if $opt && !status_config($r, $opt);
     return 0 unless eval { require $file };
-    return 0 unless $module->VERSION >= $version;
+    return 0 unless $module->VERSION && $module->VERSION >= $version;
 
     return 1;
 }
@@ -362,7 +362,9 @@ sub status_env {
             qq{<b>Under the "perl-script" handler, the environment is</b>:};
     }
     push @retval, "\n</p>\n";
-    push @retval, "<pre>", (map "$_ = $ENV{$_}\n", sort keys %ENV), "</pre>";
+    push @retval, "<pre>",
+        (map "$_ = " . escape_html($ENV{$_}||'') . "\n",
+            sort keys %ENV), "</pre>";
 
     \@retval;
 }
@@ -408,6 +410,7 @@ sub status_data_dump {
     no strict 'refs';
     my @retval = "<p>\nData Dump of $name $type\n</p>\n<pre>\n";
     my $str = Data::Dumper->Dump([*$name{$type}], ['*'.$name]);
+    $str = escape_html($str);
     $str =~ s/= \\/= /; #whack backwack
     push @retval, $str, "\n";
     push @retval, peek_link($r, $q, $name, $type);
@@ -825,6 +828,16 @@ sub as_HTML {
     push @m, "</table>";
 
     return join "\n", @m, "<hr>", b_package_size_link($r, $q, $package);
+}
+
+sub escape_html {
+    my $str = shift;
+
+    $str =~ s/&/&amp;/g;
+    $str =~ s/</&lt;/g;
+    $str =~ s/>/&gt;/g;
+
+    return $str;
 }
 
 sub myconfig {

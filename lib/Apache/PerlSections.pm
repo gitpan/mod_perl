@@ -34,12 +34,12 @@ sub new {
     return bless { @args }, ref($package) || $package;
 }
 
-sub server     { return shift->{'parms'}->server() }
+sub parms      { return shift->{'parms'} }
 sub directives { return shift->{'directives'} ||= [] }
 sub package    { return shift->{'args'}->{'package'} }
 
 my @saved;
-sub save       { return $Apache::Server::SaveConfig }
+sub save       { return $Apache::PerlSections::Save }
 sub saved      { return @saved }
 
 sub handler : method {
@@ -200,7 +200,7 @@ sub add_config {
 
 sub post_config {
     my($self) = @_;
-    my $errmsg = $self->server->add_config($self->directives);
+    my $errmsg = $self->parms->add_config($self->directives);
     die $errmsg if $errmsg;
 }
 

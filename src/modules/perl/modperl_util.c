@@ -85,11 +85,29 @@ static SV *modperl_hv_request_find(pTHX_ SV *in, char *classname, CV *cv)
     return SvROK(sv) ? SvRV(sv) : sv;
 }
 
+
+/* notice that if sv is not an Apache::ServerRec object and
+ * Apache->request is not available, the returned global object might
+ * be not thread-safe under threaded mpms, so use with care
+ */
+ 
 MP_INLINE server_rec *modperl_sv2server_rec(pTHX_ SV *sv)
 {
-    return SvOBJECT(sv) ?
-        (server_rec *)SvObjIV(sv) :
-        modperl_global_get_server_rec();
+    if (SvOBJECT(sv) || (SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG))) {
+        return (server_rec *)SvObjIV(sv);
+    }
+    
+    /* next see if we have Apache->request available */
+    {
+        request_rec *r = NULL;
+        (void)modperl_tls_get_request_rec(&r);
+        if (r) {
+            return r->server;
+        }
+    }
+    
+    /* modperl_global_get_server_rec is not thread safe w/o locking */
+    return modperl_global_get_server_rec();
 }
 
 MP_INLINE request_rec *modperl_sv2request_rec(pTHX_ SV *sv)
@@ -118,15 +136,12 @@ request_rec *modperl_xs_sv2request_rec(pTHX_ SV *in, char *classname, CV *cv)
         }
     }
 
-    if (!sv) {
+    /* might be Apache::ServerRec::warn method */
+    if (!sv && !(classname && SvPOK(in) && !strEQ(classname, SvPVX(in)))) {
         request_rec *r = NULL;
         (void)modperl_tls_get_request_rec(&r);
 
         if (!r) {
-            if (classname && SvPOK(in) && !strEQ(classname, SvPVX(in))) {
-                /* might be Apache::{Server,RequestRec}-> dual method */
-                return NULL;
-            }
             Perl_croak(aTHX_
                        "Apache->%s called without setting Apache->request!",
                        cv ? GvNAME(CvGV(cv)) : "unknown");
@@ -298,6 +313,59 @@ void modperl_xs_dl_handles_close(void **handles)
     }
 
     free(handles);
+}
+
+/* XXX: There is no XS accessible splice() */
+static void modperl_av_remove_entry(pTHX_ AV *av, I32 index)
+{
+    I32 i;
+    AV *tmpav = newAV();
+
+    /* stash the entries _before_ the item to delete */
+    for (i=0; i<=index; i++) {
+        av_store(tmpav, i, SvREFCNT_inc(av_shift(av)));
+    }
+    
+    /* make size at the beginning of the array */
+    av_unshift(av, index-1);
+    
+    /* add stashed entries back */
+    for (i=0; i<index; i++) {
+        av_store(av, i, *av_fetch(tmpav, i, 0));
+    }
+    
+    sv_free((SV *)tmpav);
+}
+
+static void modperl_package_unload_dynamic(pTHX_ const char *package, 
+                                           I32 dl_index)
+{
+    AV *librefs = get_av(dl_librefs, 0);
+    SV *libref = *av_fetch(librefs, dl_index, 0);
+
+    modperl_sys_dlclose((void *)SvIV(libref));
+    
+    /* remove package from @dl_librefs and @dl_modules */
+    modperl_av_remove_entry(aTHX_ get_av(dl_librefs, 0), dl_index);
+    modperl_av_remove_entry(aTHX_ get_av(dl_modules, 0), dl_index);
+    
+    return;    
+}
+
+static int modperl_package_is_dynamic(pTHX_ const char *package,
+                                      I32 *dl_index)
+{
+   I32 i;
+   AV *modules = get_av(dl_modules, FALSE);
+    
+   for (i=0; i<av_len(modules); i++) {
+        SV *module = *av_fetch(modules, i, 0);
+        if (strEQ(package, SvPVX(module))) {
+            *dl_index = i;
+            return TRUE;
+        }
+    }
+    return FALSE;
 }
 
 modperl_cleanup_data_t *modperl_cleanup_data_new(apr_pool_t *p, void *data)
@@ -486,63 +554,41 @@ SV *modperl_table_get_set(pTHX_ apr_table_t *table, char *key,
     return retval;
 }
 
+static char *package2filename(const char *package, int *len)
+{
+    const char *s;
+    char *d;
+    char *filename;
+
+    filename = malloc((strlen(package)+4)*sizeof(char));
+
+    for (s = package, d = filename; *s; s++, d++) {
+        if (*s == ':' && s[1] == ':') {
+            *d = '/';
+            s++;
+        }
+        else {
+            *d = *s;
+        }
+    }
+    *d++ = '.';
+    *d++ = 'p';
+    *d++ = 'm';
+    *d   = '\0';
+
+    *len = d - filename;
+    return filename;
+}
+
 MP_INLINE int modperl_perl_module_loaded(pTHX_ const char *name)
 {
-    return (*name && gv_stashpv(name, FALSE)) ? 1 : 0;
-}
+    SV **svp;
+    int len;
+    char *filename = package2filename(name, &len);
+    svp = hv_fetch(GvHVn(PL_incgv), filename, len, 0);
+    free(filename);
 
-static int modperl_gvhv_is_stash(GV *gv)
-{
-    int len = GvNAMELEN(gv);
-    char *name = GvNAME(gv);
-
-    if ((len > 2) && (name[len - 1] == ':') && (name[len - 2] == ':')) {
-        return 1;
-    }
-
-    return 0;
-}
-
-/*
- * we do not clear symbols within packages, the desired behavior
- * for directive handler classes.  and there should never be a package
- * within the %Apache::ReadConfig.  nothing else that i'm aware of calls
- * this function, so we should be ok.
- */
-
-void modperl_clear_symtab(pTHX_ HV *symtab) 
-{
-    SV *val;
-    char *key;
-    I32 klen;
-
-    hv_iterinit(symtab);
-    
-    while ((val = hv_iternextsv(symtab, &key, &klen))) {
-        SV *sv;
-        HV *hv;
-        AV *av;
-        CV *cv;
-
-        if ((SvTYPE(val) != SVt_PVGV) || GvIMPORTED((GV*)val)) {
-            continue;
-        }
-        if ((sv = GvSV((GV*)val))) {
-            sv_setsv(GvSV((GV*)val), &PL_sv_undef);
-        }
-        if ((hv = GvHV((GV*)val)) && !modperl_gvhv_is_stash((GV*)val)) {
-            hv_clear(hv);
-        }
-        if ((av = GvAV((GV*)val))) {
-            av_clear(av);
-        }
-        if ((cv = GvCV((GV*)val)) && (GvSTASH((GV*)val) == GvSTASH(CvGV(cv)))) {
-            GV *gv = CvGV(cv);
-            cv_undef(cv);
-            CvGV(cv) = gv;
-            GvCVGEN(gv) = 1; /* invalidate method cache */
-        }
-    }
+    return (svp && *svp != &PL_sv_undef) ? 1 : 0;
 }
 
 #define SLURP_SUCCESS(action) \
@@ -659,16 +705,36 @@ char *modperl_coderef2text(pTHX_ apr_pool_t *p, CV *cv)
     dSP;
     int count;
     SV *bdeparse;
+    SV *use;
     char *text;
+    int tainted_orig;
     
     /* B::Deparse >= 0.61 needed for blessed code references.
      * 0.6 works fine for non-blessed code refs.
      * notice that B::Deparse is not CPAN-updatable.
      * 0.61 is available starting from 5.8.0
      */
-    Perl_load_module(aTHX_ PERL_LOADMOD_NOIMPORT,
-                     newSVpvn("B::Deparse", 10),
-                     newSVnv(SvOBJECT((SV*)cv) ? 0.61 : 0.60));
+    
+     /*
+      Perl_load_module(aTHX_ PERL_LOADMOD_NOIMPORT,
+                      newSVpvn("B::Deparse", 10),
+                      newSVnv(SvOBJECT((SV*)cv) ? 0.61 : 0.60));   
+     * Perl_load_module() was causing segfaults in the worker MPM.
+     * this is a work around until we can find the problem with
+     * Perl_load_module() 
+     * See: http://marc.theaimsgroup.com/?t=109684579900001&r=1&w=2
+     */ 
+    use = newSVpv("use B::Deparse ", 15);
+    if (SvOBJECT((SV*)cv)) {
+        sv_catpvn(use, "0.61", 3);
+    }
+    sv_catpvn(use, " ();", 4);
+    
+    tainted_orig = PL_tainted;
+    TAINT_NOT;
+    eval_sv(use, G_DISCARD);
+    PL_tainted = tainted_orig;
+    sv_free(use);
 
     ENTER;
     SAVETMPS;
@@ -749,4 +815,46 @@ apr_array_header_t *modperl_avrv2apr_array_header(pTHX_ apr_pool_t *p,
     }
 
     return array;
+}
+
+/* Remove a package from %INC */
+static void modperl_package_delete_from_inc(pTHX_ const char *package)  
+{
+    int len;
+    char *filename = package2filename(package, &len);
+    hv_delete(GvHVn(PL_incgv), filename, len, G_DISCARD);
+    free(filename);
+}
+
+/* Destroy a package's stash */
+static void modperl_package_clear_stash(pTHX_ const char *package)
+{
+    HV *stash;
+    if ((stash = gv_stashpv(package, FALSE))) {
+        HE *he;
+        I32 len;
+        char *key;
+        hv_iterinit(stash);
+        while ((he = hv_iternext(stash))) {
+            key = hv_iterkey(he, &len);
+            /* We skip entries ending with ::, they are sub-stashes */
+            if (len > 2 && key[len] != ':' && key[len-1] != ':') {
+                hv_delete(stash, key, len, G_DISCARD);
+            }
+        }
+    }
+}
+
+/* Unload a module as completely and cleanly as possible */
+void modperl_package_unload(pTHX_ const char *package)
+{
+    I32 dl_index;
+    
+    modperl_package_clear_stash(aTHX_ package);
+    modperl_package_delete_from_inc(aTHX_ package);
+    
+    if (modperl_package_is_dynamic(aTHX_ package, &dl_index)) {
+        modperl_package_unload_dynamic(aTHX_ package, dl_index);
+    }
+    
 }

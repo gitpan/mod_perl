@@ -17,7 +17,6 @@ package Apache::Test;
 use strict;
 use warnings FATAL => 'all';
 
-use Test qw(ok skip);
 use Exporter ();
 use Config;
 use Apache::TestConfig ();
@@ -28,7 +27,7 @@ my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
               need_apache_version need_perl need_min_perl_version
               need_min_module_version need_threads need_apache_mpm
-              need_php need_ssl);
+              need_php need_php4 need_ssl);
 
 my @have = map { (my $need = $_) =~ s/need/have/; $need } @need;
 
@@ -41,7 +40,7 @@ my @test_more_exports = grep { ! /^(ok|skip|plan)$/ } @EXPORT;
 
 %EXPORT_TAGS = (withtestmore => \@test_more_exports);
 
-$VERSION = '1.14';
+$VERSION = '1.16';
 
 %SubTests = ();
 @SkipReasons = ();
@@ -51,6 +50,48 @@ if (my $subtests = $ENV{HTTPD_TEST_SUBTESTS}) {
 }
 
 my $Config;
+my $real_plan;
+my @testmore;
+
+sub import {
+    my $class = shift;
+
+    # once Test::More always Test::More until plan() is called
+    if (($_[0] and $_[0] =~ m/^-withtestmore/) || @testmore) {
+        # special hoops for Test::More support
+
+        $real_plan = eval { 
+
+            require Test::More; 
+
+            no warnings qw(numeric);
+            Test::Builder->VERSION('0.18_01');
+
+            # required for Test::More::import() and Apache::Test::plan()
+            # if we don't do this, Test::More exports plan() anyway
+            # and we get collisions.  go figure.
+            @testmore = (import => [qw(!plan)]);
+
+            Test::More->import(@testmore);
+
+            \&Test::More::plan;
+        } or die "-withtestmore error: $@";
+
+        # clean up arguments to export_to_level
+        shift;
+        @EXPORT = (@test_more_exports, @Test::More::EXPORT);
+    }
+    else {
+        # the default - Test.pm support
+
+        require Test;
+        Test->import(qw(ok skip));
+        @testmore = ();               # reset, just in case.
+        $real_plan = \&Test::plan;
+    }
+
+    $class->export_to_level(1, undef, @_ ? @_ : @EXPORT);
+}
 
 sub config {
     $Config ||= Apache::TestConfig->thaw->httpd_config;
@@ -73,7 +114,7 @@ sub sok (&;$) {
 
     if (%SubTests and not $SubTests{ $Test::ntest }) {
         for my $n (1..$nok) {
-            skip "skipping this subtest", 0;
+            skip("skipping this subtest", 0);
         }
         return;
     }
@@ -90,10 +131,26 @@ EOE
 
 #so Perl's Test.pm can be run inside mod_perl
 sub test_pm_refresh {
-    $Test::TESTOUT = \*STDOUT;
-    $Test::planned = 0;
-    $Test::ntest = 1;
-    %Test::todo = ();
+    if (@testmore) {
+        
+        Test::Builder->reset;
+
+        Test::Builder->output(\*STDOUT);
+        Test::Builder->todo_output(\*STDOUT);
+
+        # this is STDOUT because Test::More seems to put 
+        # most of the stuff we want on STDERR, so it ends
+        # up in the error_log instead of where the user can
+        # see it.   consider leaving it alone based on
+        # later user reports.
+        Test::Builder->failure_output(\*STDOUT);
+    }
+    else {
+        $Test::TESTOUT = \*STDOUT;
+        $Test::planned = 0;
+        $Test::ntest = 1;
+        %Test::todo = ();
+    }
 }
 
 sub init_test_pm {
@@ -183,7 +240,7 @@ sub plan {
     }
     @SkipReasons = (); # reset
 
-    Test::plan(@_);
+    $real_plan->(@_, @testmore);
 
     # add to Test.pm verbose output
     print "# Using Apache/Test.pm version $VERSION\n";
@@ -276,7 +333,11 @@ sub need_cgi {
 }
 
 sub need_php {
-    need_module('php4') || need_module('php5');
+    need_module('php4') || need_module('php5') || need_module('sapi_apache2.c');
+}
+
+sub need_php4 {
+    need_module('php4') || need_module('sapi_apache2.c');
 }
 
 sub need_access {
@@ -437,7 +498,7 @@ for my $func (@have) {
     no strict 'refs';
     (my $real_func = $func) =~ s/^have_/need_/;
     *$func = sub {
-        # be nice to poor soles calling functions with $_ argument in
+        # be nice to poor souls calling functions with $_ argument in
         # the foreach loop, etc.!
         local $_;
         local @SkipReasons;
@@ -621,7 +682,13 @@ Requires mod_cgi or mod_cgid to be installed.
 
   plan tests => 5, need_php;
 
-Requires mod_php4 or mod_php5 to be installed.
+Requires a PHP module to be installed (version 4 or 5).
+
+=item need_php4
+
+  plan tests => 5, need_php4;
+
+Requires a PHP version 4 module to be installed.
 
 =item need_apache
 
@@ -748,7 +815,7 @@ at once. All requirements must be satisfied.
 need()'s argument is a list of things to test. The list can include
 scalars, which are passed to need_module(), and hash references. If
 hash references are used, the keys, are strings, containing a reason
-for a failure to satisfy this particular entry, the valuees are the
+for a failure to satisfy this particular entry, the values are the
 condition, which are satisfaction if they return true. If the value is
 0 or 1, it used to decide whether the requirements very satisfied, so
 you can mix special C<need_*()> functions that return 0 or 1. For
@@ -763,11 +830,32 @@ at the time of check and its return value is used to check the
 condition. If the condition check fails, the provided (in a key)
 reason is used to tell user why the test was skipped.
 
-In the presented example, we require the presense of the C<LWP> Perl
+In the presented example, we require the presence of the C<LWP> Perl
 module, C<mod_cgid>, that we run under perl E<gt>= 5.7.3 on Win32.
 
 It's possible to put more than one requirement into a single hash
 reference, but be careful that the keys will be different.
+
+It's also important to mention to avoid using:
+
+  plan tests => 1, requirement1 && requirement2;
+
+technique. While test-wise that technique is equivalent to:
+
+  plan tests => 1, need requirement1, requirement2;
+
+since the test will be skipped, unless all the rules are satisfied,
+it's not equivalent for the end users. The second technique, deploying
+C<need()> and a list of requirements, always runs all the requirement
+checks and reports all the missing requirements. In the case of the
+first technique, if the first requirement fails, the second is not
+run, and the missing requirement is not reported. So let's say all the
+requirements are missing Apache modules, and a user wants to satisfy
+all of these and run the test suite again. If all the unsatisfied
+requirements are reported at once, she will need to rebuild Apache
+once. If only one requirement is reported at a time, she will have to
+rebuild Apache as many times as there are elements in the C<&&>
+statement.
 
 Also see plan().
 
@@ -841,6 +929,42 @@ with I<Test::More>.
     plan tests => 1;           # Test::More::plan()
 
     ok ('yes', 'testing ok');  # Test::More::ok()
+
+Now, while this works fine for standard client-side tests 
+(such as C<t/basic.t>), the more advanced features of I<Apache::Test>
+require using I<Test::More> as the sole driver behind the scenes.
+
+Should you choose to use I<Test::More> as the backend for
+server-based tests (such as C<t/response/TestMe/basic.pm>) you will
+need to use the C<-withtestmore> action tag:
+
+    use Apache::Test qw(-withtestmore);
+
+    sub handler {
+
+        my $r = shift;
+
+        plan $r, tests => 1;           # Test::More::plan() with
+                                       # Apache::Test features
+
+        ok ('yes', 'testing ok');      # Test::More::ok()
+    }
+
+C<-withtestmore> tells I<Apache::Test> to use I<Test::More>
+instead of I<Test.pm> behind the scenes.  Note that you are not
+required to C<use Test::More> yourself with the C<-withtestmore>
+option and that the C<use Test::More tests =E<gt> 1> syntax
+may have unexpected results.  
+
+Note that I<Test::More> version 0.49, available within the
+I<Test::Simple> 0.49 distribution on CPAN, or greater is required
+to use this feature.
+
+Because I<Apache:Test> was initially developed using I<Test> as
+the framework driver, complete I<Test::More> integration is
+considered experimental at this time - it is supported as best as
+possible but is not guaranteed to be as stable as the default I<Test>
+interface at this time.
 
 =head1 Apache::TestToString Class
 

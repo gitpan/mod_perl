@@ -22,8 +22,23 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
     I32 flags = G_EVAL|G_SCALAR;
     dSP;
     int count, status = OK;
+    int tainted_orig = PL_tainted;
 
+    /* handler callbacks shouldn't affect each other's taintedness
+     * state, so start every callback with a clear record and restore
+     * at the end. one of the main problems we are trying to solve is
+     * that when modperl_croak called (which calls perl's
+     * croak(Nullch) to throw an error object) it leaves the
+     * interprter in the tainted state (which supposedly will be fixed
+     * in 5.8.6) which later affects other callbacks that call eval,
+     * etc, which triggers perl crash with:
+     * Insecure dependency in eval while running setgid.
+     * Callback called exit.
+     */
+    TAINT_NOT;
+    
     if ((status = modperl_handler_resolve(aTHX_ &handler, p, s)) != OK) {
+        PL_tainted = tainted_orig;
         return status;
     }
 
@@ -64,6 +79,7 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
         if (!handler->cv) {
             SV *sv = eval_pv(handler->name, TRUE); 
             handler->cv = (CV*)SvRV(sv); /* cache */
+            SvREFCNT_inc(handler->cv);
         }
         cv = handler->cv;
 #endif
@@ -107,28 +123,13 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
         else {
             SV *status_sv = POPs;
 
-            if (SvIOK(status_sv)) {
-                /* normal IV return (e.g., Apache::OK) */
-                status = SvIVX(status_sv);
-            }
-            else if (status_sv == &PL_sv_undef) {
+            if (status_sv == &PL_sv_undef) {
                 /* ModPerl::Util::exit() and Perl_croak internally
                  * arrange to return PL_sv_undef with G_EVAL|G_SCALAR */
                 status = OK; 
             }
-            else if (SvPOK(status_sv)) {
-                /* PV return that ought to be treated as IV ("0") */
-                status = SvIVx(status_sv);
-                MP_TRACE_h(MP_FUNC,
-                           "coercing handler %s's return value '%s' into %d",
-                           handler->name, SvPV_nolen(status_sv), status);
-            }
             else {
-                /* any other return types are considered as errors */
-                status = HTTP_INTERNAL_SERVER_ERROR;
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                             "handler %s didn't return a valid return value!",
-                             handler->name);
+                status = SvIVx(status_sv);
             }
         }
 
@@ -147,7 +148,9 @@ int modperl_callback(pTHX_ modperl_handler_t *handler, apr_pool_t *p,
             apr_table_set(r->notes, "error-notes", SvPV_nolen(ERRSV));
         }
     }
-    
+
+    PL_tainted = tainted_orig;
+
     return status;
 }
 
@@ -232,6 +235,11 @@ int modperl_callback_run_handlers(int idx, int type,
       case MP_HANDLER_TYPE_PER_DIR:
         modperl_handler_make_args(aTHX_ &av_args,
                                   "Apache::RequestRec", r, NULL);
+
+        /* per-server PerlSetEnv and PerlPassEnv - only once per-request */
+        if (! MpReqPERL_SET_ENV_SRV(rcfg)) {
+            modperl_env_configure_request_srv(aTHX_ r);
+        }
 
         /* per-directory PerlSetEnv - only once per-request */
         if (! MpReqPERL_SET_ENV_DIR(rcfg)) {

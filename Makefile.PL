@@ -6,8 +6,8 @@ use warnings FATAL => 'all';
 # directly or via the top level Makefile.PL
 $ENV{MOD_PERL_2_BUILD} = 1;
 
-my $min_httpd_version = '2.0.47';
-my $min_httpd_version_static = '2.0.51';
+use constant MIN_HTTPD_VERSION_DYNAMIC => '2.0.47';
+use constant MIN_HTTPD_VERSION_STATIC  => '2.0.51';
 
 my($old_modperl_version, $old_modperl_pm);
 
@@ -29,6 +29,7 @@ use File::Spec::Functions;
 use DirHandle ();
 use File::Copy 'cp';
 use File::Basename 'basename';
+use File::Find ();
 
 use Apache::Build ();
 use Apache::TestSmokePerl ();
@@ -74,8 +75,6 @@ ModPerl::BuildMM::WriteMakefile(
     macro         => {
         MODPERL_SRC        => $code->path,
         MODPERL_MAKEFILE   => basename($build->default_file('makefile')),
-        MAKE_F             => '$(MAKE) ' . (WIN32 ? '/f' : '-f'),
-        MODPERL_LIBMAKE    => '$(MAKE) -f $(MODPERL_MAKEFILE)',
         PERL               => $build->perl_config('perlpath'),
         MOD_INSTALL        => ModPerl::BuildMM::mod_install(),
         MODPERL_AP_INCLUDEDIR  => $build->ap_includedir(),
@@ -196,6 +195,10 @@ sub configure {
 
     system_sanity_check();
 
+    my $min_httpd_version = $build->should_build_apache
+        ? MIN_HTTPD_VERSION_STATIC
+        : MIN_HTTPD_VERSION_DYNAMIC;
+
     if ($build->{MP_APXS}) {
         debug "Using APXS => $build->{MP_APXS}";
     }
@@ -207,14 +210,32 @@ sub configure {
         debug "Using Apache prefix => $build->{MP_AP_PREFIX}";
     }
     else {
+        my $ok = 0;
         for my $path ($build->find) {
             $build->dir($path);
             my $mmn = $build->module_magic_number;
             my $v   = $build->httpd_version;
             next unless $v;
             next if $v lt $min_httpd_version;
-            last if $build->prompt_y("Configure mod_perl with $path?");
+            $ok++ if $build->prompt_y("Configure mod_perl with $path?");
+            last if $ok;
         }
+        until ($ok) {
+            my $ask = "Please provide the location of the Apache directory:";
+            my $ans = $build->prompt($ask);
+            # strip leading/closing spaces
+            $ans =~ s/^\s*|\s*$//g;
+            if (defined $ans and -d $ans) {
+                $build->dir($ans);
+                $ok++;
+            }
+            else {
+                error "Can't find dir '$ans'";            }
+        }
+    }
+
+    if ($build->should_build_apache) {
+        $build->configure_apache();
     }
 
     my $httpd_version = $build->httpd_version;
@@ -229,16 +250,8 @@ sub configure {
         }
         exit(1);
     }
-    
-    my $min_version;
-    if ($build->should_build_apache) {
-        $min_version = $min_httpd_version_static;
-    }
-    else {
-        $min_version = $min_httpd_version;
-    }
-    
-    if ($httpd_version lt $min_version) {
+
+    if ($httpd_version lt $min_httpd_version) {
         error "Apache/$httpd_version not supported, " .
               "$min_httpd_version or higher is required";
         exit(1);
@@ -265,10 +278,6 @@ sub configure {
 
     #ModPerl::BuildMM will use Apache::BuildConfig in subdir/Makefile.PL's
     $build->save;
-
-    if ($build->should_build_apache) {
-        $build->configure_apache();
-    }
 
     ModPerl::TestRun->generate_script;
     ModPerl::TestReport->generate_script;
@@ -360,10 +369,28 @@ sub echo_cmd {
 sub clean_files {
     my $path = $code->path;
 
+    my @files = ();
+    File::Find::find(sub { push @files, "$File::Find::dir/$_" if -f $_},
+                     "WrapXS") if -d "WrapXS";
+
+    push @files, map { "xs/$_.h" }
+        qw(modperl_xs_typedefs modperl_xs_sv_convert);
+
     return [@{ $build->clean_files },
-            qw(lib/typemap),
-            <xs/*.exp>, <xs/*.def>,
-            map { "$path/$_"} @{ $code->clean_files }];
+            @files,
+            qw(lib/typemap
+               lib/ModPerl/MethodLookup.pm
+               t/htdocs/vhost/error_log
+               t/SMOKE
+               t/TEST
+               t/REPORT
+              ),
+            <t/htdocs/hooks/startup/open_logs*>,
+            <t/htdocs/hooks/startup/post_config*>,
+            <xs/*.exp>,
+            <xs/*.def>,
+            map { "$path/$_"} @{ $code->clean_files }
+           ];
 }
 
 sub set_modperl_version {
@@ -532,7 +559,13 @@ EOF
 
     if ($build->should_build_apache) {
         ModPerl::MM::add_dep(\$string, pure_all => 'ap_build');
-        $string .= qq[\nap_build:\n\tcd "$build->{MP_AP_PREFIX}" && make\n];
+        $string .= <<"EOF";
+ap_build: modperl_lib
+	cd "$build->{MP_AP_PREFIX}" && make
+    
+ap_install: ap_build
+	cd "$build->{MP_AP_PREFIX}" && make install
+EOF
     }
     
     ModPerl::MM::add_dep(\$string, pure_all => 'modperl_lib');
@@ -552,17 +585,17 @@ etags:
 	$(SHELL) build/make_etags
 
 modperl_lib:
-	cd "$(MODPERL_SRC)" && $(MODPERL_LIBMAKE)
+	cd "$(MODPERL_SRC)" && $(MAKE)
 
 modperl_lib_install:
-	cd "$(MODPERL_SRC)" && $(MODPERL_LIBMAKE) install
+	cd "$(MODPERL_SRC)" && $(MAKE) install
 
 modperl_xs_h_install:
 	@$(MKPATH) $(MODPERL_AP_INCLUDEDIR)
 	$(CP) $(MODPERL_XS_H_FILES) $(MODPERL_AP_INCLUDEDIR)
 
 modperl_src_clean:
-	cd "$(MODPERL_SRC)" && $(MODPERL_LIBMAKE) clean
+	cd "$(MODPERL_SRC)" && $(MAKE) clean
 
 EOF
 
@@ -600,6 +633,8 @@ EOF
 sub MY::install {
     my $self = shift;
     my $string = $self->MM::install(@_);
+    ModPerl::MM::add_dep(\$string, pure_install => 'ap_install') 
+        if $build->should_build_apache;
     ModPerl::MM::add_dep(\$string, pure_install => 'modperl_lib_install');
     ModPerl::MM::add_dep(\$string, pure_install => 'modperl_xs_h_install');
     # ModPerl::MM::add_dep(\$string, pure_install => 'aprext_install')

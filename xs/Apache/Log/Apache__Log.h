@@ -23,7 +23,7 @@ static void mpxs_Apache__Log_BOOT(pTHX)
 
 #define croak_inval_obj()                                       \
     Perl_croak(aTHX_ "Argument is not an Apache::RequestRec "   \
-               "or Apache::Server object")
+               "or Apache::ServerRec object")
 
 static void mpxs_ap_log_error(pTHX_ int level, SV *sv, SV *msg)
 {
@@ -268,47 +268,46 @@ static XS(MPXS_Apache__Log_log_xerror)
     XSRETURN_EMPTY;
 }
 
+/*
+ * this function handles:
+ * $r->log_error
+ * $s->log_error
+ * $r->warn
+ * $s->warn
+ * Apache::ServerRec::warn
+ */
 static XS(MPXS_Apache__Log_log_error)
 {
     dXSARGS;
     request_rec *r = NULL;
     server_rec *s = NULL;
-    int i=0;
+    int i = 0;
     char *errstr = NULL;
     SV *sv = Nullsv;
     STRLEN n_a;
 
-    /*
-     * we support the following:
-     * Apache::warn
-     * Apache->warn
-     * Apache::Server->log_error
-     * Apache::Server->warn
-     * $r->log_error
-     * $r->warn
-     * $s->log_error
-     * $s->warn
-     */
-
     if (items > 1) {
-        if ((r = modperl_xs_sv2request_rec(aTHX_ ST(0),
-                                           "Apache::RequestRec", cv)))
-        {
-            s = r->server;
-        }
-        else if (sv_isa(ST(0), "Apache::Server")) {
+        if (sv_isa(ST(0), "Apache::ServerRec")) {
             s = (server_rec *)SvObjIV(ST(0));
         }
-        else if (SvPOK(ST(0)) && strEQ(SvPVX(ST(0)), "Apache::Server")) {
-            s = modperl_global_get_server_rec();
+        else if ((r = modperl_xs_sv2request_rec(aTHX_ ST(0),
+                                                "Apache::RequestRec", cv))) {
+            s = r->server;
         }
     }
-              
+
     if (s) {
-        i=1;
+        i = 1;
     }
     else {
-        s = modperl_global_get_server_rec();
+        request_rec *r = NULL;
+        (void)modperl_tls_get_request_rec(&r);
+        if (r) {
+            s = r->server;
+        }
+        else {
+            s = modperl_global_get_server_rec();
+        }
     }
 
     if (items > 1+i) {

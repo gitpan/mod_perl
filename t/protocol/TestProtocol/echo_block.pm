@@ -11,6 +11,8 @@ use warnings FATAL => 'all';
 use Apache::Connection ();
 use APR::Socket ();
 
+use TestCommon::Utils;
+
 use Apache::Const -compile => 'OK';
 use APR::Const    -compile => qw(SO_NONBLOCK);
 
@@ -24,15 +26,19 @@ sub handler {
     # the socket to a blocking IO mode
     my $nonblocking = $socket->opt_get(APR::SO_NONBLOCK);
     if ($nonblocking) {
-        $socket->opt_set(APR::SO_NONBLOCK => 0);
+        $socket->opt_set(APR::SO_NONBLOCK, 0);
 
         # test that we really *are* in the blocking mode
         !$socket->opt_get(APR::SO_NONBLOCK)
             or die "failed to set blocking mode";
     }
 
-    while ($socket->recv(my $buff, BUFF_LEN)) {
-        $socket->send($buff);
+    while ($socket->recv(my $buffer, BUFF_LEN)) {
+
+        die "recv() has returned untainted data:"
+            unless TestCommon::Utils::is_tainted($buffer);
+
+        $socket->send($buffer);
     }
 
     Apache::OK;

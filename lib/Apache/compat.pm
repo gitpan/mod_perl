@@ -38,6 +38,7 @@ use Apache::Connection ();
 use Apache::ServerRec ();
 use Apache::ServerUtil ();
 use Apache::Access ();
+use Apache::Module ();
 use Apache::RequestRec ();
 use Apache::RequestIO ();
 use Apache::RequestUtil ();
@@ -133,6 +134,30 @@ EOI
             Socket::pack_sockaddr_in($c->$orig_sub->port,
                                      Socket::inet_aton($c->$orig_sub->ip_get));
         }
+    };
+    $orig_sub;
+}
+EOI
+
+    'Apache::Module::top_module' => <<'EOI',
+{
+    require Apache::Module;
+    my $orig_sub = *Apache::Module::top_module{CODE};
+    *Apache::Module::top_module = sub {
+        shift;
+        $orig_sub->(@_);
+    };
+    $orig_sub;
+}
+EOI
+
+    'Apache::Module::get_config' => <<'EOI',
+{
+    require Apache::Module;
+    my $orig_sub = *Apache::Module::get_config{CODE};
+    *Apache::Module::get_config = sub {
+        shift;
+        $orig_sub->(@_);
     };
     $orig_sub;
 }
@@ -240,11 +265,31 @@ sub request {
     $r;
 }
 
+{
+    my $orig_sub = *Apache::Module::top_module{CODE};
+    *Apache::Module::top_module = sub {
+        $orig_sub->();
+    };
+}
+
+{
+    my $orig_sub = *Apache::Module::get_config{CODE};
+    *Apache::Module::get_config = sub {
+        shift if $_[0] eq 'Apache::Module';
+        $orig_sub->(@_);
+    };
+}
+
 package Apache::Server;
 # XXX: is that good enough? see modperl/src/modules/perl/mod_perl.c:367
 our $CWD = Apache::ServerUtil::server_root;
 
 our $AddPerlVersion = 1;
+
+sub warn {
+    shift if @_ and $_[0] eq 'Apache::Server';
+    Apache::ServerRec::warn(@_);
+}
 
 package Apache;
 
@@ -301,6 +346,11 @@ sub define {
 
 sub log_error {
     Apache->server->log_error(@_);
+}
+
+sub warn {
+    shift if @_ and $_[0] eq 'Apache';
+    Apache::ServerRec::warn(@_);
 }
 
 sub httpd_conf {
@@ -367,7 +417,8 @@ sub reset_timeout {}
 sub cleanup_for_exec {}
 
 sub current_callback {
-    return Apache::current_callback();
+    require ModPerl::Util;
+    return ModPerl::Util::current_callback();
 }
 
 sub send_http_header {
@@ -411,7 +462,7 @@ sub table_get_set {
     }
     else {
         my $name = (caller(1))[3];
-        warn "Usage: \$r->$name([key [,val]])";
+        $r->warn("Usage: \$r->$name([key [,val]])");
     }
 }
 
@@ -449,7 +500,6 @@ sub get_remote_host {
     $r->connection->get_remote_host($type, $r->per_dir_config);
 }
 
-#XXX: should port 1.x's Apache::URI::unescape_url_info
 sub parse_args {
     my($r, $string) = @_;
     return () unless defined $string and $string;
@@ -459,6 +509,13 @@ sub parse_args {
         s/%([0-9a-fA-F]{2})/pack("C",hex($1))/ge;
         $_;
     } split /[=&;]/, $string, -1;
+}
+
+sub Apache::unescape_url_info {
+    my($class, $string) = @_;
+    Apache::URI::unescape_url($string);
+    $string =~ tr/+/ /;
+    $string;
 }
 
 #sorry, have to use $r->Apache::args at the moment
@@ -545,8 +602,6 @@ sub seqno {
 sub chdir_file {
     #XXX resolve '.' in @INC to basename $r->filename
 }
-
-*log_reason = \&log_error;
 
 #XXX: would like to have a proper implementation
 #that reads line-by-line as defined by $/

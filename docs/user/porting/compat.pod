@@ -92,6 +92,13 @@ server startup abort, dumping the error to stderr. To avoid this, C<eval {}>
 can be used to trap errors and ignore them. In mod_perl 1, 'strict' was
 somewhat of a misnomer.
 
+=head2 C<$Apache::Server::SaveConfig>
+
+C<$Apache::Server::SaveConfig> has been renamed to
+C<$Apache::PerlSections::Save>.  see
+C<L<E<lt>PerlE<gt>|docs::2.0::api::Apache::PerlSections>>
+for more information on this global variable.
+
 =head2 Apache Configuration Customization
 
 mod_perl 2.0 has slightly changed the mechanism for L<adding custom
@@ -649,6 +656,19 @@ C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
 
 
 
+=head2 C<Apache-E<gt>unescape_url_info>
+
+Apache-E<gt>unescape_url_info is not available in mod_perl 2.0
+API. Use C<CGI::Util::unescape> instead
+(http://search.cpan.org/dist/CGI.pm/CGI/Util.pm).
+
+It is also available via
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>
+for backwards compatibility.
+
+
+
+
 =head2 C<Apache::exit()>
 
 C<Apache::exit()> has been replaced with
@@ -678,6 +698,21 @@ instead. See the
 C<L<Apache::Log|docs::2.0::api::Apache::Log>> manpage.
 
 
+
+=head2 C<Apache-E<gt>warn>
+
+C<$Apache-E<gt>warn> has been removed and exists only in
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>. Choose another
+C<L<Apache::Log|docs::2.0::api::Apache::Log>> method.
+
+=head2 C<Apache::warn>
+
+C<$Apache::warn> has been removed and exists only in
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>. Choose another
+C<L<Apache::Log|docs::2.0::api::Apache::Log>> method.
+
+
+
 =head2 C<Apache::module()>
 
 C<Apache::module()> has been replaced with the function
@@ -696,6 +731,38 @@ instead.
 
 
 
+=head1 C<Apache::Module::> Methods
+
+=head2 C<Apache::Module-E<gt>top_module>
+
+C<Apache::Module-E<gt>top_module> has been replaced with
+the function C<Apache::Module::top_module()>
+
+
+
+
+=head2 C<Apache::Module-E<gt>get_config>
+
+C<Apache::Module-E<gt>get_config> has been replaced with
+the function C<Apache::Module::get_config()>
+
+
+
+
+
+
+=head1 C<Apache::ModuleConfig::> Methods
+
+=head2 C<Apache::ModuleConfig-E<gt>get>
+
+C<Apache::ModuleConfig-E<gt>get> has been replaced with the function
+C<L<Apache::Module::get_config()|docs::2.0::api::Apache::Module/C_get_config_>>.
+
+
+
+
+
+
 
 =head1 C<Apache::Server::> Methods and Variables
 
@@ -708,6 +775,13 @@ C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
 
 C<$Apache::Server::AddPerlVersion> is deprecated and exists only in
 C<L<Apache::compat|docs::2.0::api::Apache::compat>>.
+
+=head2 C<Apache::Server-E<gt>warn>
+
+C<Apache::Server-E<gt>warn> has been removed and exists only in
+C<L<Apache::compat|docs::2.0::api::Apache::compat>>. Choose another
+C<L<Apache::Log|docs::2.0::api::Apache::Log>> method.
+
 
 
 
@@ -773,8 +847,8 @@ generations.
 =head2 C<$r-E<gt>current_callback>
 
 C<$r-E<gt>current_callback> is now simply a
-C<Apache::current_callback> and can be called for any of the phases,
-including those where C<$r> simply doesn't exist.
+C<ModPerl::Util::current_callback> and can be called for any of the
+phases, including those where C<$r> simply doesn't exist.
 
 C<L<Apache::compat|docs::2.0::api::Apache::compat>> implements
 C<$r-E<gt>current_callback> for backwards compatibility.
@@ -961,19 +1035,6 @@ with:
   $r->err_headers_out->{'Pragma'} = "no-cache";
 
 See the L<Apache::RequestRec> manpage.
-
-
-=head2 C<$r-E<gt>log_reason>
-
-C<$r-E<gt>log_reason> is not available in mod_perl 2.0 API. Use the
-other standard logging functions provided by the
-C<L<Apache::Log|docs::2.0::api::Apache::Log>>
-module. For example:
-
-  $r->log_error("it works!");
-
-See the C<L<Apache::Log|docs::2.0::api::Apache::Log>>
-manpage.
 
 
 =head2 C<$r-E<gt>register_cleanup>
@@ -1233,11 +1294,18 @@ argument. For example:
 C<Apache::Util::unescape_uri()> has been replaced with
 C<Apache::unescape_url()>.
 
+
 =head2 C<Apache::Util::escape_html()>
 
-C<Apache::Util::escape_html> currently is available only via
-C<L<Apache::compat|docs::2.0::api::Apache::compat>> until
-I<ap_escape_html> is reworked to not require a pool.
+C<Apache::Util::escape_html> is not available in mod_perl 2.0.  Use
+C<HTML::Entities> instead
+(http://search.cpan.org/dist/HTML-Parser/lib/HTML/Entities.pm).
+
+It's also available via
+C<L<Apache::compat|docs::2.0::api::Apache::compat>> for backwards
+compatibility.
+
+
 
 =head2 C<Apache::Util::parsedate()>
 

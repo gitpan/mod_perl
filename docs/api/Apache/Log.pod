@@ -7,8 +7,8 @@ Apache::Log - Perl API for Apache Logging Methods
 
 =head1 Synopsis
 
-  #in startup.pl
-  #-------------
+  # in startup.pl
+  #--------------
   use Apache::Log;
   
   use Apache::Const -compile => qw(OK :log);
@@ -21,14 +21,12 @@ Apache::Log - Perl API for Apache Logging Methods
                  APR::SUCCESS, "log_serror logging at err level");
   $s->log_serror(Apache::Log::LOG_MARK, Apache::LOG_DEBUG,
                  APR::ENOTIME, "debug print");
-  Apache::Server->log_error("routine warning");
+  Apache::ServerRec->log_error("routine warning");
   
-  Apache->warn("routine warning");
-  Apache::warn("routine warning");
-  Apache::Server->warn("routine warning");
+  Apache::ServerRec::warn("routine warning");
 
-  #in a handler
-  #------------
+  # in a handler
+  #-------------
   package Foo;
   
   use strict;
@@ -61,13 +59,20 @@ Apache::Log - Perl API for Apache Logging Methods
   
       $s->log_serror(Apache::Log::LOG_MARK, Apache::LOG_ERR,
                      APR::ENOTIME, "fatal error");
-
+  
+      $r->log_reason("fatal error");
+      $r->warn('routine request warning');
       $s->warn('routine server warning');
-
+  
       return Apache::OK;
   }
   1;
 
+  # in a registry script
+  # httpd.conf: PerlOptions +GlobalRequest
+  use Apache::ServerRec qw(warn); # override warn locally
+  print "Content-type: text/plain\n\n";
+  warn "my warning";
 
 
 =head1 Description
@@ -91,7 +96,7 @@ will log the message, but this one won't:
 It will be logged only if the server log level is set to I<info> or
 I<debug>. C<LogLevel> is set in the configuration file, but can be
 changed using the
-C<L<$s-E<gt>loglevel()|docs::2.0::api::Apache::Server/C_loglevel_>>
+C<L<$s-E<gt>loglevel()|docs::2.0::api::Apache::ServerRec/C_loglevel_>>
 method.
 
 The filename and the line number of the caller are logged only if
@@ -233,6 +238,31 @@ then the logging will be:
 =head1 Server Logging Methods
 
 
+=head2 C<$s-E<gt>log>
+
+get a log handle which can be used to L<log messages of different
+levels|/LogLevel_Methods>.
+
+  my $slog = $s->log;
+
+=over 4
+
+=item obj: C<$s>
+( C<L<Apache::ServerRec object|docs::2.0::api::Apache::ServerRec>> )
+
+=item ret: C<$slog> ( C<Apache::Log::Server> object )
+
+C<Apache::Log::Server> object to be used with L<LogLevel
+methods|/LogLevel_Methods>.
+
+=item since: 1.99_12
+
+=back
+
+
+
+
+
 
 =head2 C<$s-E<gt>log_error>
 
@@ -319,27 +349,35 @@ For example:
 
 
 
-=head2 C<$s-E<gt>log>
 
-get a log handle which can be used to L<log messages of different
-levels|/LogLevel_Methods>.
 
-  my $slog = $s->log;
+=head2 C<$s-E<gt>warn>
+
+  $s->warn(@warnings);
+
+is the same as:
+
+  $s->log_error(Apache::Log::LOG_MARK, Apache::LOG_WARNING,
+                APR::SUCCESS, @warnings)
 
 =over 4
 
 =item obj: C<$s>
 ( C<L<Apache::ServerRec object|docs::2.0::api::Apache::ServerRec>> )
 
-=item ret: C<$slog> ( C<Apache::Log::Server> object )
+=item arg1: C<@warnings> ( strings ARRAY )
 
-C<Apache::Log::Server> object to be used with L<LogLevel
-methods|/LogLevel_Methods>.
+array of warning strings
+
+=item ret: no return value
 
 =item since: 1.99_12
 
-
 =back
+
+For example:
+
+  $s->warn('routine server warning');
 
 
 
@@ -348,6 +386,33 @@ methods|/LogLevel_Methods>.
 
 
 =head1 Request Logging Methods
+
+
+
+
+
+=head2 C<$r-E<gt>log>
+
+get a log handle which can be used to L<log messages of different
+levels|/LogLevel_Methods>.
+
+  $rlog = $r->log;
+
+=over 4
+
+=item obj: C<$r> 
+( C<L<Apache::RequestRec object|docs::2.0::api::Apache::RequestRec>> )
+
+=item ret: C<$rlog> ( C<Apache::Log::Request> object )
+
+C<Apache::Log::Request> object to be used with L<LogLevel
+methods|/LogLevel_Methods>.
+
+=item since: 1.99_12
+
+=back
+
+
 
 
 
@@ -384,6 +449,48 @@ For example:
 
 
 
+=head2 C<$r-E<gt>log_reason>
+
+This function provides a convenient way to log errors in a
+preformatted way:
+
+  $r->log_reason($message);
+  $r->log_reason($message, $filename);
+
+=over 4
+
+=item obj: C<$r>
+( C<L<Apache::RequestRec object|docs::2.0::api::Apache::RequestRec>> )
+
+=item arg1: C<$message> ( string )
+
+the message to log
+
+=item opt arg2: C<$filename> ( string )
+
+where to report the error as coming from (e.g. C<__FILE__>)
+
+=item ret: no return value
+
+=item since: 1.99_17
+
+=back
+
+For example:
+
+  $r->log_reason("There is no enough data");
+
+will generate a log entry similar to the following:
+
+  [Fri Sep 24 11:58:36 2004] [error] access to /someuri
+  failed for 127.0.0.1, reason: There is no enough data.
+
+
+
+
+
+
+
 =head2 C<$r-E<gt>log_rerror>
 
 This function provides a fine control of when the message is logged,
@@ -414,27 +521,34 @@ For example:
 
 
 
-=head2 C<$r-E<gt>log>
+=head2 C<$r-E<gt>warn>
 
-get a log handle which can be used to L<log messages of different
-levels|/LogLevel_Methods>.
+  $r->warn(@warnings);
 
-  $rlog = $r->log;
+is the same as:
+
+  $r->log_error(Apache::Log::LOG_MARK, Apache::LOG_WARNING,
+                APR::SUCCESS, @warnings)
 
 =over 4
 
-=item obj: C<$r> 
+=item obj: C<$r>
 ( C<L<Apache::RequestRec object|docs::2.0::api::Apache::RequestRec>> )
 
-=item ret: C<$rlog> ( C<Apache::Log::Request> object )
+=item arg1: C<@warnings> ( strings ARRAY )
 
-C<Apache::Log::Request> object to be used with L<LogLevel
-methods|/LogLevel_Methods>.
+array of warning strings
 
-=item since: 1.99_12
+=item ret: no return value
 
+=item since: 1.99_17
 
 =back
+
+For example:
+
+  $r->warn('routine server warning');
+
 
 
 
@@ -483,10 +597,6 @@ I<error> will be disabled.
 
 
 
-=head2 C<emerg>
-
-See L<LogLevel Methods|/LogLevel_Methods>.
-
 
 
 =head2 C<alert>
@@ -501,13 +611,25 @@ See L<LogLevel Methods|/LogLevel_Methods>.
 
 
 
+=head2 C<debug>
+
+See L<LogLevel Methods|/LogLevel_Methods>.
+
+
+
+=head2 C<emerg>
+
+See L<LogLevel Methods|/LogLevel_Methods>.
+
+
+
 =head2 C<error>
 
 See L<LogLevel Methods|/LogLevel_Methods>.
 
 
 
-=head2 C<warn>
+=head2 C<info>
 
 See L<LogLevel Methods|/LogLevel_Methods>.
 
@@ -518,15 +640,10 @@ See L<LogLevel Methods|/LogLevel_Methods>.
 See L<LogLevel Methods|/LogLevel_Methods>.
 
 
-=head2 C<info>
+
+=head2 C<warn>
 
 See L<LogLevel Methods|/LogLevel_Methods>.
-
-
-=head2 C<debug>
-
-See L<LogLevel Methods|/LogLevel_Methods>.
-
 
 
 
@@ -565,28 +682,93 @@ C<L<$r-E<gt>log_rerror|/C__r_E_gt_log_rerror_>> ).
 
 
 
+=head1 Virtual Hosts
+
+Code running from within a virtual host needs to be able to log into
+its C<ErrorLog> file, if different from the main log. Calling any of
+the logging methods on the C<$r> and C<$s> objects will do the logging
+correctly.
+
+If the core C<warn()> is called, it'll be always logged to the main
+log file. Here is how to make it log into the vhost F<error_log> file.
+Let's say that we start with the following code:
+
+  warn "the code is smoking";
+
+=over
+
+=item 1
+
+First, we need to use mod_perl's logging function, instead of
+C<CORE::warn>
+
+Either replace C<warn> with C<Apache::ServerRec::warn>:
+
+  use Apache::Log ();
+  Apache::ServerRec::warn("the code is smoking");
+
+or import it into your code:
+
+  use Apache::ServerRec qw(warn); # override warn locally
+  warn "the code is smoking";
+
+or override C<CORE::warn>:
+
+  use Apache::Log ();
+  *CORE::GLOBAL::warn = \&Apache::ServerRec::warn;
+  warn "the code is smoking";
+
+Avoid using the latter suggestion, since it'll affect all the code
+running on the server, which may break things. Of course you can
+localize that as well:
+
+  use Apache::Log ();
+  local *CORE::GLOBAL::warn = \&Apache::ServerRec::warn;
+  warn "the code is smoking";
+
+Chances are that you need to make the internal Perl warnings go into
+the vhost's F<error_log> file as well. Here is how to do that:
+
+  use Apache::Log ();
+  local $SIG{__WARN__} = \&Apache::ServerRec::warn;
+  eval q[my $x = "aaa" + 1;]; # this issues a warning
+
+Notice that it'll override any previous setting you may have had,
+disabling modules like C<CGI::Carp> which also use C<$SIG{__WARN__}>
+
+=item 2
+
+Next we need to figure out how to get hold of the vhost's server
+object.
+
+Inside HTTP request handlers this is possible via
+C<Apache-E<gt>request|docs::2.0::api::Apache::RequestUtil/C_request_>. Which
+requires either C<L<PerlOptions
++GlobalRequest|docs::2.0::user::config::config/C_GlobalRequest_>>
+setting or can be also done at runtime if C<$r> is available:
+
+  use Apache::RequestUtil ();
+  sub handler {
+      my $r = shift;
+      Apache->request($r);
+      ...
+
+Outside HTTP handlers at the moment it is not possible, to get hold of
+the vhost's F<error_log> file. This shouldn't be a problem for the
+code that runs only under mod_perl, since the always available C<$s>
+object can invoke a plethora of methods supplied by
+C<Apache::Log>. This is only a problem for modules, which are supposed
+to run outside mod_perl as well.
+
+META: To solve this we think to introduce 'PerlOptions +GlobalServer',
+a big brother for 'PerlOptions +GlobalRequest', which will be set in
+modperl_hook_pre_connection.
 
 
-=head1 Aliases
+=back
 
-=head2 C<$s-E<gt>warn>
 
-  $s->warn(@warnings);
 
-is the same as:
-
-  $s->log_error(Apache::Log::LOG_MARK, Apache::LOG_WARNING,
-                APR::SUCCESS, @warnings)
-
-For example:
-
-  $s->warn('routine server warning');
-
-=head2 C<Apache-E<gt>warn>
-
-=head2 C<Apache::warn>
-
-  Apache->warn(@warnings);
 
 
 

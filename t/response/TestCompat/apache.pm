@@ -9,15 +9,17 @@ use warnings FATAL => 'all';
 
 use Apache::TestUtil;
 use Apache::Test;
-use File::Spec::Functions qw(catfile canonpath);
 
+use ModPerl::Util ();
 use Apache::compat ();
 use Apache::Constants qw(DIR_MAGIC_TYPE :common :response);
+
+use File::Spec::Functions qw(catfile canonpath);
 
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 17;
+    plan $r, tests => 22;
 
     $r->send_http_header('text/plain');
 
@@ -35,12 +37,28 @@ sub handler {
              Apache::ServerUtil::exists_config_define('MODPERL2'),
              'Apache->define');
 
-    ok t_cmp(Apache::current_callback(),
+    ok t_cmp($r->current_callback,
              'PerlResponseHandler',
              'inside PerlResponseHandler');
 
     t_server_log_error_is_expected();
     Apache::log_error("Apache::log_error test ok");
+    ok 1;
+
+    t_server_log_warn_is_expected();
+    Apache->warn('Apache->warn ok');
+    ok 1;
+
+    t_server_log_warn_is_expected();
+    Apache::warn('Apache::warn ok');
+    ok 1;
+
+    t_server_log_warn_is_expected();
+    Apache::Server->warn('Apache::Server->warn ok');
+    ok 1;
+
+    t_server_log_warn_is_expected();
+    Apache::Server::warn('Apache::Server::warn ok');
     ok 1;
 
     # explicitly imported
@@ -92,6 +110,11 @@ sub handler {
                           canonpath($path),
                           "Apache->server_root_relative('$path')");
     }
+
+    ok t_cmp(Apache->unescape_url_info("/foo+bar%20baz"),
+             '/foo bar baz',
+             'Apache->unescape_url_info');
+    
 
     OK;
 }

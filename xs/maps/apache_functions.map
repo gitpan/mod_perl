@@ -55,7 +55,7 @@ MODULE=Apache::RequestUtil   PACKAGE=guess
 ~ap_set_content_type
 
 #MODULE=Apache::RequestConfig
- ap_document_root
+~ap_document_root
  ap_get_limit_req_body
 ?ap_get_limit_xml_body
 >ap_core_translate
@@ -198,7 +198,7 @@ PACKAGE=Apache::Log    PREFIX=ap_
  ap_log_pid
 
 MODULE=Apache::Module
- module *:DEFINE_top_module | | SV *:CLASS
+ module *:DEFINE_top_module
 -ap_add_loaded_module
 -ap_add_module
 -ap_add_named_module
@@ -213,10 +213,12 @@ ap_remove_loaded_module
 >ap_register_hooks
  mpxs_Apache__Module_loaded
  #ap_get_module_config
- mpxs_Apache__Module_get_config | | self, pmodule, s, v=NULL
+ mpxs_Apache__Module_get_config | | pmodule, s, v=NULL
+ mpxs_Apache__Module_ap_api_major_version
+ mpxs_Apache__Module_ap_api_minor_version
 
 MODULE=Apache::Directive
- ap_directive_t *:DEFINE_conftree | | SV *:CLASS
+ ap_directive_t *:DEFINE_conftree
 !ap_add_node
 !ap_build_config
 !ap_build_cont_config
@@ -351,7 +353,6 @@ PACKAGE=Apache::RequestRec
 -ap_copy_method_list
  ap_make_method_list
  ap_method_in_list
- ap_method_is_limited
  ap_method_list_add
  ap_method_list_do
  ap_method_list_remove

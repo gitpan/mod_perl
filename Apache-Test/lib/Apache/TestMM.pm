@@ -57,7 +57,31 @@ sub test {
 PASSENV = $env
 EOF
 
-    return $preamble . <<'EOF';
+    my $cover;
+
+    if (eval { require Devel::Cover }) {
+                                                                                                                             
+        my $atdir = File::Spec->catfile($ENV{HOME}, '.apache-test');
+
+        $cover = <<"EOF"
+
+testcover :
+	-\@cover -delete
+	-HARNESS_PERL_SWITCHES=-MDevel::Cover=+inc,$atdir \\
+	APACHE_TEST_EXTRA_ARGS=-one-process \$(MAKE) test
+	-\@cover
+EOF
+    }
+    else {
+
+        $cover = <<'EOF';
+                                                                                                                             
+testcover :
+	@echo "Cannot run testcover action unless Devel::Cover is installed"
+EOF
+    }
+
+    return $preamble . <<'EOF' . $cover;
 TEST_VERBOSE = 0
 TEST_FILES =
 
@@ -65,17 +89,22 @@ test_clean :
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
 	t/TEST $(APACHE_TEST_EXTRA_ARGS) -clean
 
-run_tests : test_clean
+run_tests :
 	$(PASSENV) \
 	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
 	t/TEST $(APACHE_TEST_EXTRA_ARGS) -bugreport -verbose=$(TEST_VERBOSE) $(TEST_FILES)
 
-test :: pure_all run_tests test_clean
+test :: pure_all test_clean run_tests
 
-cmodules:
+test_config :
+	$(PASSENV) \
+	$(FULLPERL) -I$(INST_ARCHLIB) -I$(INST_LIB) \
+	t/TEST $(APACHE_TEST_EXTRA_ARGS) -conf
+                                                                                                                             
+cmodules: test_config
 	cd c-modules && $(MAKE) all
-
-cmodules_clean:
+                                                                                                                             
+cmodules_clean: test_config
 	cd c-modules && $(MAKE) clean
 EOF
 
@@ -86,7 +115,7 @@ sub generate_script {
 
     unlink $file if -e $file;
 
-    my $body = "BEGIN { eval { require blib; } }\n";
+    my $body = "BEGIN { eval { require blib && blib->import; } }\n";
 
     $body .= Apache::TestConfig->modperl_2_inc_fixup;
 

@@ -1,4 +1,3 @@
-
 package TestAPI::module;
 
 use strict;
@@ -19,14 +18,14 @@ sub handler {
 
     my $cfg = Apache::Test::config();
 
-    my $top_module = Apache::Module->top_module;
+    my $top_module = Apache::Module::top_module();
 
     my $module_count = 0;
     for (my $modp = $top_module; $modp; $modp = $modp->next) {
         $module_count++;
     }
 
-    my $tests = 10 + ( 5 * $module_count );
+    my $tests = 12 + ( 5 * $module_count );
 
     plan $r, tests => $tests;
 
@@ -34,36 +33,48 @@ sub handler {
     ok defined $core && $core->name eq 'core.c';
 
     #.c
-    ok t_cmp(Apache::Module::loaded('mod_perl.c'), 1,
-             "Apache::Module::loaded('mod_perl.c')");
+    ok t_cmp Apache::Module::loaded('mod_perl.c'), 1,
+        "Apache::Module::loaded('mod_perl.c')";
 
-    ok t_cmp(Apache::Module::loaded('Apache__Module_foo.c'), 0,
-             "Apache::Module::loaded('Apache__Module_foo.c')");
+    ok t_cmp Apache::Module::loaded('Apache__Module_foo.c'), 0,
+        "Apache::Module::loaded('Apache__Module_foo.c')";
 
     #.so
     {
         my $build = Apache::BuildConfig->new;
         my $expect = $build->should_build_apache ? 0 : 1;
-        ok t_cmp(Apache::Module::loaded('mod_perl.so'), $expect,
-                 "Apache::Module::loaded('mod_perl.so')");
+        ok t_cmp Apache::Module::loaded('mod_perl.so'), $expect,
+            "Apache::Module::loaded('mod_perl.so')";
     }
 
-    ok t_cmp(Apache::Module::loaded('Apache__Module__foo.so'), 0,
-             "Apache::Module::loaded('Apache__Module_foo.so')");
+    ok t_cmp Apache::Module::loaded('Apache__Module__foo.so'), 0,
+        "Apache::Module::loaded('Apache__Module_foo.so')";
 
     #perl
-    ok t_cmp(Apache::Module::loaded('Apache::Module'), 1,
-             "Apache::Module::loaded('Apache::Module')");
+    {
+        ok t_cmp Apache::Module::loaded('Apache::Module'), 1,
+            "Apache::Module::loaded('Apache::Module')";
 
-    ok t_cmp(Apache::Module::loaded('Apache__Module_foo'), 0,
-             "Apache::Module::loaded('Apache__Module_foo')");
+        ok t_cmp Apache::Module::loaded('Apache__Module_foo'), 0,
+            "Apache::Module::loaded('Apache__Module_foo')";
+
+        # TestAPI::module::foo wasn't loaded but the stash exists
+        $TestAPI::module::foo::test = 1;
+        ok t_cmp Apache::Module::loaded('TestAPI::module::foo'), 0,
+            "Apache::Module::loaded('TestAPI::module::foo')";
+
+        # module TestAPI wasn't loaded but the stash exists, since
+        # TestAPI::module was loaded
+        ok t_cmp Apache::Module::loaded('TestAPI'), 0,
+            "Apache::Module::loaded('TestAPI')";
+    }
 
     #bogus
-    ok t_cmp(Apache::Module::loaded('Apache__Module_foo.foo'), 0,
-             "Apache::Module::loaded('Apache__Module_foo.foo')");
+    ok t_cmp Apache::Module::loaded('Apache__Module_foo.foo'), 0,
+        "Apache::Module::loaded('Apache__Module_foo.foo')";
 
-    ok t_cmp(Apache::Module::loaded(''), 0,
-             "Apache::Module::loaded('')");
+    ok t_cmp Apache::Module::loaded(''), 0,
+        "Apache::Module::loaded('')";
 
     ok t_cmp ref($top_module), 'Apache::Module', 'top_module';
 
@@ -73,8 +84,8 @@ sub handler {
         my $name = $modp->name;
         ok $name;
         t_debug("Testing module: " . $modp->name);
-        ok $modp->version == $mmn_major;
-        ok $modp->minor_version <= $mmn_minor;
+        ok t_cmp $modp->ap_api_major_version, $mmn_major;
+        ok $modp->ap_api_minor_version <= $mmn_minor;
         ok $modp->module_index >= 0;
         my $cmds = $modp->cmds;
         ok !defined($cmds) || ref($cmds) eq 'Apache::Command';

@@ -16,22 +16,23 @@ V: done completely
 
 - the file path is relative to the modperl-docs cvs repository
 #########################################################
--- src/docs/2.0/api/Apache.pod
+VV src/docs/2.0/api/Apache.pod
 VV src/docs/2.0/api/Apache/Access.pod
-g- src/docs/2.0/api/Apache/CmdParms.pod
-g- src/docs/2.0/api/Apache/Command.pod
+VP src/docs/2.0/api/Apache/CmdParms.pod
+        context
+VV src/docs/2.0/api/Apache/Command.pod
 VP src/docs/2.0/api/Apache/Connection.pod
         conn_config
 VP src/docs/2.0/api/Apache/Const.pod
         (this will never be complete, fill it in as we go)
-g- src/docs/2.0/api/Apache/Directive.pod
+VV src/docs/2.0/api/Apache/Directive.pod
 VP src/docs/2.0/api/Apache/Filter.pod
         The whole TIE interface   
 VV src/docs/2.0/api/Apache/FilterRec.pod
 VV src/docs/2.0/api/Apache/HookRun.pod
-+- src/docs/2.0/api/Apache/Log.pod
+VP src/docs/2.0/api/Apache/Log.pod
         log_pid
-g- src/docs/2.0/api/Apache/Module.pod
+VV src/docs/2.0/api/Apache/Module.pod
 VV src/docs/2.0/api/Apache/PerlSections.pod
 VV src/docs/2.0/api/Apache/Process.pod
 VV src/docs/2.0/api/Apache/Reload.pod
@@ -77,7 +78,7 @@ VP src/docs/2.0/api/APR/Const.pod
         (this will never be complete, fill it in as we go)
 VV src/docs/2.0/api/APR/Date.pod
 VV src/docs/2.0/api/APR/Error.pod
--- src/docs/2.0/api/APR/Finfo.pod
+VV src/docs/2.0/api/APR/Finfo.pod
 VV src/docs/2.0/api/APR/IpSubnet.pod
 VV src/docs/2.0/api/APR/OS.pod
 +V src/docs/2.0/api/APR/PerlIO.pod
@@ -127,17 +128,6 @@ VV src/docs/2.0/api/ModPerl/MethodLookup.pod
 ################################
 ### Other API related things ###
 ################################
-
-Q: APR::BucketAlloc object returned by $r->connection->bucket_alloc
-   doesn't have a real package. It's OK for now, but when used outside
-   httpd, where that allocation should come from?
-
-A: Add glue for function: apr_bucket_alloc_create(pool);
-   not urgent for 2.0
-
-* why APR::OS::thread_current returns an object and to get the tid,
-  you need to dereference it? that doesn't sounds too
-  intuitive. Should we change it to return the id right away?
 
 * the following accessors might be turned into read/write (they are
   readonly at the moment). if you think that should be the case,

@@ -15,8 +15,13 @@ use Symbol;
 
 use Apache::TestMM qw(test clean); #enable 'make test and make clean'
 use Apache::TestRun;
+use Apache::TestTrace;
+use Apache::TestConfig ();
 
 my $VERSION;
+set_version();
+
+sanity_check();
 
 Apache::TestMM::filter_args();
 
@@ -26,7 +31,6 @@ for (@scripts) {
     Apache::TestMM::generate_script($_);
 }
 
-set_version();
 
 # if built with mod_perl 2.0, its top-level Makefile.PL already
 # installs the uninstall code
@@ -37,12 +41,22 @@ if (TOP_LEVEL) {
 
 Apache::TestConfig::custom_config_file_stub_write();
 
+my @clean_files =
+    qw(lib/Apache/TestConfigData.pm
+       .mypacklist
+       t/TEST
+       Makefile.old
+      );
+
 WriteMakefile(
     NAME      => 'Apache::Test',
     VERSION   => $VERSION,
     PREREQ_PM => { 'File::Spec' => '0.8' },
     dist      => {
         COMPRESS => 'gzip -9f', SUFFIX=>'gz',
+    },
+    clean     => {
+        FILES => "@clean_files",
     },
 );
 
@@ -60,6 +74,20 @@ sub set_version {
     }
     close $fh;
 
+}
+
+sub sanity_check {
+    # don't allow running an explicit 'perl Makefile.PL', when
+    # Apache-Test is checked out into the modperl-2.0 tree, since
+    # it then decides that it's a part of the modperl-2.0 build and
+    # will try to use modperl httpd/apxs arguments which could be
+    # unset or wrong
+    if (TOP_LEVEL && -e "../lib/mod_perl.pm") {
+        error "Do not run 'perl Makefile.PL' when Apache-Test is a " .
+            "subdirectory of modperl-2.0. Copy it elsewhere and run " .
+            "from there.";
+        Apache::TestRun::exit_perl(0);
+    }
 }
 
 sub MY::postamble {

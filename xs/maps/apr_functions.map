@@ -72,6 +72,7 @@ MODULE=APR::Socket
 -apr_socket_sendfile
 -apr_socket_sendv
 !apr_socket_from_file
+ mpxs_APR__Socket_poll
 
 MODULE=APR::SockAddr
 !apr_sockaddr_info_get
@@ -118,12 +119,14 @@ MODULE=APR::Bucket
  #apr_bucket_read
  mpxs_APR__Bucket_read | | bucket, buffer, block=APR_BLOCK_READ
  #modperl_bucket_sv_create
- mpxs_APR__Bucket_new  | | classname, sv, offset=0, len=0
+ mpxs_APR__Bucket_new  | | classname, list, sv, offset=0, len=0
  void:DEFINE_destroy | | apr_bucket:bucket
  void:DEFINE_delete  | | apr_bucket:bucket
 >apr_bucket_alloc
->apr_bucket_alloc_create
->apr_bucket_alloc_destroy
+ apr_bucket_alloc_create
+ apr_bucket_alloc_destroy
+~apr_bucket_setaside
+ mpxs_APR__Bucket_setaside
 >apr_bucket_free
 !apr_bucket_copy_notimpl
 !apr_bucket_shared_copy
@@ -582,6 +585,7 @@ MODULE=APR::URI
                   uptr, flags=APR_URI_UNP_OMITPASSWORD | unparse
  #special case to set both uri->port and uri->port_str
  mpxs_APR__URI_port | | uri, portsv=Nullsv
+ mpxs_APR__URI_rpath
  apr_uri_port_of_scheme
 
 !MODULE=Apache::XML
@@ -611,6 +615,7 @@ MODULE=APR::URI
  apr_xlate_open
 
 MODULE=APR::OS
+ mpxs_APR__OS_current_thread_id
 -apr_os_dir_get
 -apr_os_exp_time_get
 -apr_os_file_get
@@ -628,7 +633,7 @@ MODULE=APR::OS
 -apr_os_threadkey_put
 -apr_os_dso_handle_get
 -apr_os_dso_handle_put
- apr_os_thread_current | mpxs_
+~apr_os_thread_current
 -apr_os_thread_equal
 -apr_os_global_mutex_get
 -apr_os_proc_mutex_get

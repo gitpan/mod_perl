@@ -127,7 +127,6 @@ typedef enum {
 
 typedef struct {
     MpHV *setvars;
-    MpHV *addvars;
     MpHV *configvars;
     MpHV *SetEnv;
     MpHV *PassEnv;
@@ -137,7 +136,6 @@ typedef struct {
     MpAV *handlers_process[MP_HANDLER_NUM_PROCESS];
     MpAV *handlers_pre_connection[MP_HANDLER_NUM_PRE_CONNECTION];
     MpAV *handlers_connection[MP_HANDLER_NUM_CONNECTION];
-    int threaded_mpm;
 #ifdef USE_ITHREADS
     modperl_interp_pool_t *mip;
     modperl_tipool_config_t *interp_pool_cfg;
@@ -160,7 +158,6 @@ typedef struct {
     MpAV *handlers_per_dir[MP_HANDLER_NUM_PER_DIR];
     MpHV *SetEnv;
     MpHV *setvars;
-    MpHV *addvars;
     MpHV *configvars;
     modperl_options_t *flags;
 #ifdef USE_ITHREADS

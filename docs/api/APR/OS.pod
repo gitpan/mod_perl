@@ -9,9 +9,8 @@ APR::OS - Perl API for Platform-specific APR API
 
   use APR::OS ();
   
-  # get thread id
-  my $tid_obj = APR::OS::thread_current();
-  my $tid = $$tid_obj;
+  # get current thread id
+  my $tid = APR::OS::current_thread_id();
 
 
 
@@ -41,21 +40,19 @@ C<APR::OS> provides the following methods:
 
 
 
-=head2 C<thread_current>
+=head2 C<current_thread_id>
 
-Get the thread ID
+Get the current thread ID
 
-  $tid_obj = APR::OS::thread_current();
+  $tid = APR::OS::current_thread_id();
 
 =over 4
 
-=item ret: C<$tid_obj> ( C<APR::OS::Thread> object )
+=item ret: C<$tid> ( integer )
 
-To get the thread id dereference it: C<$$tid_obj>.
+under threaded MPMs returns the current thread ID, otherwise 0.
 
-That value is a thread ID under threaded MPMs, otherwise 0.
-
-=item since: 1.99_12
+=item since: 1.99_17
 
 =back
 
@@ -65,7 +62,7 @@ Example:
     use APR::OS ();
     if (Apache::MPM->is_threaded) {
         my $tid_obj = APR::OS::thread_current();
-        print "TID: $$tid_obj";
+        print "TID: $tid";
     }
     else {
         print "PID: $$";

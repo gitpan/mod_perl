@@ -24,6 +24,9 @@ Apache::RequestUtil - Perl API for Apache request record utils
   # get server docroot
   $docroot = $r->document_root();
   
+  # set server docroot
+  $r->document_root($new_root);
+  
   # what are the registered perl handlers for a given phase
   my @handlers = @{ $r->get_handlers('PerlResponseHandler') || [] };
   
@@ -276,6 +279,7 @@ deleted.
 Retrieve the document root for this server
 
   $docroot = $r->document_root();
+  $docroot = $r->document_root($new_root);
 
 =over 4
 
@@ -283,6 +287,13 @@ Retrieve the document root for this server
 ( C<L<Apache::RequestRec object|docs::2.0::api::Apache::RequestRec>> )
 
 The current request
+
+=item opt arg1: C<$new_root>
+
+Sets the document root to a new value
+
+Note the L<limited functionality under threaded
+MPMs|docs::2.0::api::Apache::ServerRec/Limited_Functionality_under_Threaded_MPMs>.
 
 =item ret: C<$docroot> ( string )
 
@@ -811,11 +822,12 @@ including the admin information or nothing at all.
 
 =head2 C<request>
 
-Retrieve the ( C<L<Apache::RequestRec
+Get/set the ( C<L<Apache::RequestRec
 object|docs::2.0::api::Apache::RequestRec>> ) object for the current
 request.
 
   $r = Apache->request;
+       Apache->request($new_r);
 
 =over 4
 
@@ -823,16 +835,22 @@ request.
 
 The Apache class name
 
+=item opt arg1: C<$new_r>
+( C<L<Apache::RequestRec object|docs::2.0::api::Apache::RequestRec>> )
+
 =item ret: C<$r>
 ( C<L<Apache::RequestRec object|docs::2.0::api::Apache::RequestRec>> )
 
-=item since: 1.99_10
+=item since: 1.99_17
 
 =back
 
-This method is only available if C<L<PerlOptions
+The get-able part of this method is only available if C<L<PerlOptions
 +GlobalRequest|docs::2.0::user::config::config/C_GlobalRequest_>> is
-in effect.
+in effect or if C<Apache-E<gt>request($new_r)> was called earlier. So
+instead of setting C<L<PerlOptions
++GlobalRequest|docs::2.0::user::config::config/C_GlobalRequest_>>, one
+can set the global request from within the handler.
 
 
 

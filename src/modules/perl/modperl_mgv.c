@@ -21,16 +21,16 @@
  * need config structures to be free of Perl structures
  */
 
-#define modperl_mgv_new_w_name(mgv, p, n, copy) \
-mgv = modperl_mgv_new(p); \
-mgv->len = strlen(n); \
-mgv->name = (copy ? apr_pstrndup(p, n, mgv->len) : n)
+#define modperl_mgv_new_w_name(mgv, p, n, copy)         \
+    mgv = modperl_mgv_new(p);                           \
+    mgv->len = strlen(n);                               \
+    mgv->name = (copy ? apr_pstrndup(p, n, mgv->len) : n)
 
-#define modperl_mgv_new_name(mgv, p, n) \
-modperl_mgv_new_w_name(mgv, p, n, 1)
+#define modperl_mgv_new_name(mgv, p, n)         \
+    modperl_mgv_new_w_name(mgv, p, n, 1)
 
-#define modperl_mgv_new_namen(mgv, p, n) \
-modperl_mgv_new_w_name(mgv, p, n, 0)
+#define modperl_mgv_new_namen(mgv, p, n)        \
+    modperl_mgv_new_w_name(mgv, p, n, 0)
 
 int modperl_mgv_equal(modperl_mgv_t *mgv1,
                       modperl_mgv_t *mgv2)
@@ -55,13 +55,13 @@ modperl_mgv_t *modperl_mgv_new(apr_pool_t *p)
     return (modperl_mgv_t *)apr_pcalloc(p, sizeof(modperl_mgv_t));
 }
 
-#define modperl_mgv_get_next(mgv) \
-    if (mgv->name) { \
-        mgv->next = modperl_mgv_new(p); \
-        mgv = mgv->next; \
+#define modperl_mgv_get_next(mgv)               \
+    if (mgv->name) {                            \
+        mgv->next = modperl_mgv_new(p);         \
+        mgv = mgv->next;                        \
     }
 
-#define modperl_mgv_hash(mgv) \
+#define modperl_mgv_hash(mgv)                   \
     PERL_HASH(mgv->hash, mgv->name, mgv->len)
  /* MP_TRACE_h(MP_FUNC, "%s...hash=%ld\n", mgv->name, mgv->hash) */
 
@@ -171,36 +171,10 @@ MP_INLINE GV *modperl_mgv_lookup_autoload(pTHX_ modperl_mgv_t *symbol,
 }
 #endif
 
-
-static void package2filename(apr_pool_t *p, const char *package,
-                             char **filename, int *len)
-{
-    const char *s;
-    char *d;
-
-    *filename = apr_palloc(p, (strlen(package)+4)*sizeof(char));
-
-    for (s = package, d = *filename; *s; s++, d++) {
-        if (*s == ':' && s[1] == ':') {
-            *d = '/';
-            s++;
-        }
-        else {
-            *d = *s;
-        }
-    }
-    *d++ = '.';
-    *d++ = 'p';
-    *d++ = 'm';
-    *d   = '\0';
-
-    *len = d - *filename;
-}
-
 /* currently used for complex filters attributes parsing */
 /* XXX: may want to generalize it for any handlers */
-#define MODPERL_MGV_DEEP_RESOLVE(handler, p) \
-    if (handler->attrs & MP_FILTER_HAS_INIT_HANDLER) { \
+#define MODPERL_MGV_DEEP_RESOLVE(handler, p)                   \
+    if (handler->attrs & MP_FILTER_HAS_INIT_HANDLER) {         \
         modperl_filter_resolve_init_handler(aTHX_ handler, p); \
     }
 
@@ -281,17 +255,10 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
     }
 
     if (!stash && MpHandlerAUTOLOAD(handler)) {
-        int len;
-        char *filename;
-        SV **svp;
-
-        package2filename(p, name, &filename, &len);
-        svp = hv_fetch(GvHVn(PL_incgv), filename, len, 0);
-
-        if (!(svp && *svp != &PL_sv_undef)) { /* not in %INC */
+        if (!modperl_perl_module_loaded(aTHX_ name)) { /* not in %INC */
             MP_TRACE_h(MP_FUNC,
-                       "package %s not in %INC, attempting to load '%s'\n",
-                       name, filename);
+                       "package %s not in %INC, attempting to load it\n",
+                       name);
 
             if (modperl_require_module(aTHX_ name, logfailure)) {
                 MP_TRACE_h(MP_FUNC, "loaded %s package\n", name);
@@ -303,15 +270,13 @@ int modperl_mgv_resolve(pTHX_ modperl_handler_t *handler,
                 }
                 else {
                     /* the caller handles the error checking */
-                    MP_TRACE_h(MP_FUNC, "failied to load %s package\n", name);
+                    MP_TRACE_h(MP_FUNC, "failed to load %s package\n", name);
                     return 0;
                 }
             }
         }
         else {
-            MP_TRACE_h(MP_FUNC, "package %s seems to be loaded\n"
-                       "  $INC{'%s')='%s';\n",
-                       name, filename, SvPV_nolen(*svp));
+            MP_TRACE_h(MP_FUNC, "package %s seems to be loaded\n", name);
         }
     }
 

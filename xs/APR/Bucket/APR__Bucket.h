@@ -18,11 +18,17 @@
 #define mpxs_APR__Bucket_delete  apr_bucket_delete
 #define mpxs_APR__Bucket_destroy apr_bucket_destroy
 
-static apr_bucket *mpxs_APR__Bucket_new(pTHX_ SV *classname, SV *sv,
-                                        apr_off_t offset, apr_size_t len)
+static apr_bucket *mpxs_APR__Bucket_new(pTHX_  SV *classname, apr_bucket_alloc_t *list,
+                                        SV *sv, apr_off_t offset, apr_size_t len)
 {
 
     apr_size_t full_len;
+
+    if (sv == Nullsv) {
+        sv = newSV(0);
+        (void)SvUPGRADE(sv, SVt_PV);
+    }
+
     (void)SvPV(sv, full_len);
 
     if (len) {
@@ -35,7 +41,7 @@ static apr_bucket *mpxs_APR__Bucket_new(pTHX_ SV *classname, SV *sv,
         len = full_len - offset;
     }
     
-    return modperl_bucket_sv_create(aTHX_ sv, offset, len);
+    return modperl_bucket_sv_create(aTHX_ list, sv, offset, len);
 }
 
 static MP_INLINE
@@ -52,10 +58,17 @@ apr_size_t mpxs_APR__Bucket_read(pTHX_
         modperl_croak(aTHX_ rc, "APR::Bucket::read");
     }
 
-    sv_setpvn(buffer, (len ? str : ""), len);
+    if (len) {
+        sv_setpvn(buffer, str, len);
+    }
+    else {
+        sv_setpvn(buffer, "", 0);
+    }
 
     /* must run any set magic */
     SvSETMAGIC(buffer);
+
+    SvTAINTED_on(buffer);
     
     return len;
 }
@@ -87,3 +100,15 @@ static MP_INLINE void mpxs_APR__Bucket_remove(apr_bucket *bucket)
     APR_BUCKET_REMOVE(bucket);
 }
 
+static MP_INLINE
+apr_status_t mpxs_APR__Bucket_setaside(pTHX_ apr_bucket *b, apr_pool_t *p)
+{
+    apr_status_t rc = apr_bucket_setaside(b, p);
+    /* if users don't bother to check the success, do it on their
+     * behalf */
+    if (GIMME_V == G_VOID && rc != APR_SUCCESS) {
+        modperl_croak(aTHX_ rc, "APR::Bucket::setaside");
+    }
+
+    return rc;
+}

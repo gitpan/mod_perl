@@ -6,9 +6,8 @@
 MODULE=ModPerl::Util
  mpxs_ModPerl__Util_untaint | | ...
  DEFINE_exit | | int:status=0
-
-PACKAGE=Apache
-  char *:DEFINE_current_callback 
+ char *:DEFINE_current_callback 
+ DEFINE_unload_package | | const char *:package
 
 MODULE=ModPerl::Global
  mpxs_ModPerl__Global_special_list_call
@@ -32,6 +31,7 @@ MODULE=Apache::RequestUtil   PACKAGE=guess
  mpxs_Apache__RequestRec_as_string
  mpxs_Apache__RequestRec_pnotes | | r, key=Nullsv, val=Nullsv
  mpxs_Apache__RequestRec_add_config | | r, lines, override=OR_AUTHCFG 
+ mpxs_Apache__RequestRec_document_root | | r, new_root=Nullsv
 
  #protocol module helpers
  mpxs_Apache__RequestRec_location_merge
@@ -124,15 +124,14 @@ PACKAGE=Apache::RequestRec
 SV *:DEFINE_log   | | SV *:obj
 DEFINE_log_rerror | MPXS_Apache__Log_log_xerror | ...
 DEFINE_log_error  | MPXS_Apache__Log_log_error  | ...
+DEFINE_warn       | MPXS_Apache__Log_log_error  | ...
+DEFINE_log_reason | modperl_log_reason | request_rec *:r, char *:msg, char *:file=r->uri
 
 PACKAGE=Apache::ServerRec
 SV *:DEFINE_log   | | SV *:obj
 DEFINE_log_serror | MPXS_Apache__Log_log_xerror | ...
 DEFINE_log_error  | MPXS_Apache__Log_log_error  | ...
 DEFINE_warn       | MPXS_Apache__Log_log_error  | ...
-
-PACKAGE=Apache
-DEFINE_warn       | MPXS_Apache__Log_log_error | ...
 
 MODULE=Apache::SubProcess   PACKAGE=Apache::RequestRec
  # ap_subprocess_ won't work
@@ -147,6 +146,7 @@ MODULE=Apache::CmdParms
  ap_check_cmd_context
  ap_method_is_limited
  mpxs_Apache__CmdParms_info
+ mpxs_Apache__CmdParms_add_config
 
 MODULE=Apache::MPM    PACKAGE=Apache::MPM   BOOT=1
  mpxs_Apache__MPM_query

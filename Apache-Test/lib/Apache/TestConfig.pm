@@ -299,15 +299,24 @@ sub new {
     $vars->{serveradmin}  ||= $self->default_serveradmin;
 
     $vars->{minclients}   ||= 1;
-    my $maxclientspreset = $vars->{maxclients} || 0;
+    $vars->{maxclients_preset} = $vars->{maxclients} || 0;
+    # if maxclients wasn't explicitly passed try to
     # prevent 'server reached MaxClients setting' errors
     $vars->{maxclients}   ||= $vars->{minclients} + 1;
+
+    # if a preset maxclients valus is smaller than minclients,
+    # maxclients overrides minclients
+    if ($vars->{maxclients_preset} &&
+        $vars->{maxclients_preset} < $vars->{minclients}) {
+        $vars->{minclients} = $vars->{maxclients_preset};
+    }
+
     # for threaded mpms MaxClients must be a multiple of
     # ThreadsPerChild (i.e. maxclients % minclients == 0)
     # so unless -maxclients was explicitly specified use a double of
     # minclients
-    $vars->{maxclientsthreadedmpm} = 
-        $maxclientspreset || $vars->{minclients} * 2;
+    $vars->{maxclientsthreadedmpm} =
+        $vars->{maxclients_preset} || $vars->{minclients} * 2;
 
     $vars->{proxy}        ||= 'off';
     $vars->{proxyssl_url} ||= '';
@@ -325,12 +334,24 @@ sub new {
 sub httpd_config {
     my $self = shift;
 
-    my $vars = $self->{vars};
-
     $self->configure_apxs;
     $self->configure_httpd;
 
+    my $vars = $self->{vars};
     unless ($vars->{httpd} or $vars->{apxs}) {
+
+        # mod_perl 2.0 build always knows the right httpd location
+        # (and optionally apxs)
+        if (IS_MOD_PERL_2_BUILD) {
+            # XXX: at the moment not sure what could go wrong, but it
+            # shouldn't enter interactive config, which doesn't work
+            # with mod_perl 2.0 build (by design)
+            die "something is wrong, mod_perl 2.0 build should have " .
+                "supplied all the needed information to run the tests. " .
+                "Please post lib/Apache/BuildConfig.pm along with the " .
+                "bug report";
+        }
+
         if ($ENV{APACHE_TEST_NO_STICKY_PREFERENCES}) {
             error "You specified APACHE_TEST_NO_STICKY_PREFERENCES=1 " .
                 "in which case you must explicitly specify -httpd " .
@@ -359,7 +380,7 @@ sub httpd_config {
     $self->default_module(ssl    => [qw(mod_ssl)]);
     $self->default_module(access => [qw(mod_access mod_authz_host)]);
     $self->default_module(auth   => [qw(mod_auth mod_auth_basic)]);
-    $self->default_module(php    => [qw(mod_php4 mod_php5)]);
+    $self->default_module(php    => [qw(sapi_apache2 mod_php4 mod_php5)]);
 
     $self->{server}->post_config;
 
@@ -469,8 +490,10 @@ sub configure_proxy {
 
     #if we proxy to ourselves, must bump the maxclients
     if ($vars->{proxy} =~ /^on$/i) {
-        $vars->{minclients}++;
-        $vars->{maxclients}++;
+        unless ($vars->{maxclients_preset}) {
+            $vars->{minclients}++;
+            $vars->{maxclients}++;
+        }
         $vars->{proxy} = $self->{vhosts}->{'mod_proxy'}->{hostport};
         return $vars->{proxy};
     }
@@ -1001,7 +1024,12 @@ sub makepath {
 sub open_cmd {
     my($self, $cmd) = @_;
     # untaint some %ENV fields
-    local @ENV{ qw(PATH IFS CDPATH ENV BASH_ENV) };
+    local @ENV{ qw(IFS CDPATH ENV BASH_ENV) };
+
+    # Temporarly untaint PATH
+    (local $ENV{PATH}) = ( $ENV{PATH} =~ /(.*)/ );
+    # -T disallows relative directories in the PATH
+    $ENV{PATH} = join ':', grep !/^\./, split /:/, $ENV{PATH};
 
     my $handle = Symbol::gensym();
     open $handle, "$cmd|" or die "$cmd failed: $!";
@@ -1260,8 +1288,10 @@ sub check_vars {
         }
 
         if ($vars->{proxyssl_url}) {
-            $vars->{minclients}++;
-            $vars->{maxclients}++;
+            unless ($vars->{maxclients_preset}) {
+                $vars->{minclients}++;
+                $vars->{maxclients}++;
+            }
         }
     }
 }
@@ -1608,20 +1638,27 @@ sub which {
 sub apxs {
     my($self, $q, $ok_fail) = @_;
     return unless $self->{APXS};
-    local @ENV{ qw(PATH IFS CDPATH ENV BASH_ENV) };
-    my $devnull = devnull();
-    my $apxs = shell_ready($self->{APXS});
-    my $val = qx($apxs -q $q 2>$devnull);
-    chomp $val if defined $val; # apxs post-2.0.40 adds a new line
-    unless ($val) {
-        if ($ok_fail) {
-            return "";
+    my $val;
+    unless (exists $self->{_apxs}{$q}) {
+        local @ENV{ qw(PATH IFS CDPATH ENV BASH_ENV) };
+        my $devnull = devnull();
+        my $apxs = shell_ready($self->{APXS});
+        $val = qx($apxs -q $q 2>$devnull);
+        chomp $val if defined $val; # apxs post-2.0.40 adds a new line
+        if ($val) {
+            $self->{_apxs}{$q} = $val;
         }
-        else {
-            warn "APXS ($self->{APXS}) query for $q failed\n";
+        unless ($val) {
+            if ($ok_fail) {
+                return "";
+            }
+            else {
+                warn "APXS ($self->{APXS}) query for $q failed\n";
+                return $val;
+            }
         }
     }
-    $val;
+    $self->{_apxs}{$q};
 }
 
 sub pop_dir {
@@ -1732,6 +1769,7 @@ sub as_string {
 
     # httpd opts
     my $test_config = Apache::TestConfig->new({thaw=>1});
+    # XXX: need to run httpd config to get the value of httpd
     if (my $httpd = $test_config->{vars}->{httpd}) {
         $httpd = shell_ready($httpd);
         $command = "$httpd -V";
@@ -2191,7 +2229,7 @@ sub _custom_config_prompt_path {
         # stop the test suite without an error (so automatic tools
         # like CPAN.pm will be able to continue)
         if (lc($ans) eq 'skip' && !$optional) {
-            skip_test_suite();
+            Apache::TestRun::skip_test_suite();
             next; # in case they change their mind
         }
 

@@ -8,27 +8,36 @@ Apache -- A ghost mod_perl 2.0 class
 
 There is no Apache class per se.
 
-There are several modules that put their functions into the
-C<Apache::> namespace. For example
-C<L<ModPerl::Util|docs::2.0::api::ModPerl::Util>> defines a function
-C<L<Apache::current_callback()|docs::2.0::api::ModPerl::Util/C_current_callback_>>:
-
-  use ModPerl::Util;
-  my $callback = Apache::current_callback();
-
 There are several modules that require the I<Apache> class as the
-first argument to the class methods that they define. For example
-C<L<Apache::Server|docs::2.0::api::Apache::ServerRec>> defines a class
-method
-C<L<Apache-E<gt>server|docs::2.0::api::Apache::Server/C_server_>>:
-
-  use Apache::Server;
-  my $server = Apache->server;
+first argument to the class methods that they define.
 
 To use these functions and methods you need to load the module that
 defines them. If you aren't sure which module contains the symbol you
 are after, use the helper module
 C<L<ModPerl::MethodLookup|docs::2.0::api::ModPerl::MethodLookup>>.
+
+And here are the methods:
+
+=head2 C<server>
+
+C<L<Apache::ServerUtil|docs::2.0::api::Apache::ServerUtil>> defines a
+class method
+C<L<Apache-E<gt>server|docs::2.0::api::Apache::ServerUtil/C_server_>>:
+
+  use Apache::ServerUtil ();
+  my $s = Apache->server;
+
+=head2 C<request>
+
+C<L<Apache::RequestUtil|docs::2.0::api::Apache::RequestUtil>> defines
+a class method
+C<L<Apache-E<gt>request|docs::2.0::api::Apache::RequestUtil/C_request_>>:
+
+  use Apache::RequestUtil ();
+  my $r = Apache->request;
+
+
+
 
 
 

@@ -247,49 +247,52 @@ sub mpm_name {
 
 sub should_build_apache {
     my ($self) = @_;
-    return $self->{MP_AP_BUILD} ? 1 : 0;
+    return $self->{MP_USE_STATIC} ? 1 : 0;
 }
 
 sub configure_apache {
     my ($self) = @_;
 
     unless ($self->{MP_AP_CONFIGURE}) {
-        error "You specified MP_AP_BUILD but did not specify the " .
+        error "You specified MP_USE_STATIC but did not specify the " .
               "arguments to httpd's ./configure with MP_AP_CONFIGURE";
         exit 1;
     }
-    
+
     unless ($self->{MP_AP_PREFIX}) {
-        error "You specified MP_AP_BUILD but did not speficy the " .
+        error "You specified MP_USE_STATIC but did not speficy the " .
               "location of httpd's source tree with MP_AP_PREFIX"; 
         exit 1;
     }
 
-    unless ($self->{MP_USE_STATIC}) {
-        error "When building httpd, you must set MP_USE_STATIC=1";
-        exit 1;
-    }
-
     debug "Configuring httpd in $self->{MP_AP_PREFIX}";
-    
+
     my $httpd = File::Spec->catfile($self->{MP_AP_PREFIX}, 'httpd');
-    push @Apache::TestMM::Argv, ('-httpd' => $httpd);
+    $self->{'httpd'} ||= $httpd;
+    push @Apache::TestMM::Argv, ('httpd' => $self->{'httpd'});
     
     my $mplib = "$self->{MP_LIBNAME}$Config{lib_ext}";
     my $mplibpath = catfile($self->{cwd}, qw(src modules perl), $mplib);
-    
+
     local $ENV{BUILTIN_LIBS} = $mplibpath;
     local $ENV{AP_LIBS} = $self->ldopts;
     local $ENV{MODLIST} = 'perl';
 
     #XXX: -Wall and/or -Werror at httpd configure time breaks things
     local $ENV{CFLAGS} = join ' ', grep { ! /\-Wall|\-Werror/ } 
-        split /\s+/, $ENV{CFLAGS};
-    
+        split /\s+/, $ENV{CFLAGS} || '';
+
     my $cd = qq(cd $self->{MP_AP_PREFIX});
     my $cmd = qq(./configure $self->{MP_AP_CONFIGURE});
     debug "Running $cmd";
     system("$cd && $cmd") == 0 or die "httpd: $cmd failed";
+
+    # Got to build in srclib/* early to have generated files present.
+    my $srclib = File::Spec->catfile($self->{MP_AP_PREFIX}, 'srclib');
+    $cd = qq(cd $srclib);
+    $cmd = qq(make);
+    debug "Building srclib in $srclib";
+    system("$cd && $cmd") == 0 or die "srclib: $cmd failed";
 }
 
 #--- Perl Config stuff ---
@@ -763,7 +766,7 @@ sub DESTROY {}
 my %default_files = (
     'build_config' => 'lib/Apache/BuildConfig.pm',
     'ldopts' => 'src/modules/perl/ldopts',
-    'makefile' => 'src/modules/perl/Makefile.modperl',
+    'makefile' => 'src/modules/perl/Makefile',
 );
 
 sub clean_files {
@@ -955,6 +958,14 @@ sub apru_link_flags {
     for ($self->apr_config_path, $self->apu_config_path) {
         if (my $link = $_ && -x $_ && qx{$_ --link-ld --libs}) {
             chomp $link;
+            if ($self->httpd_is_source_tree) {
+                my @libs;
+                while ($link =~ m/-L(\S+)/g) {
+                    my $dir = File::Spec->catfile($1, '.libs');
+                    push @libs, $dir if -d $dir;
+                }
+                push @apru_link_flags, join ' ', map { "-L$_" } @libs;
+            }
             push @apru_link_flags, $link;
         }
     }
@@ -975,6 +986,7 @@ sub apru_config_path {
 
     my $key = "${what}_config_path"; # apr_config_path
     my $mp_key = "MP_" . uc($what) . "_CONFIG"; # MP_APR_CONFIG
+    my $bindir = uc($what) . "_BINDIR"; # APR_BINDIR
 
     return $self->{$key} if $self->{$key} and -x $self->{$key};
 
@@ -987,13 +999,14 @@ sub apru_config_path {
     if (!$self->{$key}) {
         my @tries = ();
         if ($self->httpd_is_source_tree) {
-            push @tries, grep { -d $_ }
-                map catdir($_, "srclib", "apr"),
-                grep defined $_, $self->dir;
+            for my $base (grep defined $_, $self->dir) {
+                push @tries, grep -d $_,
+                    map catdir($base, "srclib", $_), qw(apr apr-util);
+            }
         }
         else {
             push @tries, grep length,
-                map $self->apxs(-q => $_), qw(APR_BINDIR BINDIR);
+                map $self->apxs(-q => $_), $bindir, "BINDIR";
             push @tries, catdir $self->{MP_AP_PREFIX}, "bin"
                 if exists $self->{MP_AP_PREFIX} and -d $self->{MP_AP_PREFIX};
         }
@@ -1051,6 +1064,7 @@ sub apr_includedir {
         my $path = catdir $self->dir, "srclib", "apr", "include";
         push @tries, $path if -d $path;
     }
+
 
     for (@tries) {
         next unless $_ && -e catfile $_, "apr.h";
@@ -1481,10 +1495,17 @@ sub write_src_makefile {
 
     my $install = <<'EOI';
 install:
+EOI
+    if (!$self->should_build_apache) {
+        $install .= <<'EOI';
 # install mod_perl.so
 	@$(MKPATH) $(MODPERL_AP_LIBEXECDIR)
 	$(MODPERL_TEST_F) $(MODPERL_LIB_DSO) && \
 	$(MODPERL_CP) $(MODPERL_LIB_DSO) $(MODPERL_AP_LIBEXECDIR)
+EOI
+    }
+    
+    $install .= <<'EOI';
 # install mod_perl .h files
 	@$(MKPATH) $(MODPERL_AP_INCLUDEDIR)
 	$(MODPERL_CP) $(MODPERL_H_FILES) $(MODPERL_AP_INCLUDEDIR)
@@ -1723,6 +1744,13 @@ sub includes {
 
     unless ($self->httpd_is_source_tree) {
         push @inc, $self->apr_includedir;
+
+        my $apuc = $self->apu_config_path;
+        if ($apuc && -x $apuc) {
+            chomp(my $apuincs = qx($apuc --includes));
+            $apuincs =~ s|-I||;
+            push @inc, $apuincs;
+        }
 
         my $ainc = $self->apxs('-q' => 'INCLUDEDIR');
         if (-d $ainc) {

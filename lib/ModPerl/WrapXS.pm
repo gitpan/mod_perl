@@ -845,6 +845,8 @@ my $methods_compat = {
                           ''],
     unescape_uri      => ['unescape_url',
                           ''],
+    unescape_url_info => [undef,
+                          'use CGI::Util::unescape() instead'],
     escape_html       => [undef, # XXX: will be ap_escape_html
                           'ap_escape_html now requires a pool object'],
     parsedate         => ['parse_http',
@@ -1150,6 +1152,10 @@ sub func_is_static {
     if (my $attr = $entry->{attr}) {
         return 1 if grep { $_ eq 'static' } @$attr;
     }
+    
+    #C::Scan doesnt always pickup static __inline__
+    return 1 if $entry->{name} =~ /^mpxs_/o;
+    
     return 0;
 }
 
@@ -1183,7 +1189,11 @@ sub export_file_format_def {
 
 my $ithreads_exports = join '|', qw{
 modperl_cmd_interp_
-modperl_interp_ modperl_list_ modperl_tipool_
+modperl_interp_
+modperl_list_
+modperl_tipool_
+modperl_svptr_table_clone$
+modperl_mgv_require_module$
 };
 
 sub export_func_handle {
@@ -1232,9 +1242,6 @@ sub write_export_file {
             next if $self->func_is_static($entry);
             my $name = $entry->{name};
 
-            #C::Scan doesnt always pickup static __inline__
-            next if $name =~ /^mpxs_/o;
-
             my $fh = $self->export_func_handle($entry, $handles);
 
             print $fh $self->$format($name);
@@ -1264,6 +1271,39 @@ sub stats {
     }
 
     return \%stats;
+}
+
+sub generate_exports {
+    my($self, $fh) = @_;
+
+    if (!$build->should_build_apache) {
+        print $fh <<"EOF";
+/* This is intentionnaly left blank, only usefull for static build */
+const void *modperl_ugly_hack = NULL;
+EOF
+        return;
+    }
+    
+    print $fh <<"EOF";
+/* 
+ * This is indeed a ugly hack!
+ * See also src/modules/perl/mod_perl.c for modperl_ugly_hack
+ * If we don't build such a list of exported API functions, the over-zealous
+ * linker can and will remove the unused functions completely. In order to
+ * avoid this, we create this object and modperl_ugly_hack to create a 
+ * dependency between all the exported API and mod_perl.c
+ */
+const void *modperl_ugly_hack = NULL;
+EOF
+
+    for my $entry (@$ModPerl::FunctionTable) {
+        next if $self->func_is_static($entry);
+        unless (Apache::Build::PERL_HAS_ITHREADS) {
+            next if $entry->{name} =~ /^($ithreads_exports)/;
+        }
+        ( my $name ) = $entry->{name} =~ /^modperl_(.*)/;
+        print $fh "const void *modperl_hack_$name = (const void *)modperl_$name;\n";
+    }
 }
 
 1;

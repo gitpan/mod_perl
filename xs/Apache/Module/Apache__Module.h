@@ -13,8 +13,7 @@
  * limitations under the License.
  */
 
-#define mpxs_Apache__Module_top_module(CLASS) \
-(CLASS ? ap_top_module : ap_top_module)
+#define mpxs_Apache__Module_top_module() ap_top_module
 
 static MP_INLINE int mpxs_Apache__Module_loaded(pTHX_ char *name)
 {
@@ -54,7 +53,6 @@ static MP_INLINE int mpxs_Apache__Module_loaded(pTHX_ char *name)
 }
 
 static MP_INLINE SV *mpxs_Apache__Module_get_config(pTHX_
-                                                    SV *self,
                                                     SV *pmodule,
                                                     server_rec *s,
                                                     ap_conf_vector_t *v)
@@ -62,4 +60,16 @@ static MP_INLINE SV *mpxs_Apache__Module_get_config(pTHX_
     SV *obj = modperl_module_config_get_obj(aTHX_ pmodule, s, v);
 
     return SvREFCNT_inc(obj);
+}
+
+static MP_INLINE
+int mpxs_Apache__Module_ap_api_major_version(pTHX_ module *mod)
+{
+    return mod->version;
+}
+
+static MP_INLINE
+int mpxs_Apache__Module_ap_api_minor_version(pTHX_ module *mod)
+{
+    return mod->minor_version;
 }

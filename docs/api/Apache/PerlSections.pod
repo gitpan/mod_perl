@@ -44,8 +44,9 @@ are represented in a C<%Location> hash, e.g.:
     AuthName       => 'test',
     DirectoryIndex => [qw(index.html index.htm)],
     Limit          => {
-        METHODS => 'GET POST',
-        require => 'user dougm',
+        "GET POST"    => {
+            require => 'user dougm',
+        }
     },
   };
   </Perl>
@@ -138,7 +139,7 @@ behaviour of C<E<lt>Perl E<gt>> sections.
 
 
 
-=head2 C<$Apache::Server::SaveConfig>
+=head2 C<$Apache::PerlSections::Save>
 
 By default, the namespace in which C<E<lt>Perl E<gt>> sections are
 evaluated is cleared after each block closes. By setting it to a true

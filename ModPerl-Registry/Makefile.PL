@@ -7,6 +7,7 @@ use lib grep { -d } map "$FindBin::Bin/../$_", qw(lib Apache-Test/lib);
 
 use ModPerl::BuildMM ();
 use Apache::TestSmokePerl ();
+use Apache::Build ();
 
 # enable 'make test|clean'
 use Apache::TestMM qw(test clean);
@@ -16,10 +17,15 @@ my %require = (
     "Apache::Test" => "", # any version will do?
 );
 
-my @scripts = qw(t/TEST);
+my @scripts = qw(t/TEST t/SMOKE);
 
 # accept the configs from comman line
 Apache::TestMM::filter_args();
+
+my $build = Apache::Build->build_config;
+if ($build->should_build_apache) {
+    push @Apache::TestMM::Argv, ('httpd' => $build->{httpd});
+}
 Apache::TestMM::generate_script('t/TEST');
 
 # t/SMOKE
@@ -34,5 +40,5 @@ ModPerl::BuildMM::WriteMakefile(
     });
 
 sub clean_files {
-    return [@scripts];
+    return [@scripts, 'Makefile.old'];
 }

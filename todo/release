@@ -4,19 +4,26 @@
 
 -- see also todo/api_status
 
-* current_callback lives in ModPerl::Util, but called as
-  Apache::current_callback(), which doesn't sound right. It should
-  probably be invoked as ModPerl::Util::current_callback
+* APR::Finfo constants: APR::FILETYPE_* and APR::FILEPROT_* will
+  probably be APR::FTYPE_* and APR::FPROT_*
+  will know exactly once libapr is fixed
+  owner: stas
 
-* docs/install/install.pod:=head2 Configuring mod_perl
-  should be rewritten to clearly explain how to build static and
-  dynamic mod_perl (each separately).
-
-* APR::URI missing $uri->rpath (was in mp1)
-
-* check other todo/features_missing items (some of them might be
-  critical for 2.0 release, since missing methods might be a problem
-  for migration)
+* $r->child_terminate:
+  - a must to be able to port Apache::SizeLimit, which is a
+    showstopper for many mp1 users wanting to move to mp2.
+  - since apache has no API implement as a cleanup handler that calls
+    exit(0)
+  - since it's possible that there are other cleanup handlers
+    registered after, see if it's possible to register another
+    function when this cleanup handler is called, which will actually
+    call exit (which hopefully makes sure that this cleanup handler is
+    always running last).
+  - it should die if called within the threaded mpm, after the
+    post_config phase.
+  - future ideas for threaded mpms: might consider knocking
+    off the current PerlInterpreter instead.
+  owner: gozer
 
 * pools that go out of scope:
 
@@ -39,23 +46,10 @@
   See test TestAPR::pool
   http://marc.theaimsgroup.com/?l=apache-modperl-dev&m=108547894817083&w=2
 
-* consider changing the allocation method in APR::Bucket::new from
-  malloc/free to bucket_alloc, like all other buckets do
-
 * revamp directive handlers, expose modperl_module_add, fix
   PerlLoadModule, etc.
+  http://marc.theaimsgroup.com/?t=108309295200003
   owner: geoff
-
-* PerlSetVar/PerlAddVar still do not merge properly.  geoff knows
-  the issues and thinks he knows how to fix it, he just needs the time.
-  owner: geoff
-
-* Fixing Apache->warn("foo")
-
-  Report: http://mathforum.org/epigone/modperl-dev/noxtramcay/3D11A4E5.6010202@stason.org
-  Thread: http://mathforum.org/epigone/modperl-dev/noxtramcay
-  Status: pending Apache::Log compat issues, this and other methods
-          might be dropped.
 
 * per-server cleanups core dump or are otherwise ineffective
     Apache->server->process->pconf->cleanup_register(sub { ...  });
@@ -95,13 +89,7 @@
   several versions, like mod_perl 1.0 and mod_perl 2.0, since once we
   release it any dependency on mod_perl will be resolved as mod_perl
   2.0, when mod_perl 1.0 may be required instead.
-  stas: talked to autrijus, he will start working on it, but not sure
-  when. we need to ping him every so often.
-
-* Apache::Reload
-  - needs to handle properly redefined subs warnings
-  owner: gozer
-
-* Apache->unescape_url{_info}:
-  not yet implemented.  should be moved to Apache::Util
+  owner: stas: talked to autrijus, he will start working on it, but
+               not sure when. we need to ping him every so often. but
+               it'll probably won't happen by the time we release 2.0.
 

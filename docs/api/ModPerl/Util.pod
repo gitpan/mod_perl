@@ -10,13 +10,16 @@ ModPerl::Util - Helper mod_perl Functions
   use ModPerl::Util;
   
   # e.g. PerlResponseHandler
-  $callback = Apache::current_callback;
+  $callback = ModPerl::Util::current_callback;
   
   # exit w/o killing the interpreter
   ModPerl::Util::exit();
   
   # untaint a string (do not use it! see the doc)
   ModPerl::Util::untaint($string);
+  
+  # removes a stash (.so, %INC{$stash}, etc.) as best as it can
+  ModPerl::Util::unload_package($stash);
 
 
 
@@ -46,7 +49,7 @@ C<ModPerl::Util> provides the following functions and/or methods:
 Returns the currently running callback name,
 e.g. C<'PerlResponseHandler'>.
 
-  $callback = Apache::current_callback();
+  $callback = ModPerl::Util::current_callback();
 
 =over 4
 
@@ -132,6 +135,53 @@ you really want to avoid under mod_perl.
 
 
 
+=head2 C<unload_package>
+
+Unloads a stash from the current Perl interpreter in the safest way
+possible.
+
+  ModPerl::Util::unload_package($stash);
+
+=over 4
+
+=item arg1: C<$stash> ( string )
+
+The Perl stash to unload. e.g. C<MyApache::MyData>.
+
+=item ret: no return value
+
+=item since 1.99_17
+
+=back
+
+Unloading a Perl stash (package) is a complicated business. This
+function tries very hard to do the right thing. After calling this
+function, it should be safe to C<use()> a new version of the module
+that loads the wiped package.
+
+References to stash elements (functions, variables, etc.) taken from
+outside the unloaded package will still be valid.
+
+This function may wipe off things loaded by other modules, if the
+latter have inserted things into the C<$stash> it was told to unload.
+
+If a stash had a corresponding XS shared object (.so) loaded it will
+be unloaded as well.
+
+If the stash had a corresponding entry in C<%INC>, it will be removed
+from there.
+
+C<unload_package()> takes care to leave sub-stashes intact while
+deleting the requested stash. So for example if C<CGI> and
+C<CGI::Carp> are loaded, calling C<unload_package('CGI')> won't affect
+C<CGI::Carp>.
+
+
+
+
+
+
+
 =head2 C<untaint>
 
 Untaint the variable, by turning its tainted SV flag off (used
@@ -153,6 +203,7 @@ C<$tainted_var> is untainted.
 
 Do not use this function unless you know what you are doing. To learn
 how to properly untaint variables refer to the I<perlsec> manpage.
+
 
 
 

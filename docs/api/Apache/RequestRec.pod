@@ -24,9 +24,6 @@ Apache::RequestRec - Perl API for Apache request record accessors
   # how many bytes were sent
   $bytes_sent = $r->bytes_sent();
   
-  # canonical filename
-  $canon_filename = $r->canonical_filename();
-  
   # client connection record
   $c = $r->connection();
   
@@ -1183,7 +1180,7 @@ just that:
       my $bb = APR::Brigade->new($r->pool,
                                  $r->connection->bucket_alloc);
   
-      my $b = APR::Bucket->new($data);
+      my $b = APR::Bucket->new($bb->bucket_alloc, $data);
       $bb->insert_tail($b);
       $r->output_filters->fflush($bb);
       $bb->destroy;

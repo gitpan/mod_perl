@@ -8,14 +8,14 @@ Apache::Module - Perl API for creating and working with Apache modules
 =head1 Synopsis
 
   use Apache::Module ();
-
+  
   # iterate over the whole module list
-  for (my $modp = Apache::Module->top_module; $modp; $modp = $modp->next) {
-      my $name = $modp->name;
-      my $version = $modp->version;
-      my $minor_version = $modp->minor_version;
-      my $index = $modp->module_index;
-      my $commands = $modp->cmds;
+  for (my $modp = Apache::Module::top_module(); $modp; $modp = $modp->next) {
+      my $name                  = $modp->name;
+      my $index                 = $modp->module_index;
+      my $ap_api_major_version  = $modp->ap_api_major_version;
+      my $ap_api_minor_version  = $modp->ap_api_minor_version;
+      my $commands              = $modp->cmds;
   }
   
   # find a specific module
@@ -27,7 +27,7 @@ Apache::Module - Perl API for creating and working with Apache modules
   # access module configuration from a directive
   sub MyDirective {
       my ($self, $parms, $args) = @_;
-      my  $srv_cfg = Apache::Module->get_config($self, $parms->server);
+      my  $srv_cfg = Apache::Module::get_config($self, $parms->server);
       [...]
   }
   
@@ -68,19 +68,70 @@ C<Apache::Module> provides the following functions and/or methods:
 
 
 
-=head2 C<cmds>
+=head2 C<ap_api_major_version>
 
-The C<L<Apache::Command|docs::2.0::api::Apache::Command>> object
-that describes all of the directives this module defines.
+Get the httpd API version this module was build against, B<not> the
+module's version.
 
-  $commands = $module->cmds();
+  $major_version = $module->ap_api_major_version();
 
 =over 4
 
 =item obj: C<$module>
 ( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
 
-=item ret: C<$commands>
+=item ret: C<$major_version> ( integer )
+
+=item since: 1.99_17
+
+=back
+
+This methid is used to check that module is compatible with this
+version of the server before loading it.
+
+
+
+
+
+
+=head2 C<ap_api_minor_version>
+
+Get the module API minor version.
+
+  $minor_version = $module->ap_api_minor_version();
+
+=over 4
+
+=item obj: C<$module>
+( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
+
+=item ret: C<$minor_version> ( integer )
+
+=item since: 1.99_12
+
+=back
+
+C<ap_api_minor_version()> provides API feature milestones.
+
+It's not checked during module init.
+
+
+
+
+
+=head2 C<cmds>
+
+Get the C<L<Apache::Command|docs::2.0::api::Apache::Command>> object,
+describing all of the directives this module defines.
+
+  $command = $module->cmds();
+
+=over 4
+
+=item obj: C<$module>
+( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
+
+=item ret: C<$command>
 ( C<L<Apache::Command object|docs::2.0::api::Apache::Command>> )
 
 =item since: 1.99_12
@@ -95,10 +146,12 @@ that describes all of the directives this module defines.
 
 =head2 C<get_config>
 
-Retrieves a module's configuration. Used by configuration directives.
+Retrieve a module's configuration. Used by configuration directives.
 
-  $cfg = Apache::Module->get_config($class, $server, [$dir_config]);
-  $cfg = $self->get_config($server, [$dir_config]);
+  $cfg = Apache::Module::get_config($class, $server, $dir_config);
+  $cfg = Apache::Module::get_config($class, $server);
+  $cfg =          $self->get_config($server, $dir_config);
+  $cfg =          $self->get_config($server);
 
 =over 4
 
@@ -107,19 +160,22 @@ Retrieves a module's configuration. Used by configuration directives.
 
 =item arg1: C<$class> ( string )
 
-The perl package this configuration is for
+The Perl package this configuration is for
 
-=item arg1: C<$server> 
+=item arg2: C<$server>
 ( C<L<Apache::ServerRec object|docs::2.0::api::Apache::ServerRec>> )
 
-The current server, typically C<$r-E<gt>server> or C<$parms-E<gt>server>
+The current server, typically
+C<L<$r-E<gt>server|docs::2.0::api::Apache::ServerUtil>> or
+C<L<$parms-E<gt>server|docs::2.0::api::Apache::CmdParms>>.
 
-=item opt arg1: C<$dir_config>
+=item opt arg3: C<$dir_config>
 ( C<L<Apache::ConfVector object|docs::2.0::api::Apache::ConfVector>> )
 
-By default, the configuration returned is the server level one. To retrieve
-the per directory configuration, use C<$r-E<gt>per_dir_config> as a last
-argument.
+By default, the configuration returned is the server level one. To
+retrieve the per directory configuration, use
+C<L<$r-E<gt>per_dir_config|docs::2.0::api::Apache::RequestRec>> as a
+last argument.
 
 =item ret: C<$cfg> (HASH reference)
 
@@ -129,7 +185,8 @@ A reference to the hash holding the module configuration data.
 
 =back
 
-See also L<Apache Server Configuration Customization in Perl|docs::2.0::user::config::custom>
+See also L<Apache Server Configuration Customization in
+Perl|docs::2.0::user::config::custom>.
 
 
 
@@ -151,11 +208,16 @@ The name of the module ending in C<.c>
 =item ret: C<$module>
 ( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
 
-The module object if found, undef otherwise
+The module object if found, C<undef> otherwise.
 
 =item since: 1.99_12
 
 =back
+
+For example:
+
+  my $module = Apache::Module::find_linked_module('mod_ssl.c');
+
 
 
 
@@ -163,7 +225,7 @@ The module object if found, undef otherwise
 
 =head2 C<loaded>
 
-Determines if a certain module is loaded
+Determine if a certain module is loaded
 
   $loaded = Apache::Module::loaded($module);
 
@@ -173,14 +235,14 @@ Determines if a certain module is loaded
 
 The name of the module to search for.
 
-If C<$module> ends with C<.c>, search all the modules,
-statically compiled and dynamically loaded.
+If C<$module> ends with C<.c>, search all the modules, statically
+compiled and dynamically loaded.
 
-If C<$module> ends with C<.so>, search only the dynamically
-loaded modules.
-
-If C<$module> doesn't contain a C<.>, search the loaded Perl
+If C<$module> ends with C<.so>, search only the dynamically loaded
 modules.
+
+If C<$module> doesn't contain a C<.>, search the loaded Perl modules
+(checks C<%INC>).
 
 =item ret: C<$loaded> ( boolean )
 
@@ -215,31 +277,9 @@ loaded:
 
 
 
-=head2 C<minor_version>
-
-API minor version. Provides API feature milestones. Not checked
-during module init
-
-  $minor_version = $module->minor_version();
-
-=over 4
-
-=item obj: C<$module>
-( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
-
-=item ret: C<$minor_version> ( integer )
-
-=item since: 1.99_12
-
-=back
-
-
-
-
-
 =head2 C<module_index>
 
-Index to this modules structures in config vectors.
+Get the index to this modules structures in config vectors.
 
   $index = $module->module_index();
 
@@ -260,7 +300,7 @@ Index to this modules structures in config vectors.
 
 =head2 C<name>
 
-The name of the module's C file
+Get the name of the module's I<.c> file
 
   $name = $module->name();
 
@@ -275,13 +315,19 @@ The name of the module's C file
 
 =back
 
+For example a mod_perl module, will return: I<mod_perl.c>.
+
+
+
+
 
 
 
 
 =head2 C<next>
 
-The next module in the list, undef if the last module in the list.
+Get the next module in the list, C<undef> if this is the last module
+in the list.
 
   $next_module = $module->next();
 
@@ -296,6 +342,8 @@ The next module in the list, undef if the last module in the list.
 =item since: 1.99_12
 
 =back
+
+
 
 
 
@@ -329,36 +377,12 @@ Remove a module from the list of loaded modules permanently.
 Returns the first module in the module list. Usefull to start a
 module iteration.
 
-  $ret = Apache::Module->top_module();
+  $module = Apache::Module::top_module();
 
 =over 4
 
-=item obj: C<Apache::Module> ( class name )
-
-=item ret: C<$ret>
+=item ret: C<$module>
 ( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
-
-=item since: 1.99_12
-
-=back
-
-
-
-
-
-=head2 C<version>
-
-API version, B<not> module version; check that module is
-compatible with this version of the server.
-
-  $version = $module->version();
-
-=over 4
-
-=item obj: C<$module>
-( C<L<Apache::Module object|docs::2.0::api::Apache::Module>> )
-
-=item ret: C<$version> ( integer )
 
 =item since: 1.99_12
 

@@ -48,7 +48,7 @@ my %original_t_perms = ();
 
 my @std_run      = qw(start-httpd run-tests stop-httpd);
 my @others       = qw(verbose configure clean help ssl http11 bugreport 
-                      save no-httpd);
+                      save no-httpd one-process);
 my @flag_opts    = (@std_run, @others);
 my @string_opts  = qw(order trace);
 my @ostring_opts = qw(proxy ping);
@@ -89,6 +89,7 @@ my %usage = (
    'trace=T'         => 'change tracing default to: warning, notice, ' .
                         'info, debug, ...',
    'save'            => 'save test paramaters into Apache::TestConfigData',
+   'one-process'     => 'run the server in single process mode',
    (map { $_, "\U$_\E url" } @request_opts),
 );
 
@@ -398,6 +399,7 @@ sub refresh {
     $self->opt_clean(1);
     $self->{conf_opts}->{save} = delete $self->{conf_opts}->{thaw} || 1;
     $self->{test_config} = $self->new_test_config()->httpd_config;
+    $self->{test_config}->{server}->{run} = $self;
     $self->{server} = $self->{test_config}->server;
 }
 
@@ -639,8 +641,8 @@ sub set_ulimit_via_sh {
 
     $orig_command = "ulimit -c unlimited; $orig_command";
     warning "setting ulimit to allow core files\n$orig_command";
-    exec $orig_command;
-    die "exec $orig_command has failed"; # shouldn't be reached
+    # use 'or die' to avoid warnings due to possible overrides of die
+    exec $orig_command or die "exec $orig_command has failed";
 }
 
 sub set_ulimit {
@@ -690,6 +692,10 @@ sub run {
     $self->{test_config} = $self->new_test_config();
 
     $self->warn_core();
+
+    # give TestServer access to our runtime configuration directives
+    # so we can tell the server stuff if we need to
+    $self->{test_config}->{server}->{run} = $self;
 
     $self->{server} = $self->{test_config}->server;
 
@@ -743,8 +749,8 @@ sub rerun {
     $orig_cwd ||= Cwd::cwd();
     chdir $orig_cwd;
     warning "rerunning '$orig_command' with new config opts";
-    exec $orig_command;
-    die "exec $orig_command has failed"; # shouldn't be reached
+    # use 'or die' to avoid warnings due to possible overrides of die
+    exec $orig_command or die "exec $orig_command has failed";
 }
 
 
@@ -1229,7 +1235,7 @@ sub generate_script {
         $opts{file} ||= catfile 't', 'TEST';
     }
 
-    my $body = "BEGIN { eval { require blib; } }\n";
+    my $body = "BEGIN { eval { require blib && blib->import; } }\n";
 
     $body .= Apache::TestConfig->modperl_2_inc_fixup;
 
