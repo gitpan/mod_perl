@@ -294,6 +294,7 @@ lib/ModPerl/BuildOptions.pm
 lib/ModPerl/CScan.pm
 lib/ModPerl/Code.pm
 lib/ModPerl/Config.pm
+lib/ModPerl/DummyVersions.pm
 lib/ModPerl/FunctionMap.pm
 lib/ModPerl/MM.pm
 lib/ModPerl/Manifest.pm
@@ -775,6 +776,7 @@ todo/features_new
 todo/features_optimization
 todo/features_registry
 todo/release
+todo/release-checklist
 todo/tests_issues
 todo/tests_wanted
 util/apr_arg_check.pl
@@ -793,6 +795,7 @@ xs/APR/APR/apr-test
 xs/APR/Base64/APR__Base64.h
 xs/APR/Brigade/APR__Brigade.h
 xs/APR/Bucket/APR__Bucket.h
+xs/APR/BucketAlloc/APR__BucketAlloc.h
 xs/APR/Const/Const.pm
 xs/APR/Const/Const.xs
 xs/APR/Const/Makefile.PL

@@ -23,34 +23,52 @@ char *modperl_server_desc(server_rec *s, apr_pool_t *p)
 /* used in debug traces */
 MP_INLINE char *modperl_pid_tid(apr_pool_t *p)
 {
-    return apr_psprintf(p, "%lu"
+    if (modperl_threaded_mpm()) {
+        return apr_psprintf(p, "%lu"
 #if APR_HAS_THREADS
-                 "/%lu"
+                            "/%lu"
 #endif /* APR_HAS_THREADS */
-                 , (unsigned long)getpid()
+                            , (unsigned long)getpid()
 #if APR_HAS_THREADS
-                 , (unsigned long)apr_os_thread_current()
+                            , modperl_threads_started()
+                            ? (unsigned long)apr_os_thread_current()
+                            : 0
 #endif /* APR_HAS_THREADS */
-        );
+            );
+    }
+    else {
+        return apr_psprintf(p, "%lu", (unsigned long)getpid());
+    }
 }
 
+    
 #ifdef MP_TRACE
-/* any non-false value for MOD_PERL_TRACE/PerlTrace enables this function */
 void modperl_apr_table_dump(pTHX_ apr_table_t *table, char *name)
 {
-    int i;
-    const apr_array_header_t *array;
-    apr_table_entry_t *elts;
+    int i, tmp_len, len = 0;
+    char *fmt;
+    const apr_array_header_t *array = apr_table_elts(table);
+    apr_table_entry_t *elts  = (apr_table_entry_t *)array->elts;
 
-    array = apr_table_elts(table);
-    elts  = (apr_table_entry_t *)array->elts;
-    modperl_trace(MP_FUNC, "Contents of table %s", name);
+    modperl_trace(MP_FUNC, "*** Contents of table '%s' ***", name);
+    for (i = 0; i < array->nelts; i++) {
+        if (elts[i].key && elts[i].val) {
+            tmp_len = strlen(elts[i].key);
+            if (tmp_len > len) {
+                len = tmp_len;
+            }
+        }
+    }    
+    /* dump the table with keys aligned */
+    fmt = Perl_form(aTHX_ "%%-%ds => %%s", len);
+
     for (i = 0; i < array->nelts; i++) {
         if (!elts[i].key || !elts[i].val) {
             continue;
         }
-        modperl_trace(MP_FUNC, "%s => %s", elts[i].key, elts[i].val);
+        modperl_trace(MP_FUNC, fmt, elts[i].key, elts[i].val);
     }    
+    modperl_trace(MP_FUNC, "");
 }
 #endif
 

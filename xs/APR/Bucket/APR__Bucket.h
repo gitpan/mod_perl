@@ -101,14 +101,23 @@ static MP_INLINE void mpxs_APR__Bucket_remove(apr_bucket *bucket)
 }
 
 static MP_INLINE
-apr_status_t mpxs_APR__Bucket_setaside(pTHX_ apr_bucket *b, apr_pool_t *p)
+apr_status_t mpxs_APR__Bucket_setaside(pTHX_ SV *b_sv, SV *p_sv)
 {
+    apr_pool_t *p   = mp_xs_sv2_APR__Pool(p_sv);
+    apr_bucket *b = mp_xs_sv2_APR__Bucket(b_sv);
     apr_status_t rc = apr_bucket_setaside(b, p);
+
     /* if users don't bother to check the success, do it on their
      * behalf */
     if (GIMME_V == G_VOID && rc != APR_SUCCESS) {
         modperl_croak(aTHX_ rc, "APR::Bucket::setaside");
     }
 
+    /* No need to call mpxs_add_pool_magic(b_sv, p_sv); since
+     * pool_bucket_cleanup is called by apr_bucket_pool_make (called
+     * by modperl_bucket_sv_setaside) if the pool goes out of scope,
+     * copying the data to the heap.
+     */
+    
     return rc;
 }

@@ -243,7 +243,7 @@ MP_CMD_SRV_DECLARE(config_requires)
 
 MP_CMD_SRV_DECLARE(post_config_requires)
 {
-    apr_pool_t *p = parms->pool;
+    apr_pool_t *p = parms->temp_pool;
     apr_finfo_t finfo;
     MP_dSCFG(parms->server);
 
@@ -473,7 +473,7 @@ MP_CMD_SRV_DECLARE(perl)
 
 MP_CMD_SRV_DECLARE(perldo)
 {
-    apr_pool_t *p = parms->pool;
+    apr_pool_t *p = parms->temp_pool;
     server_rec *s = parms->server;
     apr_table_t *options;
     modperl_handler_t *handler = NULL;

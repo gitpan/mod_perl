@@ -201,10 +201,11 @@ int modperl_handler_resolve(pTHX_ modperl_handler_t **handp,
     modperl_handler_t *handler = *handp;
 
 #ifdef USE_ITHREADS
-    if (p && !MpHandlerPARSED(handler) && !MpHandlerDYNAMIC(handler)) {
+    if (modperl_threaded_mpm() && p &&
+        !MpHandlerPARSED(handler) && !MpHandlerDYNAMIC(handler)) {
         /*
-         * cannot update the handler structure at request time without
-         * locking, so just copy it
+         * under threaded mpm we cannot update the handler structure
+         * at request time without locking, so just copy it
          */
         handler = *handp = modperl_handler_dup(p, handler);
         duped = 1;
@@ -219,7 +220,7 @@ int modperl_handler_resolve(pTHX_ modperl_handler_t **handp,
         MpHandlerAUTOLOAD_On(handler);
 
         MP_TRACE_h(MP_FUNC,
-                   "[%s %s] handler %s was not compiled at startup, "
+                   "[%s %s] handler %s hasn't yet been resolved, "
                    "attempting to resolve using %s pool 0x%lx\n",
                    modperl_pid_tid(p),
                    modperl_server_desc(s, p),

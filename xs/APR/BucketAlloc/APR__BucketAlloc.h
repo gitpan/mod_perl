@@ -13,19 +13,17 @@
  * limitations under the License.
  */
 
-static MP_INLINE
-SV *mpxs_APR__Finfo_stat(pTHX_ const char *fname, apr_int32_t wanted,
-                         SV *p_sv)
-{
-    apr_pool_t *p = mp_xs_sv2_APR__Pool(p_sv);
-    apr_finfo_t *finfo = (apr_finfo_t *)apr_pcalloc(p, sizeof(apr_finfo_t));
-    SV *finfo_sv;
-    
-    MP_RUN_CROAK(apr_stat(finfo, fname, wanted, p),
-                 "APR::Finfo::stat");
+#include "modperl_bucket.h"
 
-    finfo_sv = sv_setref_pv(NEWSV(0, 0), "APR::Finfo", (void*)finfo);
-    mpxs_add_pool_magic(finfo_sv, p_sv);
-    
-    return finfo_sv;
+#define mpxs_APR__BucketAlloc_destroy apr_bucket_alloc_destroy
+
+static MP_INLINE
+SV *mpxs_APR__BucketAlloc_new(pTHX_ SV *CLASS, SV *p_sv)
+{
+    apr_pool_t *p          = mp_xs_sv2_APR__Pool(p_sv);
+    apr_bucket_alloc_t *ba = apr_bucket_alloc_create(p);
+    SV *ba_sv = sv_setref_pv(NEWSV(0, 0), "APR::BucketAlloc", (void*)ba);
+    mpxs_add_pool_magic(ba_sv, p_sv);
+    return ba_sv;
 }
+

@@ -68,7 +68,7 @@ my @exe_files =  map "bin/$_", qw(mp2doc mp2bug);
 
 ModPerl::BuildMM::WriteMakefile(
     NAME          => 'mod_perl',
-    VERSION       => '2.0.0-RC2-XMas',
+    VERSION       => '2.0.0-RC3',
     NO_META       => 1,
     ABSTRACT_FROM => 'lib/mod_perl.pm',
     EXE_FILES     => \@exe_files,
@@ -449,6 +449,7 @@ sub clean_files {
             @files,
             qw(lib/typemap
                lib/ModPerl/MethodLookup.pm
+               lib/ModPerl/DummyVersions.pm
                t/htdocs/vhost/error_log
                t/SMOKE
                t/TEST
@@ -465,8 +466,7 @@ sub clean_files {
 sub set_modperl_version {
     require './lib/mod_perl.pm';
 
-    $VERSION = $mod_perl::VERSION;
-    $VERSION =~ s/(\d\d)(\d\d)$/$1_$2/;
+    $VERSION = $mod_perl::VERSION_TRIPLET;
 
     open my $fh, 'Changes';
     while (<$fh>) {

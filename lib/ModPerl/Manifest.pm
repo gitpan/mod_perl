@@ -58,6 +58,9 @@ sub get_svn_files {
 
     }}, $cwd);
 
+    # files to add which aren't under svn
+    push @files, qw(lib/ModPerl/DummyVersions.pm);
+
     return @files;
 }
 
@@ -117,5 +120,5 @@ t/apr-ext/perlio
 # PAUSE breaks if a dist has more than one META.yml. the top-level
 # META.yml already excludes Apache-Test from indexing
 Apache-Test/META.yml
-# this is an internal to developer sub-project
+# this is an internal to developers sub-project
 Apache-Test/Apache-TestItSelf
