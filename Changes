@@ -11,6 +11,33 @@ For getting this effort started
 
 Other contributors are mentioned below:
 
+=item 0.83_04
+
+updated INSTALL and UsersGuide documents
+
+misc cleanup here and there
+
+Apache::Options is now just a stub that imports from Apache::Constants
+
+updated Apache.pm and Apache::Constants documentation
+
+added Apache::AuthzAge and Apache::AccessLimitNum modules
+
+added $r->requires and $r->is_main, and $r->main methods
+
+added callback hooks for authorization, access, type-check, 
+fixup and logger stages of the request
+
+callback hooks can now be turned off at compile time with 
+-DNO_PERL_...., and are turned off by default, except for the
+handler stage (PerlHandler) 
+
+reworked installation procedure to follow apache 1.2 recomendations, 
+the procedure will still work with older versions of apache.
+No more Makefile.tmpl.x.x.x mess!!
+
+updated #if MODULE_MAGIC_NUMBERS >='s so we're inline with apache 1.2-dev-19961009130008
+
 =item 0.83_03
 
 Perl*Handler's are now called with Apache->request as an argument

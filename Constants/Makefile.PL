@@ -13,6 +13,6 @@ unless (-e "$httpd_src/httpd.h") {
 WriteMakefile(
     NAME	=> "Apache::Constants",
     VERSION => $VERSION,
-    INC => "-I../src -I$httpd_src",
+    INC => "-I../src -I../src/modules/perl -I$httpd_src",
 );
 

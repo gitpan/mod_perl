@@ -10,6 +10,33 @@ use DynaLoader ();
 
 @ISA = qw(Exporter DynaLoader);
 
+%EXPORT_TAGS = (
+   options => [qw(OPT_NONE OPT_INDEXES OPT_INCLUDES 
+		  OPT_SYMLINKS OPT_EXECCGI OPT_UNSET OPT_INCNOEXEC
+		  OPT_SYM_OWNER OPT_MULTI OPT_ALL)],
+   response_codes => [qw(OK
+			 DOCUMENT_FOLLOWS
+			 PARTIAL_CONTENT 
+			 MULTIPLE_CHOICES
+			 MOVED
+			 REDIRECT
+			 USE_LOCAL_COPY
+			 BAD_REQUEST
+			 AUTH_REQUIRED
+			 FORBIDDEN
+			 NOT_FOUND
+			 METHOD_NOT_ALLOWED 
+			 NOT_ACCEPTABLE 
+			 LENGTH_REQUIRED
+			 PRECONDITION_FAILED
+			 SERVER_ERROR 
+			 NOT_IMPLEMENTED
+			 BAD_GATEWAY 
+			 HTTP_SERVICE_UNAVAILABLE
+			 VARIANT_ALSO_VARIES)],
+    common => [qw(OK DECLINED FORBIDDEN AUTH_REQUIRED SERVER_ERROR)],
+);
+
 @EXPORT = qw(
    AUTH_REQUIRED
    BAD_GATEWAY
@@ -68,4 +95,20 @@ bootstrap Apache::Constants $VERSION;
 
 __END__
 
+=head1 NAME
 
+Apache::Constants - Constants defined in httpd.h
+
+=head1 SYNOPSIS
+
+    use Apache::Constants;
+    use Apache::Constants ':common'; #OK,DECLINED,etc.
+
+=head1 DESCRIPTION
+
+Server constants used by apache modules are defined in
+B<httpd.h>, this module gives Perl access to those constants.
+
+=head1 AUTHORS
+
+Gisle Aas <aas@sn.no>, Doug MacEachern <dougm@osf.org> and h2xs

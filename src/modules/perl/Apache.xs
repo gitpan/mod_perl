@@ -62,7 +62,7 @@ extern "C" {
 #endif
 #include "mod_perl.h"
 
-/* $Id: Apache.xs,v 1.27 1996/10/09 05:45:07 dougm Exp $ */
+/* $Id: Apache.xs,v 1.28 1996/10/14 03:34:51 dougm Exp $ */
 
 typedef request_rec * Apache;
 typedef conn_rec    * Apache__Connection;
@@ -79,17 +79,14 @@ typedef server_rec  * Apache__Server;
     bwrite(r->connection->client, buffer, n); \
     SET_BYTES_SENT(r)
 
+#define iniHV(hv) hv = (HV*)sv_2mortal((SV*)newHV())
+#define iniAV(av) av = (AV*)sv_2mortal((SV*)newAV())
+
 /* eh, need a better way */
 #ifdef HIDE_AUTH
 #define SKIP_AUTH_HEADER if (!strcasecmp (key, "Authorization")) continue;
 #else
 #define SKIP_AUTH_HEADER
-#endif
-
-#ifdef PERL_TRACE
-#define CTRACE fprintf
-#else
-#define CTRACE
 #endif
 
 static IV perl_apache_request_rec;
@@ -106,126 +103,50 @@ SV *perl_bless_request_rec(request_rec *r)
     SV *sv = sv_newmortal();
     char *package = "Apache";
     sv_setref_pv(sv, package, (void*)r);
-    CTRACE(stderr, "perl_bless_request_rec\n");
+    CTRACE(stderr, "blessing request_rec\n");
     return sv;
 }
 
-void perl_apache_bootstrap()
-{
-  char *bootargs[] = { "Apache" };
-  /* bootstrap ourselves, if we have no .pm file */
-  if(!hv_exists(perl_get_hv("INC", FALSE), "Apache.pm", strlen("Apache.pm")))
-    perl_call_argv("Apache::bootstrap", G_DISCARD, bootargs);
-}
-
-void
-perl_setup_env()
-{ /* yuck, rework this later */
+void perl_setup_env()
+{ /* XXX yuck, rework this later */
   SV *sv = newSV(0);
   sv_setpv(sv, "%ENV = Apache->request->cgi_env();"); 
   perl_eval_sv(sv, G_DISCARD);
 }
 
-void
-perl_clear_env()
+void perl_clear_env()
 {
   /* flush %ENV */
   hv_clear(perl_get_hv("ENV", FALSE));
 }
 
-void
-perl_set_pid()
+void perl_set_pid()
 {
   GV *tmpgv;
   if (tmpgv = gv_fetchpv("$", TRUE, SVt_PV))
     sv_setiv(GvSV(tmpgv), (I32)getpid());
 }
 
-int
-perl_eval_ok(server_rec *s)
+int perl_eval_ok(server_rec *s)
 {
   SV *sv;
   sv = GvSV(gv_fetchpv("@", TRUE, SVt_PV));
   if(SvTRUE(sv)) {
-    fprintf(stderr, "perl_eval error: %s\n", SvPV(sv,na));
+    CTRACE(stderr, "perl_eval error: %s\n", SvPV(sv,na));
     log_error(SvPV(sv, na), s);
     return -1;
   }
   return 0;
 }
 
-void
-perl_require_module(m)
-SV *m;
+void perl_require_module(mod)
+char *mod;
 {
-    SV* sv = sv_newmortal();
+    SV *sv = sv_newmortal();
+    SV *m = newSVpv(mod,0);
     sv_setpv(sv, "require ");
     sv_catsv(sv, m);
     perl_eval_sv(sv, G_DISCARD);
-}
-
-/* we don't use the Safe stuff yet, but it's here for those who are interested */
-int perl_safe_wrap_file(PerlInterpreter *perl, char *fname, AV *permit, int permit_only)
-{
-  
-  AV *av = (AV*)sv_2mortal((SV*)newAV());
-  char *method;
-  int ret;
-  SV *cpt, *sv;
-  I32 ax;
-
-  perl_require_pv("Safe.pm");
-
-  av_store(av, 0, newSVpv("Root",0));
-  ret = mod_perl_call_method(perl, G_EVAL|G_SCALAR, newSVpv("Safe", 4), "new", av);
-  CTRACE(stderr, "new Safe returned %d arg(s)\n", ret);
-  cpt = (SV*)ST(0);
-
-  method = permit_only ? "permit_only" : "permit";
-  ret = mod_perl_call_method(perl, G_EVAL|G_SCALAR, cpt, method, permit); 
-  CTRACE(stderr, "$cpt->%s\n returned %d arg(s)\n", method, ret);
-
-  av_clear(av);
-  av_push(av, newSVpv("*Apache::",9));
-  ret = mod_perl_call_method(perl, G_EVAL|G_SCALAR, cpt, "share", av); 
-  av_store(av, 0, newSVpv(fname,0));
-  ret = mod_perl_call_method(perl, G_SCALAR, cpt, "rdo", av); 
-
-  return ret;
-}
- 
-int mod_perl_call_method(PerlInterpreter *perl, I32 flags, SV *ref, char *method, AV *av)
-{
-    int i, count;
-    SV *sv;
-    I32 ax;
-    dSP;
-
-    PUSHMARK(sp);
-    XPUSHs(ref);
-    i = av_len(av) + 1;
-    while(i--) {
-      sv = av_shift(av);
-      CTRACE(stderr, "sv = '%s'\n", SvPV(sv,na));
-      if(SvTRUE(sv))
-	XPUSHs(sv_2mortal(sv));
-    }
-    
-    PUTBACK;
-    count = perl_call_method(method, flags);
-    SPAGAIN;
-    
-    sp -= count ;
-    ax = (sp - stack_base) + 1 ;
-
-    sv = perl_get_sv("@", FALSE);
-    if(SvTRUE(sv)) {
-	CTRACE(stderr, SvPV(sv, na));
-	return 0;
-    }
-
-    PUTBACK;
-    return count;
 }
 
 #ifdef USE_SFIO 
@@ -249,17 +170,18 @@ Sfdisc_t*       disc;   /* discipline */
 }
 
 static int
-sfapacheread(f, buffer, n, disc)
+sfapacheread(f, buffer, bufsiz, disc)
 Sfio_t* f;      /* stream involved */
 char*           buffer;    /* buffer to read into */
-int             n;      /* number of bytes to read */
+int             bufsiz;      /* number of bytes to read */
 Sfdisc_t*       disc;   /* discipline */        
 {
     long nrd;
+    int extra = 0;
     request_rec	*r = ((Apache_t*)disc)->r;
-    CTRACE(stderr, "sfapacheread: want %d bytes\n", n);
-    nrd = read_client_block(r, buffer, n);
-    return n;
+    CTRACE(stderr, "sfapacheread: want %d bytes\n", bufsiz);
+    PERL_READ_FROM_CLIENT;
+    return bufsiz;
 }
 
 Sfdisc_t *
@@ -357,6 +279,43 @@ unescape_url(string)
    RETVAL
    
 #functions from http_core.c
+
+void
+requires(r)
+Apache     r
+
+    CODE:
+    {
+    AV *av;
+    HV *hv;
+    register int x;
+    int m = r->method_number;
+    char *t;
+    array_header *reqs_arr = requires (r);
+    require_line *reqs;
+
+    if (!reqs_arr)
+	ST(0) = &sv_undef;
+    else {
+	reqs = (require_line *)reqs_arr->elts;
+	iniAV(av);
+        for(x=0; x < reqs_arr->nelts; x++) {
+	    /* XXX should we do this or let PerlAuthzHandler? */
+	    if (! (reqs[x].method_mask & (1 << m))) continue;
+	    t = reqs[x].requirement;
+	    iniHV(hv);
+	    hv_store(hv, "method_mask", 11, 
+		     newSViv((IV)reqs[x].method_mask), 0);
+	    hv_store(hv, "requirement", 11, 
+		     newSVpv(reqs[x].requirement,0), 0);
+	    av_push(av, newRV((SV*)hv));
+	    /* SvREFCNT_dec(hv); *//* XXX since newRV() incremented it? */
+	}
+	ST(0) = newRV((SV*)av); 
+	SvREFCNT_dec(av); 
+    }
+    }
+
 int 
 allow_options(r)
     Apache	r
@@ -442,11 +401,7 @@ read_client_block(r, buffer, bufsiz)
        long nrd;
        int extra = 0;
        buffer = (char*)palloc(r->pool, bufsiz);
-#if MODULE_MAGIC_NUMBER > 19960526
-       setup_client_block(r);
-       extra = 1;
-#endif
-       nrd = read_client_block(r, buffer, bufsiz+extra);
+       PERL_READ_FROM_CLIENT;
        if ( nrd > 0 ) {
 	 XPUSHs(newSViv((long)nrd));
 	 sv_setpvn((SV*)ST(1), buffer, bufsiz);
@@ -622,7 +577,28 @@ server(r)
 
 #  char *status_line;		/* Status line, if set by script */
 #  int status;			/* In any case */
-  
+
+void
+main(r)
+    Apache   r
+
+    CODE:
+    if(r->main != NULL)
+ 	ST(0) = perl_bless_request_rec((request_rec *)r->main);
+    else
+        ST(0) = &sv_undef;
+
+int 
+is_main(r)
+    Apache   r
+
+    CODE:
+    if(r->main != NULL) RETVAL = 0;
+    else RETVAL = 1;
+       
+    OUTPUT:
+    RETVAL
+
 int
 proxyreq(r)
     Apache   r

@@ -78,67 +78,68 @@ Apache - Perl interface to the Apache server API
 
    require Apache;
 
-   #using API
-   $req = Apache->request;
-
-   $host = $req->get_remote_host;
-   $user = $req->connection->user;
-
-   $req->content_type("text/html");
-   $req->send_http_header;  # actually start a reply
-
-   $req->write_client (
-        "Hey you from $host! <br>\n",
-        "I bet your name is $user. <br>\n",
-        "Yippe! <hr>\n",
-   );
-
-   ###################
-   #or setup a CGI environment  
-   $r = Apache->request;
-   %ENV = $r->cgi_env;
-   
-   #Apache's i/o is not stream oriented
-   #so you cannot print() to your script's STDOUT
-   #and you cannont read() from STDIN (yet)
-   $r->print (
-	  "Content-type: text/html\n\n",
-          "Hey you from $ENV{REMOTE_HOST}! <br>\n",
-          "I bet your name is $ENV{REMOTE_USER}. <br>\n",
- 	  "Yippe! <hr>\n",
-   );
-
 =head1 DESCRIPTION
 
 This module provides a Perl interface the Apache API.  It's here
 mainly for B<mod_perl>, but may be used for other Apache modules that
 wish to embed a Perl interpreter.  We suggest that you also consult
-the description of the Apache C API at http://www.apache.org/docs/XXXX.
+the description of the Apache C API at http://www.apache.org/docs/.
 
-=head2 $r = Apache->request
-
-The Apache->request method will create a request object and return a
-reference to it.  The perl version of the request object will be
-blessed into the B<Apache> package, but it is really just a
-C<request_rec*> in disguise.
+=head1 THE REQUEST OBJECT
 
 The request object holds all the information that the server needs to
-service a request.  Apache handles will be given a reference to the
-request object as parameter and is supposed to update it in various
+service a request.  Apache B<Perl*Handler>s will be given a reference to the
+request object as parameter and may choose update or use it in various
 ways.  Most of the methods described below obtain information from or
 updates the request object.
+The perl version of the request object will be blessed into the B<Apache> 
+package, it is really a C<request_rec *> in disguise.
+
+=over 4
+
+=item Apache->request
+
+The Apache->request method will create a request object and return a
+reference to it.  
+
+=item $r->main
+
+If the current request is a sub-request, this method returns a blessed 
+reference to the main request structure.
+
+=item $r->is_main
+
+Returns true if the current request object is for the main request.
+
+=back
 
 =head1 CLIENT REQUEST PARAMETERS
 
 First we will take a look at various methods that can be used to
 retrieve the request parameters sent from the client.
+In the following examples, B<$r> is a request object blessed into the 
+B<Apache> class, obtained by a handler's first parameter or I<Apache->request>.
 
 =over 4
 
-=item $r->method
+=item $r->method( [$meth] )
 
 The $r->method method will return the request method.  It will be a
-string like "GET", "HEAD" or "POST".
+string such as "GET", "HEAD" or "POST".
+Passing an argument will set the method, mainly used for internal redirects.
+
+=item $r->method_number( [$num] )
+
+The $r->method_number method will return the request method number.
+Each number corresponds to a string representation such as 
+"GET", "HEAD" or "POST".
+Passing an argument will set the method_number, mainly used for internal redirects and testing authorization restriction masks.
+
+=item $r->proxyreq
+
+Returns true if the request is proxy http.
+Mainly used during the filename translation stage of the request, 
+which may be handled by a C<PerlTransHandler>.
 
 =item $r->protocol
 
@@ -146,19 +147,22 @@ The $r->protocol method will return a string identifying the protocol
 that the client speaks.  Typical values will be "HTTP/1.0" or
 "HTTP/1.1".
 
-=item $r->uri
+=item $r->uri( [$uri] )
 
-The $r->uri method will return the requested URI.
+The $r->uri method will return the requested URI, optionally changing
+it with the first argument.
 
-=item $r->filename
+=item $r->filename( [$filename] )
 
 The $r->filename method will return the result of the I<URI --E<gt>
-filename> translation.
+filename> translation, optionally changing it with the first argument
+if you happen to be doing the translation.
 
-=item $r->path_info
+=item $r->path_info( [$path_info] )
 
 The $r->path_info method will return what's left in the path after the
-I<URI --E<gt> filename> translation.
+I<URI --E<gt> filename> translation, optionally changing it with the first 
+argument if you happen to be doing the translation.
 
 =item $r->args
 
@@ -213,7 +217,83 @@ hostname is not known.
 =back
 
 More information about the client can be obtained from the
-B<Apache::Connection> object, see below.
+B<Apache::Connection> object, as described below.
+
+=over 4
+
+=item $c = $r->connection
+
+The $r->connection method will return a reference to the request
+connection object (blessed into the B<Apache::Connection> package).
+This is really a C<conn_rec*> in disguise.  The following methods can
+be used on the connection object:
+
+$c->remote_host
+
+$c->remote_ip
+
+$c->remote_logname
+
+$c->user; #Returns the remote username if authenticated.
+
+$c->auth_type; #Returns the authentication scheme used, if any.
+
+$c->close; #Calling this method will close down the connection to the
+client
+
+=back
+
+=head1 SERVER CONFIGURATION INFORMATION
+
+The following methods are used to obtain information from server
+configuration and access control files.
+
+=over 4
+
+=item $r->dir_config( $key )
+
+Returns the value of a per-directory variable specified by the 
+C<PerlSetVar> directive.
+
+ #<Location /foo/bar>
+ #SetPerlVar  Key  Value
+ #</Location>
+
+ my $val = $r->dir_config('Key');
+
+=item $r->requires
+
+Returns an array reference of hash references, containing information
+related to the B<require> directive.  This is normally used for access
+control, see L<Apache::AuthzAge> for an example.
+
+=item $r->allow_options
+
+=item $r->is_perlaliased
+
+The $r->allow_options and $r->is_perlaliased methods can be used for
+checking if it's ok to run a perl script.  The B<Apache::Options>
+module provide the constants to check against.
+
+ if(!($r->allow_options & OPT_EXECCGI) && !$r->is_perlaliased) {
+     $r->log_reason("Options ExecCGI is off in this directory", 
+		    $filename);
+
+=item $s = $r->server
+
+Return a reference to the server info object (blessed into the
+B<Apache::Server> package).  This is really a C<server_rec*> in
+disguise.  The following methods can be used on the server object:
+
+$s->server_admin; Returns the mail address of the person responsible
+for this server.
+
+$s->server_hostname; Returns the hostname used by this server.
+
+$s->port;
+Returns the port that this servers listens too.
+
+=back
 
 =head1 SETTING UP THE RESPONSE
 
@@ -241,6 +321,25 @@ This method will create headers from the $r->content_xxx() and
 $r->no_cache() attributes (described below) and then append the
 headers defined by $r->header_out (or $r->err_header_out if status
 indicates an error).
+
+=item $r->get_basic_auth_pw( $sent_pwd )
+
+If the current request is protected by Basic authentication, 
+this method will return 0 , otherwise -1.  
+C<$sent_pwd> will be set to the decoded password sent by the client.
+
+=item $r->note_basic_auth_failure
+
+Prior to requiring Basic authentication from the client, this method 
+will set the outgoing HTTP headers asking the client to authenticate 
+for the realm defined by the configuration directive C<AuthName>.
+
+=item $r->handler( [$meth] )
+
+Set the handler for a request.
+Normally set by the configuration directive C<AddHandler>.
+  
+ $r->handler( "perl-script" );
 
 =item $r->content_type( [$newval] )
 
@@ -274,7 +373,7 @@ Get or set the response status line.  The status line is a string like
 "HTTP/1.0 200 OK", but I am not sure how this relates to the
 $r->status() described above.
 
-=item $r->header_out( $header, $value)
+=item $r->header_out( $header, $value )
 
 Change the value of a response header, or create a new one.  You
 should not define any "Content-XXX" headers by calling this method,
@@ -289,7 +388,7 @@ These headers are used if the status indicates an error.
 
    $req->err_headers_out("Warning" => "Bad luck");
 
-=item $r->no_cache( $boolean)
+=item $r->no_cache( $boolean )
 
 This is a flag that indicates that the data being returned is volatile
 and the client should be told not to cache it.
@@ -360,9 +459,9 @@ $r->send_http_header().  Example of use:
 
 =back
 
-=head1 MISCELLANEOUS
+=head1 ERROR LOGGING
 
-These are the methods that did not fit in any of the categories above.
+The following methods can be used to log errors. 
 
 =over 4
 
@@ -378,55 +477,15 @@ Uh, oh.  Write a message to the server's errorlog.
 
   $r->log_error("Some text that goes in the error_log");
 
+=back
+
+=head1 UTILITY FUNCTIONS
+
+=over 4
+
 =item Apache::unescape_url($string)
 
 Handy function for unescapes.
-
-=item $r->allow_options
-
-=item $r->is_perlaliased
-
-The $r->allow_options and $r->is_perlaliased methods can be used for
-checking if it's ok to run a perl script.  The B<Apache::Options>
-module provide the constants to check against.
-
- if(!($r->allow_options & OPT_EXECCGI) && !$r->is_perlaliased) {
-     $r->log_reason("Options ExecCGI is off in this directory", 
-		    $filename);
-
-=item $c = $r->connection
-
-The $r->connection method will return a reference to the request
-connection object (blessed into the B<Apache::Connection> package).
-This is really a C<conn_rec*> in disguise.  The following methods can
-be used on the connection object:
-
-$c->remote_host
-
-$c->remote_ip
-
-$c->remote_logname
-
-$c->user; Returns the remote username if authenticated.
-
-$c->auth_type; Returns the authentication scheme used, if any.
-
-$c->close; Calling this method will close down the connection to the
-client
-
-=item $s = $r->server
-
-Return a reference to the server info object (blessed into the
-B<Apache::Server> package).  This is really a C<server_rec*> in
-disguise.  The following methods can be used on the connection object:
-
-$s->server_admin; Returns the mail address of the person responsible
-for this server.
-
-$s->server_hostname; Returns the hostname used by this server.
-
-$s->port;
-Returns the port that this servers listens too.
 
 =back
 

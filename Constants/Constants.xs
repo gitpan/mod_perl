@@ -1,4 +1,4 @@
-#include "../src/mod_perl.h"
+#include "mod_perl.h"
 
 static double
 constant(name)

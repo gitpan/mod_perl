@@ -3,7 +3,7 @@ use Config;
 
 WriteMakefile(
     NAME	=> "mod_perl",
-    VERSION => "0.83_03",
+    VERSION => "0.83_04",
 #    SKIP      => [qw(static dynamic)], #for now
 #    'linkext' => {LINKTYPE => '' }, 	      
 #    MAP_TARGET	=> "httpd",

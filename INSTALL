@@ -1,4 +1,4 @@
-INSTALLATION for mod_perl.c, mod_perl_fast.c and Apache.*
+INSTALLATION for mod_perl
 
 **IMPORTANT**
 -------------
@@ -10,10 +10,9 @@ To "turn off" mod_perl, simply #comment out the AddType httpd/perl .pl in srm.co
 Prerequisites
 -------------
 
-You need apache1.1b2 or better.
+You need apache version 1.1 or higher.
 
-Make sure you have perl version 5.002_01 or higher, compiled with -DEMBED
-(this is the default with 5.002_01+ anyway)
+Make sure you have perl version 5.003 or higher.
 
 If you do not have Perl version 5.003_01 or higher,
 fetch and install ExtUtils::Embed from CPAN 
@@ -38,25 +37,40 @@ Although, it is a strange bug, you might not even see it without the patch...
 Build apache
 ------------
 
-To build the apache server, you'll need to use the Makefile.tmpl file
-in this directory for 1.1b4+, 
-(Makefile.tmpl.1.1b2 for 1.1b2, Makefile.tmpl.1.2 for 1.2), 
-or make changes to your copy. So either copy the Makefile.tmpl in this
-directory to the apache_xxx/src/ directory or edit
-apache_xxx/src/Makefile.tmpl first.
+Copy the source files into the apache build directory:
+(For apache versions < 1.2 you'll need to mkdir src/modules/ first)
 
-You'll also need to edit the apache_xxx/src/Configuration file in the
-apache build directory:
+	cp -r src/modules/perl/  apache_xxx/src/modules/
+
+Edit apache_xxx/src/Configuration:
 
 For mod_perl add:
 
-    Module perl_module mod_perl.o
+	Module perl_module	   modules/perl/libmodperl.a
 
 For mod_perl_fast add:
 
-    Module perl_fast_module mod_perl_fast.o
+	Module perl_fast_module	   modules/perl/libmodperl.a	
 
-Copy the files in this src/ to apache's src/
+Edit apache_xxx/src/Makefile.tmpl adding:
+
+---%<----
+PERL=/usr/local/bin/perl
+PERL_LD_OPTS=`make -f modules/perl/Makefile ldopts PERL=$(PERL)`
+
+modules/perl/libmodperl.a:
+	(cd modules/perl; \
+	make CC=$(CC) AUX_CFLAGS="$(CFLAGS)" RANLIB=$(RANLIB) PERL=$(PERL);)
+
+#add $(PERL_LD_OPTS) to the httpd target, which may change with new releases
+#but should look something like so:
+
+#httpd: $(REGLIB) $(OBJS)
+#	$(CC) $(LFLAGS)  -o httpd $(OBJS) $(REGLIB) $(LIBS) $(PERL_LD_OPTS)
+---%<----
+
+You may also wish to edit the on/off switches for callback hooks during 
+request stages in src/modules/perl/Makefile
 
 Follow the Apache install docs from there.
 
