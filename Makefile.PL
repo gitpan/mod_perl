@@ -3,7 +3,7 @@ use Config;
 use FileHandle ();
 use Cwd;
 
-$VERSION = "0.86";
+$VERSION = "0.87";
 
 # Patch up the Makefiles we are going to use with Apache
 system $^X, "-pi", "-e", "s!^PERL\\s*=.*!PERL=$Config{'perlpath'}!",
@@ -16,6 +16,13 @@ my(@adirs, %seen, %mft_map, %vers_map, $src_dir, $vers, $conf, $ans);
    '1.2'   => "Makefile.tmpl-1.2",
    '1.1.1Ben-SSL' => "Makefile.tmpl-Ben-SSL",
 );	     
+
+$NO_HTTPD = $ENV{NO_HTTPD} || 0;
+
+while($_ = shift) {
+    ($k,$v) = split /=/;
+    ${$k} = $v if defined ${$k};
+}
 
 foreach $src_dir (qw(../apache_1.1.1/src), <../apache_1.2*/src>,
 		  <../apache*/src>, <../stronghold*/src>, <../src>, <./src>) 
@@ -53,10 +60,15 @@ foreach $adir (@adirs) {
 
     if (-e $httpd_h) {
 	$ans = prompt "Configure mod_perl with $adir ?", "y";
-	next unless $ans eq "y";
+	next unless $ans =~ /^y$/i;
 	$IsBenSSL = -e "$adir/apache_ssl.c";
 	$APACHE_SRC = $adir;
 	last unless -e $conf; #building from 'make offsite-tar' 
+	unless ($NO_HTTPD) {
+	    $ans = prompt "Shall I build httpd in $adir for you?", "y";
+	    ++$NO_HTTPD unless $ans =~ /^y$/i;
+	}
+	last if $NO_HTTPD;
 
 	unless ($HAS_DASH_MAKE) {
 	    unless (-e "$adir/Makefile.tmpl.bak") {
@@ -106,7 +118,7 @@ EOT
 	   print "mod_perl already present in $conf\n";
        }
     }
-    unless ($ENV{NO_HTTPD}) {
+    unless ($NO_HTTPD) {
 	my $dash_make;
 	$dash_make = " -make ".cwd()."src/$mft_map{$adir}"
 	    if $HAS_DASH_MAKE;
@@ -190,7 +202,7 @@ sub MY::top_targets {
     my $self = shift;
     my $string = $self->MM::top_targets;
     return $string unless $APACHE_SRC;
-    if(-e "$APACHE_SRC/http_main.c" and !$ENV{NO_HTTPD}) {
+    if(-e "$APACHE_SRC/http_main.c" and !$NO_HTTPD) {
         $string =~ s/(pure_all\s+::\s+)(.*)/$1 apache_httpd $2/;
     }
     $string .= <<'EOF';
@@ -233,6 +245,7 @@ TEST_VERBOSE=0
 test:
 	@(cd t/conf; test -f httpd.conf || cp httpd.conf-dist httpd.conf)
 	@(cd t/net; test -f config.pl || cp config.pl.dist config.pl)
+	env PERL5LIB=./blib/lib:./blib/arch \
 	$(APACHE_SRC)/$(HTTPD) -X -d `pwd`/t &
 	@echo will write error_log to: /tmp/mod_perl_error_log
 	$(FULLPERL) t/TEST $(TEST_VERBOSE)

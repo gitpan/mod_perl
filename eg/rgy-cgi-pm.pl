@@ -1,5 +1,5 @@
 #!/user/local/bin/perl
-
+use strict;
 use CGI::Switch ();
 my $q = new CGI::Switch;
 

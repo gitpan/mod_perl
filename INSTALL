@@ -33,11 +33,28 @@ In this current directory run:
 
 Makefile.PL will search for apache source trees to configure against, 
 if no source trees are found, you will be prompted for a path to one.
-You will be prompted for each source tree found, if you answer 'y', 
-httpd will be configured and built when you say 'make'.
-If you answer 'n', see the instructions below on how to build by hand.
 
-In either case, you need to 'make install' so the perl side of mod_perl
+When asked:
+
+   "Configure mod_perl with ../apache_xxx ?"
+
+answering 'y' only means there is where we can find src/*.h
+
+When asked:
+
+   "Shall I build httpd in $adir for you?"
+
+answering 'y' will run ../apache_xxx/Configure 
+and httpd will be built when running 'make'
+
+You can avoid this prompt by setting the environment variable 'NO_HTTPD'
+or by starting with the following command:
+
+  perl Makefile.PL NO_HTTPD=1
+
+You may wish see the instructions below on how to build by hand.
+
+In any case, you need to 'make install' so the perl side of mod_perl
 will be installed.
 
 =back

@@ -3,6 +3,7 @@ ServerRoot ./t
 User nobody
 Group nogroup
 Port 8529
+ServerName localhost
 
 #mod_perl stuff
 

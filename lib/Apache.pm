@@ -37,12 +37,14 @@ sub cgi_var {
 
 sub read {
     my($r, $bufsiz) = @_[0,2];
-    my($nrd, $buf);
+    my($nrd, $buf, $total);
     $r->hard_timeout("Apache->read");
+
     while($bufsiz) {
 	$nrd = $r->read_client_block($buf, $bufsiz);
 	if($nrd > 0) {
 	    $bufsiz -= $nrd;
+	    $total += $nrd;
 	    $_[1] .= $buf;
 	    next if $bufsiz;
 	    last;
@@ -52,6 +54,7 @@ sub read {
 	}
     }
     $r->kill_timeout;
+    return $total;
 }
 
 sub print {

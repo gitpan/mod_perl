@@ -2,7 +2,7 @@ require Apache::CGI;
 
 #does the same as tryit.cgi from the CGI.pm distribution
 #run under Apache::Registry
-
+use strict;
 use CGI::Switch ();
 my $query = new CGI::Switch;
 
@@ -30,7 +30,7 @@ $query->print(
 			-values=>['red','green','blue','chartreuse']),
     "<P>",
 
-    $query->submit,
+    $query->submit(-value => "Submit"),
     $query->endform,
 
     "<HR>\n",
@@ -38,10 +38,10 @@ $query->print(
 
 if ($query->param) {
     $query->print(
-        "Your name is <EM>",$query->param(name),"</EM>\n",
-        "<P>The keywords are: <EM>",join(", ",$query->param(words)),"</EM>\n",
-        "<P>Your favorite color is <EM>",$query->param(color),"</EM>\n",
+        "Your name is <EM>",$query->param('name'),"</EM>\n",
+        "<P>The keywords are: <EM>",join(", ",$query->param('words')),"</EM>\n",
+        "<P>Your favorite color is <EM>",$query->param('color'),"</EM>\n",
     );
 }
 
-$query->print($query->end_html, $query->dump);
+$query->print($query->end_html);
