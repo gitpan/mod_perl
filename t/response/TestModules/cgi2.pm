@@ -6,16 +6,20 @@ package TestModules::cgi2;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::compat ();
+use Apache2::compat ();
 use CGI ();
 
-use Apache::Const -compile => 'OK';
+use Apache2::Const -compile => 'OK';
 
 sub handler {
     my $r = shift;
 
     unless ($ENV{MOD_PERL}) {
         die "\$ENV{MOD_PERL} is not set";
+    }
+
+    unless ($ENV{MOD_PERL_API_VERSION} == 2) {
+        die "\$ENV{MOD_PERL_API_VERSION} is not set";
     }
 
     if ($CGI::Q) {
@@ -47,7 +51,7 @@ sub handler {
         $r->print("no param or upload data\n");
     }
 
-    Apache::OK;
+    Apache2::Const::OK;
 }
 
 1;

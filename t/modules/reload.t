@@ -8,10 +8,10 @@ use File::Spec::Functions qw(catfile);
 
 use TestCommon::SameInterp;
 
-plan tests => 3;
+plan tests => 3, need 'HTML::HeadParser';
 
 my $test_file = catfile Apache::Test::vars("serverroot"),
-    qw(lib Apache Reload Test.pm);
+    qw(lib Apache2 Reload Test.pm);
 
 my $module   = 'TestModules::reload';
 my $location = '/' . Apache::TestRequest::module2path($module);
@@ -24,6 +24,7 @@ my $initial = <<'EOF';
 sub simple { 'simple' }
 use constant const => 'const';
 sub prototype($) { 'prototype' }
+sub promised;
 EOF
 
 my $modified = <<'EOF';
@@ -84,15 +85,15 @@ touch_mtime($test_file);
 sub touch_mtime {
     my $file = shift;
     # push the mtime into the future (at least 2 secs to work on win32)
-    # so Apache::Reload will reload the package
+    # so Apache2::Reload will reload the package
     my $time = time + 5; # make it 5 to be sure
     utime $time, $time, $file;
 }
 
 __DATA__
-package Apache::Reload::Test;
+package Apache2::Reload::Test;
 
-use Apache::Reload;
+use Apache2::Reload;
 
 our @methods = qw(simple const prototype);
 

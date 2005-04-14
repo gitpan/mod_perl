@@ -239,6 +239,10 @@ organizationName	= optional
 organizationalUnitName	= optional
 commonName		= supplied
 emailAddress		= optional
+
+[ comment ]
+nsComment = This Is A Comment
+
 EOF
 
     return $file;
@@ -310,7 +314,7 @@ sub sign_cert {
     my $name = shift;
 
     openssl ca => "$capolicy -in csr/$name.csr -out certs/$name.crt",
-                  $passin, config($name), '-batch';
+                  $passin, config($name), '-batch -extensions comment';
 }
 
 #handy for importing into a browser such as netscape

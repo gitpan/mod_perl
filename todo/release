@@ -4,3 +4,43 @@
 
 -- see also todo/api_status
 -- see also todo/release-checklist
+
+Segfaults under Apache::Reload (could be uncovering a bug in mp):
+http://marc.theaimsgroup.com/?t=111145169900002&r=1&w=2
+owner: gozer
+
+-------------
+
+someone has asked to make $r->request_time settable
+
+-------------
+
+MP_STATIC_EXTS=1 must link all extensions but APR.so. At the moment
+the following are not linked:
+
+  APR/Const.so APR/PerlIO.so Apache/Const.so ModPerl/Const.so
+
+owner: ???
+
+note: when testing MP_STATIC_EXTS=1 build we must ensure that there is
+no preinstalled mod_perl2. Since if there is a preinstall of a normal
+build, MP_STATIC_EXTS=1 will be not properly tested, as the
+preinstalled .so modules will be loaded. A potential solution: when
+MP_STATIC_EXTS=1 is used change .pm files not to load the .xs
+extensions!
+
+-------------
+
+When running as root and A-T figures it can't run the test suite
+(perms) it'll ask users if she wants to skip the test suite, if this
+happens:
+
+  Skip the test suite? [No] yes
+  Skipping the test suite execution, while returning success status
+  cd ModPerl-Registry && make test
+
+she gets to run the registry test suite anyway, since the top level
+test suite was successful (needed to make cpan/plus installers
+happy). Not sure what's the best solution here.
+
+---------------

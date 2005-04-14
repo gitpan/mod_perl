@@ -72,7 +72,7 @@ static apr_status_t modperl_shutdown(void *data)
 #endif
 
 static const char *MP_xs_loaders[] = {
-    "Apache", "APR", NULL,
+    "Apache2", "APR", NULL,
 };
 
 #define MP_xs_loader_name "%s::XSLoader::BOOTSTRAP"
@@ -175,7 +175,7 @@ static void set_taint_var(PerlInterpreter *perl)
 
 #ifdef MP_COMPAT_1X
     {
-        GV *gv = gv_fetchpv("Apache::__T", GV_ADDMULTI, SVt_PV);
+        GV *gv = gv_fetchpv("Apache2::__T", GV_ADDMULTI, SVt_PV);
         sv_setiv(GvSV(gv), PL_tainting);
         SvREADONLY_on(GvSV(gv));
     }
@@ -314,10 +314,8 @@ PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
     }
 #endif /* MP_COMPAT_1X */
 
-    /* things to be done only in the main server */
-    if (!s->is_virtual) {
-        modperl_handler_anon_init(aTHX_ p);
-    }
+    /* base perl and each vhost +Parent should have this init'ed */
+    modperl_handler_anon_init(aTHX_ p);
 
     if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
         exit(1);
@@ -542,11 +540,17 @@ void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
  */
 static apr_status_t modperl_sys_init(void)
 {
+    int argc = 0;
+    char **argv = NULL, **env = NULL;
+
     MP_TRACE_i(MP_FUNC, "mod_perl sys init\n");
 
-#if 0 /*XXX*/
-    PERL_SYS_INIT(0, NULL);
+    /* not every OS uses those vars in PERL_SYS_INIT3 macro */
+    argc = argc; argv = argv; env = env;
 
+    PERL_SYS_INIT3(&argc, &argv, &env);
+
+#if 0 /*XXX*/
 #ifdef PTHREAD_ATFORK
     if (!ap_exists_config_define("PERL_PTHREAD_ATFORK_DONE")) {
         PTHREAD_ATFORK(Perl_atfork_lock,
@@ -581,9 +585,8 @@ static apr_status_t modperl_sys_term(void *data)
 
     modperl_perl_pp_unset_all();
 
-#if 0 /*XXX*/
     PERL_SYS_TERM();
-#endif
+
     return APR_SUCCESS;
 }
 
@@ -811,7 +814,7 @@ void modperl_register_hooks(apr_pool_t *p)
     APR_REGISTER_OPTIONAL_FN(modperl_interp_unselect);
 #endif
 
-    /* for <IfDefine MODPERL2> and Apache->define("MODPERL2") */
+    /* for <IfDefine MODPERL2> and Apache2->define("MODPERL2") */
     *(char **)apr_array_push(ap_server_config_defines) =
         apr_pstrdup(p, "MODPERL2");
 

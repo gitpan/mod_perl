@@ -3,13 +3,14 @@ package TestError::api;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::RequestRec ();
-use Apache::RequestIO ();
+use Apache2::RequestRec ();
+use Apache2::RequestUtil ();
+use Apache2::RequestIO ();
 
 use Apache::Test;
 use Apache::TestUtil;
 
-use Apache::Const -compile => qw(OK);
+use Apache2::Const -compile => qw(OK);
 
 sub handler {
     my $r = shift;
@@ -19,12 +20,12 @@ sub handler {
     $r->content_type('text/plain');
 
     # PerlOptions -GlobalRequest is in effect
-    eval { my $gr = Apache->request; };
+    eval { my $gr = Apache2::RequestUtil->request; };
     ok t_cmp($@, 
              qr/\$r object is not available/,
              "unavailable global $r object");
 
-    return Apache::OK;
+    return Apache2::Const::OK;
 }
 
 1;

@@ -10,6 +10,135 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
+=item 1.999_22
+
+    ******************** IMPORTANT ********************
+    this version of mod_perl is completely incompatible
+      with prior versions of mod_perl, both 1.XX and
+     1.99_XX. Please read the below changes carefully.
+    ***************************************************
+
+remove MP_INST_APACHE2 installation option and Apache2.pm - all
+mod_perl related files will now be installed so they are visible
+via standard @INC.  also, refuse to install over mod_perl 2 versions
+less than 1.999_22.  [Geoffrey Young]
+
+s/Apache::/Apache2::/g and s/mod_perl/mod_perl2/g in all module
+APIs.  so, Apache::RequestRec is now Apache2::RequestRec,
+Apache::compat is now Apache2::compat, and so on. [joes]
+
+move all Apache:: constants to Apache2::Const and all APR:: constants
+to APR::Const.  for example, Apache:OK is now Apache2::Const::OK and
+APR::SUCCESS is now APR::Const::SUCCESS.  [Geoffrey Young]
+
+add $ENV{MOD_PERL_API_VERSION} as something that clearly distinguishes
+which mod_perl version is being used at request time.  [Geoffrey Young]
+
+rename Apache->request() to Apache2::RequestUtil->request(), and
+Apache->server() to Apache2::ServerUtil->server()
+[Geoffrey Young]
+
+fix Apache2::Status which was bailing out on trying to load modules
+with dev versions like 2.121_02 [Stas]
+
+When parsing Makefile.PL MP_* options, handle correctly the MP_FOO=0
+entries [Philip M. Gollucci <pgollucci@p6m7g8.com>]
+
+init the anonsub hash for base perl and each vhost +Parent (previously
+was init'ed only for the base perl) [Stas]
+
+fix a bug when a non-threaded perl is used and anonymous sub is pushed
+at the server startup (the CV wasn't surviving) [Stas]
+
+Make sure that CPAN shell doesn't triple over usage of
+$ExtUtils::MakeMaker::VERSION [Randy Kobes]
+
+Apache2::RequestRec->new now sets $r->request_time [Stas]
+
+remove CGI.pm and Apache::Request dependencies from Apache2::Status
+since they weren't used at all [Geoffrey Young]
+
+Fixes for Apache2::Reload's touchfile feature (return Apache2::Const::OK
+instead of 1) [Chris Warren <chwarren@cisco.com>]
+
+cygwin fixes: [Nick *** <doink123@abv.bg>]
+- doesn't like XS wrapper starting with 'static'
+- need to compile everything with -DCYGWIN
+
+ModPerl::RegistryCooker API change: s/rewrite_shebang/shebang_to_perl/
+the new API now returns the string to prepend before the rest of the
+script, instead of rewriting the content, which is both faster and
+doesn't mislead the perl debugger [Dominique Quatravaux
+<dom@idealx.com>]
+
+Starting from ExtUtils::MakeMaker 6.26 went back to pm_to_blib target
+from pm_to_blib.ts introduced in 6.22, so needed to fix the glue_pod
+target, so install will work correctly [Stas]
+
+Syntax errors in <Perl> sections were not correctly caught and
+reported. [Gozer]
+
+when building mp2 EU::MM looks into Apache-Test/MANIFEST and complains
+about the missing Apache-Test/META.yml (which is indeed not included
+in the modperl package due to the PAUSE problems of dealing with more
+than one META.yml. Solution: Exclude Apache-Test/MANIFEST from
+mod_perl distribution package. [Stas]
+
+ModPerl::Registry no longer checks for -x bit (we don't executed
+scripts anyway), and thus works on acl-based filesystems. Also
+replaced the -r check with a proper error handling when the file is
+read in. [Damon Buckwalter <buckwad@gmail.com>]
+
+Apache2::RequestUtil::slurp_filename now throws an APR::Error exception
+object (before it was just croaking). [Stas]
+
+fix APR::Error's overload of '==' (it was always returning true
+before), and add the corresponding '!=' [Stas]
+
+if $r->document_root was modified, restore it at the end of request
+[joes]
+
+Apache2::ServerRec method which set the non-integer fields in the
+server_rec, now copy the value from the perl scalar, so if it changes
+or goes out of scope the C struct is not affected. Using internal perl
+variables to preserve the value, since using the server pool to
+allocate the memory will mean a memory leak [Stas]
+
+add the escape_url entry in the ModPerl::MethodLookup knowledgebase
+[Stas]
+
+Apache2::SubProcess::spawn_proc_prog now can be called in a void
+context, in which case all the communication std pipes will be closed
+[Stas]
+
+fix a bug in $r->document_root, which previously weren't copying the
+new string away [Stas]
+
+introduce a new build option MP_AP_DESTDIR to aid package builders
+direct the Apache-specific files to the right place. [Cory Omand
+<Cory.Omand@Sun.COM>]
+
+Fix bug in modperl_package_clear_stash() segfaulting when
+encountering declared but not yet defined subroutines.
+[Steve Hay <steve.hay@uk.radan.com>, Gozer]
+
+win32 needs PERL_SYS_INIT3/PERL_SYS_TERM calls [Steve Hay
+<steve.hay@uk.radan.com>]
+
+Fix broken MP_STATIC_EXTS=1 build. [Gozer]
+
+Perl -Duse64bit fix. Pointers can't just be generically
+casted from/to IVs. Use PTR2IV/INT2PTR instead. [Gozer]
+
+Perl -Duse64bit fix. apr_size_t pointers can't just be generically
+casted from/to UVs. Use PTR2UV/INT2PTR instead. [Gozer]
+
+fix a bug in Apache2::Build::dir: If the right directory isn't found in
+the for loop $dir still contains a > value, so the ||= has no
+effect. [Nick Wellnhofer <wellnhofer@aevum.de>]
+
+
+
 =item 1.999_21 - January 22, 2005
 
 PerlPostConfigRequire was trying to detect missing files early on,
@@ -32,9 +161,9 @@ pool arguments to startup and connection callbacks must be blessed
 into APR::Pool and not Apache::Pool class [joes]
 
 Make PerlSetEnv, PerlPassEnv and %ENV in PerlRequre, PerlModule,
-PerlConfigRequire and PerlPostConfigRequire affect each, so a change
-in one of these immediately seen in the others. [Pratik <pratiknaik
-gmail.com>, Stas]
+PerlConfigRequire and PerlPostConfigRequire affect each other, so a
+change in one of these is immediately seen in the others. [Pratik
+<pratiknaik gmail.com>, Stas]
 
 
 

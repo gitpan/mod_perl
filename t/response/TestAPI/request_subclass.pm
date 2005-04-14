@@ -3,13 +3,14 @@ package TestAPI::request_subclass;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::RequestRec ();
-our @ISA = qw(Apache::RequestRec);
+use Apache2::RequestRec ();
+use Apache2::RequestUtil ();
+our @ISA = qw(Apache2::RequestRec);
 
 use Apache::Test;
 use Apache::TestRequest;
 
-use Apache::Const -compile => 'OK';
+use Apache2::Const -compile => 'OK';
 
 sub new {
     my $class = shift;
@@ -24,7 +25,7 @@ sub handler {
 
     plan $r, tests => 5;
 
-    eval { my $gr = Apache->request; };
+    eval { my $gr = Apache2::RequestUtil->request; };
     ok $@;
 
     ok $r->uri eq $location;
@@ -39,7 +40,7 @@ sub handler {
 
     ok $@ =~ /unsupported/;
 
-    Apache::OK;
+    Apache2::Const::OK;
 }
 
 1;

@@ -20,14 +20,14 @@ use warnings FATAL => 'all';
 use Config;
 use File::Spec::Functions qw(catfile catdir);
 
-use mod_perl ();
-use Apache::Build ();
+use mod_perl2 ();
+use Apache2::Build ();
 
 use Apache::TestConfig ();
 use Apache::TestTrace;
 
 our $VERSION = '0.01';
-our @ISA = qw(Apache::Build);
+our @ISA = qw(Apache2::Build);
 
 my %handlers = (
     Process    => [qw(ChildInit ChildExit)], #Restart PreConfig
@@ -501,9 +501,14 @@ my %trace = (
 sub generate_trace {
     my($self, $h_fh) = @_;
 
-    my $v = $self->{build}->{VERSION};
+    my $v     = $self->{build}->{VERSION};
+    my $api_v = $self->{build}->{API_VERSION};
 
     print $h_fh qq(#define MP_VERSION_STRING "mod_perl/$v"\n);
+
+    # this needs to be a string, not an int, because of the
+    # macro definition.  patches welcome.
+    print $h_fh qq(#define MP_API_VERSION "$api_v"\n);
 
     my $i = 1;
     my @trace = sort keys %trace;
@@ -572,6 +577,7 @@ sub generate_largefiles {
 
 sub ins_underscore {
     $_[0] =~ s/([a-z])([A-Z])/$1_$2/g;
+    $_[0] =~ s/::/_/g;
 }
 
 sub canon_uc {
@@ -784,7 +790,7 @@ my $constant_prefixes = join '|', qw{APR? MODPERL_RC};
 sub generate_constants {
     my($self, $h_fh, $c_fh) = @_;
 
-    require Apache::ConstantsTable;
+    require Apache2::ConstantsTable;
 
     print $c_fh qq{\#include "modperl_const.h"\n};
     print $h_fh "#define MP_ENOCONST -3\n\n";
@@ -827,7 +833,7 @@ sub constants_lookup_code {
 
     %alias = %shortcuts;
 
-    my $postfix = lc $class;
+    my $postfix = canon_lc(lc $class);
     my $package = $class . '::';
     my $package_len = length $package;
     my($first_let) = $class =~ /^(\w)/;
@@ -902,7 +908,7 @@ EOF
 sub generate_constants_lookup {
     my($h_fh, $c_fh) = @_;
 
-    while (my($class, $groups) = each %$Apache::ConstantsTable) {
+    while (my($class, $groups) = each %$Apache2::ConstantsTable) {
         my $constants = [map { @$_ } values %$groups];
 
         constants_lookup_code($h_fh, $c_fh, $constants, $class);
@@ -912,7 +918,7 @@ sub generate_constants_lookup {
 sub generate_constants_group_lookup {
     my($h_fh, $c_fh) = @_;
 
-    while (my($class, $groups) = each %$Apache::ConstantsTable) {
+    while (my($class, $groups) = each %$Apache2::ConstantsTable) {
         constants_group_lookup_code($h_fh, $c_fh, $class, $groups);
     }
 }
@@ -922,7 +928,7 @@ sub constants_group_lookup_code {
     my @tags;
     my @code;
 
-    $class = lc $class;
+    $class = canon_lc(lc $class);
     while (my($group, $constants) = each %$groups) {
 	push @tags, $group;
         my $name = join '_', 'MP_constants', $class, $group;
@@ -966,7 +972,7 @@ EOF
 }
 
 my %seen_const = ();
-# generates APR::Const and Apache::Const manpages in ./tmp/
+# generates APR::Const and Apache2::Const manpages in ./tmp/
 sub generate_constants_pod {
     my($self) = @_;
 
@@ -1022,7 +1028,7 @@ EOF
 sub generate_constants_lookup_doc {
     my($data) = @_;
 
-    while (my($class, $groups) = each %$Apache::ConstantsTable) {
+    while (my($class, $groups) = each %$Apache2::ConstantsTable) {
         my $constants = [map { @$_ } values %$groups];
 
         constants_lookup_code_doc($constants, $class, $data);
@@ -1032,7 +1038,7 @@ sub generate_constants_lookup_doc {
 sub generate_constants_group_lookup_doc {
     my($data) = @_;
 
-    while (my($class, $groups) = each %$Apache::ConstantsTable) {
+    while (my($class, $groups) = each %$Apache2::ConstantsTable) {
         constants_group_lookup_code_doc($class, $groups, $data);
     }
 }

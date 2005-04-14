@@ -94,10 +94,7 @@ sub configure_libmodperl {
         debug $msg;
     }
 
-    # modules like Embperl.so need mod_perl.so to be loaded first,
-    # so make sure that it's loaded before files inherited from the
-    # global httpd.conf
-    $self->preamble_first(IfModule => '!mod_perl.c', $cfg);
+    $self->preamble(IfModule => '!mod_perl.c', $cfg);
 
 }
 
@@ -187,8 +184,6 @@ sub configure_startup_pl {
         if (-d $tlib) {
             print $fh "use lib '$tlib';\n";
         }
-        my $fixup = Apache::TestConfig->modperl_2_inc_fixup();
-        print $fh $fixup;
 
         # if Apache::Test is used to develop a project, we want the
         # project/lib directory to be first in @INC (loaded last)

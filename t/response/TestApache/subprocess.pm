@@ -5,17 +5,17 @@ use warnings FATAL => 'all';
 
 use Apache::Test;
 use Apache::TestUtil;
-use Apache::Build;
+use Apache2::Build;
 
 use File::Spec::Functions qw(catfile catdir);
 use IO::Select ();
 
-use Apache::Const -compile => 'OK';
+use Apache2::Const -compile => 'OK';
 
 use Config;
 use constant PERLIO_5_8_IS_ENABLED => $Config{useperlio} && $] >= 5.007;
 
-my $perl = Apache::Build->build_config()->perl_config('perlpath');
+my $perl = Apache2::Build->build_config()->perl_config('perlpath');
 
 my %scripts = (
      argv   => 'print STDOUT "@ARGV";',
@@ -43,9 +43,19 @@ sub handler {
     my $cfg = Apache::Test::config();
     my $vars = $cfg->{vars};
 
-    plan $r, tests => 4, need qw(APR::PerlIO Apache::SubProcess);
+    plan $r, tests => 5, need qw(APR::PerlIO Apache2::SubProcess);
 
     my $target_dir = catfile $vars->{documentroot}, "util";
+
+    {
+        # test: passing argv + void context
+        my $script = catfile $target_dir, "argv.pl";
+        my @argv = qw(foo bar);
+        $r->spawn_proc_prog($perl, [$script, @argv]);
+        # can't really test if something is still returned since it
+        # will be no longer void context
+        ok 1;
+    }
 
     {
         # test: passing argv + scalar context
@@ -105,24 +115,24 @@ sub handler {
 
 # these are wannabe's
 #    ok t_cmp(
-#             Apache::SubProcess::spawn_proc_sub($r, $sub, \@args),
-#             Apache::SUCCESS,
+#             Apache2::SubProcess::spawn_proc_sub($r, $sub, \@args),
+#             Apache2::SUCCESS,
 #             "spawn a subprocess and run a subroutine in it"
 #            );
 
 #    ok t_cmp(
-#             Apache::SubProcess::spawn_thread_prog($r, $command, \@argv),
-#             Apache::SUCCESS,
+#             Apache2::SubProcess::spawn_thread_prog($r, $command, \@argv),
+#             Apache2::SUCCESS,
 #             "spawn thread and run a program in it"
 #            );
 
 #     ok t_cmp(
-#             Apache::SubProcess::spawn_thread_sub($r, $sub, \@args),
-#             Apache::SUCCESS,
+#             Apache2::SubProcess::spawn_thread_sub($r, $sub, \@args),
+#             Apache2::SUCCESS,
 #             "spawn thread and run a subroutine in it"
 #            );
 
-   Apache::OK;
+   Apache2::Const::OK;
 }
 
 

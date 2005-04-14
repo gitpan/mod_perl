@@ -46,7 +46,7 @@ create the class's object, bless it and return it
 
 C<$class> -- the registry class, usually C<__PACKAGE__> can be used.
 
-C<$r> -- C<L<Apache::Request>> object.
+C<$r> -- C<L<Apache2::Request>> object.
 
 default: new()
 
@@ -120,9 +120,9 @@ default: cache_it()
 
 default: read_script()
 
-=item * rewrite_shebang()
+=item * shebang_to_perl()
 
-default: rewrite_shebang()
+default: shebang_to_perl()
 
 =item * get_script_name()
 

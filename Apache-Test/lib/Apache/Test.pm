@@ -23,7 +23,7 @@ use Apache::TestConfig ();
 
 use vars qw(@ISA @EXPORT %EXPORT_TAGS $VERSION %SubTests @SkipReasons);
 
-$VERSION = '1.21';
+$VERSION = '1.22';
 
 my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
@@ -155,12 +155,12 @@ sub test_pm_refresh {
 sub init_test_pm {
     my $r = shift;
 
-    # needed to load Apache::RequestRec::TIEHANDLE
-    eval {require Apache::RequestIO};
-    if (defined &Apache::RequestRec::TIEHANDLE) {
+    # needed to load Apache2::RequestRec::TIEHANDLE
+    eval {require Apache2::RequestIO};
+    if (defined &Apache2::RequestRec::TIEHANDLE) {
         untie *STDOUT;
         tie *STDOUT, $r;
-        require Apache::RequestRec; # $r->pool
+        require Apache2::RequestRec; # $r->pool
         require APR::Pool;
         $r->pool->cleanup_register(sub { untie *STDOUT });
     }
@@ -277,10 +277,9 @@ sub need_module {
     for (@modules) {
         if (/^[a-z0-9_.]+$/) {
             my $mod = $_;
-            unless ($mod =~ /\.c$/) {
-                $mod = 'mod_' . $mod unless $mod =~ /^mod_/;
-                $mod .= '.c'
-            }
+            $mod .= '.c' unless $mod =~ /\.c$/;
+            next if $cfg->{modules}->{$mod};
+            $mod = 'mod_' . $mod unless $mod =~ /^mod_/;
             next if $cfg->{modules}->{$mod};
             if (exists $cfg->{cmodules_disabled}->{$mod}) {
                 push @reasons, $cfg->{cmodules_disabled}->{$mod};
@@ -766,18 +765,6 @@ arguments or a reference to a list.
 In case of C modules, depending on how the module name was passed it
 may pass through the following completions:
 
-=item need_min_module_version
-
-Used to require a minimum version of a module
-
-For example:
-
-  plan tests => 5, need_min_module_version(CGI => 2.81);
-
-requires C<CGI.pm> version 2.81 or higher.
-
-Currently works only for perl modules.
-
 =over
 
 =item 1 need_module 'proxy_http.c'
@@ -796,6 +783,18 @@ The I<.c> extension and I<mod_> prefix will be added before the
 lookup, turning it into I<'mod_cgi.c'>.
 
 =back
+
+=item need_min_module_version
+
+Used to require a minimum version of a module
+
+For example:
+
+  plan tests => 5, need_min_module_version(CGI => 2.81);
+
+requires C<CGI.pm> version 2.81 or higher.
+
+Currently works only for perl modules.
 
 =item need
 

@@ -6,18 +6,18 @@ package TestFilter::out_bbs_ctx;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::RequestRec ();
-use Apache::RequestIO ();
+use Apache2::RequestRec ();
+use Apache2::RequestIO ();
 
 use APR::Brigade ();
 use APR::Bucket ();
 use APR::BucketType ();
 
-use base qw(Apache::Filter);
+use base qw(Apache2::Filter);
 
 use Apache::TestTrace;
 
-use Apache::Const -compile => qw(OK M_POST);
+use Apache2::Const -compile => qw(OK M_POST);
 use APR::Const -compile => ':common';
 
 use constant BLOCK_SIZE => 5003;
@@ -80,9 +80,9 @@ sub handler {
     $filter->ctx($ctx);
 
     my $rv = $filter->next->pass_brigade($bb_ctx);
-    return $rv unless $rv == APR::SUCCESS;
+    return $rv unless $rv == APR::Const::SUCCESS;
 
-    return Apache::OK;
+    return Apache2::Const::OK;
 }
 
 sub response {
@@ -107,7 +107,7 @@ sub response {
         $r->rflush; # so the filter reads a chunk at a time
     }
 
-    return Apache::OK;
+    return Apache2::Const::OK;
 }
 
 1;

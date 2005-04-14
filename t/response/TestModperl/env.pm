@@ -3,23 +3,24 @@ package TestModperl::env;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::RequestRec ();
+use Apache2::RequestRec ();
 use APR::Table ();
 
 use Apache::Test;
 use Apache::TestUtil;
 
-use Apache::Const -compile => 'OK';
+use Apache2::Const -compile => 'OK';
 
 sub handler {
     my $r = shift;
 
-    plan $r, tests => 22 + keys(%ENV);
+    plan $r, tests => 23 + keys(%ENV);
 
     my $env = $r->subprocess_env;
 
     ok $ENV{MODPERL_EXTRA_PL}; #set in t/conf/modperl_extra.pl
     ok $ENV{MOD_PERL};
+    ok $ENV{MOD_PERL_API_VERSION};
 
     ok $ENV{SERVER_SOFTWARE};
     ok $env->get('SERVER_SOFTWARE');
@@ -79,7 +80,7 @@ sub handler {
         ok t_cmp($@, '', $key);
     }
 
-    Apache::OK;
+    Apache2::Const::OK;
 }
 
 1;

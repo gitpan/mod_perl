@@ -10,7 +10,7 @@ package TestProtocol::echo_bbs;
 use strict;
 use warnings FATAL => 'all';
 
-use Apache::Connection ();
+use Apache2::Connection ();
 use APR::Socket ();
 use APR::Bucket ();
 use APR::Brigade ();
@@ -18,7 +18,7 @@ use APR::Error ();
 
 use Apache::TestTrace;
 
-use Apache::Const -compile => qw(OK MODE_GETLINE);
+use Apache2::Const -compile => qw(OK MODE_GETLINE);
 use APR::Const    -compile => qw(SUCCESS EOF SO_NONBLOCK);
 
 sub handler {
@@ -26,15 +26,15 @@ sub handler {
 
     # starting from Apache 2.0.49 several platforms require you to set
     # the socket to a blocking IO mode
-    $c->client_socket->opt_set(APR::SO_NONBLOCK, 0);
+    $c->client_socket->opt_set(APR::Const::SO_NONBLOCK, 0);
 
     my $bb = APR::Brigade->new($c->pool, $c->bucket_alloc);
 
     while (1) {
         debug "asking new line";
-        my $rc = $c->input_filters->get_brigade($bb, Apache::MODE_GETLINE);
-        last if $rc == APR::EOF;
-        die APR::Error::strerror($rc) unless $rc == APR::SUCCESS;
+        my $rc = $c->input_filters->get_brigade($bb, Apache2::Const::MODE_GETLINE);
+        last if $rc == APR::Const::EOF;
+        die APR::Error::strerror($rc) unless $rc == APR::Const::SUCCESS;
 
         for (my $b = $bb->first; $b; $b = $bb->next($b)) {
 
@@ -59,7 +59,7 @@ sub handler {
 
     $bb->destroy;
 
-    Apache::OK;
+    Apache2::Const::OK;
 }
 
 1;

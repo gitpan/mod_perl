@@ -11,12 +11,12 @@ use Apache::TestTrace;
 
 use File::Spec::Functions qw(catfile);
 
-use Apache::RequestRec ();
-use Apache::RequestIO ();
-use Apache::RequestUtil ();
+use Apache2::RequestRec ();
+use Apache2::RequestIO ();
+use Apache2::RequestUtil ();
 use APR::Pool ();
 
-use Apache::Const -compile => qw(OK DECLINED);
+use Apache2::Const -compile => qw(OK DECLINED);
 use APR::Const    -compile => 'SUCCESS';
 
 my $file = catfile Apache::Test::config->{vars}->{documentroot}, 
@@ -30,11 +30,11 @@ sub handler {
     t_write_file($file, "cleanup2 is ok");
 
     my $status = $r->sendfile($file);
-    die "sendfile has failed" unless $status == APR::SUCCESS;
+    die "sendfile has failed" unless $status == APR::Const::SUCCESS;
 
     $r->pool->cleanup_register(\&cleanup, $file);
 
-    return Apache::OK;
+    return Apache2::Const::OK;
 }
 
 sub cleanup {
@@ -44,7 +44,7 @@ sub cleanup {
     die "Can't find file: $file_arg" unless -e $file_arg;
     unlink $file_arg or die "failed to unlink $file_arg";
 
-    return Apache::OK;
+    return Apache2::Const::OK;
 }
 
 1;

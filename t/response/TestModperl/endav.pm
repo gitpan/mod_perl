@@ -7,12 +7,12 @@ use ModPerl::Global ();
 
 use Apache::Test;
 
-use Apache::Const -compile => 'OK';
+use Apache2::Const -compile => 'OK';
 
 sub handler {
     my $r = shift;
 
-    plan $r, test => 4;
+    plan $r, tests => 4;
 
     #just to make sure we dont segv with bogus values
     my $not = 'NoSuchPackage';
@@ -50,7 +50,7 @@ sub handler {
     # one plain ok 1 (4)
     ok 1;
 
-    Apache::OK;
+    Apache2::Const::OK;
 }
 
 1;

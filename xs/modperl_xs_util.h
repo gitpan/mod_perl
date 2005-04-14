@@ -24,9 +24,9 @@
 #define mp_xs_sv2_APR__Table(sv)                                        \
     (apr_table_t *)modperl_hash_tied_object(aTHX_ "APR::Table", sv)
 
-#define mpxs_Apache__RequestRec_pool(r) r->pool
-#define mpxs_Apache__Connection_pool(c) c->pool
-#define mpxs_Apache__URI_pool(u)        ((modperl_uri_t *)u)->pool
+#define mpxs_Apache2__RequestRec_pool(r) r->pool
+#define mpxs_Apache2__Connection_pool(c) c->pool
+#define mpxs_Apache2__URI_pool(u)        ((modperl_uri_t *)u)->pool
 #define mpxs_APR__URI_pool(u)           ((modperl_uri_t *)u)->pool
 
 #ifndef dAX
@@ -70,8 +70,9 @@
 #define mpxs_sv_is_object(sv)                           \
     (SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG))
 
-#define mpxs_sv_object_deref(sv, type)                            \
-    (mpxs_sv_is_object(sv) ? (type *)SvIVX((SV*)SvRV(sv)) : NULL)
+#define mpxs_sv_object_deref(sv, type)                  \
+    (mpxs_sv_is_object(sv) ?                            \
+        INT2PTR(type *, SvIVX((SV*)SvRV(sv))) : NULL) 
 
 #define mpxs_sv2_obj(obj, sv)                   \
     (obj = mp_xs_sv2_##obj(sv))

@@ -90,18 +90,18 @@ static SV *modperl_hv_request_find(pTHX_ SV *in, char *classname, CV *cv)
 }
 
 
-/* notice that if sv is not an Apache::ServerRec object and
- * Apache->request is not available, the returned global object might
+/* notice that if sv is not an Apache2::ServerRec object and
+ * Apache2->request is not available, the returned global object might
  * be not thread-safe under threaded mpms, so use with care
  */
 
 MP_INLINE server_rec *modperl_sv2server_rec(pTHX_ SV *sv)
 {
     if (SvOBJECT(sv) || (SvROK(sv) && (SvTYPE(SvRV(sv)) == SVt_PVMG))) {
-        return (server_rec *)SvObjIV(sv);
+        return INT2PTR(server_rec *, SvObjIV(sv));
     }
 
-    /* next see if we have Apache->request available */
+    /* next see if we have Apache2->request available */
     {
         request_rec *r = NULL;
         (void)modperl_tls_get_request_rec(&r);
@@ -140,14 +140,14 @@ request_rec *modperl_xs_sv2request_rec(pTHX_ SV *in, char *classname, CV *cv)
         }
     }
 
-    /* might be Apache::ServerRec::warn method */
+    /* might be Apache2::ServerRec::warn method */
     if (!sv && !(classname && SvPOK(in) && !strEQ(classname, SvPVX(in)))) {
         request_rec *r = NULL;
         (void)modperl_tls_get_request_rec(&r);
 
         if (!r) {
             Perl_croak(aTHX_
-                       "Apache->%s called without setting Apache->request!",
+                       "Apache2->%s called without setting Apache2->request!",
                        cv ? GvNAME(CvGV(cv)) : "unknown");
         }
 
@@ -164,7 +164,7 @@ request_rec *modperl_xs_sv2request_rec(pTHX_ SV *in, char *classname, CV *cv)
             /* XXX: find something faster than sv_derived_from */
             return NULL;
         }
-        return (request_rec *)SvIV(sv);
+        return INT2PTR(request_rec *, SvIV(sv));
     }
 
     return NULL;
@@ -288,7 +288,7 @@ void **modperl_xs_dl_handles_get(pTHX)
                        dl_librefs, (int)i);
 	    continue;
 	}
-	handle = (void *)SvIV(handle_sv);
+	handle = INT2PTR(void *, SvIV(handle_sv));
 
 	MP_TRACE_r(MP_FUNC, "%s dl handle == 0x%lx\n",
                    SvPVX(module_sv), (unsigned long)handle);
@@ -349,7 +349,7 @@ static void modperl_package_unload_dynamic(pTHX_ const char *package,
     AV *librefs = get_av(dl_librefs, 0);
     SV *libref = *av_fetch(librefs, dl_index, 0);
 
-    modperl_sys_dlclose((void *)SvIV(libref));
+    modperl_sys_dlclose(INT2PTR(void *, SvIV(libref)));
 
     /* remove package from @dl_librefs and @dl_modules */
     modperl_av_remove_entry(aTHX_ get_av(dl_librefs, 0), dl_index);
@@ -597,11 +597,13 @@ MP_INLINE int modperl_perl_module_loaded(pTHX_ const char *name)
     return (svp && *svp != &PL_sv_undef) ? 1 : 0;
 }
 
-#define SLURP_SUCCESS(action) \
-    if (rc != APR_SUCCESS) { \
-        SvREFCNT_dec(sv); \
-        Perl_croak(aTHX_ "Error " action " '%s': %s ", r->filename, \
-                   modperl_error_strerror(aTHX_ rc)); \
+#define SLURP_SUCCESS(action)                                           \
+    if (rc != APR_SUCCESS) {                                            \
+        SvREFCNT_dec(sv);                                               \
+        modperl_croak(aTHX_ rc,                                         \
+                      apr_psprintf(r->pool,                             \
+                                   "slurp_filename('%s') / " action,    \
+                                   r->filename));                       \
     }
 
 MP_INLINE SV *modperl_slurp_filename(pTHX_ request_rec *r, int tainted)
@@ -773,12 +775,11 @@ static void modperl_package_clear_stash(pTHX_ const char *package)
             key = hv_iterkey(he, &len);
             if (MP_SAFE_STASH(key, len)) {
                 SV *val = hv_iterval(stash, he);
-                char *this_stash = HvNAME(GvSTASH(val));
                 /* The safe thing to do is to skip over stash entries
                  * that don't come from the package we are trying to
                  * unload
                  */
-                if (strcmp(this_stash, package) == 0) {
+                if (GvSTASH(val) == stash) {
                     hv_delete(stash, key, len, G_DISCARD);
                 }
             }

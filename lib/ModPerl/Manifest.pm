@@ -50,6 +50,7 @@ sub get_svn_files {
         while (my $line = <$fh>) {
              if ($line =~ /name\s*=\s*"([^"]*)"/) {
                 my $file = $1;
+                next if $file eq 'svn:this_dir';
                 next if !$file or -d "../$file" or $file =~ /^\./;
                 push @files, $dir ? "$dir/$file" : $file;
              }
@@ -115,10 +116,16 @@ eliza
 t/perl/ithreads.t
 t/perl/ithreads2.t
 t/response/TestPerl/ithreads.pm
+t/response/TestPerl/ithreads_args.pm
+t/response/TestPerl/ithreads_eval.pm
 # incomplete
 t/apr-ext/perlio
 # PAUSE breaks if a dist has more than one META.yml. the top-level
 # META.yml already excludes Apache-Test from indexing
 Apache-Test/META.yml
+# exclude Apache-Test/MANIFEST since it confuses the mp2 build (e.g it
+# wants Apache-Test/META.yml which we don't supply, see above)
+Apache-Test/MANIFEST
+
 # this is an internal to developers sub-project
 Apache-Test/Apache-TestItSelf
