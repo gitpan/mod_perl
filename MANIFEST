@@ -147,6 +147,7 @@ docs/api/APR/PerlIO.pod
 docs/api/APR/Pool.pod
 docs/api/APR/SockAddr.pod
 docs/api/APR/Socket.pod
+docs/api/APR/Status.pod
 docs/api/APR/String.pod
 docs/api/APR/Table.pod
 docs/api/APR/ThreadMutex.pod
@@ -409,10 +410,14 @@ t/api/sendfile.t
 t/api/slurp_filename.t
 t/api/status.t
 t/apr-ext/base64.t
+t/apr-ext/brigade.t
 t/apr-ext/bucket.t
 t/apr-ext/date.t
+t/apr-ext/error.t
 t/apr-ext/finfo.t
+t/apr-ext/os.t
 t/apr-ext/pool.t
+t/apr-ext/status.t
 t/apr-ext/string.t
 t/apr-ext/table.t
 t/apr-ext/threadmutex.t
@@ -564,10 +569,14 @@ t/htdocs/protocols/basic-auth
 t/htdocs/vhost/post_config.pl
 t/htdocs/vhost/startup.pl
 t/lib/TestAPRlib/base64.pm
+t/lib/TestAPRlib/brigade.pm
 t/lib/TestAPRlib/bucket.pm
 t/lib/TestAPRlib/date.pm
+t/lib/TestAPRlib/error.pm
 t/lib/TestAPRlib/finfo.pm
+t/lib/TestAPRlib/os.pm
 t/lib/TestAPRlib/pool.pm
+t/lib/TestAPRlib/status.pm
 t/lib/TestAPRlib/string.pm
 t/lib/TestAPRlib/table.pm
 t/lib/TestAPRlib/threadmutex.pm
@@ -674,6 +683,7 @@ t/response/TestAPR/pool.pm
 t/response/TestAPR/pool_lifetime.pm
 t/response/TestAPR/sockaddr.pm
 t/response/TestAPR/socket.pm
+t/response/TestAPR/status.pm
 t/response/TestAPR/string.pm
 t/response/TestAPR/table.pm
 t/response/TestAPR/threadmutex.pm
@@ -826,6 +836,7 @@ xs/APR/PerlIO/modperl_apr_perlio.h
 xs/APR/Pool/APR__Pool.h
 xs/APR/SockAddr/APR__SockAddr.h
 xs/APR/Socket/APR__Socket.h
+xs/APR/Status/APR__Status.h
 xs/APR/String/APR__String.h
 xs/APR/Table/APR__Table.h
 xs/APR/ThreadMutex/APR__ThreadMutex.h

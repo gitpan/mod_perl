@@ -9,15 +9,16 @@ $ENV{MOD_PERL_2_BUILD} = 1;
 use constant MIN_HTTPD_VERSION_DYNAMIC => '2.0.47';
 use constant MIN_HTTPD_VERSION_STATIC  => '2.0.51';
 
-my($old_modperl_version, $old_modperl_pm);
+my($old_modperl_version, $old_modperl_pm, $old_Apache2_pm);
 
 BEGIN {
     eval {
-        require mod_perl;
         my $old_mp2 = eval { require Apache2 };
+        require mod_perl;
         if ($mod_perl::VERSION < 1.999_22 && $old_mp2) {
             $old_modperl_version = $mod_perl::VERSION;
             $old_modperl_pm = delete $INC{'mod_perl.pm'};
+            $old_Apache2_pm = delete $INC{'Apache2.pm'};
         }
     };
 }
@@ -66,7 +67,7 @@ my @exe_files =  map "bin/$_", qw(mp2bug);
 
 ModPerl::BuildMM::WriteMakefile(
     NAME          => 'mod_perl2',
-    VERSION       => '2.0.0-RC5',
+    VERSION       => '2.0.0-RC6',
     DISTNAME      => 'mod_perl',
     NO_META       => 1,
     ABSTRACT_FROM => 'lib/mod_perl2.pm',
@@ -142,10 +143,25 @@ sub configure {
                 "no collision)\n";
         }
         else {
+            my @files = ();
+            my @dirs = ();
+            push @files, $old_Apache2_pm if $old_Apache2_pm;
+            push @dirs, $path
+                if $path =~ /Apache2/ or $old_modperl_version > 1.99;
+
+            my $note = '';
+            if (@files || @dirs) {
+                $note  = "Problematic\n";
+                $note .= "files: @files\n" if @files;
+                $note .= "dirs: @dirs\n"   if @dirs;
+            }
+
             print " not ok\n\n";
             print <<EOI;
 Cannot install mod_perl/$VERSION on top of $vstring
 due to a major API change between mod_perl 1.999_21 and 1.999_22.
+
+$note
 Please nuke the prior mod_perl installation from your site_lib,
 use a different perl to run the installation process, or use the
 PREFIX option when creating your Makefile.  see
@@ -628,7 +644,7 @@ ap_build: modperl_lib
 	cd "$build->{MP_AP_PREFIX}" && make
     
 ap_install: ap_build
-	cd "$build->{MP_AP_PREFIX}" && make install
+	cd "$build->{MP_AP_PREFIX}" && make DESTDIR=$(DESTDIR) install
 EOF
     }
     
@@ -652,11 +668,11 @@ modperl_lib:
 	cd "$(MODPERL_SRC)" && $(MAKE)
 
 modperl_lib_install:
-	cd "$(MODPERL_SRC)" && $(MAKE) install
+	cd "$(MODPERL_SRC)" && $(MAKE) DESTDIR=$(DESTDIR) install
 
 modperl_xs_h_install:
-	@$(MKPATH) $(MODPERL_AP_INCLUDEDIR)
-	$(CP) $(MODPERL_XS_H_FILES) $(MODPERL_AP_INCLUDEDIR)
+	@$(MKPATH) $(DESTDIR)$(MODPERL_AP_INCLUDEDIR)
+	$(CP) $(MODPERL_XS_H_FILES) $(DESTDIR)$(MODPERL_AP_INCLUDEDIR)
 
 modperl_src_clean:
 	cd "$(MODPERL_SRC)" && $(MAKE) clean

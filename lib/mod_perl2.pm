@@ -18,7 +18,7 @@ use 5.006;
 use strict;
 
 BEGIN {
-    our $VERSION = "1.999022";
+    our $VERSION = "1.999023";
     our $VERSION_TRIPLET;
 
     if ($VERSION =~ /(\d+)\.(\d\d\d)(\d+)/) {
@@ -40,6 +40,12 @@ BEGIN {
     our $API_VERSION = 2;
 }
 
+# this stuff is here to assist back compat
+# basically, if you
+#  PerlModule mod_perl2
+# or take similar steps to load mod_perl2 at
+# startup you are protected against loading mod_perl.pm
+# (either 1.0 or 1.99) at a later time by accident.
 $mod_perl::VERSION = $mod_perl2::VERSION;
 $INC{"mod_perl.pm"} = __FILE__;
 

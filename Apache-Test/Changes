@@ -6,7 +6,20 @@ Changes - Apache::Test change logfile
 
 =over 3
 
-=item 1.22-dev
+=item 1.23 - May 3, 2005
+
+Fix Apache::TestRequest::hostport to return the default host:port
+string if $Apache::TestRequest::Module is 'default' or undef [Stas]
+
+Fix Apache::TestRequest::module2url to allow passing '' as a URI
+path. [Stas]
+
+tweaks to Apache::TestClient to better deal with corrupted responses
+when LWP is not available. [Stas]
+
+
+
+=item 1.22 - April 14, 2005
 
     ******************** IMPORTANT ********************
       this version of Apache-Test does not completely
