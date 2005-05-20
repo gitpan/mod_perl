@@ -6,6 +6,19 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.25-dev
+
+
+
+=item 1.24 - May 20, 2005
+
+When adding TypesConfig directives (either inherited from the global
+httpd.conf or from the locally generated mime.types) make sure to
+enclose it in <IfModule mod_mime.c>..</IfModule>, since mod_mime might
+be unavailable. [Stas]
+
+
+
 =item 1.23 - May 3, 2005
 
 Fix Apache::TestRequest::hostport to return the default host:port

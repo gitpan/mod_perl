@@ -55,6 +55,7 @@ Apache-Test/t/redirect.t
 Apache-Test/t/request.t
 Apache-Test/t/response/TestMore/testmorepm.pm
 Apache-Test/t/response/TestMore/testpm.pm
+BRANCHING
 Changes
 INSTALL
 LICENSE
@@ -66,10 +67,12 @@ ModPerl-Registry/Makefile.PL
 ModPerl-Registry/README
 ModPerl-Registry/TODO
 ModPerl-Registry/lib/ModPerl/PerlRun.pm
+ModPerl-Registry/lib/ModPerl/PerlRunPrefork.pm
 ModPerl-Registry/lib/ModPerl/Registry.pm
 ModPerl-Registry/lib/ModPerl/RegistryBB.pm
 ModPerl-Registry/lib/ModPerl/RegistryCooker.pm
 ModPerl-Registry/lib/ModPerl/RegistryLoader.pm
+ModPerl-Registry/lib/ModPerl/RegistryPrefork.pm
 ModPerl-Registry/t/206.t
 ModPerl-Registry/t/304.t
 ModPerl-Registry/t/404.t
@@ -97,6 +100,7 @@ ModPerl-Registry/t/cgi-bin/nph-foo.pl
 ModPerl-Registry/t/cgi-bin/perlrun_decl.pm
 ModPerl-Registry/t/cgi-bin/perlrun_extload.pl
 ModPerl-Registry/t/cgi-bin/perlrun_nondecl.pl
+ModPerl-Registry/t/cgi-bin/prefork.pl
 ModPerl-Registry/t/cgi-bin/r_inherited.pl
 ModPerl-Registry/t/cgi-bin/redirect-cookie.pl
 ModPerl-Registry/t/cgi-bin/redirect.pl
@@ -117,6 +121,7 @@ ModPerl-Registry/t/flush.t
 ModPerl-Registry/t/ithreads.t
 ModPerl-Registry/t/nph.t
 ModPerl-Registry/t/perlrun_extload.t
+ModPerl-Registry/t/prefork.t
 ModPerl-Registry/t/redirect.t
 ModPerl-Registry/t/special_blocks.t
 README
@@ -128,6 +133,7 @@ bin/mp2bug
 build/config.pl
 build/make_etags
 build/source_scan.pl
+build/svn.remerge
 build/win32_fetch_apxs
 build/xs_generate.pl
 docs/TODO
@@ -165,6 +171,7 @@ docs/api/Apache2/Filter.pod
 docs/api/Apache2/FilterRec.pod
 docs/api/Apache2/HookRun.pod
 docs/api/Apache2/Log.pod
+docs/api/Apache2/MPM.pod
 docs/api/Apache2/Module.pod
 docs/api/Apache2/PerlSections.pod
 docs/api/Apache2/Process.pod
@@ -190,10 +197,12 @@ docs/api/ModPerl/Global.pod
 docs/api/ModPerl/MM.pod
 docs/api/ModPerl/MethodLookup.pod
 docs/api/ModPerl/PerlRun.pod
+docs/api/ModPerl/PerlRunPrefork.pod
 docs/api/ModPerl/Registry.pod
 docs/api/ModPerl/RegistryBB.pod
 docs/api/ModPerl/RegistryCooker.pod
 docs/api/ModPerl/RegistryLoader.pod
+docs/api/ModPerl/RegistryPrefork.pod
 docs/api/ModPerl/Util.pod
 docs/api/README
 docs/api/config.cfg
@@ -468,6 +477,7 @@ t/filter/TestFilter/out_bbs_ctx.pm
 t/filter/TestFilter/out_bbs_filebucket.pm
 t/filter/TestFilter/out_init_basic.pm
 t/filter/TestFilter/out_str_api.pm
+t/filter/TestFilter/out_str_buffer.pm
 t/filter/TestFilter/out_str_ctx.pm
 t/filter/TestFilter/out_str_declined.pm
 t/filter/TestFilter/out_str_eval.pm
@@ -501,6 +511,7 @@ t/filter/out_apache.t
 t/filter/out_bbs_ctx.t
 t/filter/out_bbs_filebucket.t
 t/filter/out_init_basic.t
+t/filter/out_str_buffer.t
 t/filter/out_str_ctx.t
 t/filter/out_str_declined.t
 t/filter/out_str_lc.t
@@ -875,6 +886,7 @@ xs/ModPerl/Const/Makefile.PL
 xs/ModPerl/Global/ModPerl__Global.h
 xs/ModPerl/Makefile.PL
 xs/ModPerl/Util/ModPerl__Util.h
+xs/ModPerl/Util/Util_pm
 xs/maps/apache2_functions.map
 xs/maps/apache2_structures.map
 xs/maps/apache2_types.map
