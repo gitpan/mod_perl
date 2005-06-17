@@ -287,11 +287,17 @@ sub need_module {
             }
         }
         die "bogus module name $_" unless /^[\w:.]+$/;
-        eval "require $_";
-        #print $@ if $@;
-        if ($@) {
-            push @reasons, "cannot find module '$_'";
+
+        # if the module was explicitly passed with a .c extension,
+        # do not try to eval it as a Perl module
+        my $not_found = 1;
+        unless (/\.c$/) {
+            eval "require $_";
+            $not_found = 0 unless $@;
+            #print $@ if $@;
         }
+        push @reasons, "cannot find module '$_'" if $not_found;
+
     }
     if (@reasons) {
         push @SkipReasons, @reasons;
