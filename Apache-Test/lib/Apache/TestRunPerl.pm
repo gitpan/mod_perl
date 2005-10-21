@@ -1,4 +1,5 @@
-# Copyright 2001-2004 The Apache Software Foundation
+# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
+# applicable.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,6 +50,11 @@ sub configure_modperl {
     my $ver = $test_config->server->{version};
 
     # sanity checking and loading the right mod_perl version
+
+    # remove mod_perl.pm from %INC so that the below require()
+    # calls accurately populate $mp_ver
+    delete $INC{'mod_perl.pm'};
+
     if ($rev == 2) {
         eval { require mod_perl2 };
     } else {

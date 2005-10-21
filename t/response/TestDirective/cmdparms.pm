@@ -4,6 +4,7 @@ use strict;
 use warnings FATAL => 'all';
 
 use Apache2::CmdParms ();
+use Apache2::Directive ();
 use base qw(Apache2::Module);
 
 use Apache::Test;
@@ -41,7 +42,7 @@ my @methods = qw(cmd context directive info override path
                  pool server temp_pool);
 
 sub TestCmdParms {
-    my($self, $parms, $args) = @_;
+    my ($self, $parms, $args) = @_;
     my $srv_cfg = $self->get_config($parms->server);
     foreach my $method (@methods) {
         $srv_cfg->{$args}{$method} = $parms->$method();
@@ -49,16 +50,20 @@ sub TestCmdParms {
     $srv_cfg->{$args}{check_ctx} = 
         $parms->check_cmd_context(Apache2::Const::NOT_IN_LOCATION);
 
-    $srv_cfg->{$args}{limited} = $parms->method_is_limited('GET');    
+    $srv_cfg->{$args}{limited} = $parms->method_is_limited('GET');
+
+    my $directive = $parms->directive;
+    $srv_cfg->{$args}{line_num} = $directive->line_num;
+    $srv_cfg->{$args}{filename} = $directive->filename;
 }
 
 ### response handler ###
 sub handler : method {
-    my($self, $r) = @_;
+    my ($self, $r) = @_;
     my $override;
     my $srv_cfg = $self->get_config($r->server);
 
-    plan $r, tests => 9 + ( 7 * keys(%$srv_cfg) );
+    plan $r, tests => 11 + ( 7 * keys(%$srv_cfg) );
 
     foreach my $cfg (values %$srv_cfg) {
         ok t_cmp(ref($cfg->{cmd}), 'Apache2::Command', 'cmd');
@@ -84,6 +89,9 @@ sub handler : method {
         ok t_cmp($vhost->{path}, undef, 'path');
         ok t_cmp($vhost->{check_ctx}, undef, 'check_cmd_ctx');
         ok $vhost->{limited};
+
+        ok t_cmp $vhost->{filename}, qr|httpd.conf$|, "config filename";
+        ok t_cmp $vhost->{line_num}, qr|^\d+$|, "config filename line_num";
     }
 
     # Location

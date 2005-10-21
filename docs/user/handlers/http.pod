@@ -39,7 +39,7 @@ If the handler is declared as L<a method handler
 |docs::2.0::user::coding::coding/Method_Handlers>:
 
   sub handler : method {
-      my($class, $r) = @_;
+      my ($class, $r) = @_;
 
 the handler receives two arguments: the class name and the
 C<L<Apache2::RequestRec|docs::2.0::api::Apache2::RequestRec>> object.
@@ -302,7 +302,7 @@ I<news.pl>, so you can still use the former URI mapping:
   sub handler {
       my $r = shift;
   
-      my($date, $id, $page) = $r->uri =~ m|^/news/(\d+)/(\d+)/(.*)|;
+      my ($date, $id, $page) = $r->uri =~ m|^/news/(\d+)/(\d+)/(.*)|;
       $r->uri("/perl/news.pl");
       $r->args("date=$date;id=$id;page=$page");
   
@@ -517,7 +517,7 @@ and here is the C<MyApache2::SendEmail> handler:
   }
   
   sub send_email {
-      my($rh_headers, $r_body) = @_;
+      my ($rh_headers, $r_body) = @_;
   
       require MIME::Lite;
       MIME::Lite->send("smtp", SMTP_HOSTNAME, Timeout => 60);
@@ -988,7 +988,7 @@ properly authenticated:
   
       my $user = $r->user;
       if ($user) {
-          my($section) = $r->uri =~ m|^/company/(\w+)/|;
+          my ($section) = $r->uri =~ m|^/company/(\w+)/|;
           if (defined $section && exists $protected{$section}) {
               my $users = $protected{$section};
               return Apache2::Const::OK if grep { $_ eq $user } @$users;
@@ -1142,7 +1142,7 @@ the file extension of the request's URI.
   sub handler {
       my $r = shift;
   
-      my($ext) = $r->uri =~ /\.(\w+)$/;
+      my ($ext) = $r->uri =~ /\.(\w+)$/;
       $ext = 'txt' unless defined $ext and exists $exts{$ext};
   
       $r->handler($exts{$ext}->[HANDLER]);
@@ -1159,7 +1159,7 @@ the file extension of the request's URI.
   sub tt_handler  { content_handler($_[0], 'tt')  }
   
   sub content_handler {
-      my($r, $type) = @_;
+      my ($r, $type) = @_;
   
       $r->content_type('text/plain');
       $r->print("A handler of type '$type' was called");
@@ -1327,8 +1327,8 @@ C<L<DIR|docs::2.0::user::config::config/item_DIR>>.
 
 Imagine a situation where you have to log requests into individual
 files, one per user. Assuming that all requests start with
-I</users/username/>, so it's easy to categorize requests by the second
-URI path component. Here is the log handler that does that:
+I</~username/>, so it's easy to categorize requests by the
+username. Here is the log handler that does that:
 
   #file:MyApache2/LogPerUser.pm
   #---------------------------
@@ -1348,7 +1348,7 @@ URI path component. Here is the log handler that does that:
   sub handler {
       my $r = shift;
   
-      my($username) = $r->uri =~ m|^/users/([^/]+)|;
+      my ($username) = $r->uri =~ m|^/~([^/]+)|;
       return Apache2::Const::DECLINED unless defined $username;
   
       my $entry = sprintf qq(%s [%s] "%s" %d %d\n),
@@ -1385,31 +1385,31 @@ side the handler exclusively locks the file before performing the
 writing.
 
 To configure the handler simply enable the module with the
-C<PerlLogHandler> directive, inside the wanted section, which was
-I</users/> in our example:
+C<PerlLogHandler> directive, for the desired URI namespace (starting
+with : I</~> in our example):
 
-  <Location /users/>
+  <LocationMatch "^/~">
       SetHandler perl-script
       PerlResponseHandler ModPerl::Registry
       PerlLogHandler MyApache2::LogPerUser
       Options +ExecCGI
-  </Location>
+  </LocationMatch>
 
 After restarting the server and issuing requests to the following
 URIs:
 
-  http://localhost/users/stas/test.pl
-  http://localhost/users/eric/test.pl
-  http://localhost/users/stas/date.pl
+  http://localhost/~stas/test.pl
+  http://localhost/~eric/test.pl
+  http://localhost/~stas/date.pl
 
 The C<MyApache2::LogPerUser> handler will append to I<logs/stas.log>:
 
-  127.0.0.1 [Sat Aug 31 01:50:38 2002] "/users/stas/test.pl" 200 8
-  127.0.0.1 [Sat Aug 31 01:50:40 2002] "/users/stas/date.pl" 200 44
+  127.0.0.1 [Sat Aug 31 01:50:38 2002] "/~stas/test.pl" 200 8
+  127.0.0.1 [Sat Aug 31 01:50:40 2002] "/~stas/date.pl" 200 44
 
 and to I<logs/eric.log>:
 
-  127.0.0.1 [Sat Aug 31 01:50:39 2002] "/users/eric/test.pl" 200 8
+  127.0.0.1 [Sat Aug 31 01:50:39 2002] "/~eric/test.pl" 200 8
 
 It's important to notice that C<PerlLogHandler> can be configured for
 any subsection of the site, no matter whether it's served by a
@@ -1562,7 +1562,7 @@ names across threads and processes:
       require Apache2::MPM;
       require APR::OS;
       return Apache2::MPM->is_threaded
-          ? "$$." . ${ APR::OS::thread_current() }
+          ? "$$." . ${ APR::OS::current_thread_id() }
           : $$;
   }
 

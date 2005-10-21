@@ -89,7 +89,7 @@ ModPerl::BuildMM::WriteMakefile(
     },
     dist      => {
         DIST_DEFAULT => 'mydist',
-	COMPRESS     => 'gzip -9f', SUFFIX=>'gz',
+        COMPRESS     => 'gzip -9f', SUFFIX=>'gz',
     },
 );
 
@@ -389,8 +389,17 @@ sub post_configure {
     }
 
     if ($build->is_dynamic) {
-        warning "You'll need to add the following to httpd.conf:",
-                " LoadModule perl_module modules/$build->{MODPERL_LIB_DSO}\n";
+        warning
+            "You'll need to add the following to httpd.conf:",            "",
+            "  LoadModule perl_module modules/$build->{MODPERL_LIB_DSO}", "",
+            "depending on your build, mod_perl might not live in",
+            "the modules/ directory.\n";
+        if ($build->{MP_APXS}) {
+            warning 
+                "Check the results of",                                   "",
+                "  \$ $build->{MP_APXS} -q LIBEXECDIR",                   "",
+                "and adjust the LoadModule directive accordingly.\n";
+        }
     }
 
     $build->save;
@@ -471,11 +480,11 @@ sub set_modperl_version {
 
     open my $fh, 'Changes';
     while (<$fh>) {
-	if (/^=item.*-dev/) {
-	    $VERSION .= '-dev';
-	    last;
-	}
-	last if /^=item/;
+        if (/^=item.*-dev/) {
+            $VERSION .= '-dev';
+            last;
+        }
+        last if /^=item/;
     }
     close $fh;
 
@@ -538,17 +547,17 @@ sub system_sanity_check {
 
     my $ccflags = $build->perl_config('ccflags');
     for (split /\s+/, $ccflags) {
-	next unless s/^-I//;
-	my $header = "$_/ap_mmn.h";
-	if (-e $header) {
-	    $build->phat_warn(<<EOF);
+        next unless s/^-I//;
+        my $header = "$_/ap_mmn.h";
+        if (-e $header) {
+            $build->phat_warn(<<EOF);
 Apache headers found in unexpected location: ``$_'', suggestions:
    *) Remove via ``rpm -e apache''
    *) Remove by hand
    *) Complain to your os vendor about their poor layout choice
    *) Complain to your sysadmin about their poor layout choice
 EOF
-	}
+        }
     }
 
     $build->lib_check('gdbm');
@@ -789,7 +798,18 @@ sub MY::postamble {
     my $string = $self->ModPerl::BuildMM::MY::postamble;
 
     $string .= <<'EOF';
-mydist : Apache-Test/META.yml manifest tardist
+mydist : Apache-Test/META.yml mod_perl.spec manifest tardist
+
+rpm: dist
+	@[ -d $(PWD)/rpm ] || mkdir $(PWD)/rpm
+	rpmbuild -ta --define "_rpmdir $(PWD)/rpm" \
+                 --define "_srcrpmdir $(PWD)/rpm" \
+                 $(DISTVNAME).tar.gz
+	@mv $(PWD)/rpm/*/*.rpm $(PWD)/rpm/
+	@rm -rf $(PWD)/rpm/*/
+    
+mod_perl.spec: build/make_rpm_spec
+	$(PERL) build/make_rpm_spec
 
 Apache-Test/META.yml:
 	cd Apache-Test && make metafile

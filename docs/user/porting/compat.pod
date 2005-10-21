@@ -66,6 +66,15 @@ C<L<PerlResponseHandler|docs::2.0::user::handlers::http/PerlResponseHandler>>.
 
 
 
+=head2 C<PerlScript>
+
+C<PerlScript> was replaced with
+C<L<PerlRequire|docs::2.0::user::config::config/C_PerlRequire_>>. C<PerlRequire>
+is available in mod_perl 1.0, since 1997.
+
+
+
+
 =head2 C<PerlSendHeader>
 
 C<PerlSendHeader> was replaced with C<L<PerlOptions
@@ -503,12 +512,15 @@ C<$mod_perl::VERSION>:
 
 =head2 C<Apache-E<gt>request>
 
-C<L<Apache-E<gt>request|docs::2.0::api::Apache2::RequestUtil/C_request_>>
+C<Apache-E<gt>request> has been replaced with
+C<L<Apache2::RequestUtil::request()|docs::2.0::api::Apache2::RequestUtil/C_request_>>.
+
+C<L<Apache2::RequestUtil-E<gt>request|docs::2.0::api::Apache2::RequestUtil/C_request_>>
 usage should be avoided under mod_perl 2.0 C<$r> should be passed
 around as an argument instead (or in the worst case maintain your own
-global variable). Since your application may run under under threaded
-mpm, the C<Apache-E<gt>request> usage involves storage and retrieval
-from the thread local storage, which is expensive.
+global variable). Since your application may run under threaded mpm,
+the C<Apache2::RequestUtil-E<gt>request> usage involves storage and
+retrieval from the thread local storage, which is expensive.
 
 It's possible to use C<$r> even in CGI scripts running under
 C<L<Registry|docs::2.0::api::ModPerl::RegistryCooker>> modules,
@@ -563,8 +575,8 @@ C<new()> function. So does C<CGI::Cookie::fetch> from the same
 distribution.
 
 Moreover, user's configuration may preclude from
-C<Apache-E<gt>request> being available at run time. For any location
-that uses C<Apache-E<gt>request> and uses C<SetHandler modperl>, the
+C<Apache2::RequestUtil-E<gt>request> being available at run time. For any location
+that uses C<Apache2::RequestUtil-E<gt>request> and uses C<SetHandler modperl>, the
 configuration should either explicitly enable this feature:
 
   <Location ...>
@@ -580,13 +592,13 @@ It's already enabled for C<SetHandler perl-script>:
       ...
   </Location>
 
-This configuration makes C<Apache-E<gt>request> available B<only>
+This configuration makes C<Apache2::RequestUtil-E<gt>request> available B<only>
 during the response phase
 (C<L<PerlResponseHandler|docs::2.0::user::handlers::http/PerlResponseHandler>>). Other
-phases can make C<Apache-E<gt>request> available, by explicitly
+phases can make C<Apache2::RequestUtil-E<gt>request> available, by explicitly
 setting it in the handler that has an access to C<$r>. For example the
 following skeleton for an I<authen> phase handler makes the
-C<Apache-E<gt>request> available in the calls made from it:
+C<Apache2::RequestUtil-E<gt>request> available in the calls made from it:
 
   package MyApache2::Auth;
   
@@ -926,7 +938,7 @@ server object. e.g.:
 
   use Apache2::ServerUtil ();
   sub cleanup_callback {
-      my($pool, $s) = @_;
+      my ($pool, $s) = @_;
       # your code comes here
       Apache2::Const::OK;
   }
@@ -1079,7 +1091,7 @@ buffer (bad for performance, memory bloat, possible dos attack, etc.)
 =item *
 
 in general duplicates functionality (and does so poorly) that is done
-better in C<Apache::Request>.
+better in C<Apache2::Request>.
 
 =item *
 
@@ -1089,14 +1101,14 @@ C<$r-E<gt>read($buf, $r-E<gt>headers_in-E<gt>{'content-length'}>)
 
 =back
 
-For now you can use C<CGI.pm> or the code in
+You could use C<CGI.pm> or the code in
 C<L<Apache2::compat|docs::2.0::api::Apache2::compat>> (it's slower).
 
-META: when C<Apache::Request> will be ported to mod_perl 2.0, you will
-have the fast C implementation of these functions.
+However, now that C<Apache2::Request> has been ported to mod_perl 2.0
+you can use it instead and reap the benefits of the fast C impelentations
+of these functions. For documentation on its uses, please see:
 
-
-
+http://httpd.apache.org/apreq
 
 
 
@@ -1730,7 +1742,7 @@ C<($$)> prototype:
   @ISA = qw(Eagle);
   
   sub handler ($$) {
-      my($class, $r) = @_;
+      my ($class, $r) = @_;
       ...;
   }
 
@@ -1754,7 +1766,7 @@ attribute:
   @ISA = qw(Eagle);
   
   sub handler : method {
-      my($class, $r) = @_;
+      my ($class, $r) = @_;
       ...;
   }
 

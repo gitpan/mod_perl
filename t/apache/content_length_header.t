@@ -43,9 +43,9 @@ foreach my $method qw(GET HEAD) {
         my $uri = $location;
         my $res = $method->($uri);
 
-        my $cl      = have_min_apache_version(2.1) ? undef : 0;
-        my $head_cl = have_min_apache_version(2.1) ? $cl : undef;
-           
+        my $cl      = 0;
+        my $head_cl = undef;
+        
         ok t_cmp $res->code, 200, "$method $uri code";
         ok t_cmp ($res->header('Content-Length'),
                   $method eq 'GET' ? $cl : $head_cl,
@@ -64,8 +64,8 @@ foreach my $method qw(GET HEAD) {
         my $uri = "$location?set_content_length";
         my $res = $method->($uri);
 
-        my $cl      = have_min_apache_version(2.1) ? 25 : 0;
-        my $head_cl = have_min_apache_version(2.1) ? $cl : undef;
+        my $cl      = 0;
+        my $head_cl = undef;
            
         ok t_cmp $res->code, 200, "$method $uri code";
         ok t_cmp ($res->header('Content-Length'),

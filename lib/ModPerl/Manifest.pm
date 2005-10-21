@@ -31,6 +31,7 @@ our @EXPORT_OK = qw(mkmanifest);
 #anything else to be added should go here:
 my @add_files = qw{
     MANIFEST
+    mod_perl.spec
     Apache-Test/META.yml
 };
 
@@ -98,7 +99,7 @@ sub maniskip {
     }
 
     my $sub = "\$matches = "
-        . "sub { my(\$arg)=\@_; return 1 if "
+        . "sub { my (\$arg)=\@_; return 1 if "
         . join (" || ",  (map {s!/!\\/!g; "\$arg =~ m/$_/o"} @skip), 0)
         . " }";
 

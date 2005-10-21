@@ -470,6 +470,23 @@ static int modperl_run_filter_init(ap_filter_t *f,
 }
 
 
+#define MP_RUN_CROAK_RESET_OK(func)                                     \
+    {                                                                   \
+        apr_status_t rc = func(filter);                                 \
+        if (rc != APR_SUCCESS) {                                        \
+            if (APR_STATUS_IS_ECONNRESET(rc) ||                         \
+                APR_STATUS_IS_ECONNABORTED(rc)) {                       \
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,              \
+                             "Apache2::Filter internal flush got: %s",  \
+                             modperl_error_strerror(aTHX_ rc));         \
+            }                                                           \
+            else {                                                      \
+                modperl_croak(aTHX_ rc,                                 \
+                              "Apache2::Filter internal flush");        \
+            }                                                           \
+        }                                                               \
+    }
+
 int modperl_run_filter(modperl_filter_t *filter)
 {
     AV *args = Nullav;
@@ -527,6 +544,15 @@ int modperl_run_filter(modperl_filter_t *filter)
 
     if (filter->mode == MP_INPUT_FILTER_MODE) {
         if (filter->bb_in) {
+            if (status == DECLINED) {
+                /* make sure the filter doesn't try to make mod_perl
+                 * pass the bucket brigade through after it called
+                 * $f->read(), since it causes a pre-fetch of the
+                 * bb */
+                modperl_croak(aTHX_ MODPERL_FILTER_ERROR,
+                              "a filter calling $f->read "
+                              "must return OK and not DECLINED");
+            }
             /* in the streaming mode filter->bb_in is populated on the
              * first modperl_input_filter_read, so it must be
              * destroyed at the end of the filter invocation
@@ -534,12 +560,10 @@ int modperl_run_filter(modperl_filter_t *filter)
             apr_brigade_destroy(filter->bb_in);
             filter->bb_in = NULL;
         }
-        MP_RUN_CROAK(modperl_input_filter_flush(filter),
-                     "Apache2::Filter");
+        MP_RUN_CROAK_RESET_OK(modperl_input_filter_flush);
     }
     else {
-        MP_RUN_CROAK(modperl_output_filter_flush(filter),
-                     "Apache2::Filter");
+        MP_RUN_CROAK_RESET_OK(modperl_output_filter_flush);
     }
 
     MP_FILTER_RESTORE_ERRSV(errsv);
@@ -551,7 +575,6 @@ int modperl_run_filter(modperl_filter_t *filter)
 
     return status;
 }
-
 
 /* unrolled APR_BRIGADE_FOREACH loop */
 

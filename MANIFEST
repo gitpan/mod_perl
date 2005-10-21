@@ -17,6 +17,7 @@ Apache-Test/lib/Apache/TestCommonPost.pm
 Apache-Test/lib/Apache/TestConfig.pm
 Apache-Test/lib/Apache/TestConfigC.pm
 Apache-Test/lib/Apache/TestConfigPHP.pm
+Apache-Test/lib/Apache/TestConfigParrot.pm
 Apache-Test/lib/Apache/TestConfigParse.pm
 Apache-Test/lib/Apache/TestConfigPerl.pm
 Apache-Test/lib/Apache/TestHandler.pm
@@ -30,6 +31,7 @@ Apache-Test/lib/Apache/TestReportPerl.pm
 Apache-Test/lib/Apache/TestRequest.pm
 Apache-Test/lib/Apache/TestRun.pm
 Apache-Test/lib/Apache/TestRunPHP.pm
+Apache-Test/lib/Apache/TestRunParrot.pm
 Apache-Test/lib/Apache/TestRunPerl.pm
 Apache-Test/lib/Apache/TestSSLCA.pm
 Apache-Test/lib/Apache/TestServer.pm
@@ -117,6 +119,7 @@ ModPerl-Registry/t/cgi.t
 ModPerl-Registry/t/closure.t
 ModPerl-Registry/t/conf/extra.conf.in
 ModPerl-Registry/t/conf/modperl_extra_startup.pl
+ModPerl-Registry/t/dirindex.t
 ModPerl-Registry/t/flush.t
 ModPerl-Registry/t/ithreads.t
 ModPerl-Registry/t/nph.t
@@ -132,6 +135,7 @@ SVN-MOVE
 bin/mp2bug
 build/config.pl
 build/make_etags
+build/make_rpm_spec
 build/source_scan.pl
 build/svn.remerge
 build/win32_fetch_apxs
@@ -375,6 +379,7 @@ lib/ModPerl/TestRun.pm
 lib/ModPerl/TypeMap.pm
 lib/ModPerl/WrapXS.pm
 lib/mod_perl2.pm
+mod_perl.spec
 src/modules/perl/mod_perl.c
 src/modules/perl/mod_perl.h
 src/modules/perl/modperl_apache_compat.c
@@ -526,6 +531,7 @@ t/filter/TestFilter/in_init_basic.pm
 t/filter/TestFilter/in_str_bin_data.pm
 t/filter/TestFilter/in_str_consume.pm
 t/filter/TestFilter/in_str_declined.pm
+t/filter/TestFilter/in_str_declined_read.pm
 t/filter/TestFilter/in_str_lc.pm
 t/filter/TestFilter/in_str_msg.pm
 t/filter/TestFilter/in_str_sandwich.pm
@@ -561,6 +567,7 @@ t/filter/in_init_basic.t
 t/filter/in_str_bin_data.t
 t/filter/in_str_consume.t
 t/filter/in_str_declined.t
+t/filter/in_str_declined_read.t
 t/filter/in_str_lc.t
 t/filter/in_str_msg.t
 t/filter/in_str_sandwich.t
@@ -852,7 +859,6 @@ t/user/rewrite.t
 t/vhost/config.t
 t/vhost/log.t
 todo/README
-todo/apache2_rename
 todo/api_status
 todo/bugs_apr_ext
 todo/bugs_build
