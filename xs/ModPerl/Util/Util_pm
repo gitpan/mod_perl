@@ -47,9 +47,12 @@ sub unload_package_pp {
             undef &$fullname;
         }
         if (*{$fullname}{IO}) {
-            if (fileno $fullname) {
-                close $fullname;
-            }
+            local $@;
+            eval {
+                if (fileno $fullname) {
+                    close $fullname;
+                }
+            };
         }
     }
 

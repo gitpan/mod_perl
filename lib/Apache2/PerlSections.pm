@@ -1,8 +1,9 @@
-# Copyright 2003-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -40,6 +41,7 @@ sub package    { return shift->{'args'}->{'package'} }
 
 my @saved;
 sub save       { return $Apache2::PerlSections::Save }
+sub server     { return $Apache2::PerlSections::Server }
 sub saved      { return @saved }
 
 sub handler : method {
@@ -64,8 +66,11 @@ sub handler : method {
     {
         no strict 'refs';
         foreach my $package ($self->package) {
-            $self->dump_special(${"${package}::$special"},
-              @{"${package}::$special"} );
+            my @config = map { split /\n/ } 
+                            grep { defined } 
+                                (@{"${package}::$special"}, 
+                                 ${"${package}::$special"});
+            $self->dump_special(@config);
         }
     }
 
@@ -129,7 +134,7 @@ sub dump_any {
 sub dump_hash {
     my ($self, $name, $hash) = @_;
 
-    for my $entry (sort keys %{ $hash || {} }) {
+    for my $entry (keys %{ $hash || {} }) {
         my $item = $hash->{$entry};
         my $type = ref($item);
 
@@ -149,7 +154,7 @@ sub dump_section {
 
     $self->add_config("<$name $loc>\n");
 
-    for my $entry (sort keys %{ $hash || {} }) {
+    for my $entry (keys %{ $hash || {} }) {
         $self->dump_entry($entry, $hash->{$entry});
     }
 
@@ -192,10 +197,12 @@ sub dump_entry {
 }
 
 sub add_config {
-    my ($self, $config) = @_;
-    return unless defined $config;
-    chomp($config);
-    push @{ $self->directives }, $config;
+    my ($self, @config) = @_;
+    foreach my $config (@config) {
+        return unless defined $config;
+        chomp($config);
+        push @{ $self->directives }, $config;
+    }
 }
 
 sub post_config {

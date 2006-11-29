@@ -1,8 +1,9 @@
-# Copyright 2003-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -30,7 +31,7 @@ use Config;
 use constant WIN32    => $^O eq 'MSWin32';
 use constant SOLARIS  => $^O eq 'solaris';
 use constant LINUX    => $^O eq 'linux';
-use constant BSD_LIKE => $^O =~ /(bsd|aix|darwin)/i;
+use constant BSD_LIKE => $^O =~ /(bsd|aix)/i;
 
 use Apache2::Const -compile => qw(OK DECLINED);
 
@@ -110,7 +111,7 @@ sub linux_smaps_size_check_first_time {
 sub linux_smaps_size_check {
 
     my $s = Linux::Smaps->new($$)->all;
-    return ($s->size, $s->shared_cleani + $s->shared_dirty);
+    return ($s->size, $s->shared_clean + $s->shared_dirty);
 }
 
 # return process size (in KB)
@@ -138,8 +139,16 @@ sub solaris_2_6_size_check {
     return ($size, 0);
 }
 
-sub bsd_size_check {
-    return (BSD::Resource::getrusage())[ 2, 3 ];
+# rss is in KB but ixrss is in BYTES.
+# This is true on at least FreeBSD, OpenBSD, NetBSD
+# Philip M. Gollucci
+sub _bsd_size_check {
+
+    my @results = BSD::Resource::getrusage();
+    my $max_rss   = $results[2];
+    my $max_ixrss = int ( $results[3] / 1024 );
+
+    return ( $max_rss, $max_ixrss );
 }
 
 sub win32_size_check {
@@ -189,25 +198,29 @@ sub exit_if_too_big {
     $START_TIME ||= time;
 
     my ($size, $share) = $HOW_BIG_IS_IT->();
+    my $unshared = $size - $share;
 
-    if (($MAX_PROCESS_SIZE  && $size > $MAX_PROCESS_SIZE) ||
-        ($MIN_SHARE_SIZE    && $share < $MIN_SHARE_SIZE)  ||
-        ($MAX_UNSHARED_SIZE && ($size - $share) > $MAX_UNSHARED_SIZE)) {
+    my $kill_size     = $MAX_PROCESS_SIZE  && $size > $MAX_PROCESS_SIZE;
+    my $kill_share    = $MIN_SHARE_SIZE    && $share < $MIN_SHARE_SIZE;
+    my $kill_unshared = $MAX_UNSHARED_SIZE && $unshared > $MAX_UNSHARED_SIZE;
 
+    if ($kill_size || $kill_share || $kill_unshared) {
         # wake up! time to die.
         if (WIN32 || ( getppid > 1 )) {
             # this is a child httpd
             my $e   = time - $START_TIME;
-            my $msg = "httpd process too big, exiting at SIZE=$size KB ";
-            $msg .= " SHARE=$share KB " if $share;
+            my $msg = "httpd process too big, exiting at SIZE=$size/$MAX_PROCESS_SIZE KB ";
+            $msg .= " SHARE=$share/$MIN_SHARE_SIZE KB " if $share;
+            $msg .= " UNSHARED=$unshared/$MAX_UNSHARED_SIZE KB " if $unshared;
             $msg .= " REQUESTS=$REQUEST_COUNT LIFETIME=$e seconds";
             error_log($msg);
 
             $r->child_terminate();
         }
         else {    # this is the main httpd, whose parent is init?
-            my $msg = "main process too big, SIZE=$size KB ";
-            $msg .= " SHARE=$share KB" if $share;
+            my $msg = "main process too big, SIZE=$size/$MAX_PROCESS_SIZE KB ";
+            $msg .= " SHARE=$share/$MIN_SHARE_SIZE KB" if $share;
+            $msg .= " UNSHARED=$unshared/$MAX_UNSHARED_SIZE KB" if $unshared;
             error_log($msg);
         }
     }

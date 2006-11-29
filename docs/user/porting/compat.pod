@@ -352,7 +352,9 @@ following technique can be used for using constants:
   use warnings;
   
   use mod_perl;
-  use constant MP2 => $mod_perl::VERSION >= 1.99;
+  use constant MP2 => ( exists $ENV{MOD_PERL_API_VERSION} and 
+                        $ENV{MOD_PERL_API_VERSION} >= 2 ); 
+
   
   BEGIN {
       if (MP2) {
@@ -487,7 +489,7 @@ or anything else Apache decides to set it to, but not:
 Instead use C<$ENV{MOD_PERL}> (available in both mod_perl
 generations), which is set to the mod_perl version, like so:
 
-  mod_perl/1.99_03-dev
+  mod_perl/2.000002
 
 Therefore in order to check whether you are running under mod_perl,
 you'd say:
@@ -495,12 +497,11 @@ you'd say:
   if ($ENV{MOD_PERL}) { ... }
 
 To check for a specific version it's better to use
-C<$mod_perl::VERSION>:
+C<$ENV{MOD_PERL_API_VERSION}>
 
   use mod_perl;
-  use constant MP2 => ($mod_perl::VERSION >= 1.99);
-
-
+  use constant MP2 => ( exists $ENV{MOD_PERL_API_VERSION} and 
+                        $ENV{MOD_PERL_API_VERSION} >= 2 ); 
 
 
 
@@ -934,17 +935,18 @@ C<L<Apache2::Log|docs::2.0::api::Apache2::Log>> method.
 C<$s-E<gt>register_cleanup> has been replaced with
 C<L<APR::Pool::cleanup_register()|docs::2.0::api::APR::Pool/C_cleanup_register_>>
 which accepts the pool object as the first argument instead of the
-server object. e.g.:
+server object, a callback function as a second and data variable as
+the optional third argument. If that data argument was provided it is
+then passed to the callback function when the time comes for the pool
+object to get destroyed.
 
   use Apache2::ServerUtil ();
   sub cleanup_callback {
-      my ($pool, $s) = @_;
+      my $data = shift;
       # your code comes here
-      Apache2::Const::OK;
+      return Apache2::Const::OK;
   }
-  $s->push_handlers(PerlChildExitHandler => \&my_access);
-
-where the arguments are the pool and server objects.
+  $s->pool->cleanup_register(\&cleanup_callback, $data);
 
 See also
 C<L<PerlChildExitHandler|docs::2.0::user::handlers::server/C_PerlChildExitHandler_>>.
@@ -991,6 +993,21 @@ not support them and let developers figure out how to code around it
 
 
 =head1 Request Object Methods
+
+
+
+=head2 C<$r-E<gt>print>
+
+  $r->print($foo);
+
+or
+
+  print $foo;
+
+no longer accepts a reference to a scalar as it did in mod_perl
+1.0. This optimisation is not needed in the mod_perl 2.0's
+implementation of C<print>.
+
 
 
 
@@ -1105,7 +1122,7 @@ You could use C<CGI.pm> or the code in
 C<L<Apache2::compat|docs::2.0::api::Apache2::compat>> (it's slower).
 
 However, now that C<Apache2::Request> has been ported to mod_perl 2.0
-you can use it instead and reap the benefits of the fast C impelentations
+you can use it instead and reap the benefits of the fast C implementations
 of these functions. For documentation on its uses, please see:
 
 http://httpd.apache.org/apreq
@@ -1263,7 +1280,8 @@ See the L<Apache2::RequestRec> manpage.
 
 =head2 C<$r-E<gt>register_cleanup>
 
-C<$r-E<gt>register_cleanup> has been replaced with
+Similarly to C<$s-E<gt>register_cleanup>, C<$r-E<gt>register_cleanup>
+has been replaced with
 C<L<APR::Pool::cleanup_register()|docs::2.0::api::APR::Pool/C_cleanup_register_>>
 which accepts the pool object as the first argument instead of the
 request object. e.g.:
@@ -1815,7 +1833,7 @@ transparent with C<L<ModPerl::MM|docs::2.0::api::ModPerl::MM>>.
 Here is how to write a simple I<Makefile.PL> for modules wanting to
 build XS code against mod_perl 2.0:
 
-  use mod_perl 1.99;
+  use mod_perl 2.0;
   use ModPerl::MM ();
   
   ModPerl::MM::WriteMakefile(

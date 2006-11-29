@@ -42,8 +42,13 @@ Apache-Test/lib/Apache/TestTrace.pm
 Apache-Test/lib/Apache/TestUtil.pm
 Apache-Test/lib/Bundle/ApacheTest.pm
 Apache-Test/t/TEST.PL
+Apache-Test/t/alltest/01bang.t
+Apache-Test/t/alltest/all.t
+Apache-Test/t/alltest2/01bang.t
+Apache-Test/t/alltest2/all.t
 Apache-Test/t/bad_coding.t
 Apache-Test/t/cgi-bin/cookies.pl.PL
+Apache-Test/t/cgi-bin/next_available_port.pl.PL
 Apache-Test/t/conf/extra.conf.in
 Apache-Test/t/conf/modperl_extra.pl.in
 Apache-Test/t/cookies.t
@@ -52,6 +57,7 @@ Apache-Test/t/more/02testmore.t
 Apache-Test/t/more/03testpm.t
 Apache-Test/t/more/04testmore.t
 Apache-Test/t/more/all.t
+Apache-Test/t/next_available_port.t
 Apache-Test/t/ping.t
 Apache-Test/t/redirect.t
 Apache-Test/t/request.t
@@ -120,6 +126,7 @@ ModPerl-Registry/t/closure.t
 ModPerl-Registry/t/conf/extra.conf.in
 ModPerl-Registry/t/conf/modperl_extra_startup.pl
 ModPerl-Registry/t/dirindex.t
+ModPerl-Registry/t/fatalstobrowser.t
 ModPerl-Registry/t/flush.t
 ModPerl-Registry/t/ithreads.t
 ModPerl-Registry/t/nph.t
@@ -169,6 +176,7 @@ docs/api/Apache2/Access.pod
 docs/api/Apache2/CmdParms.pod
 docs/api/Apache2/Command.pod
 docs/api/Apache2/Connection.pod
+docs/api/Apache2/ConnectionUtil.pod
 docs/api/Apache2/Const.pod
 docs/api/Apache2/Directive.pod
 docs/api/Apache2/Filter.pod
@@ -220,6 +228,10 @@ docs/devel/core/explained.pod
 docs/devel/core/mod_perl_specific.pod
 docs/devel/core/mpms.pod
 docs/devel/debug/c.pod
+docs/devel/debug/code/.debug-inline
+docs/devel/debug/code/.debug-modperl-init
+docs/devel/debug/code/.debug-modperl-register
+docs/devel/debug/code/.debug-modperl-xs
 docs/devel/debug/perl.pod
 docs/devel/help/help.pod
 docs/devel/performance/size_matters.pod
@@ -467,6 +479,7 @@ t/apache/scanhdrs.t
 t/apache/scanhdrs2.t
 t/apache/send_cgi_header.t
 t/api/access2.t
+t/api/add_config.t
 t/api/content_encoding.t
 t/api/custom_response.t
 t/api/err_headers_out.t
@@ -591,6 +604,7 @@ t/hooks/TestHooks/authen_digest.pm
 t/hooks/TestHooks/authz.pm
 t/hooks/TestHooks/cleanup.pm
 t/hooks/TestHooks/cleanup2.pm
+t/hooks/TestHooks/error.pm
 t/hooks/TestHooks/fixup.pm
 t/hooks/TestHooks/headerparser.pm
 t/hooks/TestHooks/hookrun.pm
@@ -611,6 +625,7 @@ t/hooks/authen_digest.t
 t/hooks/authz.t
 t/hooks/cleanup.t
 t/hooks/cleanup2.t
+t/hooks/error.t
 t/hooks/hookrun.t
 t/hooks/init.t
 t/hooks/inlined_handlers.t
@@ -620,6 +635,7 @@ t/hooks/stacked_handlers.t
 t/hooks/stacked_handlers2.t
 t/hooks/startup.t
 t/hooks/trans.t
+t/htdocs/TestAPI__add_config/htaccess
 t/htdocs/api/auth-groups
 t/htdocs/api/auth-users
 t/htdocs/api/custom_response.txt
@@ -670,10 +686,13 @@ t/modperl/cookie.t
 t/modperl/cookie2.t
 t/modperl/exit.t
 t/modperl/getc.t
+t/modperl/local_env.t
 t/modperl/merge.t
 t/modperl/merge2.t
 t/modperl/merge3.t
 t/modperl/perl_options.t
+t/modperl/perl_options2.t
+t/modperl/pnotes.t
 t/modperl/post_utf8.t
 t/modperl/print_utf8.t
 t/modperl/print_utf8_2.t
@@ -715,6 +734,7 @@ t/protocol/echo_timeout.t
 t/protocol/pseudo_http.t
 t/response/TestAPI/access.pm
 t/response/TestAPI/access2.pm
+t/response/TestAPI/add_config.pm
 t/response/TestAPI/aplog.pm
 t/response/TestAPI/command.pm
 t/response/TestAPI/conn_rec.pm
@@ -768,6 +788,7 @@ t/response/TestAPR/uuid.pm
 t/response/TestApache/cgihandler.pm
 t/response/TestApache/conftree.pm
 t/response/TestApache/content_length_header.pm
+t/response/TestApache/daemon.pm
 t/response/TestApache/discard_rbody.pm
 t/response/TestApache/post.pm
 t/response/TestApache/read.pm
@@ -816,12 +837,14 @@ t/response/TestModperl/exit.pm
 t/response/TestModperl/getc.pm
 t/response/TestModperl/io_nested_with_closed_stds.pm
 t/response/TestModperl/io_with_closed_stds.pm
+t/response/TestModperl/local_env.pm
 t/response/TestModperl/merge.pm
 t/response/TestModperl/method.pm
 t/response/TestModperl/methodname.pm
 t/response/TestModperl/methodobj.pm
 t/response/TestModperl/perl.pm
 t/response/TestModperl/perl_options.pm
+t/response/TestModperl/perl_options2.pm
 t/response/TestModperl/pnotes.pm
 t/response/TestModperl/post_utf8.pm
 t/response/TestModperl/print.pm
@@ -923,6 +946,7 @@ xs/Apache2/Access/Apache2__Access.h
 xs/Apache2/CmdParms/Apache2__CmdParms.h
 xs/Apache2/Command/Apache2__Command.h
 xs/Apache2/Connection/Apache2__Connection.h
+xs/Apache2/ConnectionUtil/Apache2__ConnectionUtil.h
 xs/Apache2/Const/Const.pm
 xs/Apache2/Const/Const.xs
 xs/Apache2/Const/Makefile.PL

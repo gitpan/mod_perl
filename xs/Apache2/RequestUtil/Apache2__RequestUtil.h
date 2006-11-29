@@ -1,8 +1,9 @@
-/* Copyright 2001-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -212,32 +213,12 @@ static MP_INLINE
 SV *mpxs_Apache2__RequestRec_pnotes(pTHX_ request_rec *r, SV *key, SV *val)
 {
     MP_dRCFG;
-    SV *retval = NULL;
 
     if (!rcfg) {
         return &PL_sv_undef;
     }
-    if (!rcfg->pnotes) {
-        rcfg->pnotes = newHV();
-    }
 
-    if (key) {
-        STRLEN len;
-        char *k = SvPV(key, len);
-
-        if (val) {
-            retval = *hv_store(rcfg->pnotes, k, len,
-                               SvREFCNT_inc(val), 0);
-        }
-        else if (hv_exists(rcfg->pnotes, k, len)) {
-            retval = *hv_fetch(rcfg->pnotes, k, len, FALSE);
-        }
-    }
-    else {
-        retval = newRV_inc((SV *)rcfg->pnotes);
-    }
-
-    return retval ? SvREFCNT_inc(retval) : &PL_sv_undef;
+    return modperl_pnotes(aTHX_ &rcfg->pnotes, key, val, r, NULL);
 }
 
 #define mpxs_Apache2__RequestRec_dir_config(r, key, sv_val) \
@@ -302,10 +283,13 @@ int mpxs_Apache2__RequestRec_is_perl_option_enabled(pTHX_ request_rec *r,
 }
 
 static MP_INLINE
-void mpxs_Apache2__RequestRec_add_config(pTHX_ request_rec *r, SV *lines, int override)
+void mpxs_Apache2__RequestRec_add_config(pTHX_ request_rec *r, SV *lines,
+                                         int override, char *path,
+                                         int override_options)
 {
     const char *errmsg = modperl_config_insert_request(aTHX_ r, lines,
-                                                       override);
+                                                       override, path,
+                                                       override_options);
     if (errmsg) {
         Perl_croak(aTHX_ "$r->add_config() has failed: %s", errmsg);
     }

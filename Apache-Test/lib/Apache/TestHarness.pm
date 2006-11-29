@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -110,20 +110,20 @@ sub run_t {
 sub prune {
     my($self, @tests) = @_;
     my(@new_tests, %skip_dirs);
-    local $_;
 
-    for (@tests) {
-        next if /\.#/; # skip temp emacs files
-        my $dir = dirname $_;
-        if (m:\Wall\.t$:) {
-            unless ($self->run_t($_)) {
+    foreach my $test (@tests) {
+        next if $test =~ /\.#/; # skip temp emacs files
+        my $dir = dirname $test;
+        if ($test =~ m:\Wall\.t$:) {
+            unless ($self->run_t($test)) {
                 $skip_dirs{$dir} = 1;
-                @new_tests = grep { m:\Wall\.t$: || not $skip_dirs{dirname $_} } @new_tests;
-                push @new_tests, $_;
+                @new_tests = grep { m:\Wall\.t$: ||
+                                    not $skip_dirs{dirname $_} } @new_tests;
+                push @new_tests, $test;
             }
         }
         elsif (!$skip_dirs{$dir}) {
-            push @new_tests, $_;
+            push @new_tests, $test;
         }
     }
 

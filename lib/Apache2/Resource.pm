@@ -1,8 +1,9 @@
-# Copyright 2003-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -130,7 +131,8 @@ sub status_rlimit {
 
 if ($ENV{MOD_PERL}) {
     if ($ENV{PERL_RLIMIT_DEFAULTS}) {
-        Apache2->server->push_handlers(
+        require Apache2::ServerUtil;
+        Apache2::ServerUtil->server->push_handlers(
             PerlChildInitHandler => \&default_handler);
     }
 

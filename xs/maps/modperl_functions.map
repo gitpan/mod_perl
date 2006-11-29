@@ -30,7 +30,7 @@ MODULE=Apache2::RequestUtil   PACKAGE=guess
  mpxs_Apache2__RequestRec_location
  mpxs_Apache2__RequestRec_as_string
  mpxs_Apache2__RequestRec_pnotes | | r, key=Nullsv, val=Nullsv
- mpxs_Apache2__RequestRec_add_config | | r, lines, override=OR_AUTHCFG 
+ mpxs_Apache2__RequestRec_add_config | | r, lines, override=MP_HTTPD_OVERRIDE_HTACCESS, path=NULL, override_options=MP_HTTPD_OVERRIDE_OPTS_UNSET
  mpxs_Apache2__RequestRec_document_root | | r, new_root=Nullsv
  mpxs_Apache2__RequestRec_child_terminate
 
@@ -87,9 +87,14 @@ MODULE=Apache2::ServerUtil PACKAGE=Apache2::ServerUtil
 
 MODULE=Apache2::ServerUtil   PACKAGE=Apache2::ServerUtil
  server_rec *:DEFINE_server | | SV *:classname=Nullsv
+ uid_t:DEFINE_user_id       | | SV *:classname=Nullsv
+ gid_t:DEFINE_group_id      | | SV *:classname=Nullsv
 
 MODULE=Apache2::Connection
  mpxs_Apache2__Connection_client_socket | | c, s=NULL
+
+MODULE=Apache2::ConnectionUtil   PACKAGE=guess
+ mpxs_Apache2__Connection_pnotes | | c, key=Nullsv, val=Nullsv
 
 MODULE=Apache2::Filter
  modperl_filter_attributes | MPXS_ | ... | MODIFY_CODE_ATTRIBUTES
@@ -150,6 +155,10 @@ MODULE=Apache2::CmdParms
  ap_method_is_limited
  mpxs_Apache2__CmdParms_info
  mpxs_Apache2__CmdParms_add_config
+ mpxs_Apache2__CmdParms_override_opts
 
 MODULE=Apache2::MPM    PACKAGE=Apache2::MPM   BOOT=1
  mpxs_Apache2__MPM_query
+
+MODULE=Apache2::Access   PACKAGE=guess
+ mpxs_Apache2__RequestRec_allow_override_opts

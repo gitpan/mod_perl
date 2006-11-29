@@ -126,8 +126,37 @@ C<=over> requires a corresponding C<=back>.
 
 =head2 C<PerlAddVar>
 
-META: to be written
+C<PerlAddVar> is useful if you need to pass in multiple values into the
+same variable emulating arrays and hashes.  For example: 
 
+   PerlAddVar foo bar 
+   PerlAddVar foo bar1
+   PerlAddVar foo bar2
+  
+You would retrieve these values with: 
+
+  my @foos = $r->dir_config('foo'); 
+
+This would fill the I<@foos> array with 'bar', 'bar1', and 'bar2'.  
+
+To pass in hashed values you need to ensure that you use an even number
+of directives per key.  For example: 
+
+  PerlAddVar foo key1
+  PerlAddVar foo value1
+  PerlAddVar foo key2
+  PerlAddVar foo value2
+
+You can then retrieve these values with: 
+
+  my %foos = $r->dir_config('foo'); 
+
+Where I<%foos> will have a structure like: 
+
+  %foos = ( 
+        key1   => 'value1',
+        key2   => 'value2',
+  ); 
 
 See also: L<this directive argument types and allowed
 location|/mod_perl_Directives_Argument_Types_and_Allowed_Location>.
@@ -172,7 +201,7 @@ The C<PerlLoadModule> directive is similar to
 C<L<PerlModule|/C_PerlModule_>>, in a sense that it loads a
 module. The difference is that it's used to triggers L<an early Perl
 startup|docs::2.0::user::handlers::server/mod_perl_Startup>. This can
-be usefull for modules that need to be loaded early, as is the case
+be useful for modules that need to be loaded early, as is the case
 for modules that implement L<new Apache
 directives|docs::2.0::user::config::custom>, which are needed during
 the configuration phase.
@@ -261,14 +290,18 @@ own sets of large-ish modules, used only in each host.  By tuning each
 host to have its own pool, that host will continue to reuse the Perl
 allocations in their specific modules.
 
-When cloning a Perl interpreter, to inherit base Perl interpreter's
-C<PerlSwitches> use:
+=head3 C<InheritSwitches>
+
+Off by default, can be used to have a C<VirtualHost> inherit the value
+of the C<PerlSwitches> from the parent server.
+
+For instance, when cloning a Perl interpreter, to inherit the base Perl 
+interpreter's C<PerlSwitches> use:
 
   <VirtualHost ...>
+      PerlOptions +Clone +InheritSwitches
       ...
-      PerlSwitches +inherit
   </VirtualHost>
-
 
 =head3 C<Parent>
 
@@ -367,6 +400,14 @@ add:
   PerlModule Apache::Magick
 
 in our example.
+
+Another way to preload only specific modules is to add + when
+configuring those, for example:
+
+  PerlResponseHandler +Apache::Magick
+
+will automatically preload the C<Apache::Magick> module.
+
 
 =head3 C<GlobalRequest>
 
@@ -556,7 +597,21 @@ Notice that we have got the value of the environment variable I<TEST>.
 
 =head2 C<PerlPassEnv>
 
-  META: to be written
+C<PerlPassEnv> instructs mod_perl to pass the environment variables you
+specify to your mod_perl handlers.  This is useful if you need to set
+the same environment variables for your shell as well as mod_perl. For
+example if you had this in your .bash_profile: 
+
+   export ORACLE_HOME=/oracle 
+
+And defined the following in your I<httpd.conf>: 
+
+   PerlPassEnv ORACLE_HOME 
+
+The your mod_perl handlers would have access to the value via the standard
+Perl mechanism: 
+
+  my $oracle_home = $ENV{'ORACLE_HOME'}; 
 
 See also: L<this directive argument types and allowed
 location|/mod_perl_Directives_Argument_Types_and_Allowed_Location>.
@@ -639,7 +694,16 @@ location|/mod_perl_Directives_Argument_Types_and_Allowed_Location>.
 
 =head2 C<PerlSetEnv>
 
-  META: to be written
+C<PerlSetEnv> allows you to specify system environment variables and pass
+them into your mod_perl handlers.  These values are then available through 
+the normal perl C<%ENV> mechanisms.  For example: 
+
+  PerlSetEnv TEMPLATE_PATH /usr/share/templates 
+
+would create C<$ENV{'TEMPLATE_PATH'}> and set it to I</usr/share/templates>. 
+
+
+
 
 See also: L<this directive argument types and allowed
 location|/mod_perl_Directives_Argument_Types_and_Allowed_Location>.
@@ -652,7 +716,20 @@ location|/mod_perl_Directives_Argument_Types_and_Allowed_Location>.
 
 =head2 C<PerlSetVar>
 
-  META: to be written
+C<PerlSetVar> allows you to pass variables into your mod_perl handlers from
+your I<httpd.conf>. This method is preferable to using C<PerlSetEnv> or
+Apache's C<SetEnv> and C<PassEnv> methods because of the overhead of having
+to populate C<%ENV> for each request. An example of how this can be used is:
+
+    PerlSetVar foo bar
+
+To retrieve the value of that variable in your Perl code you would use:
+
+    my $foo = $r->dir_config('foo');
+
+In this example C<$foo> would then hold the value 'bar'. B<NOTE:> that these
+directives are parsed at request time which is a slower method than using
+L<custom Apache configuration directives|docs::2.0::user::config::custom>
 
 See also: L<this directive argument types and allowed
 location|/mod_perl_Directives_Argument_Types_and_Allowed_Location>.
@@ -725,7 +802,7 @@ the following environment variables are accessible via C<%ENV>:
 
 =item *
 
-C<MOD_PERL> (always)
+C<MOD_PERL> and C<MOD_PERL_API_VERSION> (always)
 
 =item *
 
@@ -1404,7 +1481,7 @@ the previous example:
 
 If you need to access any of the startup defines in the Perl code you
 use
-C<L<Apache2::ServerUtil::exists_config_define()|docs::2.0::Apache2::ServerUtil/C_exists_config_define_>>. For
+C<L<Apache2::ServerUtil::exists_config_define()|docs::2.0::api::Apache2::ServerUtil/C_exists_config_define_>>. For
 example in a startup file you can say:
 
   use Apache2::ServerUtil ();

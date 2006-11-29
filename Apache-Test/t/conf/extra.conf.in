@@ -36,5 +36,11 @@
     AllowOverride None
     Options +ExecCGI
   </Directory>
+
+  # t/next_available_port.t
+  <IfModule mod_env.c>
+    SetEnv NextAvailablePort @NextAvailablePort@
+  </IfModule>
+
 </IfModule>
 

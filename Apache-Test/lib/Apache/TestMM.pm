@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -53,7 +53,12 @@ sub clean {
 sub test {
     my $self = shift;
     my $env = Apache::TestConfig->passenv_makestr();
-    my $tests = 'TEST_FILES = ' . (exists $self->{'test'} ? $self->{'test'}->{'TESTS'} : '') . "\n";
+
+    my $tests = "TEST_FILES =\n";
+
+    if (ref $self && exists $self->{'test'}) {
+        $tests = 'TEST_FILES = ' . $self->{'test'}->{'TESTS'} . "\n";
+    }
 
     my $preamble = Apache::TestConfig::WIN32 ? "" : <<EOF;
 PASSENV = $env
@@ -64,14 +69,14 @@ EOF
     if (eval { require Devel::Cover }) {
         my $atdir = File::Spec->catfile($ENV{HOME}, '.apache-test');
 
-        $cover = <<"EOF"
+        my $cover_exec = Apache::TestConfig::which("cover");
 
-testcover :
-	-\@cover -delete
-	-HARNESS_PERL_SWITCHES=-MDevel::Cover=+inc,$atdir \\
-	APACHE_TEST_EXTRA_ARGS=-one-process \$(MAKE) test
-	-\@cover
-EOF
+        my @cover = ("", "testcover :", );
+        push @cover, "\t-\@$cover_exec -delete" if $cover_exec;
+        push @cover, "\t-HARNESS_PERL_SWITCHES=-MDevel::Cover=+inc,$atdir \\",
+            "\tAPACHE_TEST_EXTRA_ARGS=-one-process \$(MAKE) test";
+        push @cover, "\t-\@$cover_exec" if $cover_exec;
+        $cover = join "\n", @cover, "";
     }
     else {
 
@@ -79,6 +84,7 @@ EOF
 
 testcover :
 	@echo "Cannot run testcover action unless Devel::Cover is installed"
+	@echo "Don't forget to rebuild your Makefile after installing Devel::Cover"
 EOF
     }
 

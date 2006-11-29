@@ -1371,6 +1371,10 @@ $ModPerl::FunctionTable = [
         'name' => 'path'
       },
       {
+        'type' => 'int',
+        'name' => 'override_options'
+      },
+      {
         'type' => 'ap_conf_vector_t *',
         'name' => 'conf'
       },
@@ -1417,6 +1421,14 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'int',
         'name' => 'override'
+      },
+      {
+        'type' => 'char *',
+        'name' => 'path'
+      },
+      {
+        'type' => 'int',
+        'name' => 'override_options'
       }
     ]
   },
@@ -1477,6 +1489,16 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'request_rec *',
         'name' => 'r'
+      }
+    ]
+  },
+  {
+    'return_type' => 'modperl_config_con_t *',
+    'name' => 'modperl_config_con_new',
+    'args' => [
+      {
+        'type' => 'conn_rec *',
+        'name' => 'c'
       }
     ]
   },
@@ -4401,6 +4423,32 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'SV *',
+    'name' => 'modperl_pnotes',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'HV **',
+        'name' => 'pnotes'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'key'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'val'
+      },
+      {
+        'type' => 'request_rec *',
+        'name' => 'r'
+      }
+    ]    
+  },
+  {
     'return_type' => 'int',
     'name' => 'modperl_post_config_handler',
     'args' => [
@@ -6105,6 +6153,20 @@ $ModPerl::FunctionTable = [
     ]
   },
   {
+    'return_type' => 'int',
+    'name' => 'mpxs_Apache2__CmdParms_override_opts',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'cmd_parms *',
+        'name' => 'parms'
+      }
+    ]
+  },
+  {
     'return_type' => 'void',
     'name' => 'mpxs_Apache2__Connection_add_input_filter',
     'args' => [
@@ -6177,6 +6239,28 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'ap_conf_vector_t *',
         'name' => 'dir_config'
+      }
+    ]
+  },
+  {
+    'return_type' => 'SV *',
+    'name' => 'mpxs_Apache2__Connection_pnotes',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+      {
+        'type' => 'conn_rec *',
+        'name' => 'c'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'key'
+      },
+      {
+        'type' => 'SV *',
+        'name' => 'val'
       }
     ]
   },
@@ -6636,6 +6720,14 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'int',
         'name' => 'override'
+      },
+      {
+        'type' => 'char *',
+        'name' => 'path'
+      },
+      {
+        'type' => 'int',
+        'name' => 'override_options'
       }
     ]
   },
@@ -6672,6 +6764,20 @@ $ModPerl::FunctionTable = [
       {
         'type' => 'SV *',
         'name' => 'callback'
+      }
+    ]
+  },
+  {
+    'return_type' => 'int',
+    'name' => 'mpxs_Apache2__RequestRec_allow_override_opts',
+    'args' => [
+      {
+        'type' => 'PerlInterpreter *',
+        'name' => 'my_perl'
+      },
+     {
+        'type' => 'request_rec *',
+        'name' => 'r'
       }
     ]
   },

@@ -290,7 +290,7 @@ EOI
         exit(1);
     }
 
-    printf "Configuring Apache/%s mod_perl2/%s Perl/v%vd\n",
+    printf "Configuring Apache/%s mod_perl/%s Perl/v%vd\n",
         $httpd_version, $VERSION, $^V;
 
     my $apr_config = $build->get_apr_config; #cache it
@@ -480,8 +480,8 @@ sub set_modperl_version {
 
     open my $fh, 'Changes';
     while (<$fh>) {
-        if (/^=item.*-dev/) {
-            $VERSION .= '-dev';
+        if (/^=item.*-(dev|rc\d+)/) {
+            $VERSION .= "-$1";
             last;
         }
         last if /^=item/;
@@ -816,6 +816,7 @@ Apache-Test/META.yml:
 
 tag :
 	svn copy  https://svn.apache.org/repos/asf/perl/modperl/trunk  https://svn.apache.org/repos/asf/perl/modperl/tags/$(VERSION_SYM)
+	svn copy  https://svn.apache.org/repos/asf/perl/modperl/docs/trunk https://svn.apache.org/repos/asf/perl/modperl/docs/tags/$(VERSION_SYM)
 	@$(ECHO) update mod_perl2.pm VERSION now
 EOF
 

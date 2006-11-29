@@ -18,6 +18,7 @@ use constant WIN32 => Apache::TestConfig::WIN32;
 use constant OSX   => Apache::TestConfig::OSX;
 
 use constant APACHE_2_0_49_PLUS => have_min_apache_version('2.0.49');
+use constant APACHE_2_2_PLUS    => have_min_apache_version('2.2.0');
 
 use APR::Const -compile => qw(SUCCESS FINFO_NORM FILETYPE_REG
                               FPROT_WREAD FPROT_WWRITE
@@ -29,23 +30,11 @@ sub num_of_tests {
 
 sub test {
 
-    my $file = __FILE__;
-
-    # On Win32, touch the file to ensure it is in the same Daylight Saving
-    # Time season as the current time to workaround a bug in Win32's stat()
-    # which APR::Finfo allows for, otherwise the two disagree.
-    #
-    # With perl-5.8.0 on Win32, the syntax
-    #   utime undef, undef, $file;
-    # causes an uninitialized warning to be emitted,
-    # so use the equivalent
-    #   utime $now, $now, $file;
-    # instead.
-    #
-    if (WIN32) {
-        my $now = time;
-        utime $now, $now, $file;
-    }
+    # for the file to be tested, use the httpd.conf generated
+    # by testing, so that it has a ctime that won't (usually)
+    # encounter a bug in Win32's stat() function for files that
+    # span across DST season boundaries.
+    my $file = catfile Apache::Test::vars->{t_dir}, 'conf', 'httpd.conf';
 
     my $pool = APR::Pool->new();
     # populate the finfo struct first
@@ -145,14 +134,25 @@ sub compare_with_perl {
 
         # match world bits
 
-        ok t_cmp($finfo->protection & APR::Const::FPROT_WREAD,
-                 $stat->{protection} & S_IROTH,
-                 '$finfo->protection() & APR::Const::FPROT_WREAD');
-
-        ok t_cmp($finfo->protection & APR::Const::FPROT_WWRITE,
-                 $stat->{protection} & S_IWOTH,
-                 '$finfo->protection() & APR::Const::FPROT_WWRITE');
-
+        # on Win32, there's a bug in the apr library supplied
+        # with Apache/2.2 that causes the following two tests
+        # to fail. This is slated to be fixed after apr-1.2.7.
+        if (WIN32 and APACHE_2_2_PLUS) {
+            skip "broken apr stat on Win32", 0;
+        }
+        else {
+            ok t_cmp($finfo->protection & APR::Const::FPROT_WREAD,
+                     $stat->{protection} & S_IROTH,
+                     '$finfo->protection() & APR::Const::FPROT_WREAD');
+	}
+        if (WIN32 and APACHE_2_2_PLUS) {
+            skip "broken apr stat on Win32", 0;
+        }
+        else {
+            ok t_cmp($finfo->protection & APR::Const::FPROT_WWRITE,
+                     $stat->{protection} & S_IWOTH,
+                     '$finfo->protection() & APR::Const::FPROT_WWRITE');
+	}
         if (WIN32) {
             skip "different file semantics", 0;
         }

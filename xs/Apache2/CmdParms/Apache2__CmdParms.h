@@ -1,8 +1,9 @@
-/* Copyright 2003-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,4 +35,14 @@ void mpxs_Apache2__CmdParms_add_config(pTHX_ cmd_parms *parms, SV *lines)
     if (errmsg) {
         Perl_croak(aTHX_ "$parms->add_config() has failed: %s", errmsg);
     }
+}
+
+static MP_INLINE
+int mpxs_Apache2__CmdParms_override_opts(pTHX_ cmd_parms *parms)
+{
+#ifdef MP_HTTPD_HAS_OVERRIDE_OPTS
+    return parms->override_opts;
+#else
+    return MP_HTTPD_OVERRIDE_OPTS_DEFAULT;
+#endif
 }

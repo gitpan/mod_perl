@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -331,7 +331,7 @@ sub default_run_opts {
             $opts->{'run-tests'} = 1;
         }
         else {
-            #default is server-server run-tests stop-server
+            #default is start-server run-tests stop-server
             $opts->{$_} = 1 for @std_run;
         }
     }
@@ -535,9 +535,8 @@ sub try_exit_opts {
         }
         else {
             warning "server $self->{server}->{name} is not running";
-            # cleanup a stale httpd.pid file if found
-            my $t_logs  = $self->{test_config}->{vars}->{t_logs};
-            my $pid_file = catfile $t_logs, "httpd.pid";
+            # cleanup a stale pid file if found
+            my $pid_file  = $self->{test_config}->{vars}->{t_pid_file};
             unlink $pid_file if -e $pid_file;
         }
         exit_perl $ok;

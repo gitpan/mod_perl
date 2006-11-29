@@ -1,8 +1,9 @@
-/* Copyright 2000-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -71,7 +72,7 @@ const char *modperl_options_set(apr_pool_t *p, modperl_options_t *o,
         action = *(str++);
     }
 
-    if (!(opt = flags_lookup(o, str))) {
+    if ((opt = flags_lookup(o, str)) == -1) {
         error = apr_pstrcat(p, "Invalid per-", type_lookup(o),
                             " PerlOption: ", str, NULL);
 
@@ -79,7 +80,7 @@ const char *modperl_options_set(apr_pool_t *p, modperl_options_t *o,
             modperl_options_t dummy;
             MpOptionsTypeSrv_set(&dummy);
 
-            if (flags_lookup(&dummy, str)) {
+            if (flags_lookup(&dummy, str) == -1) {
                 error = apr_pstrcat(p, error,
                                     " (only allowed per-server)",
                                     NULL);

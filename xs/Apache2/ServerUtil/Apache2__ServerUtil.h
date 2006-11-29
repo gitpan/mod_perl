@@ -1,8 +1,9 @@
-/* Copyright 2001-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -12,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#if !defined(OS2) && !defined(WIN32) && !defined(BEOS)  && !defined(NETWARE)
+#include "unixd.h"
+#endif
 
 #define mpxs_Apache2__ServerUtil_restart_count modperl_restart_count
 
@@ -151,6 +156,14 @@ SV *mpxs_Apache2__ServerRec_get_handlers(pTHX_ server_rec *s,
 
 #define mpxs_Apache2__ServerUtil_server(classname) modperl_global_get_server_rec()
 
+#if !defined(OS2) && !defined(WIN32) && !defined(BEOS)  && !defined(NETWARE)
+#define mpxs_Apache2__ServerUtil_user_id(classname)  unixd_config.user_id
+#define mpxs_Apache2__ServerUtil_group_id(classname) unixd_config.group_id
+#else
+#define mpxs_Apache2__ServerUtil_user_id(classname)  0
+#define mpxs_Apache2__ServerUtil_group_id(classname) 0
+#endif
+
 static MP_INLINE
 int mpxs_Apache2__ServerRec_is_perl_option_enabled(pTHX_ server_rec *s,
                                                const char *name)
@@ -162,7 +175,11 @@ int mpxs_Apache2__ServerRec_is_perl_option_enabled(pTHX_ server_rec *s,
 static MP_INLINE
 void mpxs_Apache2__ServerRec_add_config(pTHX_ server_rec *s, SV *lines)
 {
-    const char *errmsg = modperl_config_insert_server(aTHX_ s, lines);
+    const char *errmsg;
+
+    MP_CROAK_IF_POST_POST_CONFIG_PHASE("$s->add_config");
+
+    errmsg = modperl_config_insert_server(aTHX_ s, lines);
     if (errmsg) {
         Perl_croak(aTHX_ "$s->add_config() has failed: %s", errmsg);
     }

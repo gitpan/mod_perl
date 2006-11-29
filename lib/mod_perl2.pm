@@ -1,8 +1,9 @@
-# Copyright 2000-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -16,10 +17,9 @@ package mod_perl2;
 
 use 5.006;
 use strict;
-use File::Spec::Functions;
 
 BEGIN {
-    our $VERSION = "2.000002";
+    our $VERSION = "2.000003";
     our $VERSION_TRIPLET;
 
     if ($VERSION =~ /(\d+)\.(\d\d\d)(\d+)/) {
@@ -49,7 +49,7 @@ BEGIN {
 # startup you are protected against loading mod_perl.pm
 # (either 1.0 or 1.99) at a later time by accident.
 $mod_perl::VERSION = $mod_perl2::VERSION;
-$INC{"mod_perl.pm"} = File::Spec::Functions::devnull(); 
+$INC{"mod_perl.pm"} = __FILE__;
 
 1;
 __END__

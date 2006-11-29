@@ -124,8 +124,8 @@ sub set_version {
     my $fh = Symbol::gensym();
     open $fh, 'Changes' or die "Can't open Changes: $!";
     while (<$fh>) {
-        if(/^=item.*-dev/) {
-            $VERSION .= '-dev';
+        if(/^=item.*-(dev|rc\d+)/) {
+            $VERSION .= "-$1";
             last;
         }
         last if /^=item/;
@@ -139,7 +139,7 @@ sub sanity_check {
     # it then decides that it's a part of the modperl-2.0 build and
     # will try to use modperl httpd/apxs arguments which could be
     # unset or wrong
-    if (TOP_LEVEL && -e "../lib/mod_perl.pm") {
+    if (TOP_LEVEL && -e "../lib/mod_perl2.pm") {
         error "Do not run 'perl Makefile.PL' when Apache-Test is a " .
             "subdirectory of modperl-2.0. Copy it elsewhere and run " .
             "from there.";

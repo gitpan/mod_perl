@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -23,7 +23,7 @@ use constant OSX     => $^O eq 'darwin';
 use constant CYGWIN  => $^O eq 'cygwin';
 use constant NETWARE => $^O eq 'NetWare';
 use constant SOLARIS => $^O eq 'solaris';
-use constant WINFU   => WIN32 || CYGWIN || NETWARE;
+use constant WINFU   => WIN32 || NETWARE;
 use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 
 use constant DEFAULT_PORT => 8529;
@@ -75,6 +75,7 @@ my %vars_to_env = (
    t_dir           => 'the t/ test directory (default is $top_dir/t)',
    t_conf          => 'the conf/ test directory (default is $t_dir/conf)',
    t_logs          => 'the logs/ test directory (default is $t_dir/logs)',
+   t_pid_file      => 'location of the pid file (default is $t_logs/httpd.pid)',
    t_conf_file     => 'test httpd.conf file (default is $t_conf/httpd.conf)',
    src_dir         => 'source directory to look for mod_foos.so',
    serverroot      => 'ServerRoot (default is $t_dir)',
@@ -103,7 +104,7 @@ my %vars_to_env = (
 );
 
 my %filepath_conf_opts = map { $_ => 1 }
-    qw(top_dir t_dir t_conf t_logs t_conf_file src_dir serverroot
+    qw(top_dir t_dir t_conf t_logs t_pid_file t_conf_file src_dir serverroot
        documentroot bindir sbindir httpd apxs httpd_conf httpd_conf_extra
        perlpod sslca libmodperl);
 
@@ -308,6 +309,7 @@ sub new {
     $vars->{sslcaorg}     ||= 'asf';
     $vars->{t_logs}       ||= catfile $vars->{serverroot}, 'logs';
     $vars->{t_conf_file}  ||= catfile $vars->{t_conf},   'httpd.conf';
+    $vars->{t_pid_file}   ||= catfile $vars->{t_logs},   'httpd.pid';
 
     if (WINFU) {
         for (keys %$vars) {
@@ -714,6 +716,15 @@ sub default_httpd {
             for my $bindir (qw(bin sbin)) {
                 my $httpd = catfile $p, $bindir, $vars->{target};
                 return $httpd if -e $httpd;
+                # The executable on Win32 in Apache/2.2 is httpd.exe,
+                # so try that if Apache.exe doesn't exist
+                if (WIN32) {
+                    $httpd = catfile $p, $bindir, 'httpd.EXE';
+                    if (-e $httpd) {
+                        $vars->{target} = 'httpd.EXE';
+                        return $httpd;
+                    }
+                }
             }
         }
     }
@@ -886,9 +897,11 @@ sub warn_style_sub_ref {
 sub genwarning {
     my($self, $filename, $from_filename) = @_;
     return unless $filename;
+    my $time = scalar localtime;
     my $warning = "WARNING: this file is generated";
     $warning .= " (from $from_filename)" if defined $from_filename;
     $warning .= ", do not edit\n";
+    $warning .= "generated on $time\n";
     $warning .= calls_trace();
     return $self->warn_style_sub_ref($filename)->($warning);
 }
@@ -1024,8 +1037,8 @@ sub write_perlscript {
 
     my $fh = $self->genfile($file, undef, 1);
 
-    # shebang
-    print $fh "#!$Config{perlpath}\n";
+    my $shebang = make_shebang();
+    print $fh $shebang;
 
     $self->genfile_warning($file, undef, $fh);
 
@@ -1033,6 +1046,23 @@ sub write_perlscript {
 
     close $fh;
     chmod 0755, $file;
+}
+
+sub make_shebang {
+    # if perlpath is longer than 62 chars, some shells on certain
+    # platforms won't be able to run the shebang line, so when seeing
+    # a long perlpath use the eval workaround.
+    # see: http://en.wikipedia.org/wiki/Shebang
+    # http://homepages.cwi.nl/~aeb/std/shebang/
+    my $shebang = length $Config{perlpath} < 62
+        ? "#!$Config{perlpath}\n"
+        : <<EOI;
+$Config{'startperl'}
+    eval 'exec $Config{perlpath} -S \$0 \${1+"\$@"}'
+        if \$running_under_some_shell;
+EOI
+
+    return $shebang;
 }
 
 sub cpfile {
@@ -1111,6 +1141,10 @@ sub clean {
     }
 }
 
+my %special_tokens = (
+    nextavailableport => sub { shift->server->select_next_port }
+);
+
 sub replace {
     my $self = shift;
     my $file = $Apache::TestConfig::File
@@ -1118,9 +1152,15 @@ sub replace {
 
     s[@(\w+)@]
      [ my $key = lc $1;
-      exists $self->{vars}->{$key}
-      ? $self->{vars}->{$key}
-      : die "invalid token: \@$1\@ $file\n";
+       if (my $callback = $special_tokens{$key}) {
+           $self->$callback;
+       }
+       elsif (exists $self->{vars}->{$key}) {
+           $self->{vars}->{$key};
+       }
+       else {
+           die "invalid token: \@$1\@ $file\n";
+       }
      ]ge;
 }
 
@@ -1549,7 +1589,7 @@ sub generate_httpd_conf {
 
     $self->preamble_run($out);
 
-    for my $name (qw(user group)) { #win32/cygwin do not support
+    for my $name (qw(user group)) { #win32
         if ($vars->{$name}) {
             print $out qq[\u$name    "$vars->{$name}"\n];
         }
@@ -1625,6 +1665,17 @@ sub need_reconfiguration {
         if (my @env_vars = grep { $ENV{$_} } keys %$passenv) {
             push @reasons, "environment variables (@env_vars) are set";
         }
+    }
+
+    # if the generated config was created with a version of Apache-Test
+    # less than the current version
+    {
+      my $current = Apache::Test->VERSION;
+      my $config  = $self->{apache_test_version};
+
+      if (! $config || $config < $current) {
+          push @reasons, "configuration generated with old Apache-Test";
+      }
     }
 
     return @reasons;
@@ -1713,14 +1764,15 @@ sub apxs {
     $self->{_apxs}{$q};
 }
 
-# Temporarily untaint PATH
+# return an untainted PATH
 sub untaint_path {
     my $path = shift;
     ($path) = ( $path =~ /(.*)/ );
     # win32 uses ';' for a path separator, assume others use ':'
     my $sep = WIN32 ? ';' : ':';
     # -T disallows relative and empty directories in the PATH
-    return join $sep, grep !/^(\.|$)/, split /$sep/, $path;
+    return join $sep, grep File::Spec->file_name_is_absolute($_),
+        grep length($_), split /$sep/, $path;
 }
 
 sub pop_dir {
@@ -1747,12 +1799,15 @@ sub add_inc {
     my $apache_test_dir = catdir $top_dir, "Apache-Test";
     unshift @dirs, $apache_test_dir if -d $apache_test_dir;
 
+    lib::->import(@dirs);
+
     if ($ENV{APACHE_TEST_LIVE_DEV}) {
+        # add lib/ in a separate call to ensure that it'll end up on
+        # top of @INC
         my $lib_dir = catdir $top_dir, "lib";
-        push @dirs, $lib_dir if -d $lib_dir;
+        lib::->import($lib_dir) if -d $lib_dir;
     }
 
-    lib::->import(@dirs);
     #print join "\n", "add_inc", @INC, "";
 }
 
@@ -1803,6 +1858,9 @@ sub save {
     my($self) = @_;
 
     return unless $self->{save};
+
+    # add in the Apache-Test version for later comparisions
+    $self->{apache_test_version} = Apache::Test->VERSION;
 
     my $name = 'apache_test_config';
     my $file = catfile $self->{vars}->{t_conf}, "$name.pm";
@@ -2534,7 +2592,42 @@ a tty. But sometimes there is a program that can answer the prompts
 interactive config won't be skipped (if needed).
 
 
+=head1 Special Placeholders
 
+When generating configuration files from the I<*.in> templates,
+special placeholder variables get substituted. To embed a placeholder
+use the C<@foo@> syntax. For example in I<extra.conf.in> you can
+write:
+
+  Include @ServerRoot@/conf/myconfig.conf
+
+When I<extra.conf> is generated, C<@ServerRoot@> will get replaced
+with the location of the server root.
+
+Placeholders are case-insensitive.
+
+Available placeholders:
+
+=head2 Configuration Options
+
+All configuration variables that can be passed to C<t/TEST>, such as
+C<MaxClients>, C<DocumentRoot>, C<ServerRoot>, etc. To see the
+complete list run:
+
+  % t/TEST --help
+
+and you will find them in the C<configuration options> sections.
+
+=head2 NextAvailablePort
+
+Every time this placeholder is encountered it'll be replaced with the
+next available port. This is very useful if you need to allocate a
+special port, but not hardcode it. Later when running:
+
+  % t/TEST -port=select
+
+it's possible to run several concurrent test suites on the same
+machine, w/o having port collisions.
 
 =head1 AUTHOR
 
@@ -2551,7 +2644,7 @@ Listen     0.0.0.0:@Port@
 ServerRoot   "@ServerRoot@"
 DocumentRoot "@DocumentRoot@"
 
-PidFile     @t_logs@/httpd.pid
+PidFile     @t_pid_file@
 ErrorLog    @t_logs@/error_log
 LogLevel    debug
 

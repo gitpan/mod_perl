@@ -1,8 +1,9 @@
-/* Copyright 2001-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -80,7 +81,8 @@ static MP_INLINE void mpxs_insert_auth_cfg(pTHX_ request_rec *r,
     errmsg =
         modperl_config_insert_request(aTHX_ r,
                                       newRV_noinc((SV*)config),
-                                      OR_AUTHCFG);
+                                      OR_AUTHCFG, NULL, 
+                                      MP_HTTPD_OVERRIDE_OPTS_UNSET);
 
     if (errmsg) {
         Perl_warn(aTHX_ "Can't change %s to '%s'\n", directive, val);
@@ -139,4 +141,16 @@ MP_STATIC XS(MPXS_ap_get_basic_auth_pw)
             PUSHs(&PL_sv_undef);
         }
     });
+}
+
+static MP_INLINE
+int mpxs_Apache2__RequestRec_allow_override_opts(pTHX_ request_rec *r)
+{
+#ifdef MP_HTTPD_HAS_OVERRIDE_OPTS
+    core_dir_config *cfg = ap_get_module_config(r->per_dir_config, 
+                                                &core_module);
+    return cfg->override_opts;
+#else
+    return MP_HTTPD_OVERRIDE_OPTS_DEFAULT;
+#endif
 }

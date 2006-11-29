@@ -1,8 +1,9 @@
-/* Copyright 2001-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -15,8 +16,13 @@
 
 #include "mod_perl.h"
 
-#define EnvMgObj SvMAGIC((SV*)ENVHV)->mg_ptr
-#define EnvMgLen SvMAGIC((SV*)ENVHV)->mg_len
+#define EnvMgOK  ((SV*)ENVHV && SvMAGIC((SV*)ENVHV))
+#define EnvMgObj (EnvMgOK ? SvMAGIC((SV*)ENVHV)->mg_ptr : NULL)
+#define EnvMgLen (EnvMgOK ? SvMAGIC((SV*)ENVHV)->mg_len : 0)
+#define EnvMgObjSet(val){ \
+    if (EnvMgOK) SvMAGIC((SV*)ENVHV)->mg_ptr = (char *)val;}
+#define EnvMgLenSet(val) {\
+    if (EnvMgOK) SvMAGIC((SV*)ENVHV)->mg_len = val;}
 
 /* XXX: move to utils? */
 static unsigned long modperl_interp_address(pTHX)
@@ -401,8 +407,8 @@ void modperl_env_request_unpopulate(pTHX_ request_rec *r)
 
 void modperl_env_request_tie(pTHX_ request_rec *r)
 {
-    EnvMgObj = (char *)r;
-    EnvMgLen = -1;
+    EnvMgObjSet(r);
+    EnvMgLenSet(-1);
 
 #ifdef MP_PERL_HV_GMAGICAL_AWARE
     MP_TRACE_e(MP_FUNC, "[%s/0x%lx] tie %%ENV, $r\n\t (%s%s)",
@@ -414,7 +420,7 @@ void modperl_env_request_tie(pTHX_ request_rec *r)
 
 void modperl_env_request_untie(pTHX_ request_rec *r)
 {
-    EnvMgObj = NULL;
+    EnvMgObjSet(NULL);
 
 #ifdef MP_PERL_HV_GMAGICAL_AWARE
     MP_TRACE_e(MP_FUNC, "[%s/0x%lx] untie %%ENV; # from r\n\t (%s%s)",

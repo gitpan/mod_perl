@@ -1,8 +1,9 @@
-/* Copyright 2000-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -145,6 +146,16 @@ modperl_config_req_t *modperl_config_req_new(request_rec *r)
     MP_TRACE_d(MP_FUNC, "0x%lx\n", (unsigned long)rcfg);
 
     return rcfg;
+}
+
+modperl_config_con_t *modperl_config_con_new(conn_rec *c)
+{
+    modperl_config_con_t *ccfg = 
+        (modperl_config_con_t *)apr_pcalloc(c->pool, sizeof(*ccfg));
+
+    MP_TRACE_d(MP_FUNC, "0x%lx\n", (unsigned long)ccfg);
+
+    return ccfg;
 }
 
 modperl_config_srv_t *modperl_config_srv_new(apr_pool_t *p, server_rec *s)
@@ -302,9 +313,7 @@ void *modperl_config_srv_merge(apr_pool_t *p, void *basev, void *addv)
     merge_item(perl);
 #endif
 
-    if (add->argv->nelts == 2 &&
-        strEQ(((char **)add->argv->elts)[1], "+inherit"))
-    {
+    if (MpSrvINHERIT_SWITCHES(add)) {
         /* only inherit base PerlSwitches if explicitly told to */
         mrg->argv = base->argv;
     }
@@ -500,6 +509,7 @@ const char *modperl_config_insert(pTHX_ server_rec *s,
                                   apr_pool_t *ptmp,
                                   int override,
                                   char *path,
+                                  int override_options,
                                   ap_conf_vector_t *conf,
                                   SV *lines)
 {
@@ -515,6 +525,14 @@ const char *modperl_config_insert(pTHX_ server_rec *s,
     parms.override = override;
     parms.path = path;
     parms.pool = p;
+#ifdef MP_HTTPD_HAS_OVERRIDE_OPTS
+    if (override_options == MP_HTTPD_OVERRIDE_OPTS_UNSET) {
+        parms.override_opts = MP_HTTPD_OVERRIDE_OPTS_DEFAULT;
+    }
+    else {
+        parms.override_opts = override_options;
+    }
+#endif
 
     if (ptmp) {
         parms.temp_pool = ptmp;
@@ -561,6 +579,11 @@ const char *modperl_config_insert_parms(pTHX_ cmd_parms *parms,
                                  parms->temp_pool,
                                  parms->override, 
                                  parms->path,
+#ifdef MP_HTTPD_HAS_OVERRIDE_OPTS
+                                 parms->override_opts,
+#else
+                                 MP_HTTPD_OVERRIDE_OPTS_UNSET,
+#endif
                                  parms->context,
                                  lines);
 }
@@ -572,22 +595,28 @@ const char *modperl_config_insert_server(pTHX_ server_rec *s, SV *lines)
     apr_pool_t *p = s->process->pconf;
 
     return modperl_config_insert(aTHX_ s, p, NULL, override, NULL,
+                                 MP_HTTPD_OVERRIDE_OPTS_UNSET,
                                  s->lookup_defaults, lines);
 }
 
 const char *modperl_config_insert_request(pTHX_
                                           request_rec *r,
                                           SV *lines,
-                                          int override)
+                                          int override,
+                                          char *path,
+                                          int override_options)
 {
     const char *errmsg;
     ap_conf_vector_t *dconf = ap_create_per_dir_config(r->pool);
 
-    /* The path argument of "/" is only required to be non-NULL
-       and "/" is as good a default as anything else */
+    if (!path) {
+        /* pass a non-NULL path if nothing else given and for compatibility */
+        path = "/";
+    }
+
     errmsg = modperl_config_insert(aTHX_
                                    r->server, r->pool, r->pool,
-                                   override, "/",
+                                   override, path, override_options,
                                    dconf, lines);
 
     if (errmsg) {
@@ -610,7 +639,6 @@ int modperl_config_is_perl_option_enabled(pTHX_ request_rec *r,
                                           server_rec *s, const char *name)
 {
     U32 flag;
-    MP_dSCFG(s);
 
     /* XXX: should we test whether perl is disabled for this server? */
     /*  if (!MpSrvENABLE(scfg)) { */
@@ -618,7 +646,7 @@ int modperl_config_is_perl_option_enabled(pTHX_ request_rec *r,
     /*  }                         */
 
     if (r) {
-        if ((flag = modperl_flags_lookup_dir(name))) {
+        if ((flag = modperl_flags_lookup_dir(name)) != -1) {
             MP_dDCFG;
             return MpDirFLAGS(dcfg) & flag ? 1 : 0;
         }
@@ -627,7 +655,8 @@ int modperl_config_is_perl_option_enabled(pTHX_ request_rec *r,
         }
     }
     else {
-        if ((flag = modperl_flags_lookup_srv(name))) {
+        if ((flag = modperl_flags_lookup_srv(name)) != -1) {
+            MP_dSCFG(s);
             return MpSrvFLAGS(scfg) & flag ? 1 : 0;
         }
         else {

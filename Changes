@@ -10,6 +10,103 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
+=item 2.0.3 November 28, 2006
+
+Prevent things in %INC that are not stat() able
+from breaking Apache2::Status 'Loaded Modules'
+under fatal warnings.
+[Philip M. Gollucci <pgollucci@p6m7g8.com>]
+
+When using MP_AP_PREFIX on WIN32 make sure that its
+a valid directory.
+[Nikolay Ananiev <ananiev@thegdb.com>]
+
+Fix bug concerning 'error-notes' having no value on 
+errordocument redirect.
+[Guy Albertelli II <guy@albertelli.com>]
+
+Multi-line $PerlConfig is now working [Gozer]
+
+PerlOptions None was previously incorrectly reported as invalid
+inside <VirtualHost> or <Directory> blocks.
+[Philip M. Gollucci]
+
+Require B::Size 0.07 and B::TerseSize 0.07 for Apache2::Status
+[Philip M. Gollucci]
+
+Apache2::Status was expecting B::TerseSize to return
+an op count for things that it didn't causing
+requests like http://localhost/perl-status/main?noh_b_package_size
+to cause 405s
+[Philip M. Gollucci]
+
+Updates for Win32 to allow building and testing on Apache/2.2:
+- use httpd.exe as the Apache binary name when installing apxs
+- use new apr library names (libapr-1.lib and libaprutil-1.lib)
+[Randy Kobes]
+
+Make sure that additional library paths are included in the build flags
+so that mod_perl will use the same versions of libraries that APR does.
+[Mike Smith <mike@mailchannels.com>]
+
+Added $r->connection->pnotes, identical to $r->pnotes, but
+for the entire lifetime of the connection
+[Geoffrey Young, Gozer]
+
+Fixed problems with add_config() and thread-safety: [Gozer]
+- $s->add_config is not allowed anymore after server startup
+- $r->add_config can only affect configuration for the current
+  request, just like .htaccess files do
+
+Make sure that LIBS and other MakeMaker command line flags are not
+ignored by the top level Makefile.PL and xs/APR/APR/Makefile.PL [Stas]
+
+Corrected a typo that would cause the corruption of $), the
+effective group id as Perl sees it [Gozer]
+
+Added support for httpd-2.2's new override_opts in Apache2::Access.
+Calls to add_config() now accept an override_opts value as the 4th
+argument. [Torsten Foertsch <torsten.foertsch@gmx.net>, Gozer]
+
+Fix 'PerlSwitches +inherit' that got broken somewhere along
+the way to 2.0. You can also use 'PerlOptions +InheritSwitches'
+for the same result. [Gozer]
+
+Add perl API corresponding to User and Group directives in httpd.conf: 
+Apache2::ServerUtil->user_id and Apache2::ServerUtil->group_id
+[Stas]
+
+Apache2::Reload now first unloads all modified modules before
+trying to reload them. This way, inter-module dependencies
+are more likely to be correctly satisfied when reloaded
+[Javier Uruen Val <juruen@warp.es>, Gozer]
+
+$r->add_config() can now take an optionnal 3rd argument that
+specifies what pseudo <Location $path> the configuration is
+evaluated into [Torsten Foertsch <torsten.foertsch@gmx.net>]
+
+remove -DAP_HAVE_DESIGNATED_INITIALIZER and -DAP_DEBUG from
+MP_MAINTAINER mode to avoid collisions [Joe Orton]
+
+Back out r280262 which was causing Apache2::Reload to misbehave.
+[JT Smith <jt@plainblack.com>]
+
+Perl_do_open/close fixes to make mod_perl 2.0 compile with
+blead-perl@25889+ (5.9.3+) [Stas]
+
+Added Apache2::PerlSections->server, returning the server
+into which the <Perl> section is defined [Gozer]
+
+Require B::Size and B::TerseSize v0.06 for Apache2::Status
+options StatusTerse and StatusTerseSize which has now been 
+updated to support the new mod_perl2 api post RC5.
+[Philip M. Gollucci]
+
+When using Apache2::PerlSections->dump, the configuration 
+would print out in the correct order, but when the configuration was 
+passed off to Apache the ordering was lost.
+[Scott Wessels <swessels@usgn.net>]
+
 =item 2.0.2 - October 20, 2005
 
 add :proxy import tag to Apache2::Const which exposes new

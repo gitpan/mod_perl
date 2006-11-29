@@ -1,8 +1,9 @@
-/* Copyright 2001-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -72,20 +73,21 @@ static void modperl_perl_ids_get(modperl_perl_ids_t *ids)
     ids->uid  = getuid();
     ids->euid = geteuid(); 
     ids->gid  = getgid(); 
-    ids->gid  = getegid(); 
+    ids->egid  = getegid(); 
 
     MP_TRACE_r(MP_FUNC, 
                "pid=%d, "
 #ifdef MP_MAINTAIN_PPID
                "ppid=%d, "
 #endif
-               "uid=%d, euid=%d, gid=%d, egid=%d\n",
+               "uid=%" Uid_t_f ", euid=%" Uid_t_f ", "
+               "gid=%" Gid_t_f ", egid=%" Gid_t_f "\n",
                (int)ids->pid,
 #ifdef MP_MAINTAIN_PPID
                (int)ids->ppid,
 #endif
-               (int)ids->uid, (int)ids->euid,
-               (int)ids->gid, (int)ids->egid);
+               ids->uid, ids->euid,
+               ids->gid, ids->egid);
 #endif /* #ifndef WIN32 */
 }
 

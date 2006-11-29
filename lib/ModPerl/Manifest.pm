@@ -1,8 +1,9 @@
-# Copyright 2002-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -39,26 +40,16 @@ sub get_svn_files {
     my @files;
 
     my $cwd = Cwd::cwd();
-
-    finddepth({ follow => 1, wanted => sub {
-        return unless $_ eq 'entries';
-        return unless $File::Find::dir =~ /\.svn$/;
-
-        my $dir = dirname $File::Find::dir;
-        $dir =~ s,^$cwd/?,,;
-
-        open my $fh, $_ or die "open $_: $!";
-        while (my $line = <$fh>) {
-             if ($line =~ /name\s*=\s*"([^"]*)"/) {
-                my $file = $1;
-                next if $file eq 'svn:this_dir';
-                next if !$file or -d "../$file" or $file =~ /^\./;
-                push @files, $dir ? "$dir/$file" : $file;
-             }
+    my @lines = `svn status -v`	;
+    foreach my $line (@lines) {
+        chomp $line;
+        if ($line =~ /(?:\d+)\s+(?:\d+)\s+(?:\w+)\s+(.*)\s*/) {
+            my $file = $1;
+            if (-e $file && ! -d $file) {
+                push @files, $1 if -e $1;
+            }
         }
-        close $fh;
-
-    }}, $cwd);
+    }
 
     # files to add which aren't under svn
     push @files, qw(lib/ModPerl/DummyVersions.pm);

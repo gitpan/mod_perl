@@ -1,8 +1,9 @@
-/* Copyright 2000-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -828,3 +829,77 @@ int modperl_restart_count(void)
                           modperl_global_get_server_rec()->process->pool);
     return data ? *(int *)data : 0;
  }
+
+#ifdef USE_ITHREADS
+typedef struct {
+    HV **pnotes;
+    PerlInterpreter *perl;
+} modperl_cleanup_pnotes_data_t;
+#endif
+ 
+static MP_INLINE
+apr_status_t modperl_cleanup_pnotes(void *data) {
+    HV **pnotes = data;
+
+    if (*pnotes) {
+#ifdef USE_ITHREADS
+        modperl_cleanup_pnotes_data_t *cleanup_data = data;
+        dTHXa(cleanup_data->perl);
+        pnotes = cleanup_data->pnotes;
+#else
+        pnotes = data;
+#endif
+        SvREFCNT_dec(*pnotes);
+        *pnotes = Nullhv;
+    }
+
+    return APR_SUCCESS;   
+}
+
+SV *modperl_pnotes(pTHX_ HV **pnotes, SV *key, SV *val, 
+                   request_rec *r, conn_rec *c) {
+    SV *retval = Nullsv;
+
+    if (!*pnotes) {
+        *pnotes = newHV();
+
+        /* XXX: It would be nice to be able to do this with r->pnotes, but
+         * it's currently impossible, as modperl_config.c:modperl_config_request_cleanup()
+         * is responsible for running the CleanupHandlers, and it's cleanup callback is
+         * registered very early. If we register our cleanup here, we'll be running 
+         * *before* the CleanupHandlers, and they might still want to use pnotes...
+         */
+        if (c && !r) {
+            apr_pool_t *pool = r ? r->pool : c->pool;
+#ifdef USE_ITHREADS
+            modperl_cleanup_pnotes_data_t *cleanup_data = 
+                apr_palloc(pool, sizeof(*cleanup_data));
+            cleanup_data->pnotes = pnotes;
+            cleanup_data->perl = aTHX;
+#else
+            void *cleanup_data = pnotes;
+#endif
+            apr_pool_cleanup_register(pool, cleanup_data,
+                                      modperl_cleanup_pnotes,
+                                      apr_pool_cleanup_null);
+        }
+    }
+
+    if (key) {
+        STRLEN len;
+        char *k = SvPV(key, len);
+
+        if (val) {
+            retval = *hv_store(*pnotes, k, len, SvREFCNT_inc(val), 0);
+        }
+        else if (hv_exists(*pnotes, k, len)) {
+            retval = *hv_fetch(*pnotes, k, len, FALSE);
+        }
+    }
+    else {
+        retval = newRV_inc((SV *)*pnotes);
+    }
+
+    return retval ? SvREFCNT_inc(retval) : &PL_sv_undef;
+}
+ 

@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -145,16 +145,34 @@ EOF
     close $fh or die "close $t: $!";
 }
 
-# propogate trace overrides to the server
-sub configure_trace {
+# propogate PerlPassEnv settings to the server
+sub configure_env {
     my $self = shift;
-    $self->postamble(IfModule => 'mod_perl.c',
-                     "PerlPassEnv APACHE_TEST_TRACE_LEVEL\n");
+    $self->preamble(IfModule => 'mod_perl.c', 
+                    [ qw(PerlPassEnv APACHE_TEST_TRACE_LEVEL
+                         PerlPassEnv HARNESS_PERL_SWITCHES)
+                    ]);
 }
 
 sub startup_pl_code {
     my $self = shift;
     my $serverroot = $self->{vars}->{serverroot};
+
+    my $cover = <<'EOF';
+    if (($ENV{HARNESS_PERL_SWITCHES}||'') =~ m/Devel::Cover/) {
+        eval {
+            # 0.48 is the first version of Devel::Cover that can
+            # really generate mod_perl coverage statistics
+            require Devel::Cover;
+            Devel::Cover->VERSION(0.48);
+
+            # this ignores coverage data for some generated files
+            Devel::Cover->import('+inc' => 't/response/',);
+
+            1;
+        } or die "Devel::Cover error: $@";
+    }
+EOF
 
     return <<"EOF";
 BEGIN {
@@ -163,6 +181,8 @@ BEGIN {
         eval { require "conf/\$file" } or
             die if grep { -e "\$_/conf/\$file" } \@INC;
     }
+
+$cover
 }
 
 1;
@@ -537,13 +557,17 @@ sub configure_pm_tests {
                 my @handler_cfg = ($handler => $module);
 
                 if ($outside_container{$handler}) {
-                    $self->postamble(@handler_cfg);
+                    my $cfg = $self->massage_config_args(@handler_cfg);
+                    $self->postamble(IfModule => 'mod_perl.c', $cfg);
                 } else {
                     push @args, @handler_cfg;
                 }
             }
 
-            $self->postamble($self->$container($module), \@args) if @args;
+            if (@args) {
+              my $cfg = $self->massage_config_args($self->$container($module), \@args);
+              $self->postamble(IfModule => 'mod_perl.c', $cfg);
+            }
         }
 
         $self->write_pm_test($module, lc $sub, map { lc } @base);

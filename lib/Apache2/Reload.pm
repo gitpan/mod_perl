@@ -1,8 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -131,6 +132,8 @@ sub handler {
 
     my $ReloadDirs = ref($o) && $o->dir_config("ReloadDirectories");
     my @watch_dirs = split(/\s+/, $ReloadDirs||'');
+    
+    my @changed;
     foreach my $key (sort { $a cmp $b } keys %Apache2::Reload::INCS) {
         my $file = $Apache2::Reload::INCS{$key};
 
@@ -155,13 +158,24 @@ sub handler {
         }
 
         if ($mtime > $Stat{$file}) {
-            my $package = module_to_package($key);
-            ModPerl::Util::unload_package($package);
-            require $key;
-            warn("Apache2::Reload: process $$ reloading $package from $key\n")
-                    if $DEBUG;
+            push @changed, $key;
         }
         $Stat{$file} = $mtime;
+    }
+    
+    #First, let's unload all changed modules
+    foreach my $module (@changed) {
+        my $package = module_to_package($module);
+        ModPerl::Util::unload_package($package);
+    }
+    
+    #Then, let's reload them all, so that module dependencies can satisfy
+    #themselves in the correct order.
+    foreach my $module (@changed) {
+        my $package = module_to_package($module);
+        require $module;
+        warn("Apache2::Reload: process $$ reloading $package from $module\n")
+            if $DEBUG;
     }
 
     return Apache2::Const::OK;

@@ -1,8 +1,9 @@
 mod_perl 2.0 STATUS:                                       -*-text-*-
-   Last modified at [$Date: 2005-06-17 16:53:37 -0400 (Fri, 17 Jun 2005) $]
+   Last modified at [$Date: 2005-10-20 18:43:55 -0700 (Thu, 20 Oct 2005) $]
 
 Release:
 --------
+   2.000.02   : Released Oct 20, 2005
    2.000.01   : Released Jun 17, 2005
    2.000.00   : Released May 20, 2005
    1.999.23   : Released May 03, 2005

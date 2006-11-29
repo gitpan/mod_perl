@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -22,15 +22,27 @@ use Exporter ();
 use Config;
 use Apache::TestConfig ();
 
+BEGIN {
+    # Apache::Test loads a bunch of mp2 stuff while getting itself
+    # together.  because we need to choose one of mp1 or mp2 to load
+    # check first (and we choose mp2) $mod_perl::VERSION == 2.0
+    # just because someone loaded Apache::Test.  This Is Bad.  so,
+    # let's try to correct for that here by removing mod_perl from
+    # %INC after the above use() statements settle in.  nobody 
+    # should be relying on us loading up mod_perl.pm anyway...
+
+    delete $INC{'mod_perl.pm'};
+}
+
 use vars qw(@ISA @EXPORT %EXPORT_TAGS $VERSION %SubTests @SkipReasons);
 
-$VERSION = '1.27';
+$VERSION = '1.29';
 
 my @need = qw(need_lwp need_http11 need_cgi need_access need_auth
               need_module need_apache need_min_apache_version
               need_apache_version need_perl need_min_perl_version
               need_min_module_version need_threads need_apache_mpm
-              need_php need_php4 need_ssl);
+              need_php need_php4 need_ssl need_imagemap);
 
 my @have = map { (my $need = $_) =~ s/need/have/; $need } @need;
 
@@ -336,23 +348,49 @@ sub need_min_module_version {
 }
 
 sub need_cgi {
-    need_module('cgi') || need_module('cgid');
+    return _need_multi(qw(cgi cgid));
 }
 
 sub need_php {
-    need_module('php4') || need_module('php5') || need_module('sapi_apache2.c');
+    return _need_multi(qw(php4 php5 sapi_apache2.c));
 }
 
 sub need_php4 {
-    need_module('php4') || need_module('sapi_apache2.c');
+    return _need_multi(qw(php4 sapi_apache2.c));
 }
 
 sub need_access {
-    need_module('access') || need_module('authz_host');
+    return _need_multi(qw(access authz_host));
 }
 
 sub need_auth {
-    need_module('auth') || need_module('auth_basic');
+    return _need_multi(qw(auth auth_basic));
+}
+
+sub need_imagemap {
+    return need_module("imagemap") || need_module("imap");
+}
+
+sub _need_multi {
+
+    my @check = @_;
+
+    my $rc = 0;
+
+    {
+        local @SkipReasons;
+
+        foreach my $module (@check) {
+          $rc ||= need_module($module);
+        }
+    }
+
+    my $reason = join ' or ', @check;
+
+    push @SkipReasons, "cannot find one of $reason"
+        unless $rc;
+
+    return $rc;
 }
 
 sub need_apache {
@@ -609,6 +647,12 @@ need_module() is called for each value in this array. The test is
 skipped if need_module() returns false (which happens when at least
 one C or Perl module from the list cannot be found).
 
+Watch out for case insensitive file systems or duplicate modules
+with the same name.  I.E.  If you mean mod_env.c
+   need_module('mod_env.c')
+Not
+   need_module('env')
+
 =item * a C<CODE> reference
 
 the tests will be skipped if the function returns a false value. For
@@ -699,6 +743,12 @@ Requires a PHP module to be installed (version 4 or 5).
   plan tests => 5, need_php4;
 
 Requires a PHP version 4 module to be installed.
+
+=item need_imagemap
+
+  plan tests => 5, need_imagemap;
+
+Requires a mod_imagemap or mod_imap be installed
 
 =item need_apache
 

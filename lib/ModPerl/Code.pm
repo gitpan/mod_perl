@@ -1,8 +1,9 @@
-# Copyright 2000-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -137,7 +138,7 @@ my @hook_flags = (map { canon_uc($_) } keys %hooks);
 my @ithread_opts = qw(CLONE PARENT);
 my %flags = (
     Srv => ['NONE', @ithread_opts, qw(ENABLE AUTOLOAD MERGE_HANDLERS),
-            @hook_flags, 'UNSET'],
+            @hook_flags, 'UNSET','INHERIT_SWITCHES'],
     Dir => [qw(NONE PARSE_HEADERS SETUP_ENV MERGE_HANDLERS GLOBAL_REQUEST UNSET)],
     Req => [qw(NONE SET_GLOBAL_REQUEST PARSE_HEADERS SETUP_ENV 
                CLEANUP_REGISTERED PERL_SET_ENV_DIR PERL_SET_ENV_SRV)],
@@ -460,7 +461,7 @@ EOF
                 push @lookup, $indent1 . "  case '$_':";
                 push @lookup, map { $indent2 . $_ } @{ $switch{$_} };
             }
-            push @lookup, map { $indent1 . $_ } ("}\n", "return 0;\n}\n\n");
+            push @lookup, map { $indent1 . $_ } ("}\n", "return -1;\n}\n\n");
 
             print $c_fh join "\n", @lookup;
             print $h_fh "$lookup_proto;\n";
@@ -777,6 +778,16 @@ sub generate {
 
     my $xsinit = "$self->{path}/modperl_xsinit.c";
     debug "generating...$xsinit";
+
+    # There's a possibility that $Config{static_ext} may contain spaces
+    # and ExtUtils::Embed::xsinit won't handle the situation right. In
+    # this case we'll get buggy "boot_" statements in modperl_xsinit.c.
+    # Fix this by cleaning the @Extensions array.
+
+    # Loads @Extensions if not loaded
+    ExtUtils::Embed::static_ext(); 
+
+    @ExtUtils::Embed::Extensions = grep{$_} @ExtUtils::Embed::Extensions;
 
     #create bootstrap method for static xs modules
     my $static_xs = [keys %{ $build->{XS} }];

@@ -1,8 +1,9 @@
-# Copyright 2000-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -227,7 +228,8 @@ sub apxs_extra_cflags {
 
 sub apxs_extra_cppflags {
     my $who = caller_package(shift);
-    my $flags = $who->apxs('-q' => 'EXTRA_CPPFLAGS');
+    my $flags = $who->apxs('-q' => 'EXTRA_CPPFLAGS') ." ".
+        $who->apxs('-q' => 'NOTEST_CPPFLAGS');
     $flags =~ s/\"/\\\"/g;
     $flags;
 }
@@ -524,11 +526,11 @@ sub ap_ccopts {
         $self->{MP_DEBUG} = 1;
         if ($self->perl_config('gccversion')) {
             #same as --with-maintainter-mode
-            $ccopts .= " $Wall -DAP_DEBUG";
-            $ccopts .= " -DAP_HAVE_DESIGNATED_INITIALIZER";
+            $ccopts .= " $Wall";
         }
 
-        if ($self->has_gcc_version('3.3.2') && 
+        if (!OPENBSD &&
+            $self->has_gcc_version('3.3.2') && 
             $ccopts !~ /declaration-after-statement/) {
             debug "Adding -Wdeclaration-after-statement to ccopts";
             $ccopts .= " -Wdeclaration-after-statement";
@@ -1116,7 +1118,9 @@ sub apru_link_flags {
     # first use apu_config_path and then apr_config_path in order to
     # resolve the symbols right during linking
     for ($self->apu_config_path, $self->apr_config_path) {
-        if (my $link = $_ && -x $_ && qx{$_ --link-ld --libs}) {
+        my $flags = '--link-ld --libs';
+        $flags .= ' --ldflags' unless (WIN32);
+        if (my $link = $_ && -x $_ && qx{$_ $flags}) {
             chomp $link;
 
             # Change '/path/to/libanything.la' to '-L/path/to -lanything'
@@ -1376,8 +1380,17 @@ sub httpd_version {
             my $major = $1;
             my $minor = (split /\s+/, scalar(<$fh>))[-1];
             my $patch = (split /\s+/, scalar(<$fh>))[-1];
-            my $string = (split /\s+/, scalar(<$fh>))[-1];
-            $version = join '.', $major, $minor, "$patch$string";
+
+            my ($define, $macro, $dev) = (split /\s+/, scalar(<$fh>));
+            
+            if ($macro =~ /AP_SERVER_DEVBUILD_BOOLEAN/ && $dev eq '1') {
+                $dev = "-dev";
+            }
+            else {
+                $dev = "";   
+            }
+
+            $version = join '.', $major, $minor, "$patch$dev";
             $version =~ s/\"//g;
             last;
         }
@@ -1644,7 +1657,11 @@ sub apache_corelib_cygwin {
 sub apache_libs_MSWin32 {
     my $self = shift;
     my $prefix = $self->apxs(-q => 'PREFIX') || $self->dir;
-    my @libs = map { "$prefix/lib/lib$_.lib" } qw(apr aprutil httpd);
+    my $lib = catdir $prefix, 'lib';
+    opendir(my $dir, $lib) or die qq{Cannot opendir $lib: $!};
+    my @libs = map {catfile($lib, $_)}
+        grep /^lib(apr|aprutil|httpd)\b\S*?\.lib$/, readdir $dir;
+    closedir $dir;
     "@libs";
 }
 

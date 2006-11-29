@@ -1,9 +1,9 @@
-# Copyright 2001-2005 The Apache Software Foundation or its licensors, as
-# applicable.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -94,19 +94,21 @@ sub write_php_test {
 
     my $dir = catfile $self->{vars}->{t_dir}, lc $path;
     my $t = catfile $dir, $file;
+    my $php_t = catfile $dir, $test;
     return if -e $t;
 
-    unless (-e $t) {
-        $self->gendir($dir);
-        my $fh = $self->genfile($t);
+    # don't write out foo.t if foo.php already exists
+    return if -e $php_t;
 
-        print $fh <<EOF;
+    $self->gendir($dir);
+    my $fh = $self->genfile($t);
+
+    print $fh <<EOF;
 use Apache::TestRequest 'GET_BODY_ASSERT';
 print GET_BODY_ASSERT "/$location/$test";
 EOF
 
-        close $fh or die "close $t: $!";
-    }
+    close $fh or die "close $t: $!";
 
     # write out an all.t file for the directory
     # that will skip running all PHP test unless have_php
@@ -423,8 +425,8 @@ END_OF_FILE
 *                        PROJECT INFORMATION                        *
 *                                                                   *
 *  Project:  Apache-Test                                            *
-*  URL:      http://httpd.apache.org/test/                          *
-*  Notice:   Copyright (c) 2004 The Apache Software Foundation      *
+*  URL:      http://perl.apache.org/Apache-Test/                    *
+*  Notice:   Copyright (c) 2006 The Apache Software Foundation      *
 *                                                                   *
 *********************************************************************
 *                        LICENSE INFORMATION                        *
@@ -454,24 +456,26 @@ END_OF_FILE
 *  Originally inspired by work from Andy Lester. Written and        *
 *  maintained by Chris Shiflett. For contact information, see:      *
 *                                                                   *
-*  http://shiflett.org/contact                                      *
+*  http://shiflett.org/                                             *
 *                                                                   *
 \*******************************************************************/
 
 header('Content-Type: text/plain');
 register_shutdown_function('_test_end');
 
-$_no_plan = false;
+$_no_plan = FALSE;
 $_num_failures = 0;
 $_num_skips = 0;
 $_test_num = 0;
 
 function plan($plan)
 {
-    # plan('no_plan');
-    # plan('skip_all');
-    # plan(array('skip_all' => 'My reason is...'));
-    # plan(23);
+    /*
+    plan('no_plan');
+    plan('skip_all');
+    plan(array('skip_all' => 'My reason is...'));
+    plan(23);
+    */
 
     global $_no_plan;
     global $_skip_all;
@@ -480,12 +484,11 @@ function plan($plan)
     switch ($plan)
     {
         case 'no_plan':
-            $_no_plan = true;
+            $_no_plan = TRUE;
             break;
 
         case 'skip_all':
             echo "1..0\n";
-            exit;
             break;
 
         default:
@@ -511,10 +514,10 @@ function ok($pass, $test_name = '')
     if ($_num_skips)
     {
         $_num_skips--;
-        return true;
+        return TRUE;
     }
 
-    if (!empty($test_name))
+    if (!empty($test_name) && $test_name[0] != '#')
     {
         $test_name = "- $test_name";
     }
@@ -552,6 +555,7 @@ function ok($pass, $test_name = '')
 function is($this, $that, $test_name = '')
 {
     $pass = ($this == $that);
+
     ok($pass, $test_name);
 
     if (!$pass)
@@ -566,41 +570,44 @@ function is($this, $that, $test_name = '')
 function isnt($this, $that, $test_name = '')
 {
     $pass = ($this != $that);
+
     ok($pass, $test_name);
 
     if (!$pass)
     {
         diag("    '$this'");
-        diag("        !=");
+        diag('        !=');
         diag("    '$that'");
     }
 
     return $pass;
 }
 
-function like($string, $regex, $test_name = '')
+function like($string, $pattern, $test_name = '')
 {
-    $pass = preg_match($regex, $string);
+    $pass = preg_match($pattern, $string);
+
     ok($pass, $test_name);
 
     if (!$pass)
     {
         diag("                  '$string'");
-        diag("    doesn't match '$regex'");
+        diag("    doesn't match '$pattern'");
     }
 
     return $pass;
 }
 
-function unlike($string, $regex, $test_name = '')
+function unlike($string, $pattern, $test_name = '')
 {
-    $pass = !preg_match($regex, $string);
+    $pass = !preg_match($pattern, $string);
+
     ok($pass, $test_name);
 
     if (!$pass)
     {
         diag("                  '$string'");
-        diag("          matches '$regex'");
+        diag("          matches '$pattern'");
     }
 
     return $pass;
@@ -608,7 +615,8 @@ function unlike($string, $regex, $test_name = '')
 
 function cmp_ok($this, $operator, $that, $test_name = '')
 {
-    eval('$pass = ($this ' . $operator . ' $that);');
+    eval("\$pass = (\$this $operator \$that);");
+
     ok($pass, $test_name);
 
     if (!$pass)
@@ -622,25 +630,25 @@ function cmp_ok($this, $operator, $that, $test_name = '')
 
 function can_ok($object, $methods)
 {
-    $pass = true;
+    $pass = TRUE;
     $errors = array();
 
     foreach ($methods as $method)
     {
         if (!method_exists($object, $method))
         {
-            $pass = false;
+            $pass = FALSE;
             $errors[] = "    method_exists(\$object, $method) failed";
         }
     }
 
     if ($pass)
     {
-        ok(true, "method_exists(\$object, ...)");
+        ok(TRUE, "method_exists(\$object, ...)");
     }
     else
     {
-        ok(false, "method_exists(\$object, ...)");
+        ok(FALSE, "method_exists(\$object, ...)");
         diag($errors);
     }
 
@@ -662,11 +670,11 @@ function isa_ok($object, $expected_class, $object_name = 'The object')
 
     if ($pass)
     {
-        ok(true, "$object_name isa $expected_class");
+        ok(TRUE, "$object_name isa $expected_class");
     }
     else
     {
-        ok(false, "$object_name isn't a '$expected_class' it's a '$got_class'");
+        ok(FALSE, "$object_name isn't a '$expected_class' it's a '$got_class'");
     }
 
     return $pass;
@@ -674,12 +682,12 @@ function isa_ok($object, $expected_class, $object_name = 'The object')
 
 function pass($test_name = '')
 {
-    return ok(true, $test_name);
+    return ok(TRUE, $test_name);
 }
 
 function fail($test_name = '')
 {
-    return ok(false, $test_name);
+    return ok(FALSE, $test_name);
 }
 
 function diag($message)
@@ -720,36 +728,41 @@ function skip($message, $num)
 
     for ($i = 0; $i < $num; $i++)
     {
-        # FIXME: The pound sign should replace the hyphen
         pass("# SKIP $message");
     }
 
     $_num_skips = $num;
 }
 
-# function todo()
-# {
-# }
+/*
 
-# function todo_skip()
-# {
-# }
+TODO:
 
-# function is_deeply()
-# {
-# }
+function todo()
+{
+}
 
-# function eq_array()
-# {
-# }
+function todo_skip()
+{
+}
 
-# function eq_hash()
-# {
-# }
+function is_deeply()
+{
+}
 
-# function eq_set()
-# {
-# }
+function eq_array()
+{
+}
+
+function eq_hash()
+{
+}
+
+function eq_set()
+{
+}
+
+*/
 
 function _test_end()
 {
@@ -767,4 +780,5 @@ function _test_end()
         diag("Looks like you failed $_num_failures tests of $_test_num.");
     }
 }
+
 ?>

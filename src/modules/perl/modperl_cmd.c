@@ -1,8 +1,9 @@
-/* Copyright 2001-2005 The Apache Software Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -156,7 +157,13 @@ MP_CMD_SRV_DECLARE(switches)
         return modperl_cmd_too_late(parms);
     }
     MP_TRACE_d(MP_FUNC, "arg = %s\n", arg);
-    modperl_config_srv_argv_push(arg);
+
+    if (!strncasecmp(arg, "+inherit", 8)) {
+        modperl_cmd_options(parms, mconfig, "+InheritSwitches");
+    }
+    else {
+        modperl_config_srv_argv_push(arg);
+    }
     return NULL;
 }
 
@@ -485,6 +492,8 @@ MP_CMD_SRV_DECLARE(perl)
 #define MP_DEFAULT_PERLSECTION_PACKAGE "Apache2::ReadConfig"
 #define MP_PERLSECTIONS_SAVECONFIG_SV \
     get_sv("Apache2::PerlSections::Save", FALSE)
+#define MP_PERLSECTIONS_SERVER_SV \
+    get_sv("Apache2::PerlSections::Server", TRUE)
 
 MP_CMD_SRV_DECLARE(perldo)
 {
@@ -550,6 +559,7 @@ MP_CMD_SRV_DECLARE(perldo)
     }
 
     {
+        SV *server = MP_PERLSECTIONS_SERVER_SV;
         SV *code = newSVpv(arg, 0);
         GV *gv = gv_fetchpv("0", TRUE, SVt_PV);
         ENTER;SAVETMPS;
@@ -557,6 +567,7 @@ MP_CMD_SRV_DECLARE(perldo)
 #if PERL_REVISION == 5 && PERL_VERSION >= 9
         TAINT_NOT; /* XXX: temp workaround, see my p5p post */
 #endif
+        sv_setref_pv(server, "Apache2::ServerRec", (void*)s);
         sv_setpv_mg(GvSV(gv), directive->filename);
         eval_sv(code, G_SCALAR|G_KEEPERR);
         SvREFCNT_dec(code);

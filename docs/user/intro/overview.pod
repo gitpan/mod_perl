@@ -7,7 +7,7 @@ Overview of mod_perl 2.0
 This chapter should give you a general idea about what mod_perl 2.0 is
 and how it differs from mod_perl 1.0.  This chapter presents the new
 features of Apache 2.0, Perl 5.6.0 -- 5.8.0 and their influence on
-mod_perl 2.0. The new MPM models from Apache 2.0 are discussed.
+mod_perl 2.0. The new MPM models from Apache 2.0 are also discussed.
 
 
 
@@ -63,9 +63,9 @@ the old backward compatibility bandaids and building a smarter,
 stronger and faster implementation based on lessons learned over the
 4.5 years since mod_perl was introduced.
 
-The new version includes a mechanism for an automatic building of the
+The new version includes a mechanism for the automatic building of the
 Perl interface to Apache API, which allowed us to easily adjust
-mod_perl 2.0 to ever changing Apache 2.0 API, during its development
+mod_perl 2.0 to the ever changing Apache 2.0 API, during its development
 period. Another important feature is the
 C<L<Apache::Test|docs::general::testing::testing>> framework, which
 was originally developed for mod_perl 2.0, but then was adopted by
@@ -183,61 +183,6 @@ MPM, assuming that the code base is capable of running in the
 L<threaded
 environment|docs::2.0::user::coding::coding/Threads_Coding_Issues_Under_mod_perl>.
 
-=item * New Hook Scheme
-
-In Apache 1.3, modules were registered using the I<module> structure,
-normally static to I<mod_foo.c>.  This structure contains pointers to
-the command table, configuration creation and merging functions,
-response handler table and function pointers for all of the other
-hooks, such as I<child_init> and I<check_user_id>.  In Apache 2.0,
-this structure has been pruned down to the first three items mentioned
-and a new function pointer added called I<register_hooks>.  It is the
-job of I<register_hooks> to register functions for all other hooks
-(such as I<child_init> and I<check_user_id>).  Not only is hook
-registration now dynamic, it is also possible for modules to register
-more than one function per hook, unlike 1.3.  The new hook mechanism
-also makes it possible to sort registered functions, unlike 1.3 with
-function pointers hardwired into the module structure, and each module
-structure into a linked list.  Order in 1.3 depended on this list,
-which was possible to order using compile-time and startup-time
-configuration, but that was left to the user.  Whereas in 2.0, the
-I<add_hook> functions accept an order preference parameter, those
-commonly used are:
-
-=over 4
-
-=item FIRST
-
-=item MIDDLE
-
-=item LAST
-
-=back
-
-For mod_perl, dynamic registration provides a cleaner way to bypass
-the C<Perl*Handler> configuration directives.  By simply adding this
-configuration:
-
-  PerlModule Apache2::Foo
-
-C<Apache2::Foo> can register hooks itself at server startup:
-
-  Apache2::Hook->add(PerlAuthenHandler => \&authenticate,
-                    Apache2::Hook::MIDDLE);
-  Apache2::Hook->add(PerlLogHandler    => \&logger,
-                    Apache2::Hook::LAST);
-
-META: Not implemented yet (API will change?)
-
-However, this means that Perl subroutines registered via this
-mechanism will be called for B<every> request.  It will be left to
-that subroutine to decide if it was to handle or decline the given
-phase.  As there is overhead in entering the Perl runtime, it will
-most likely be to your advantage to continue using C<Perl*Handler>
-configuration directives to reduce this overhead.  If it is the case
-that your C<Perl*Handler> should be invoked for every request, the
-hook registration mechanism will save some configuration keystrokes.
-
 =item * Protocol Modules
 
 Apache 1.3 is hardwired to speak only one protocol, HTTP.  Apache 2.0
@@ -307,9 +252,9 @@ only with Perl 5.8.0 and higher.
 These are the important changes in the recent Perl versions that had
 an impact on mod_perl. For a complete list of changes see the
 corresponding to the used version I<perldelta> manpages
-(I<http://perldoc.com/perl5.8.0/pod/perl56delta.html>,
-I<http://perldoc.com/perl5.8.0/pod/perl561delta.html> and
-I<http://perldoc.com/perl5.8.0/pod/perldelta.html>).
+(I<http://perldoc.perl.org/perl56delta.html>,
+I<http://perldoc.perl.org/perl561delta.html> and
+I<http://perldoc.perl.org/perldelta.html>).
 
 The 5.6 Perl generation has introduced the following features:
 
@@ -323,9 +268,9 @@ perl_clone() API call, which can be used to selectively duplicate the
 state of any given interpreter, it is possible to compile a piece of
 code once in an interpreter, clone that interpreter one or more times,
 and run all the resulting interpreters in distinct threads. See the
-I<perlembed> (I<http://perldoc.com/perl5.6.1/pod/perlembed.html>) and
+I<perlembed> (I<http://perldoc.perl.org/perlembed.html>) and
 I<perl561delta>
-(I<http://perldoc.com/perl5.6.1/pod/perl561delta.html>) manpages.
+(I<http://perldoc.perl.org/perl561delta.html>) manpages.
 
 =item *
 
@@ -341,7 +286,7 @@ clean, via the setting:
 
 which will abort any code that generates warnings. This pragma also
 allows a fine control over what warnings should be reported. See the
-I<perllexwarn> (I<http://perldoc.com/perl5.6.1/pod/perllexwarn.html>)
+I<perllexwarn> (I<http://perldoc.perl.org/perllexwarn.html>)
 manpage.
 
 =item *
@@ -349,7 +294,7 @@ manpage.
 Certain C<CORE::> functions now can be overridden via
 C<CORE::GLOBAL::> namespace. For example mod_perl now can override
 C<CORE::exit()> via C<CORE::GLOBAL::exit>. See the I<perlsub>
-(I<http://perldoc.com/perl5.6.1/pod/perlsub.html>) manpage.
+(I<http://perldoc.perl.org/perlsub.html>) manpage.
 
 =item *
 
@@ -361,24 +306,24 @@ See the I<XSLoader> manpage.
 The large file support. If you have filesystems that support "large
 files" (files larger than 2 gigabytes), you may now also be able to
 create and access them from Perl. See the I<perl561delta>
-(I<http://perldoc.com/perl5.6.1/pod/perl561delta.html>) manpage.
+(I<http://perldoc.perl.org/perl561delta.html>) manpage.
 
 =item *
 
 Multiple performance enhancements were made. See the I<perl561delta>
-(I<http://perldoc.com/perl5.6.1/pod/perl561delta.html>) manpage.
+(I<http://perldoc.perl.org/perl561delta.html>) manpage.
 
 =item *
 
 Numerous memory leaks were fixed. See the I<perl561delta>
-(I<http://perldoc.com/perl5.6.1/pod/perl561delta.html>) manpage.
+(I<http://perldoc.perl.org/perl561delta.html>) manpage.
 
 =item *
 
 Improved security features: more potentially unsafe operations taint
 their results for improved security. See the I<perlsec>
-(I<http://perldoc.com/perl5.6.1/pod/perlsec.html>) and I<perl561delta>
-(I<http://perldoc.com/perl5.6.1/pod/perl561delta.html>) manpages.
+(I<http://perldoc.perl.org/perlsec.html>) and I<perl561delta>
+(I<http://perldoc.perl.org/perl561delta.html>) manpages.
 
 =item *
 
@@ -400,8 +345,8 @@ The Perl 5.8.0 has introduced the following features:
 The introduced in 5.6.0 experimental PerlIO layer has been stabilized
 and become the default IO layer in 5.8.0. Now the IO stream can be
 filtered through multiple layers. See the I<perlapio>
-(I<http://perldoc.com/perl5.8.0/pod/perlapio.html>) and I<perliol>
-(I<http://perldoc.com/perl5.8.0/pod/perliol.html>) manpages.
+(I<http://perldoc.perl.org/perlapio.html>) and I<perliol>
+(I<http://perldoc.perl.org/perliol.html>) manpages.
 
 For example this allows mod_perl to inter-operate with the APR IO
 layer and even use the APR IO layer in Perl code. See the
@@ -414,12 +359,12 @@ C<open()> functionality to create anonymous temporary files via:
 
 That is a literal C<undef()>, not an undefined value. See the
 C<open()> entry in the I<perlfunc> manpage
-(I<http://perldoc.com/perl5.8.0/pod/func/open.html>).
+(I<http://perldoc.perl.org/functions/open.html>).
 
 =item *
 
 More overridable via C<CORE::GLOBAL::> keywords. See the I<perlsub>
-(I<http://perldoc.com/perl5.8.0/pod/perlsub.html>) manpage.
+(I<http://perldoc.perl.org/perlsub.html>) manpage.
 
 =item * 
 
@@ -441,11 +386,11 @@ brother of C<-T>: instead of dying on taint violations, lexical
 warnings are given.  This is only meant as a temporary debugging aid
 while securing the code of old legacy applications.  B<This is not a
 substitute for C<-T>.> See the I<perlrun>
-(I<http://perldoc.com/perl5.8.0/pod/perlrun.html>) manpage.
+(I<http://perldoc.perl.org/perlrun.html>) manpage.
 
 A new special variable C<${^TAINT}> was introduced. It indicates
 whether taint mode is enabled. See the I<perlvar>
-(I<http://perldoc.com/perl5.8.0/pod/perlvar.html>) manpage.
+(I<http://perldoc.perl.org/perlvar.html>) manpage.
 
 =item *
 
@@ -499,7 +444,7 @@ I<clone>.  A I<parent> is like that in mod_perl 1.0, where the main
 interpreter created at startup time compiles any pre-loaded Perl code.
 A I<clone> is created from the parent using the Perl API
 I<perl_clone()>
-(I<http://www.perldoc.com/perl5.8.0/pod/perlapi.html#Cloning-an-interpreter>)
+(I<http://perldoc.perl.org/perlapi.html#Cloning-an-interpreter>)
 function.  At request time, I<parent> interpreters are only used for
 making more I<clones>, as the I<clones> are the interpreters which
 actually handle requests.  Care is taken by Perl to copy only mutable
@@ -578,7 +523,7 @@ were found to be useful or new features were added to the Apache API,
 the XS code was written for them here and there.
 
 mod_perl 2.0 generates the majority of XS code and provides thin
-wrappers were needed to make the API more Perlish.  As part of this
+wrappers where needed to make the API more Perlish.  As part of this
 goal, nearly the entire APR and Apache API, along with their public
 data structures are covered from the get-go.  Certain functions and
 structures which are considered "private" to Apache or otherwise

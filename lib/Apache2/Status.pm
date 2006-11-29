@@ -1,8 +1,9 @@
-# Copyright 2003-2005 The Apache Software Foundation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -59,8 +60,8 @@ my %requires = (
     lexinfo     => ["StatusLexInfo",     "B::LexInfo",     0,    ],
     xref        => ["StatusXref",        "B::Xref",        1.01, ],
     terse       => ["StatusTerse",       "B::Terse",       0,    ],
-    tersesize   => ["StatusTerseSize",   "B::TerseSize",   0,    ],
-    packagesize => ["StatusPackageSize", "B::TerseSize",   0,    ],
+    tersesize   => ["StatusTerseSize",   "B::TerseSize",   0.07, ],
+    packagesize => ["StatusPackageSize", "B::TerseSize",   0.07, ],
     peek        => ["StatusPeek",        "Apache::Peek",   1.03, ],
 );
 
@@ -216,11 +217,14 @@ sub status_inc {
         $module =~ s,\.pm$,,;
         next if $module eq 'mod_perl';
         my $v = ${"$module\:\:VERSION"} || '0.00';
+        my $mtime = -e $INC{$file} ? scalar localtime((stat $INC{$file})[9]) :
+            'N/A';
+
         push @retval, (
             "<tr>", 
             (map "<td>$_</td>", 
                 qq(<a href="$uri?$module">$module</a>),
-                $v, scalar localtime((stat $INC{$file})[9]), $INC{$file}),
+                $v, $mtime, $INC{$file}),
             "</tr>\n"
         );
     }
@@ -548,7 +552,8 @@ sub noh_b_package_size {
         $_;
     } (sort { $subs->{$b}->{size} <=> $subs->{$a}->{size} } keys %$subs);
 
-    my $clen = length $subs->{$keys[0]}->{count};
+    my $clen = $subs->{$keys[0]}->{count} ?
+        length $subs->{$keys[0]}->{count} : 0;
     my $slen = length $subs->{$keys[0]}->{size};
 
     for my $name (@keys) {
