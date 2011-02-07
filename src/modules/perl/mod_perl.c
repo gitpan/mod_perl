@@ -1,1754 +1,1152 @@
-/* ====================================================================
- * The Apache Software License, Version 1.1
+/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- * Copyright (c) 1996-2000 The Apache Software Foundation.  All rights
- * reserved.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- *
- * 3. The end-user documentation included with the redistribution,
- *    if any, must include the following acknowledgment:
- *       "This product includes software developed by the
- *        Apache Software Foundation (http://www.apache.org/)."
- *    Alternately, this acknowledgment may appear in the software itself,
- *    if and wherever such third-party acknowledgments normally appear.
- *
- * 4. The names "Apache" and "Apache Software Foundation" must
- *    not be used to endorse or promote products derived from this
- *    software without prior written permission. For written
- *    permission, please contact apache@apache.org.
- *
- * 5. Products derived from this software may not be called "Apache",
- *    nor may "Apache" appear in their name, without prior written
- *    permission of the Apache Software Foundation.
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
- * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
- * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- * ====================================================================
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-
-/* 
- * And so it was decided the camel should be given magical multi-colored
- * feathers so it could fly and journey to once unknown worlds.
- * And so it was done...
- */
-
-#define CORE_PRIVATE 
 #include "mod_perl.h"
 
-#ifdef WIN32
-void *mod_perl_mutex = &mod_perl_mutex;
-#else
-void *mod_perl_dummy_mutex = &mod_perl_dummy_mutex;
+/* make sure that mod_perl won't try to start itself, while it's
+ * already starting. If the flag's value is 1 * it's still starting,
+ * when it's 2 it is running */
+static int MP_init_status = 0;
+
+#define MP_IS_NOT_RUNNING (MP_init_status == 0 ? 1 : 0)
+#define MP_IS_STARTING    (MP_init_status == 1 ? 1 : 0)
+#define MP_IS_RUNNING     (MP_init_status == 2 ? 1 : 0)
+
+/* false while there is only the parent process and may be child
+ * processes, but no threads around, useful for allowing things that
+ * don't require locking and won't affect other threads. It should
+ * become true just before the child_init phase  */
+static int MP_threads_started = 0;
+
+int modperl_threads_started(void)
+{
+    return MP_threads_started;
+}
+
+static int MP_threaded_mpm = 0;
+
+int modperl_threaded_mpm(void)
+{
+    return MP_threaded_mpm;
+}
+
+/* sometimes non-threaded mpm also needs to know whether it's still
+ * starting up or after post_config) */
+static int MP_post_post_config_phase = 0;
+
+int modperl_post_post_config_phase(void)
+{
+    return MP_post_post_config_phase;
+}
+
+#ifndef USE_ITHREADS
+static apr_status_t modperl_shutdown(void *data)
+{
+    modperl_cleanup_data_t *cdata = (modperl_cleanup_data_t *)data;
+    PerlInterpreter *perl = (PerlInterpreter *)cdata->data;
+    void **handles;
+
+    handles = modperl_xs_dl_handles_get(aTHX);
+
+    MP_TRACE_i(MP_FUNC, "destroying interpreter=0x%lx",
+               (unsigned long)perl);
+
+    modperl_perl_destruct(perl);
+
+    modperl_xs_dl_handles_close(handles);
+
+    return APR_SUCCESS;
+}
 #endif
 
-static IV mp_request_rec;
-static int seqno = 0;
-static int perl_is_running = 0;
-int mod_perl_socketexitoption = 3;
-int mod_perl_weareaforkedchild = 0;     
-static int callbacks_this_request = 0;
-static PerlInterpreter *perl = NULL;
-static AV *orig_inc = Nullav;
-static AV *cleanup_av = Nullav;
-#ifdef PERL_STACKED_HANDLERS
-static HV *stacked_handlers = Nullhv;
-#endif
-
-#ifdef PERL_OBJECT
-CPerlObj *pPerl;
-#endif
-
-typedef const char* (*crft)(); /* command_req_func_t */
-
-static command_rec perl_cmds[] = {
-#ifdef PERL_SECTIONS
-    { "<Perl>", (crft) perl_section, NULL, SECTION_ALLOWED, RAW_ARGS, "Perl code" },
-    { "</Perl>", (crft) perl_end_section, NULL, SECTION_ALLOWED, NO_ARGS, "End Perl code" },
-#endif
-    { "=pod", (crft) perl_pod_section, NULL, OR_ALL, RAW_ARGS, "Start of POD" },
-    { "=back", (crft) perl_pod_section, NULL, OR_ALL, RAW_ARGS, "End of =over" },
-    { "=cut", (crft) perl_pod_end_section, NULL, OR_ALL, NO_ARGS, "End of POD" },
-    { "__END__", (crft) perl_config_END, NULL, OR_ALL, RAW_ARGS, "Stop reading config" },
-    { "PerlFreshRestart", (crft) perl_cmd_fresh_restart,
-      NULL,
-      RSRC_CONF, FLAG, "Tell mod_perl to reload modules and flush Apache::Registry cache on restart" },
-    { "PerlTaintCheck", (crft) perl_cmd_tainting,
-      NULL,
-      RSRC_CONF, FLAG, "Turn on -T switch" },
-#ifdef PERL_SAFE_STARTUP
-    { "PerlOpmask", (crft) perl_cmd_opmask,
-      NULL,
-      RSRC_CONF, TAKE1, "Opmask File" },
-#endif
-    { "PerlWarn", (crft) perl_cmd_warn,
-      NULL,
-      RSRC_CONF, FLAG, "Turn on -w switch" },
-    { "PerlScript", (crft) perl_cmd_require,
-      NULL,
-      OR_ALL, ITERATE, "this directive is deprecated, use `PerlRequire'" },
-    { "PerlRequire", (crft) perl_cmd_require,
-      NULL,
-      OR_ALL, ITERATE, "A Perl script name, pulled in via require" },
-    { "PerlModule", (crft) perl_cmd_module,
-      NULL,
-      OR_ALL, ITERATE, "List of Perl modules" },
-    { "PerlSetVar", (crft) perl_cmd_var,
-      NULL,
-      OR_ALL, TAKE2, "Perl config var and value" },
-    { "PerlAddVar", (crft) perl_cmd_var,
-      (void*)1,
-      OR_ALL, ITERATE2, "Perl config var and value" },
-    { "PerlSetEnv", (crft) perl_cmd_setenv,
-      NULL,
-      OR_ALL, TAKE2, "Perl %ENV key and value" },
-    { "PerlPassEnv", (crft) perl_cmd_pass_env, 
-      NULL,
-      RSRC_CONF, ITERATE, "pass environment variables to %ENV"},  
-    { "PerlSendHeader", (crft) perl_cmd_sendheader,
-      NULL,
-      OR_ALL, FLAG, "Tell mod_perl to parse and send HTTP headers" },
-    { "PerlSetupEnv", (crft) perl_cmd_env,
-      NULL,
-      OR_ALL, FLAG, "Tell mod_perl to setup %ENV by default" },
-    { "PerlHandler", (crft) perl_cmd_handler_handlers,
-      NULL,
-      OR_ALL, ITERATE, "the Perl handler routine name" },
-#ifdef PERL_TRANS
-    { PERL_TRANS_CMD_ENTRY },
-#endif
-#ifdef PERL_AUTHEN
-    { PERL_AUTHEN_CMD_ENTRY },
-#endif
-#ifdef PERL_AUTHZ
-    { PERL_AUTHZ_CMD_ENTRY },
-#endif
-#ifdef PERL_ACCESS
-    { PERL_ACCESS_CMD_ENTRY },
-#endif
-#ifdef PERL_TYPE
-    { PERL_TYPE_CMD_ENTRY },
-#endif
-#ifdef PERL_FIXUP
-    { PERL_FIXUP_CMD_ENTRY },
-#endif
-#ifdef PERL_LOG
-    { PERL_LOG_CMD_ENTRY },
-#endif
-#ifdef PERL_CLEANUP
-    { PERL_CLEANUP_CMD_ENTRY },
-#endif
-#ifdef PERL_INIT
-    { PERL_INIT_CMD_ENTRY },
-#endif
-#ifdef PERL_HEADER_PARSER
-    { PERL_HEADER_PARSER_CMD_ENTRY },
-#endif
-#ifdef PERL_CHILD_INIT
-    { PERL_CHILD_INIT_CMD_ENTRY },
-#endif
-#ifdef PERL_CHILD_EXIT
-    { PERL_CHILD_EXIT_CMD_ENTRY },
-#endif
-#ifdef PERL_POST_READ_REQUEST
-    { PERL_POST_READ_REQUEST_CMD_ENTRY },
-#endif
-#ifdef PERL_DISPATCH
-    { PERL_DISPATCH_CMD_ENTRY },
-#endif
-#ifdef PERL_RESTART
-    { PERL_RESTART_CMD_ENTRY },
-#endif
-    { NULL }
+static const char *MP_xs_loaders[] = {
+    "Apache2", "APR", NULL,
 };
 
-static handler_rec perl_handlers [] = {
-    { "perl-script", perl_handler },
-    { DIR_MAGIC_TYPE, perl_handler },
-    { NULL }
-};
+#define MP_xs_loader_name "%s::XSLoader::BOOTSTRAP"
 
-module MODULE_VAR_EXPORT perl_module = {
-    STANDARD_MODULE_STUFF,
-    perl_module_init,                 /* initializer */
-    perl_create_dir_config,    /* create per-directory config structure */
-    perl_merge_dir_config,     /* merge per-directory config structures */
-    perl_create_server_config, /* create per-server config structure */
-    perl_merge_server_config,  /* merge per-server config structures */
-    perl_cmds,                 /* command table */
-    perl_handlers,             /* handlers */
-    PERL_TRANS_HOOK,           /* translate_handler */
-    PERL_AUTHEN_HOOK,          /* check_user_id */
-    PERL_AUTHZ_HOOK,           /* check auth */
-    PERL_ACCESS_HOOK,          /* check access */
-    PERL_TYPE_HOOK,            /* type_checker */
-    PERL_FIXUP_HOOK,           /* pre-run fixups */
-    PERL_LOG_HOOK,          /* logger */
-#if MODULE_MAGIC_NUMBER >= 19970103
-    PERL_HEADER_PARSER_HOOK,   /* header parser */
-#endif
-#if MODULE_MAGIC_NUMBER >= 19970719
-    PERL_CHILD_INIT_HOOK,   /* child_init */
-#endif
-#if MODULE_MAGIC_NUMBER >= 19970728
-    NULL,   /* child_exit *//* mod_perl uses register_cleanup() */
-#endif
-#if MODULE_MAGIC_NUMBER >= 19970825
-    PERL_POST_READ_REQUEST_HOOK,   /* post_read_request */
-#endif
-};
+/* ugly hack to have access to startup pool and server during xs_init */
+static struct {
+    apr_pool_t *p;
+    server_rec *s;
+} MP_boot_data = {NULL,NULL};
 
-#if defined(STRONGHOLD) && !defined(APACHE_SSL)
-#define APACHE_SSL
-#endif
+#define MP_boot_data_set(pool, server) \
+    MP_boot_data.p = pool; \
+    MP_boot_data.s = server
 
-int PERL_RUNNING (void) 
+#define MP_dBOOT_DATA \
+    apr_pool_t *p = MP_boot_data.p; \
+    server_rec *s = MP_boot_data.s
+
+static void modperl_boot(pTHX_ void *data)
 {
-    return (perl_is_running);
-}
-
-static void seqno_check_max(request_rec *r, int seqno)
-{
-    dPPDIR;
-    char *max = NULL;
-    array_header *vars = (array_header *)cld->vars;
-
-    /* XXX: what triggers such a condition ?*/
-    if(vars && (vars->nelts > 100000)) {
-	fprintf(stderr, "[warning] PerlSetVar->nelts = %d\n", vars->nelts);
-    }
-    else {
-      if(cld->vars)
-	  max = (char *)table_get(cld->vars, "MaxModPerlRequestsPerChild");
-    }
-
-#if (MODULE_MAGIC_NUMBER >= 19970912) && !defined(WIN32)
-    if(max && (seqno >= atoi(max))) {
-	child_terminate(r);
-	MP_TRACE_g(fprintf(stderr, "mod_perl: terminating child %d after serving %d requests\n", 
-		(int)getpid(), seqno));
-    }
-#endif
-    max = NULL; 
-}
-
-void perl_shutdown (server_rec *s, pool *p)
-{
-    char *pdl = NULL;
-
-    if((pdl = getenv("PERL_DESTRUCT_LEVEL")))
-	perl_destruct_level = atoi(pdl);
-
-    if(perl_destruct_level < 0) {
-	MP_TRACE_g(fprintf(stderr, 
-			   "skipping destruction of Perl interpreter\n"));
-	return;
-    }
-
-    /* execute END blocks we suspended during perl_startup() */
-    perl_run_endav("perl_shutdown"); 
-
-    MP_TRACE_g(fprintf(stderr, 
-		     "destructing and freeing Perl interpreter (level=%d)...",
-	       perl_destruct_level));
-
-    perl_util_cleanup();
-
-    mp_request_rec = 0;
-
-    MP_safe_av_undef(orig_inc)
-    MP_safe_av_undef(cleanup_av)
-
-#ifdef PERL_STACKED_HANDLERS
-    hv_undef(stacked_handlers);
-    SvREFCNT_dec((SV*)stacked_handlers);
-    stacked_handlers = Nullhv;
-#endif
-    
-    perl_destruct(perl);
-    perl_free(perl);
-
-#ifdef PERL_SYS_TERM
-    PERL_SYS_TERM();
-#endif
-
-    perl_is_running = 0;
-    MP_TRACE_g(fprintf(stderr, "ok\n"));
-}
-
-request_rec *mp_fake_request_rec(server_rec *s, pool *p, char *hook)
-{
-    request_rec *r = (request_rec *)pcalloc(p, sizeof(request_rec));
-    r->pool = p; 
-    r->server = s;
-    r->per_dir_config = NULL;
-    r->uri = hook;
-    r->notes = NULL;
-    return r;
-}
-
-#ifdef PERL_RESTART
-void perl_restart_handler(server_rec *s, pool *p)
-{
-    char *hook = "PerlRestartHandler";
-    dSTATUS;
-    dPSRV(s);
-    request_rec *r = mp_fake_request_rec(s, p, hook);
-    PERL_CALLBACK(hook, cls->PerlRestartHandler);   
-}
-#endif
-
-void perl_restart(server_rec *s, pool *p)
-{
-    /* restart as best we can */
-    SV *rgy_cache = perl_get_sv("Apache::Registry", FALSE);
-    HV *rgy_symtab = (HV*)gv_stashpv("Apache::ROOT", FALSE);
-
-    ENTER;
-
-    SAVESPTR(warnhook);
-    warnhook = perl_eval_pv("sub {}", TRUE);
-
-    /* the file-stat cache */
-    if(rgy_cache)
-	sv_setsv(rgy_cache, &sv_undef);
-
-    /* the symbol table we compile registry scripts into */
-    if(rgy_symtab)
-	hv_clear(rgy_symtab);
-
-    if(endav) {
-	SvREFCNT_dec(endav);
-	endav = Nullav;
-    }
-
-#ifdef STACKED_HANDLERS
-    if(stacked_handlers) 
-	hv_clear(stacked_handlers);
-#endif
-
-    /* reload %INC */
-    perl_reload_inc(s, p);
-
-    LEAVE;
-
-    /*mod_perl_notice(s, "mod_perl restarted"); */
-    MP_TRACE_g(fprintf(stderr, "perl_restart: ok\n"));
-}
-
-U32 mp_debug = 0;
-
-static void mod_perl_set_cwd(void)
-{
-    char *name = "Apache::Server::CWD";
-    GV *gv = gv_fetchpv(name, GV_ADDMULTI, SVt_PV);
-    char *pwd = getenv("PWD");
-
-    if(pwd) 
-	sv_setpv(GvSV(gv), pwd);
-    else 
-	sv_setsv(GvSV(gv), 
-		 perl_eval_pv("require Cwd; Cwd::getcwd()", TRUE));
-
-    mod_perl_untaint(GvSV(gv));
-}
-
-#ifdef PERL_TIE_SCRIPTNAME
-static PERL_MG_UFUNC(scriptname_val, ix, sv)
-{ 
-    dTHR;
-    request_rec *r = perl_request_rec(NULL);
-    if(r) 
-	sv_setpv(sv, r->filename);
-    else if(strNE(SvPVX(GvSV(CopFILEGV(curcop))), "-e"))
-	sv_setsv(sv, GvSV(CopFILEGV(curcop)));
-    else {
-	SV *file = perl_eval_pv("(caller())[1]",TRUE);
-	sv_setsv(sv, file);
-    }
-    MP_TRACE_g(fprintf(stderr, "FETCH $0 => %s\n", SvPV(sv,na)));
-    return TRUE;
-}
-
-static void mod_perl_tie_scriptname(void)
-{
-    SV *sv = perl_get_sv("0",TRUE);
-    struct ufuncs umg;
-    umg.uf_val = scriptname_val;
-    umg.uf_set = NULL;
-    umg.uf_index = (IV)0;
-    sv_unmagic(sv, 'U');
-    sv_magic(sv, Nullsv, 'U', (char*) &umg, sizeof(umg));
-}
-#else
-#define mod_perl_tie_scriptname()
-#endif
-
-#define saveINC \
-    if(orig_inc) SvREFCNT_dec(orig_inc); \
-    orig_inc = av_copy_array(GvAV(incgv))
-
-#define dl_librefs "DynaLoader::dl_librefs"
-#define dl_modules "DynaLoader::dl_modules"
-
-static array_header *xs_dl_librefs(pool *p)
-{
-    I32 i;
-    AV *librefs = perl_get_av(dl_librefs, FALSE);
-    AV *modules = perl_get_av(dl_modules, FALSE);
-    array_header *arr;
-
-    if (!librefs) {
-	MP_TRACE_g(fprintf(stderr, 
-			   "Could not get @%s for unloading.\n",
-			   dl_librefs));
-	return NULL;
-    }
-
-    arr = ap_make_array(p, AvFILL(librefs)-1, sizeof(void *));
-
-    for (i=0; i<=AvFILL(librefs); i++) {
-	void *handle;
-	SV *handle_sv = *av_fetch(librefs, i, FALSE);
-	SV *module_sv = *av_fetch(modules, i, FALSE);
-
-	if(!handle_sv) {
-	    MP_TRACE_g(fprintf(stderr, 
-			       "Could not fetch $%s[%d]!\n",
-			       dl_librefs, (int)i));
-	    continue;
-	}
-	handle = (void *)SvIV(handle_sv);
-
-	MP_TRACE_g(fprintf(stderr, "%s dl handle == 0x%lx\n",
-			   SvPVX(module_sv), (unsigned long)handle));
-	if (handle) {
-	    *(void **)ap_push_array(arr) = handle;
-	}
-    }
-
-    av_clear(modules);
-    av_clear(librefs);
-
-    return arr;
-}
-
-static void unload_xs_so(array_header *librefs)
-{
+    MP_dBOOT_DATA;
     int i;
 
-    if (!librefs) {
-	return;
+    modperl_env_clear(aTHX);
+
+    modperl_env_default_populate(aTHX);
+
+    modperl_env_configure_server(aTHX_ p, s);
+
+    modperl_perl_core_global_init(aTHX);
+
+    for (i=0; MP_xs_loaders[i]; i++) {
+        char *name = Perl_form(aTHX_ MP_xs_loader_name, MP_xs_loaders[i]);
+        newCONSTSUB(PL_defstash, name, newSViv(1));
     }
 
-    for (i=0; i < librefs->nelts; i++) {
-	void *handle = ((void **)librefs->elts)[i];
-	MP_TRACE_g(fprintf(stderr, "unload_xs_so: 0x%lx\n",
-			   (unsigned long)handle));
-#ifdef _AIX
-	/* make sure Perl's dlclose is used, instead of Apache's */
-	dlclose(handle);
-#else
-	ap_os_dso_unload(handle);
-#endif
-    }
-}
+    /* outside mod_perl this is done by ModPerl::Const.xs */
+    newXS("ModPerl::Const::compile", XS_modperl_const_compile, __FILE__);
 
-static void mp_dso_unload(void *data) 
-{ 
-    array_header *librefs;
-
-    librefs = xs_dl_librefs((pool *)data);
-    perl_destruct_level = 2;
-    perl_shutdown(NULL, NULL);
-    unload_xs_so(librefs);
-} 
-
-static void mp_server_notstarting(void *data) 
-{
-    saveINC;
-    require_Apache(NULL); 
-    Apache__ServerStarting(FALSE);
-}
-
-#define Apache__ServerStarting_on() \
-    Apache__ServerStarting(PERL_RUNNING()); \
-    if(!PERL_IS_DSO) \
-        register_cleanup(p, NULL, mp_server_notstarting, mod_perl_noop) 
-
-#define MP_APACHE_VERSION "1.27"
-
-void mp_check_version(void)
-{
-    I32 i;
-    SV *namesv;
-    SV *version;
-    STRLEN n_a;
-
-    require_Apache(NULL);
-
-    if(!(version = perl_get_sv("Apache::VERSION", FALSE))) {
-        /* should never happen but might if the perl mod_perl
-         * was built with isn't around anymore
-         */
-	croak("Apache.pm failed to load! (%s)",
-                  SvTRUE(ERRSV) ? SvPV(ERRSV,na) : "no error?"
-              );
-    }
-
-    if(strEQ(SvPV(version,n_a), MP_APACHE_VERSION)) /*no worries*/
-	return;
-
-    fprintf(stderr, "Apache.pm version %s required!\n", 
-	    MP_APACHE_VERSION);
-    fprintf(stderr, "%s", form("%_ is version %_\n", 
-			       *hv_fetch(GvHV(incgv), "Apache.pm", 9, FALSE),
-			       version));
-    fprintf(stderr, 
-	    "Perhaps you forgot to 'make install' or need to uninstall an old version?\n");
-
-    namesv = NEWSV(806, 0);
-    for(i=0; i<=AvFILL(GvAV(incgv)); i++) {
-	char *tryname;
-	PerlIO *tryrsfp = 0;
-	SV *dir = *av_fetch(GvAV(incgv), i, TRUE);
-	sv_setpvf(namesv, "%_/Apache.pm", dir);
-	tryname = SvPVX(namesv);
-	if((tryrsfp = PerlIO_open(tryname, "r"))) {
-	    fprintf(stderr, "Found: %s\n", tryname);
-	    PerlIO_close(tryrsfp);
-	}
-    }
-    SvREFCNT_dec(namesv);
-    exit(1);
-}
-
-#if !HAS_MMN_136
-static void set_sigpipe(void)
-{
-    char *dargs[] = { NULL };
-    perl_require_module("Apache::SIG", NULL);
-    perl_call_argv("Apache::SIG::set", G_DISCARD, dargs);
-}
-#endif
-
-void perl_module_init(server_rec *s, pool *p)
-{
-#if HAS_MMN_130
-    ap_add_version_component(MOD_PERL_STRING_VERSION);
-    if(PERL_RUNNING()) {
-#ifdef PERL_IS_5_6
-	char *version = form("Perl/v%vd", PL_patchlevel);
-#else
-	char *version = form("Perl/%_", perl_get_sv("]", TRUE));
-#endif
-	if(perl_get_sv("Apache::Server::AddPerlVersion", FALSE)) {
-	    ap_add_version_component(version);
-	}
-    }
-#endif
-    perl_startup(s, p);
-}
-
-static void mod_perl_boot(void *data)
-{
     /* make sure DynaLoader is loaded before XSLoader
-     * to workaround bug in 5.6.1 that can trigger a segv
+     * - to workaround bug in 5.6.1 that can trigger a segv
      * when using modperl as a dso
+     * - also needed when <Perl> sections are loaded from +Parent vhost
      */
-    perl_require_module("DynaLoader", NULL);
+    modperl_require_module(aTHX_ "DynaLoader", FALSE);
+
+    IoFLUSH_on(PL_stderrgv); /* unbuffer STDERR */
 }
 
-static void mod_perl_xs_init(pTHX)
+static void modperl_xs_init(pTHX)
 {
-    xs_init(aTHX);
+    xs_init(aTHX); /* see modperl_xsinit.c */
 
-    /* XXX: in 5.7.2+ we can call the body of mod_perl_boot here
+    /* XXX: in 5.7.2+ we can call the body of modperl_boot here
      * but in 5.6.1 the Perl runtime is not properly setup yet
      * so we have to pull this stunt to delay
      */
-#ifdef SAVEDESTRUCTOR_X
-    SAVEDESTRUCTOR_X(mod_perl_boot, 0);
-#endif
+    SAVEDESTRUCTOR_X(modperl_boot, 0);
 }
 
-void perl_startup (server_rec *s, pool *p)
+/*
+ * the "server_pool" is a subpool of the parent pool (aka "pconf")
+ * this is where we register the cleanups that teardown the interpreter.
+ * the parent process will run the cleanups since server_pool is a subpool
+ * of pconf.  we manually clear the server_pool to run cleanups in the
+ * child processes
+ *
+ * the "server_user_pool" is a subpool of the "server_pool", this is
+ * the pool which is exposed to users, so that they can register
+ * cleanup callbacks. This is needed so that the perl cleanups won't
+ * be run before user cleanups are executed.
+ *
+ */
+static apr_pool_t *server_pool = NULL;
+static apr_pool_t *server_user_pool = NULL;
+
+apr_pool_t *modperl_server_pool(void)
 {
-    char *argv[] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL };
-    char **entries, *dstr;
-    int status, i, argc=1;
-    dPSRV(s);
-    SV *pool_rv, *server_rv;
-    GV *gv, *shgv;
+    return server_pool;
+}
 
-#ifndef WIN32
-    argv[0] = server_argv0;
-#endif
+apr_pool_t *modperl_server_user_pool(void)
+{
+    return server_user_pool;
+}
 
-#ifdef PERL_TRACE
-    if((dstr = getenv("MOD_PERL_TRACE"))) {
-	if(strEQ(dstr, "all")) {
-	    mp_debug = 0xffffffff;
-	}
-	else if (isALPHA(dstr[0])) {
-	    static char debopts[] = "dshgc";
-	    char *d;
+static void set_taint_var(PerlInterpreter *perl)
+{
+    dTHXa(perl);
 
-	    for (; *dstr && (d = strchr(debopts,*dstr)); dstr++) 
-		mp_debug |= 1 << (d - debopts);
-	}
-	else {
-	    mp_debug = atoi(dstr);
-	}
-	mp_debug |= 0x80000000;
+/* 5.7.3+ has a built-in special ${^TAINT}, backport it to 5.6.0+ */
+#if MP_PERL_VERSION_AT_MOST(5, 7, 2)
+    {
+        GV *gv = gv_fetchpv("\024AINT", GV_ADDMULTI, SVt_IV);
+        sv_setiv(GvSV(gv), PL_tainting);
+        SvREADONLY_on(GvSV(gv));
     }
-#else
-    dstr = NULL;
-#endif
+#endif /* perl v < 5.7.3 */
 
-    if(PERL_RUNNING()) {
-	saveINC;
-	mp_check_version();
-#if !HAS_MMN_136
-	set_sigpipe();
-#endif
+#ifdef MP_COMPAT_1X
+    {
+        GV *gv = gv_fetchpv("Apache2::__T", GV_ADDMULTI, SVt_PV);
+        sv_setiv(GvSV(gv), PL_tainting);
+        SvREADONLY_on(GvSV(gv));
     }
-    
-    if(perl_is_running == 0) {
-	/* we'll boot Perl below */
-    }
-    else if(perl_is_running < PERL_DONE_STARTUP) {
-	/* skip the -HUP at server-startup */
-	perl_is_running++;
-	Apache__ServerStarting_on();
-	MP_TRACE_g(fprintf(stderr, "perl_startup: perl aleady running...ok\n"));
-	return;
-    }
-    else {
-	Apache__ServerReStarting(TRUE);
+#endif /* MP_COMPAT_1X */
 
-#ifdef PERL_RESTART
-	perl_restart_handler(s, p);
-#endif
-	if(cls->FreshRestart)
-	    perl_restart(s, p);
+}
 
-	Apache__ServerReStarting(FALSE);
-
-	return;
-    }
-    perl_is_running++;
-
-    /* fake-up what the shell usually gives perl */
-    if(cls->PerlTaintCheck) 
-	argv[argc++] = "-T";
-
-    if(cls->PerlWarn)
-	argv[argc++] = "-w";
-
-#ifdef WIN32
-    argv[argc++] = "nul";
-#else
-    argv[argc++] = "/dev/null";
+PerlInterpreter *modperl_startup(server_rec *s, apr_pool_t *p)
+{
+    AV *endav;
+    dTHXa(NULL);
+    MP_dSCFG(s);
+    PerlInterpreter *perl;
+    int status;
+    char **argv;
+    int argc;
+#ifndef USE_ITHREADS
+    modperl_cleanup_data_t *cdata;
 #endif
 
-    MP_TRACE_g(fprintf(stderr, "perl_parse args: "));
-    for(i=1; i<argc; i++)
-	MP_TRACE_g(fprintf(stderr, "'%s' ", argv[i]));
-    MP_TRACE_g(fprintf(stderr, "..."));
+    /* ensure that we start the base server's perl, before vhost's
+     * one, if modperl_startup was called by vhost before the former
+     * was started */
+    if (MP_init_status != 2) {
+        server_rec *base_server = modperl_global_get_server_rec();
+        PerlInterpreter *base_perl;
 
-#ifdef PERL_SYS_INIT
-    PERL_SYS_INIT(&argc,(char***)&argv);
-#endif
+        MP_init_status = 2; /* calls itself, so set the flag early */
+        base_perl = modperl_startup(base_server, p);
 
-#ifndef perl_init_i18nl10n
-    perl_init_i18nl10n(1);
-#else
-    /* 5.6 calls during perl_construct() */
-#endif
-
-    MP_TRACE_g(fprintf(stderr, "allocating perl interpreter..."));
-    if((perl = perl_alloc()) == NULL) {
-	MP_TRACE_g(fprintf(stderr, "not ok\n"));
-	perror("alloc");
-	exit(1);
+        if (base_server == s ) {
+            return base_perl;
+        }
     }
-    MP_TRACE_g(fprintf(stderr, "ok\n"));
-  
-    MP_TRACE_g(fprintf(stderr, "constructing perl interpreter...ok\n"));
+
+#ifdef MP_TRACE
+    {
+        server_rec *base_server = modperl_global_get_server_rec();
+        const char *desc = modperl_server_desc(s, p);
+        if (base_server == s) {
+            MP_TRACE_i(MP_FUNC,
+                       "starting the parent perl for the base server", desc);
+        }
+        else {
+            MP_TRACE_i(MP_FUNC,
+                       "starting the parent perl for vhost %s", desc);
+        }
+    }
+#endif
+
+#ifdef MP_USE_GTOP
+    MP_TRACE_m_do(
+        modperl_gtop_do_proc_mem_before(MP_FUNC, "perl_parse");
+    );
+#endif
+
+    argv = modperl_config_srv_argv_init(scfg, &argc);
+
+    if (!(perl = perl_alloc())) {
+        perror("perl_alloc");
+        exit(1);
+    }
+
+#ifdef USE_ITHREADS
+    aTHX = perl;
+#endif
+
     perl_construct(perl);
 
-    status = perl_parse(perl, mod_perl_xs_init, argc, argv, NULL);
-    if (status != OK) {
-	MP_TRACE_g(fprintf(stderr,"not ok, status=%d\n", status));
-	perror("parse");
-	exit(1);
+    modperl_hash_seed_set(aTHX);
+
+    modperl_io_apache_init(aTHX);
+
+    PL_perl_destruct_level = 2;
+
+    MP_boot_data_set(p, s);
+    status = perl_parse(perl, modperl_xs_init, argc, argv, NULL);
+    MP_boot_data_set(NULL, NULL);
+
+    if (status) {
+        perror("perl_parse");
+        exit(1);
     }
-    MP_TRACE_g(fprintf(stderr, "ok\n"));
 
-#if (PERL_REVISION == 5) && (PERL_VERSION == 8) && (PERL_SUBVERSION == 1) && \
-    (defined(USE_HASH_SEED) || defined(USE_HASH_SEED_EXPLICIT))
-    /* bug in 5.8.1, causing all forked procs to produce the same rand
-     * sequence */
-    PL_srand_called = FALSE;
-#endif
-    
-    perl_clear_env();
-    mod_perl_pass_env(p, cls);
-    mod_perl_set_cwd();
-    mod_perl_tie_scriptname();
-    MP_TRACE_g(fprintf(stderr, "running perl interpreter..."));
+    /* suspend END blocks to be run at server shutdown */
+    endav = PL_endav;
+    PL_endav = Nullav;
 
-    pool_rv = perl_get_sv("Apache::__POOL", TRUE);
-    sv_setref_pv(pool_rv, Nullch, (void*)p);
-    server_rv = perl_get_sv("Apache::__SERVER", TRUE);
-    sv_setref_pv(server_rv, Nullch, (void*)s);
-
-    gv = GvSV_init("Apache::ERRSV_CAN_BE_HTTP");
-#ifdef ERRSV_CAN_BE_HTTP
-    GvSV_setiv(gv, TRUE);
+/* This was fixed in 5.9.0/5.8.1 (17775), but won't compile after 19122 */
+#if MP_PERL_VERSION(5, 8, 0) && \
+    defined(USE_REENTRANT_API) && defined(HAS_CRYPT_R) && defined(__GLIBC__)
+    /* workaround perl5.8.0/glibc bug */
+    PL_reentrant_buffer->_crypt_struct.current_saltbits = 0;
 #endif
 
-    perl_tainting_set(s, cls->PerlTaintCheck);
-    (void)GvSV_init("Apache::__SendHeader");
-    (void)GvSV_init("Apache::__CurrentCallback");
+    /* We need to reset $0 to argv[0] (httpd) since perl_parse() will
+     * have set it to '-e'. Being magic-aware ensures that some
+     * OS-specific magic will happen (i.e. setproctitle() on *BSDs)
+     */
+    PL_origalen = strlen(argv[0]) + 1;
+    sv_setpv_mg(get_sv("0",0), argv[0]);
 
-    Apache__ServerReStarting(FALSE); /* just for -w */
-    Apache__ServerStarting_on();
-
-#ifdef PERL_STACKED_HANDLERS
-    if(!stacked_handlers) {
-	stacked_handlers = newHV();
-	shgv = GvHV_init("Apache::PerlStackedHandlers");
-	GvHV(shgv) = stacked_handlers;
-    }
-#endif 
-#ifdef MULTITHREAD
-    mod_perl_mutex = create_mutex(NULL);
-#endif
-
-    if ((status = perl_run(perl)) != OK) {
-	MP_TRACE_g(fprintf(stderr,"not ok, status=%d\n", status));
-	perror("run");
-	exit(1);
-    }
-    MP_TRACE_g(fprintf(stderr, "ok\n"));
-
-    /* Force the environment to be copied out of its original location
-       above argv[].  This fixes a crash caused when a module called putenv()
-       before any Perl modified the environment - environ would change to a
-       new value, and the check in my_setenv() to duplicate the environment
-       would fail, and then setting some environment value which had a previous
-       value would cause perl to try to free() something from the original env.
-       This crashed free(). */
-    my_setenv("MODPERL_ENV_FIXUP", "0");
-    my_setenv("MODPERL_ENV_FIXUP", NULL);
-
-    {
-	dTHR;
-	TAINT_NOT; /* At this time all is safe */
-    }
-
-#ifdef MOD_PERL_PREFIX
-	av_unshift(GvAV(incgv),1);
-	av_store(GvAV(incgv), 0, newSVpv(MOD_PERL_PREFIX,0));
-#endif
-	
-#ifdef APACHE_PERL5LIB
-    perl_inc_unshift(APACHE_PERL5LIB);
-#else
-    av_push(GvAV(incgv), newSVpv(server_root_relative(p,""),0));
-    av_push(GvAV(incgv), newSVpv(server_root_relative(p,"lib/perl"),0));
-#endif
-
-    /* *CORE::GLOBAL::exit = \&Apache::exit */
-    if(gv_stashpv("CORE::GLOBAL", FALSE)) {
-	GV *exitgp = gv_fetchpv("CORE::GLOBAL::exit", TRUE, SVt_PVCV);
-	GvCV(exitgp) = perl_get_cv("Apache::exit", TRUE);
-	GvIMPORTED_CV_on(exitgp);
-    }
-
-    ENTER_SAFE(s,p);
-    MP_TRACE_g(mod_perl_dump_opmask());
-
-    entries = (char **)cls->PerlRequire->elts;
-    for(i = 0; i < cls->PerlRequire->nelts; i++) {
-	if(perl_load_startup_script(s, p, entries[i], TRUE) != OK) {
-	    fprintf(stderr, "Require of Perl file `%s' failed, exiting...\n", 
-		    entries[i]);
-	    exit(1);
-	}
-    }
-
-    entries = (char **)cls->PerlModule->elts;
-    for(i = 0; i < cls->PerlModule->nelts; i++) {
-	if(perl_require_module(entries[i], s) != OK) {
-	    fprintf(stderr, "Can't load Perl module `%s', exiting...\n", 
-		    entries[i]);
-	    exit(1);
-	}
-    }
-
-    LEAVE_SAFE;
-
-    MP_TRACE_g(fprintf(stderr, 
-	     "mod_perl: %d END blocks encountered during server startup\n",
-	     endav ? (int)AvFILL(endav)+1 : 0));
-#if MODULE_MAGIC_NUMBER < 19970728
-    if(endav)
-	MP_TRACE_g(fprintf(stderr, "mod_perl: cannot run END blocks encoutered at server startup without apache_1.3.0+\n"));
-#endif
-
-    saveINC;
-
-    if (PERL_IS_DSO) {
-	register_cleanup(p, p, mp_dso_unload, null_cleanup);
-    }
-}
-
-int mod_perl_sent_header(request_rec *r, int val)
-{
-    dPPDIR;
-
-    if (val == DONE) {
-        val = r->assbackwards = 1; /* so apache does not send another header */
-    }
-    if(val) MP_SENTHDR_on(cld);
-    val = MP_SENTHDR(cld) ? 1 : 0;
-    return MP_SENDHDR(cld) ? val : 1;
-}
-
-#ifndef perl_init_ids
-#define perl_init_ids mod_perl_init_ids()
-#endif
-
-int perl_handler(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    dPPREQ;
-    dTHR;
-    GV *gv;
+    perl_run(perl);
 
 #ifdef USE_ITHREADS
-    dTHX;
+    /* base server / virtual host w/ +Parent gets its own mip */
+    modperl_interp_init(s, p, perl);
 
-    if (!aTHX) {
-        PERL_SET_CONTEXT(perl);
-    }
+    /* mark the parent perl to be destroyed */
+    MpInterpBASE_On(scfg->mip->parent);
 #endif
 
-    (void)acquire_mutex(mod_perl_mutex);
+    PL_endav = endav;
 
-    gv = gv_fetchpv("SIG", TRUE, SVt_PVHV);
+    set_taint_var(perl);
 
-   
-#if 0
-    /* force 'PerlSendHeader On' for sub-requests
-     * e.g. Apache::Sandwich 
-     */
-    if(r->main != NULL)
-	MP_SENDHDR_on(cld); 
+    MP_TRACE_i(MP_FUNC, "constructed interpreter=0x%lx",
+               (unsigned long)perl);
+
+#ifdef MP_USE_GTOP
+    MP_TRACE_m_do(
+        modperl_gtop_do_proc_mem_after(MP_FUNC, "perl_parse");
+    );
 #endif
 
-    if(MP_SENDHDR(cld)) 
-	MP_SENTHDR_off(cld);
-
-    (void)perl_request_rec(r); 
-
-    MP_TRACE_g(fprintf(stderr, "perl_handler ENTER: SVs = %5d, OBJs = %5d\n",
-		     (int)sv_count, (int)sv_objcount));
-    ENTER;
-    SAVETMPS;
-
-    if (gv) {
-	save_hptr(&GvHV(gv)); 
-    }
-
-    if (endav) {
-	save_aptr(&endav); 
-	endav = Nullav;
-    }
-
-    /* hookup STDIN & STDOUT to the client */
-    perl_stdout2client(r);
-    perl_stdin2client(r);
-
-    if(!cfg) {
-        cfg = perl_create_request_config(r->pool, r->server);
-        set_module_config(r->request_config, &perl_module, cfg);
-    }
-
-    cfg->setup_env = 1;
-    PERL_CALLBACK("PerlHandler", cld->PerlHandler);
-    cfg->setup_env = 0;
-
-    FREETMPS;
-    LEAVE;
-    MP_TRACE_g(fprintf(stderr, "perl_handler LEAVE: SVs = %5d, OBJs = %5d\n", 
-		     (int)sv_count, (int)sv_objcount));
-
-    if (r->prev && (r->prev->status != HTTP_OK) &&
-        mod_perl_sent_header(r, 0))
+#ifdef MP_COMPAT_1X
     {
-        /* avoid recursive error for ErrorDocuments */
-        status = OK;
-    }
-
-    (void)release_mutex(mod_perl_mutex);
-    return status;
-}
-
-#ifdef PERL_CHILD_INIT
-
-typedef struct {
-    server_rec *server;
-    pool *pool;
-} server_hook_args;
-
-static void perl_child_exit_cleanup(void *data)
-{
-    server_hook_args *args = (server_hook_args *)data;
-    PERL_CHILD_EXIT_HOOK(args->server, args->pool);
-}
-
-void PERL_CHILD_INIT_HOOK(server_rec *s, pool *p)
-{
-    char *hook = "PerlChildInitHandler";
-    dSTATUS;
-    dPSRV(s);
-    request_rec *r = mp_fake_request_rec(s, p, hook);
-    server_hook_args *args = 
-	(server_hook_args *)palloc(p, sizeof(server_hook_args));
-
-    args->server = s;
-    args->pool = p;
-    register_cleanup(p, args, perl_child_exit_cleanup, null_cleanup);
-
-    mod_perl_init_ids();
-    Apache__ServerStarting(FALSE);
-    PERL_CALLBACK(hook, cls->PerlChildInitHandler);
-}
-#endif
-
-#ifdef PERL_CHILD_EXIT
-void PERL_CHILD_EXIT_HOOK(server_rec *s, pool *p)
-{
-    char *hook = "PerlChildExitHandler";
-    dSTATUS;
-    dPSRV(s);
-    request_rec *r = mp_fake_request_rec(s, p, hook);
-
-    PERL_CALLBACK(hook, cls->PerlChildExitHandler);
-
-    perl_shutdown(s,p);
-}
-#endif
-
-static int do_proxy (request_rec *r)
-{
-    return r->parsed_uri.scheme &&
-	!(r->parsed_uri.hostname
-	  && strEQ(r->parsed_uri.scheme, ap_http_method(r))
-	  && ap_matches_request_vhost(r, r->parsed_uri.hostname,
-				      r->parsed_uri.port_str ? 
-				      r->parsed_uri.port : 
-				      ap_default_port(r)));
-}
-
-#ifdef PERL_POST_READ_REQUEST
-int PERL_POST_READ_REQUEST_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPSRV(r->server);
-#ifdef PERL_TRANS
-#if MODULE_MAGIC_NUMBER > 19980270
-    if (cls->PerlTransHandler && do_proxy(r)) {
-	r->proxyreq = 1;
-	r->uri = r->unparsed_uri;
-    }
-#endif
-#endif
-#ifdef PERL_INIT
-    PERL_CALLBACK("PerlInitHandler", cls->PerlInitHandler);
-#endif
-    PERL_CALLBACK("PerlPostReadRequestHandler", cls->PerlPostReadRequestHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_TRANS
-int PERL_TRANS_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPSRV(r->server);
-    PERL_CALLBACK("PerlTransHandler", cls->PerlTransHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_HEADER_PARSER
-int PERL_HEADER_PARSER_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-#ifdef PERL_INIT
-    PERL_CALLBACK("PerlInitHandler", 
-			 cld->PerlInitHandler);
-#endif
-    PERL_CALLBACK("PerlHeaderParserHandler", 
-			 cld->PerlHeaderParserHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_AUTHEN
-int PERL_AUTHEN_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    PERL_CALLBACK("PerlAuthenHandler", cld->PerlAuthenHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_AUTHZ
-int PERL_AUTHZ_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    PERL_CALLBACK("PerlAuthzHandler", cld->PerlAuthzHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_ACCESS
-int PERL_ACCESS_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    PERL_CALLBACK("PerlAccessHandler", cld->PerlAccessHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_TYPE
-int PERL_TYPE_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    PERL_CALLBACK("PerlTypeHandler", cld->PerlTypeHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_FIXUP
-int PERL_FIXUP_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    PERL_CALLBACK("PerlFixupHandler", cld->PerlFixupHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_LOG
-int PERL_LOG_HOOK(request_rec *r)
-{
-    dSTATUS;
-    dPPDIR;
-    PERL_CALLBACK("PerlLogHandler", cld->PerlLogHandler);
-    return status;
-}
-#endif
-
-#ifdef PERL_STACKED_HANDLERS
-#define CleanupHandler \
-((cld->PerlCleanupHandler && SvREFCNT(cld->PerlCleanupHandler)) ? cld->PerlCleanupHandler : Nullav)
-#else
-#define CleanupHandler cld->PerlCleanupHandler
-#endif
-
-#ifdef PERL_TRACE
-static char *my_signame(I32 num)
-{
-#ifdef psig_name
-    return Perl_psig_name[num] ?
-	SvPV(Perl_psig_name[num],na) : "?";
-#else
-    return PL_sig_name[num];
-#endif
-}
-
-#endif
-
-static void per_request_cleanup(request_rec *r)
-{
-    dPPREQ;
-
-#ifndef WIN32
-    perl_request_sigsave **sigs;
-    int i;
-#endif
-
-    if(!cfg) {
-	return;
-    }
-    if(cfg->pnotes) {
-	hv_clear(cfg->pnotes);
-	SvREFCNT_dec(cfg->pnotes);
-	cfg->pnotes = Nullhv;
-    }
-
-#ifndef WIN32
-    sigs = (perl_request_sigsave **)cfg->sigsave->elts;
-    for (i=0; i < cfg->sigsave->nelts; i++) {
-	MP_TRACE_g(fprintf(stderr, 
-			   "mod_perl: restoring SIG%s (%d) handler from: 0x%lx to: 0x%lx\n",
-			   my_signame(sigs[i]->signo), (int)sigs[i]->signo,
-			   (unsigned long)rsignal_state(sigs[i]->signo),
-			   (unsigned long)sigs[i]->h));
-	rsignal(sigs[i]->signo, sigs[i]->h);
-    }
-#endif
-}
-
-void mod_perl_end_cleanup(void *data)
-{
-    request_rec *r = (request_rec *)data;
-    dSTATUS;
-    dPPDIR;
-
-#ifdef PERL_CLEANUP
-    PERL_CALLBACK("PerlCleanupHandler", CleanupHandler);
-#endif
-
-    MP_TRACE_g(fprintf(stderr, "perl_end_cleanup..."));
-    perl_run_rgy_endav(r->uri);
-    per_request_cleanup(r);
-
-    /* clear %ENV */
-    perl_clear_env();
-
-    /* reset @INC */
-    MP_safe_av_undef(GvAV(incgv))
-    GvAV(incgv) = av_copy_array(orig_inc);
-
-    /* reset $/ */
-    sv_setpvn(GvSV(gv_fetchpv("/", TRUE, SVt_PV)), "\n", 1);
-
-    {
-	dTHR;
-	/* %@ */
-	hv_clear(ERRHV);
-    }
-
-    callbacks_this_request = 0;
-
-#ifdef PERL_STACKED_HANDLERS
-    /* reset Apache->push_handlers, but don't clear ExitHandler */
-#define CH_EXIT_KEY "PerlChildExitHandler"
-    {
-	SV *exith = Nullsv;
-	if(hv_exists(stacked_handlers, CH_EXIT_KEY, 20)) {
-	    exith = *hv_fetch(stacked_handlers, CH_EXIT_KEY, 20, FALSE);
-            /* inc the refcnt since hv_clear will dec it */
-	    ++SvREFCNT(exith);
-	}
-	hv_clear(stacked_handlers);
-	if(exith) 
-	    hv_store(stacked_handlers, CH_EXIT_KEY, 20, exith, FALSE);
-    }
-
-#endif
-
-#ifdef USE_SFIO
-    PerlIO_flush(PerlIO_stdout());
-#endif
-
-    MP_TRACE_g(fprintf(stderr, "ok\n"));
-    (void)release_mutex(mod_perl_mutex); 
-}
-
-void mod_perl_cleanup_handler(void *data)
-{
-    request_rec *r = (request_rec *)data;
-    SV *cv;
-    I32 i;
-    dPPDIR;
-
-    (void)acquire_mutex(mod_perl_mutex); 
-    MP_TRACE_h(fprintf(stderr, "running registered cleanup handlers...\n")); 
-    for(i=0; i<=AvFILL(cleanup_av); i++) { 
-	cv = *av_fetch(cleanup_av, i, 0);
-	MARK_WHERE("registered cleanup", cv);
-	perl_call_handler(cv, (request_rec *)r, Nullav);
-	UNMARK_WHERE;
-    }
-    av_clear(cleanup_av);
-#ifndef WIN32
-    if(cld) MP_RCLEANUP_off(cld);
-#endif
-    (void)release_mutex(mod_perl_mutex); 
-}
-
-#ifdef PERL_METHOD_HANDLERS
-int perl_handler_ismethod(HV *pclass, char *sub)
-{
-    CV *cv;
-    HV *stash;
-    GV *gv;
-    SV *sv;
-    int is_method=0;
-
-    if(!sub) return 0;
-    sv = newSVpv(sub,0);
-    if(!(cv = sv_2cv(sv, &stash, &gv, FALSE))) {
-	GV *gvp = gv_fetchmethod(pclass, sub);
-	if (gvp) cv = GvCV(gvp);
-    }
-
-#ifdef CVf_METHOD
-    if (cv && (CvFLAGS(cv) & CVf_METHOD)) {
-        is_method = 1;
-    }
-#endif
-    if (!is_method && (cv && SvPOK(cv))) {
-	is_method = strnEQ(SvPVX(cv), "$$", 2);
-    }
-
-    MP_TRACE_h(fprintf(stderr, "checking if `%s' is a method...%s\n", 
-	   sub, (is_method ? "yes" : "no")));
-    SvREFCNT_dec(sv);
-    return is_method;
-}
-#endif
-
-void mod_perl_noop(void *data) {}
-
-void mod_perl_register_cleanup(request_rec *r, SV *sv)
-{
-    dPPDIR;
-
-    if(!MP_RCLEANUP(cld)) {
-	(void)perl_request_rec(r); 
-	register_cleanup(r->pool, (void*)r,
-			 mod_perl_cleanup_handler, mod_perl_noop);
-	MP_RCLEANUP_on(cld);
-	if(cleanup_av == Nullav) cleanup_av = newAV();
-    }
-    MP_TRACE_h(fprintf(stderr, "registering PerlCleanupHandler\n"));
-    
-    ++SvREFCNT(sv); av_push(cleanup_av, sv);
-}
-
-#ifdef PERL_STACKED_HANDLERS
-
-int mod_perl_push_handlers(SV *self, char *hook, SV *sub, AV *handlers)
-{
-    int do_store=0, len=strlen(hook);
-    SV **svp;
-
-    if(self && SvTRUE(sub)) {
-	if(handlers == Nullav) {
-	    svp = hv_fetch(stacked_handlers, hook, len, 0);
-	    MP_TRACE_h(fprintf(stderr, "fetching %s stack\n", hook));
-	    if(svp && SvTRUE(*svp) && SvROK(*svp)) {
-		handlers = (AV*)SvRV(*svp);
-	    }
-	    else {
-		MP_TRACE_h(fprintf(stderr, "%s handlers stack undef, creating\n", hook));
-		handlers = newAV();
-		do_store = 1;
-	    }
-	}
-	    
-	if(SvROK(sub) && (SvTYPE(SvRV(sub)) == SVt_PVCV)) {
-	    MP_TRACE_h(fprintf(stderr, "pushing CODE ref into `%s' handlers\n", hook));
-	}
-	else if(SvPOK(sub)) {
-	    if(do_store) {
-		MP_TRACE_h(fprintf(stderr, 
-				   "pushing `%s' into `%s' handlers\n", 
-				   SvPV(sub,na), hook));
-	    }
-	    else {
-		MP_TRACE_d(fprintf(stderr, 
-				   "pushing `%s' into `%s' handlers\n", 
-				   SvPV(sub,na), hook));
-	    }
-	}
-	else {
-	    warn("mod_perl_push_handlers: Not a subroutine name or CODE reference!");
-	}
-
-	++SvREFCNT(sub); av_push(handlers, sub);
-
-	if(do_store) 
-	    hv_store(stacked_handlers, hook, len, 
-		     (SV*)newRV_noinc((SV*)handlers), 0);
-	return 1;
-    }
-    return 0;
-}
-
-int perl_run_stacked_handlers(char *hook, request_rec *r, AV *handlers)
-{
-    dSTATUS;
-    I32 i, do_clear=FALSE;
-    SV *sub, **svp; 
-    int hook_len = strlen(hook);
-
-#ifdef USE_ITHREADS
-    dTHX;
-
-    if (!aTHX) {
-        PERL_SET_CONTEXT(perl);
-    }
-#endif
-
-    if(handlers == Nullav) {
-	if(hv_exists(stacked_handlers, hook, hook_len)) {
-	   svp = hv_fetch(stacked_handlers, hook, hook_len, 0);
-	   if(svp && SvROK(*svp)) 
-	       handlers = (AV*)SvRV(*svp);
-	}
-	else {
-	    MP_TRACE_h(fprintf(stderr, "`%s' push_handlers() stack is empty\n", hook));
-	    return NO_HANDLERS;
-	}
-	do_clear = TRUE;
-	MP_TRACE_h(fprintf(stderr, 
-		 "running %d pushed (stacked) handlers for %s...\n", 
-			 (int)AvFILL(handlers)+1, r->uri)); 
-    }
-    else {
-#ifdef PERL_STACKED_HANDLERS
-      /* XXX: bizarre, 
-	 I only see this with httpd.conf.pl and PerlAccessHandler */
-	if(SvTYPE((SV*)handlers) != SVt_PVAV) {
-#if MODULE_MAGIC_NUMBER > 19970909 
-	    aplog_error(APLOG_MARK, APLOG_NOERRNO|APLOG_DEBUG, r->server,
-#else
-	    fprintf(stderr, 
-#endif
-		    "[warning] %s stack is not an ARRAY!\n", hook);
-	    sv_dump((SV*)handlers);
-	    return DECLINED;
-	}
-#endif
-	MP_TRACE_h(fprintf(stderr, 
-		 "running %d server configured stacked handlers for %s...\n", 
-			 (int)AvFILL(handlers)+1, r->uri)); 
-    }
-    for(i=0; i<=AvFILL(handlers); i++) {
-	MP_TRACE_h(fprintf(stderr, "calling &{%s->[%d]} (%d total)\n", 
-			   hook, (int)i, (int)AvFILL(handlers)+1));
-
-	if(!(sub = *av_fetch(handlers, i, FALSE))) {
-	    MP_TRACE_h(fprintf(stderr, "sub not defined!\n"));
-	}
-	else {
-	    if(!SvTRUE(sub)) {
-		MP_TRACE_h(fprintf(stderr, "sub undef!  skipping callback...\n"));
-		continue;
-	    }
-
-	    MARK_WHERE(hook, sub);
-	    status = perl_call_handler(sub, r, Nullav);
-	    UNMARK_WHERE;
-	    MP_TRACE_h(fprintf(stderr, "&{%s->[%d]} returned status=%d\n",
-			       hook, (int)i, status));
-	    if((status != OK) && (status != DECLINED)) {
-		if(do_clear)
-		    av_clear(handlers);	
-		return status;
-	    }
-	}
-    }
-    if(do_clear)
-	av_clear(handlers);	
-    return status;
-}
-
-#endif /* PERL_STACKED_HANDLERS */
-
-/* things to do once per-request */
-void perl_per_request_init(request_rec *r)
-{
-    dPPDIR;
-    dPPREQ;
-    
-    /* PerlSendHeader */
-    if(MP_SENDHDR(cld)) {
-	MP_SENTHDR_off(cld);
-	table_set(r->subprocess_env, 
-		  "PERL_SEND_HEADER", "On");
-    }
-    else
-	MP_SENTHDR_on(cld);
-
-    if(!cfg) {
-	cfg = perl_create_request_config(r->pool, r->server);
-	set_module_config(r->request_config, &perl_module, cfg);
-    }
-    else if (cfg->setup_env && MP_ENV(cld)) { 
-	perl_setup_env(r);
-	cfg->setup_env = 0; /* just once per-request */
-    }
-
-    if (cfg->dir_env != cld->env) {
-        /* PerlSetEnv
-         * update only if the table changes across a request
-         */
-        MP_HASENV_on(cld);
-        mod_perl_dir_env(r, cld);
-        cfg->dir_env = cld->env;
-    }
-
-    if(callbacks_this_request++ > 0) return;
-
-    if (!r->main) {
-	/* so Apache->request will work before PerlHandler with CGI.pm
-	 * XXX: triggers core dump in subrequests, 
-	 * so just do in the main request for now
-	 */
-	(void)perl_request_rec(r);
-    }
-
-    /* SetEnv PERL5LIB */
-    if (!MP_INCPUSH(cld)) {
-	char *path = (char *)table_get(r->subprocess_env, "PERL5LIB");
-
-	if (path) {
-           perl_inc_unshift(path);
-	    MP_INCPUSH_on(cld);
-	}
-    }
-
-    {
-	dPSRV(r->server);
-	mod_perl_pass_env(r->pool, cls);
-    }
-    mod_perl_tie_scriptname();
-    /* will be released in mod_perl_end_cleanup */
-    (void)acquire_mutex(mod_perl_mutex); 
-    register_cleanup(r->pool, (void*)r, mod_perl_end_cleanup, mod_perl_noop);
-
-#ifdef WIN32
-    sv_setpvf(perl_get_sv("Apache::CurrentThreadId", TRUE), "0x%lx",
-	      (unsigned long)GetCurrentThreadId());
-#endif
-
-    /* hookup stderr to error_log */
-#ifndef PERL_TRACE
-    if(r->server->error_log) 
-	error_log2stderr(r->server);
-#endif
-
-    seqno++;
-    MP_TRACE_g(fprintf(stderr, "mod_perl: inc seqno to %d for %s\n", seqno, r->uri));
-    seqno_check_max(r, seqno);
-
-    /* set $$, $>, etc., if 1.3a1+, this really happens during child_init */
-    perl_init_ids; 
-}
-
-/* XXX this still needs work, getting there... */
-int perl_call_handler(SV *sv, request_rec *r, AV *args)
-{
-    int count, status, is_method=0;
-    dSP;
-    perl_dir_config *cld = NULL;
-    HV *stash = Nullhv;
-    SV *pclass = newSVsv(sv), *dispsv = Nullsv;
-    CV *cv = Nullcv;
-    char *method = "handler";
-    int defined_sub = 0, anon = 0;
-    char *dispatcher = NULL;
-
-    if(r->per_dir_config)
-	cld = (perl_dir_config *) get_module_config(r->per_dir_config, &perl_module);
-
-#ifdef PERL_DISPATCH
-    if(cld && (dispatcher = cld->PerlDispatchHandler)) {
-	if(!(dispsv = (SV*)perl_get_cv(dispatcher, FALSE))) {
-	    if(strlen(dispatcher) > 0) { /* XXX */
-		fprintf(stderr, 
-			"mod_perl: unable to fetch PerlDispatchHandler `%s'\n",
-			dispatcher); 
-	    }
-	    dispatcher = NULL;
-	}
-    }
-#endif
-
-    if(r->per_dir_config)
-	perl_per_request_init(r);
-
-    if(!dispatcher && (SvTYPE(sv) == SVt_PV)) {
-	char *imp = pstrdup(r->pool, (char *)SvPV(pclass,na));
-
-	if((anon = strnEQ(imp,"sub ",4))) {
-	    sv = perl_eval_pv(imp, FALSE);
-	    MP_TRACE_h(fprintf(stderr, "perl_call: caching CV pointer to `__ANON__'\n"));
-	    defined_sub++;
-	    goto callback; /* XXX, I swear I've never used goto before! */
-	}
-
-
-#ifdef PERL_METHOD_HANDLERS
-	{
-	    char *end_pclass = NULL;
-
-	    if ((end_pclass = strstr(imp, "->"))) {
-		end_pclass[0] = '\0';
-		if(pclass)
-		    SvREFCNT_dec(pclass);
-		pclass = newSVpv(imp, 0);
-		end_pclass[0] = ':';
-		end_pclass[1] = ':';
-		method = &end_pclass[2];
-		imp = method;
-		++is_method;
-	    }
-	}
-
-	if(*SvPVX(pclass) == '$') {
-	    SV *obj = perl_eval_pv(SvPVX(pclass), TRUE);
-	    if(SvROK(obj) && sv_isobject(obj)) {
-		MP_TRACE_h(fprintf(stderr, "handler object %s isa %s\n",
-				   SvPVX(pclass),  HvNAME(SvSTASH((SV*)SvRV(obj)))));
-		SvREFCNT_dec(pclass);
-		pclass = obj;
-		++SvREFCNT(pclass); /* this will _dec later */
-		stash = SvSTASH((SV*)SvRV(pclass));
-	    }
-	}
-
-	if(pclass && !stash) stash = gv_stashpv(SvPV(pclass,na),FALSE);
-	   
-#if 0
-	MP_TRACE_h(fprintf(stderr, "perl_call: pclass=`%s'\n", SvPV(pclass,na)));
-	MP_TRACE_h(fprintf(stderr, "perl_call: imp=`%s'\n", imp));
-	MP_TRACE_h(fprintf(stderr, "perl_call: method=`%s'\n", method));
-	MP_TRACE_h(fprintf(stderr, "perl_call: stash=`%s'\n", 
-			 stash ? HvNAME(stash) : "unknown"));
-#endif
-
-#else
-	method = NULL; /* avoid warning */
-#endif
-
-
-    /* if a Perl*Handler is not a defined function name,
-     * default to the class implementor's handler() function
-     * attempt to load the class module if it is not already
-     */
-	if(!imp) imp = SvPV(sv,na);
-	if(!stash) stash = gv_stashpv(imp,FALSE);
-	if(!is_method)
-	    defined_sub = (cv = perl_get_cv(imp, FALSE)) ? TRUE : FALSE;
-#ifdef PERL_METHOD_HANDLERS
-	if(!defined_sub && stash) {
-	    GV *gvp;
-	    MP_TRACE_h(fprintf(stderr, 
-		   "perl_call: trying method lookup on `%s' in class `%s'...", 
-		   method, HvNAME(stash)));
-	    /* XXX Perl caches method lookups internally, 
-	     * should we cache this lookup?
-	     */
-	    if((gvp = gv_fetchmethod(stash, method))) {
-		cv = GvCV(gvp);
-		MP_TRACE_h(fprintf(stderr, "found\n"));
-		is_method = perl_handler_ismethod(stash, method);
-	    }
-	    else {
-		MP_TRACE_h(fprintf(stderr, "not found\n"));
-	    }
-	}
-#endif
-
-	if(!stash && !defined_sub) {
-	    MP_TRACE_h(fprintf(stderr, "%s symbol table not found, loading...\n", imp));
-	    if(perl_require_module(imp, r->server) == OK)
-		stash = gv_stashpv(imp,FALSE);
-#ifdef PERL_METHOD_HANDLERS
-	    if(stash) /* check again */
-		is_method = perl_handler_ismethod(stash, method);
-#endif
-	    SPAGAIN; /* reset stack pointer after require() */
-	}
-	
-	if(!is_method && !defined_sub) {
-	    MP_TRACE_h(fprintf(stderr, 
-			     "perl_call: defaulting to %s::handler\n", imp));
-	    sv_catpv(sv, "::handler");
-	}
-	
-#if 0 /* XXX: CV lookup cache disabled for now */
- 	if(!is_method && defined_sub) { /* cache it */
-	    MP_TRACE_h(fprintf(stderr, 
-			     "perl_call: caching CV pointer to `%s'\n", 
-			     (anon ? "__ANON__" : SvPV(sv,na))));
-	    SvREFCNT_dec(sv);
- 	    sv = (SV*)newRV((SV*)cv); /* let newRV inc the refcnt */
-	}
-#endif
-    }
-    else {
-	MP_TRACE_h(fprintf(stderr, "perl_call: handler is a %s\n", 
-			 dispatcher ? "dispatcher" : "cached CV"));
-    }
-
-callback:
-    ENTER;
-    SAVETMPS;
-    PUSHMARK(sp);
-#ifdef PERL_METHOD_HANDLERS
-    if(is_method)
-	XPUSHs(sv_2mortal(pclass));
-    else
-	SvREFCNT_dec(pclass);
-#else
-    SvREFCNT_dec(pclass);
-#endif
-
-    XPUSHs((SV*)perl_bless_request_rec(r)); 
-
-    if(dispatcher) {
-	MP_TRACE_h(fprintf(stderr, 
-		 "mod_perl: handing off to PerlDispatchHandler `%s'\n", 
-			 dispatcher));
-        /*XPUSHs(sv_mortalcopy(sv));*/
-	XPUSHs(sv);
-	sv = dispsv;
-    }
-
-    {
-	I32 i, len = (args ? AvFILL(args) : 0);
-
-	if(args) {
-	    EXTEND(sp, len);
-	    for(i=0; i<=len; i++)
-		PUSHs(sv_2mortal(*av_fetch(args, i, FALSE)));
-	}
-    }
-    PUTBACK;
-    
-    /* use G_EVAL so we can trap errors */
-#ifdef PERL_METHOD_HANDLERS
-    if(is_method)
-	count = perl_call_method(method, G_EVAL | G_SCALAR);
-    else
-#endif
-	count = perl_call_sv(sv, G_EVAL | G_SCALAR);
-    
-    SPAGAIN;
-
-    if ((status = perl_eval_ok(r->server)) != OK) {
-        dTHRCTX;
-        if (status == SERVER_ERROR) {
-            MP_STORE_ERROR(r->uri, ERRSV);
-            if (r->notes) {
-                ap_table_set(r->notes, "error-notes", SvPVX(ERRSV));
+        char *path, *path1;
+        apr_finfo_t finfo;
+        /* 1) push @INC, $ServerRoot */
+        av_push(GvAV(PL_incgv), newSVpv(ap_server_root, 0));
+
+        /* 2) push @INC, $ServerRoot/lib/perl only if it exists */
+        apr_filepath_merge(&path, ap_server_root, "lib",
+                           APR_FILEPATH_NATIVE, p);
+        apr_filepath_merge(&path1, path, "perl",
+                           APR_FILEPATH_NATIVE, p);
+        if (APR_SUCCESS == apr_stat(&finfo, path1, APR_FINFO_TYPE, p)) {
+            if (finfo.filetype == APR_DIR) {
+                av_push(GvAV(PL_incgv), newSVpv(path1, 0));
             }
         }
-        else if (status == DECLINED) {
-            status = r->status == 200 ? OK : r->status;
-        }
     }
-    else if(count != 1) {
-	mod_perl_error(r->server,
-		       "perl_call did not return a status arg, assuming OK");
-	status = OK;
+#endif /* MP_COMPAT_1X */
+
+    /* base perl and each vhost +Parent should have this init'ed */
+    modperl_handler_anon_init(aTHX_ p);
+
+    if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
+        exit(1);
+    }
+
+    if (!modperl_config_apply_PerlModule(s, scfg, perl, p)) {
+        exit(1);
+    }
+
+#ifndef USE_ITHREADS
+    cdata = modperl_cleanup_data_new(server_pool, (void*)perl);
+    apr_pool_cleanup_register(server_pool, cdata,
+                              modperl_shutdown, apr_pool_cleanup_null);
+#endif
+
+    return perl;
+}
+
+int modperl_init_vhost(server_rec *s, apr_pool_t *p,
+                       server_rec *base_server)
+{
+    MP_dSCFG(s);
+    modperl_config_srv_t *base_scfg;
+    PerlInterpreter *base_perl;
+    PerlInterpreter *perl;
+    const char *vhost = modperl_server_desc(s, p);
+
+    if (!scfg) {
+        MP_TRACE_i(MP_FUNC, "server %s has no mod_perl config", vhost);
+        return OK;
+    }
+
+    if (base_server == NULL) {
+        base_server = modperl_global_get_server_rec();
+    }
+
+    MP_TRACE_i(MP_FUNC, "Init vhost %s: s=0x%lx, base_s=0x%lx",
+               vhost, s, base_server);
+
+    if (base_server == s) {
+        MP_TRACE_i(MP_FUNC, "base server is not vhost, skipping %s",
+                   vhost);
+        return OK;
+    }
+
+    base_scfg = modperl_config_srv_get(base_server);
+
+#ifdef USE_ITHREADS
+    perl = base_perl = base_scfg->mip->parent->perl;
+#else
+    perl = base_perl = base_scfg->perl;
+#endif /* USE_ITHREADS */
+
+#ifdef USE_ITHREADS
+
+    if (scfg->mip) {
+        MP_TRACE_i(MP_FUNC, "server %s already initialized", vhost);
+        return OK;
+    }
+
+    /* the base server could have mod_perl callbacks disabled, but it
+     * still needs perl to drive the vhosts */
+    if (!MpSrvENABLE(scfg) && s->is_virtual) {
+        MP_TRACE_i(MP_FUNC, "mod_perl disabled for server %s", vhost);
+        scfg->mip = NULL;
+        return OK;
+    }
+
+    PERL_SET_CONTEXT(perl);
+
+#endif /* USE_ITHREADS */
+
+    MP_TRACE_d_do(MpSrv_dump_flags(scfg, s->server_hostname));
+
+    /* if alloc flags is On, virtual host gets its own parent perl */
+    if (MpSrvPARENT(scfg)) {
+        perl = modperl_startup(s, p);
+        MP_TRACE_i(MP_FUNC,
+                   "created parent interpreter for VirtualHost %s",
+                   modperl_server_desc(s, p));
     }
     else {
-	status = POPi;
+#ifdef USE_ITHREADS
+        /* virtual host w/ +Clone gets its own mip */
+        if (MpSrvCLONE(scfg)) {
+            modperl_interp_init(s, p, perl);
+        }
+#endif
 
-	if((status == 1) || (status == 200) || (status > 600)) 
-	    status = OK; 
+        if (!modperl_config_apply_PerlRequire(s, scfg, perl, p)) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
 
-	if((status == SERVER_ERROR) && ERRSV_CAN_BE_HTTP) {
-	    SV *errsv = Nullsv;
-	    if(MP_EXISTS_ERROR(r->uri) && (errsv = MP_FETCH_ERROR(r->uri))) {
-		(void)perl_sv_is_http_code(errsv, &status);
-	    }
-	}
+        if (!modperl_config_apply_PerlModule(s, scfg, perl, p)) {
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
     }
 
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-    MP_TRACE_g(fprintf(stderr, "perl_call_handler: SVs = %5d, OBJs = %5d\n", 
-	    (int)sv_count, (int)sv_objcount));
+#ifdef USE_ITHREADS
+    if (!scfg->mip) {
+        /* since mips are created after merge_server_configs()
+         * need to point to the base mip here if this vhost
+         * doesn't have its own
+         */
+        MP_TRACE_i(MP_FUNC, "%s mip inherited from %s",
+                   vhost, modperl_server_desc(base_server, p));
+        scfg->mip = base_scfg->mip;
+    }
+#endif  /* USE_ITHREADS */
 
+    return OK;
+}
+
+void modperl_init(server_rec *base_server, apr_pool_t *p)
+{
+    server_rec *s;
+    modperl_config_srv_t *base_scfg;
+    PerlInterpreter *base_perl;
+
+    base_scfg = modperl_config_srv_get(base_server);
+
+    MP_TRACE_d_do(MpSrv_dump_flags(base_scfg,
+                                   base_server->server_hostname));
+
+#ifndef USE_ITHREADS
+    if (modperl_threaded_mpm()) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, base_server,
+                     "cannot use threaded MPM without ithreads enabled Perl");
+        exit(1);
+    }
+#endif
+
+    base_perl = modperl_startup(base_server, p);
+
+    for (s=base_server->next; s; s=s->next) {
+        if (modperl_init_vhost(s, p, base_server) != OK) {
+            exit(1); /*XXX*/
+        }
+    }
+
+#ifdef USE_ITHREADS
+    /* after other parent perls were started in vhosts, make sure that
+     * the context is set to the base_perl */
+    PERL_SET_CONTEXT(base_perl);
+#endif
+
+}
+
+static int modperl_post_config_require(server_rec *s, apr_pool_t *p)
+{
+    for (; s; s=s->next) {
+        MP_dSCFG(s);
+        if (!modperl_config_apply_PerlPostConfigRequire(s, scfg, p)) {
+            return FALSE;
+        }
+    }
+    return TRUE;
+}
+
+#ifdef USE_ITHREADS
+static void modperl_init_clones(server_rec *s, apr_pool_t *p)
+{
+#ifdef MP_TRACE
+    modperl_config_srv_t *base_scfg = modperl_config_srv_get(s);
+    char *base_name = modperl_server_desc(s, p);
+#endif /* MP_TRACE */
+
+    if (!modperl_threaded_mpm()) {
+        MP_TRACE_i(MP_FUNC, "no clones created for non-threaded mpm");
+        return;
+    }
+
+    for (; s; s=s->next) {
+        MP_dSCFG(s);
+#ifdef MP_TRACE
+        char *name = modperl_server_desc(s, p);
+
+        MP_TRACE_i(MP_FUNC, "PerlInterpScope set to %s for %s",
+                   modperl_interp_scope_desc(scfg->interp_scope), name);
+#else
+        char *name = NULL;
+#endif /* MP_TRACE */
+
+        if (scfg->mip->tipool->idle) {
+#ifdef MP_TRACE
+            if (scfg->mip == base_scfg->mip) {
+                MP_TRACE_i(MP_FUNC,
+                           "%s interp pool inherited from %s",
+                           name, base_name);
+            }
+            else {
+                MP_TRACE_i(MP_FUNC,
+                           "%s interp pool already initialized",
+                           name);
+            }
+#endif /* MP_TRACE */
+        }
+        else {
+            MP_TRACE_i(MP_FUNC, "initializing interp pool for %s",
+                       name);
+            modperl_tipool_init(scfg->mip->tipool);
+        }
+    }
+}
+#endif /* USE_ITHREADS */
+
+void modperl_init_globals(server_rec *s, apr_pool_t *pconf)
+{
+    ap_mpm_query(AP_MPMQ_IS_THREADED, &MP_threaded_mpm);
+
+    MP_TRACE_g(MP_FUNC, "mod_perl globals are configured");
+
+    modperl_global_init_pconf(pconf, pconf);
+    modperl_global_init_server_rec(pconf, s);
+
+    modperl_tls_create_request_rec(pconf);
+
+    /* init the counter to 0 */
+    modperl_global_anon_cnt_init(pconf);
+}
+
+/*
+ * modperl_sys_{init,term} are things that happen
+ * once per-parent process, not per-interpreter
+ */
+static apr_status_t modperl_sys_init(void)
+{
+    int argc = 0;
+    char **argv = NULL, **env = NULL;
+
+    MP_TRACE_i(MP_FUNC, "mod_perl sys init");
+
+    /* not every OS uses those vars in PERL_SYS_INIT3 macro */
+    argc = argc; argv = argv; env = env;
+
+    PERL_SYS_INIT3(&argc, &argv, &env);
+
+#if 0 /*XXX*/
+#ifdef PTHREAD_ATFORK
+    if (!ap_exists_config_define("PERL_PTHREAD_ATFORK_DONE")) {
+        PTHREAD_ATFORK(Perl_atfork_lock,
+                       Perl_atfork_unlock,
+                       Perl_atfork_unlock);
+        *(char **)apr_array_push(ap_server_config_defines) =
+            "PERL_PTHREAD_ATFORK_DONE";
+    }
+#endif
+#endif
+
+    /* modifies PL_ppaddr */
+    modperl_perl_pp_set_all();
+
+    /* modifies PL_vtbl_env{elem} */
+    modperl_env_init();
+
+    return APR_SUCCESS;
+}
+
+static apr_status_t modperl_sys_term(void *data)
+{
+    /* PERL_SYS_TERM() needs 'my_perl' as of 5.9.5 */
+#if MP_PERL_VERSION_AT_LEAST(5, 9, 5) && defined(USE_ITHREADS)
+    modperl_cleanup_data_t *cdata = (modperl_cleanup_data_t *)data;
+    PERL_UNUSED_DECL PerlInterpreter *my_perl = cdata == NULL ? NULL : (PerlInterpreter *)cdata->data;
+#endif
+    MP_init_status = 0;
+    MP_threads_started = 0;
+    MP_post_post_config_phase = 0;
+
+    MP_PERL_FREE_THREAD_KEY_WORKAROUND;
+
+    MP_TRACE_i(MP_FUNC, "mod_perl sys term");
+
+    modperl_env_unload();
+
+    modperl_perl_pp_unset_all();
+
+    PERL_SYS_TERM();
+
+    return APR_SUCCESS;
+}
+
+int modperl_hook_init(apr_pool_t *pconf, apr_pool_t *plog,
+                      apr_pool_t *ptemp, server_rec *s)
+{
+    if (MP_IS_STARTING || MP_IS_RUNNING) {
+        return OK;
+    }
+
+    MP_TRACE_i(MP_FUNC, "mod_perl hook init");
+
+    MP_init_status = 1; /* now starting */
+
+    modperl_restart_count_inc(s);
+
+    apr_pool_create(&server_pool, pconf);
+    apr_pool_tag(server_pool, "mod_perl server pool");
+
+    apr_pool_create(&server_user_pool, pconf);
+    apr_pool_tag(server_user_pool, "mod_perl server user pool");
+
+    modperl_sys_init();
+    apr_pool_cleanup_register(server_pool, NULL,
+                              modperl_sys_term, apr_pool_cleanup_null);
+
+    modperl_init(s, pconf);
+
+    return OK;
+}
+
+/*
+ * if we need to init earlier than post_config,
+ * e.g. <Perl> sections or directive handlers.
+ */
+int modperl_run(void)
+{
+    return modperl_hook_init(modperl_global_get_pconf(),
+                             NULL,
+                             NULL,
+                             modperl_global_get_server_rec());
+}
+
+int modperl_is_running(void)
+{
+    return MP_IS_RUNNING;
+}
+
+int modperl_hook_pre_config(apr_pool_t *p, apr_pool_t *plog,
+                            apr_pool_t *ptemp)
+{
+    /* we can't have PerlPreConfigHandler without first configuring mod_perl */
+
+    /* perl 5.8.1+ */
+    modperl_hash_seed_init(p);
+
+    return OK;
+}
+
+static int modperl_hook_pre_connection(conn_rec *c, void *csd)
+{
+    modperl_input_filter_add_connection(c);
+    modperl_output_filter_add_connection(c);
+    return OK;
+}
+
+static int modperl_hook_post_config_last(apr_pool_t *pconf, apr_pool_t *plog,
+                                         apr_pool_t *ptemp, server_rec *s)
+{
+    /* in the threaded environment, no server_rec/process_rec
+     * modifications should be done beyond this point */
+#ifdef USE_ITHREADS
+    MP_dSCFG(s);
+    dTHXa(scfg->mip->parent->perl);
+#endif
+
+    if (!modperl_post_config_require(s, pconf)) {
+        exit(1);
+    }
+
+    if (modperl_threaded_mpm()) {
+        MP_threads_started = 1;
+    }
+
+    MP_post_post_config_phase = 1;
+
+#ifdef MP_TRACE
+    /* httpd core open_logs handler re-opens s->error_log, which might
+     * change, even though it still points to the same physical file
+     * (.e.g on win32 the filehandle will be different. Therefore
+     * reset the tracing logfile setting here, since this is the
+     * earliest place, happening after the open_logs phase.
+     *
+     * Moreover, we need to dup the filehandle so that when the server
+     * shuts down, we will be able to log to error_log after Apache
+     * has closed it (which happens too early for our likening).
+     */
     {
-	dTHRCTX;
-	if(SvMAGICAL(ERRSV))
-	    sv_unmagic(ERRSV, 'U'); /* Apache::exit was called */
+        apr_file_t *dup;
+        MP_RUN_CROAK(apr_file_dup(&dup, s->error_log, pconf),
+                     "mod_perl core post_config");
+        modperl_trace_logfile_set(dup);
+    }
+#endif
+
+#if MP_PERL_VERSION_AT_LEAST(5, 9, 0)
+#define MP_PERL_VERSION_STAMP "Perl/%" SVf
+#else
+#define MP_PERL_VERSION_STAMP "Perl/v%vd"
+#endif
+
+    ap_add_version_component(pconf, MP_VERSION_STRING);
+    ap_add_version_component(pconf,
+                             Perl_form(aTHX_ MP_PERL_VERSION_STAMP,
+                                       PL_patchlevel));
+
+    modperl_mgv_hash_handlers(pconf, s);
+    modperl_modglobal_hash_keys(aTHX);
+    modperl_env_hash_keys(aTHX);
+#ifdef USE_ITHREADS
+    modperl_init_clones(s, pconf);
+#endif
+
+#ifdef MP_NEED_HASH_SEED_FIXUP
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "mod_perl: using Perl HASH_SEED: %"UVuf, MP_init_hash_seed);
+#endif
+
+    return OK;
+}
+
+static int modperl_hook_create_request(request_rec *r)
+{
+    MP_dRCFG;
+
+    modperl_config_req_init(r, rcfg);
+
+    /* set the default for cgi header parsing On as early as possible
+     * so $r->content_type in any phase after header_parser could turn
+     * it off. wb->header_parse will be set to 1 only if this flag
+     * wasn't turned off and MpDirPARSE_HEADERS is on
+     */
+    MpReqPARSE_HEADERS_On(rcfg);
+
+    return OK;
+}
+
+static int modperl_hook_post_read_request(request_rec *r)
+{
+    /* if 'PerlOptions +GlobalRequest' is outside a container */
+    modperl_global_request_cfg_set(r);
+
+    return OK;
+}
+
+static int modperl_hook_header_parser(request_rec *r)
+{
+    /* if 'PerlOptions +GlobalRequest' is inside a container */
+    modperl_global_request_cfg_set(r);
+
+    return OK;
+}
+
+static int modperl_destruct_level = 2; /* default is full tear down */
+
+int modperl_perl_destruct_level(void)
+{
+    return modperl_destruct_level;
+}
+
+#ifdef USE_ITHREADS
+
+static apr_status_t
+modperl_perl_call_endav_mip(pTHX_ modperl_interp_pool_t *mip,
+                            void *data)
+{
+    modperl_perl_call_endav(aTHX);
+    return APR_SUCCESS;
+}
+
+#endif /* USE_ITHREADS */
+
+static apr_status_t modperl_child_exit(void *data)
+{
+    char *level = NULL;
+    server_rec *s = (server_rec *)data;
+
+    modperl_callback_process(MP_CHILD_EXIT_HANDLER, server_pool, s,
+                             MP_HOOK_VOID);
+
+    if ((level = getenv("PERL_DESTRUCT_LEVEL"))) {
+        modperl_destruct_level = atoi(level);
+    }
+    else {
+        /* default to no teardown in the children */
+        modperl_destruct_level = 0;
     }
 
-    return status;
-}
-
-request_rec *perl_request_rec(request_rec *r)
-{
-    if(r != NULL) {
-	mp_request_rec = (IV)r;
-	return NULL;
+    if (modperl_destruct_level) {
+        apr_pool_clear(server_pool);
     }
-    else
-	return (request_rec *)mp_request_rec;
-}
-
-SV *perl_bless_request_rec(request_rec *r)
-{
-    SV *sv = sv_newmortal();
-    sv_setref_pv(sv, "Apache", (void*)r);
-    MP_TRACE_g(fprintf(stderr, "blessing request_rec=(0x%lx)\n",
-		     (unsigned long)r));
-    return sv;
-}
-
-void perl_setup_env(request_rec *r)
-{ 
-    int i;
-    array_header *arr = perl_cgi_env_init(r);
-    table_entry *elts = (table_entry *)arr->elts;
-
-    for (i = 0; i < arr->nelts; ++i) {
-	if (!elts[i].key || !elts[i].val) continue;
-	mp_setenv(elts[i].key, elts[i].val);
+    else {
+        /* run the END blocks of this child process if
+         * modperl_perl_destruct is not called for this process */
+#ifdef USE_ITHREADS
+        modperl_interp_mip_walk_servers(NULL, s,
+                                        modperl_perl_call_endav_mip,
+                                        (void*)NULL);
+#else
+        modperl_perl_call_endav(aTHX);
+#endif
     }
-    MP_TRACE_g(fprintf(stderr, "perl_setup_env...%d keys\n", i));
+
+    server_pool = NULL;
+
+    return APR_SUCCESS;
 }
 
-int mod_perl_seqno(SV *self, int inc)
+static void modperl_hook_child_init(apr_pool_t *p, server_rec *s)
 {
-    self = self; /*avoid warning*/
-    if(inc) seqno += inc;
-    return seqno;
+    modperl_perl_init_ids_server(s);
+
+    apr_pool_cleanup_register(p, (void *)s, modperl_child_exit,
+                              apr_pool_cleanup_null);
 }
 
+#define MP_FILTER_HANDLER(f) f, NULL
+
+void modperl_register_hooks(apr_pool_t *p)
+{
+
+#ifdef USE_ITHREADS
+    APR_REGISTER_OPTIONAL_FN(modperl_interp_unselect);
+    APR_REGISTER_OPTIONAL_FN(modperl_thx_interp_get);
+#endif
+
+    /* for <IfDefine MODPERL2> and Apache2->define("MODPERL2") */
+    *(char **)apr_array_push(ap_server_config_defines) =
+        apr_pstrdup(p, "MODPERL2");
+
+    ap_hook_pre_config(modperl_hook_pre_config,
+                       NULL, NULL, APR_HOOK_MIDDLE);
+
+    ap_hook_open_logs(modperl_hook_init,
+                      NULL, NULL, APR_HOOK_FIRST);
+
+    ap_hook_post_config(modperl_hook_post_config_last,
+                        NULL, NULL, APR_HOOK_REALLY_LAST);
+
+    ap_hook_handler(modperl_response_handler,
+                    NULL, NULL, APR_HOOK_MIDDLE);
+
+    ap_hook_handler(modperl_response_handler_cgi,
+                    NULL, NULL, APR_HOOK_MIDDLE);
+
+    ap_hook_insert_filter(modperl_output_filter_add_request,
+                          NULL, NULL, APR_HOOK_LAST);
+
+    ap_hook_insert_filter(modperl_input_filter_add_request,
+                          NULL, NULL, APR_HOOK_LAST);
+
+    ap_register_output_filter(MP_FILTER_REQUEST_OUTPUT_NAME,
+                              MP_FILTER_HANDLER(modperl_output_filter_handler),
+                              AP_FTYPE_RESOURCE);
+
+    ap_register_input_filter(MP_FILTER_REQUEST_INPUT_NAME,
+                             MP_FILTER_HANDLER(modperl_input_filter_handler),
+                             AP_FTYPE_RESOURCE);
+
+    ap_register_output_filter(MP_FILTER_CONNECTION_OUTPUT_NAME,
+                              MP_FILTER_HANDLER(modperl_output_filter_handler),
+                              AP_FTYPE_CONNECTION);
+
+    ap_register_input_filter(MP_FILTER_CONNECTION_INPUT_NAME,
+                             MP_FILTER_HANDLER(modperl_input_filter_handler),
+                             AP_FTYPE_CONNECTION);
+
+    ap_hook_pre_connection(modperl_hook_pre_connection,
+                           NULL, NULL, APR_HOOK_FIRST);
+
+    ap_hook_create_request(modperl_hook_create_request,
+                           NULL, NULL, APR_HOOK_MIDDLE);
+
+    /* both of these hooks need to run really, really first.
+     * otherwise, the global request_rec will be set up _after_ some
+     * Perl handlers run.
+     */
+    ap_hook_post_read_request(modperl_hook_post_read_request,
+                              NULL, NULL, MODPERL_HOOK_REALLY_REALLY_FIRST);
+
+    ap_hook_header_parser(modperl_hook_header_parser,
+                          NULL, NULL, MODPERL_HOOK_REALLY_REALLY_FIRST);
+
+    ap_hook_child_init(modperl_hook_child_init,
+                       NULL, NULL, MODPERL_HOOK_REALLY_REALLY_FIRST);
+
+    modperl_register_handler_hooks();
+}
+
+static const command_rec modperl_cmds[] = {
+    MP_CMD_SRV_ITERATE("PerlSwitches", switches, "Perl Switches"),
+    MP_CMD_DIR_ITERATE("PerlModule", modules, "PerlModule"),
+    MP_CMD_DIR_ITERATE("PerlRequire", requires, "PerlRequire"),
+    MP_CMD_SRV_ITERATE("PerlConfigRequire", config_requires, "PerlConfigRequire"),
+    MP_CMD_SRV_ITERATE("PerlPostConfigRequire", post_config_requires, "PerlPostConfigRequire"),
+    MP_CMD_DIR_ITERATE("PerlOptions", options, "Perl Options"),
+    MP_CMD_DIR_ITERATE("PerlInitHandler", init_handlers, "Subroutine name"),
+    MP_CMD_DIR_TAKE2("PerlSetVar", set_var, "PerlSetVar"),
+    MP_CMD_DIR_ITERATE2("PerlAddVar", add_var, "PerlAddVar"),
+    MP_CMD_DIR_TAKE2("PerlSetEnv", set_env, "PerlSetEnv"),
+    MP_CMD_SRV_TAKE1("PerlPassEnv", pass_env, "PerlPassEnv"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("<Perl", perl, "Perl Code"),
+    MP_CMD_DIR_RAW_ARGS("Perl", perldo, "Perl Code"),
+
+    MP_CMD_DIR_TAKE1("PerlSetInputFilter", set_input_filter,
+                     "filter[;filter]"),
+    MP_CMD_DIR_TAKE1("PerlSetOutputFilter", set_output_filter,
+                     "filter[;filter]"),
+
+    MP_CMD_DIR_RAW_ARGS_ON_READ("=pod", pod, "Start of POD"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("=back", pod, "End of =over"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("=cut", pod_cut, "End of POD"),
+    MP_CMD_DIR_RAW_ARGS_ON_READ("__END__", END, "Stop reading config"),
+
+    MP_CMD_SRV_RAW_ARGS("PerlLoadModule", load_module, "A Perl module"),
+#ifdef MP_TRACE
+    MP_CMD_SRV_TAKE1("PerlTrace", trace, "Trace level"),
+#endif
+#ifdef USE_ITHREADS
+    MP_CMD_SRV_TAKE1("PerlInterpStart", interp_start,
+                     "Number of Perl interpreters to start"),
+    MP_CMD_SRV_TAKE1("PerlInterpMax", interp_max,
+                     "Max number of running Perl interpreters"),
+    MP_CMD_SRV_TAKE1("PerlInterpMaxSpare", interp_max_spare,
+                     "Max number of spare Perl interpreters"),
+    MP_CMD_SRV_TAKE1("PerlInterpMinSpare", interp_min_spare,
+                     "Min number of spare Perl interpreters"),
+    MP_CMD_SRV_TAKE1("PerlInterpMaxRequests", interp_max_requests,
+                     "Max number of requests per Perl interpreters"),
+    MP_CMD_DIR_TAKE1("PerlInterpScope", interp_scope,
+                     "Scope of a Perl interpreter"),
+#endif
+#ifdef MP_COMPAT_1X
+    MP_CMD_DIR_FLAG("PerlSendHeader", send_header,
+                    "Tell mod_perl to scan output for HTTP headers"),
+    MP_CMD_DIR_FLAG("PerlSetupEnv", setup_env,
+                    "Turn setup of %ENV On or Off"),
+    MP_CMD_DIR_ITERATE("PerlHandler", response_handlers,
+                       "Subroutine name"),
+    MP_CMD_SRV_FLAG("PerlTaintCheck", taint_check,
+                    "Turn on -T switch"),
+    MP_CMD_SRV_FLAG("PerlWarn", warn,
+                    "Turn on -w switch"),
+#endif
+    MP_CMD_ENTRIES,
+    { NULL },
+};
+
+void modperl_response_init(request_rec *r)
+{
+    MP_dRCFG;
+    MP_dDCFG;
+    modperl_wbucket_t *wb;
+
+    if (!rcfg->wbucket) {
+        rcfg->wbucket =
+            (modperl_wbucket_t *)apr_palloc(r->pool,
+                                            sizeof(*rcfg->wbucket));
+    }
+
+    wb = rcfg->wbucket;
+
+    /* setup buffer for output */
+    wb->pool = r->pool;
+    wb->filters = &r->output_filters;
+    wb->outcnt = 0;
+    wb->header_parse = MpDirPARSE_HEADERS(dcfg) && MpReqPARSE_HEADERS(rcfg)
+        ? 1 : 0;
+    wb->r = r;
+}
+
+apr_status_t modperl_response_finish(request_rec *r)
+{
+    MP_dRCFG;
+
+    /* flush output buffer */
+    return modperl_wbucket_flush(rcfg->wbucket, FALSE);
+}
+
+static int modperl_response_handler_run(request_rec *r)
+{
+    int retval;
+
+    modperl_response_init(r);
+
+    retval = modperl_callback_per_dir(MP_RESPONSE_HANDLER, r, MP_HOOK_RUN_FIRST);
+
+    if ((retval == DECLINED) && r->content_type) {
+        r->handler = r->content_type; /* let http_core or whatever try */
+    }
+
+    return retval;
+}
+
+int modperl_response_handler(request_rec *r)
+{
+    MP_dDCFG;
+#ifdef USE_ITHREADS
+    MP_dRCFG;
+#endif
+    apr_status_t retval, rc;
+
+#ifdef USE_ITHREADS
+    pTHX;
+    modperl_interp_t *interp;
+#endif
+
+    if (!strEQ(r->handler, "modperl")) {
+        return DECLINED;
+    }
+
+#ifdef USE_ITHREADS
+    interp = modperl_interp_select(r, r->connection, r->server);
+    aTHX = interp->perl;
+    if (MpInterpPUTBACK(interp)) {
+        rcfg->interp = interp;
+    }
+#endif
+
+    /* default is -SetupEnv, add if PerlOption +SetupEnv */
+    if (MpDirSETUP_ENV(dcfg)) {
+        modperl_env_request_populate(aTHX_ r);
+    }
+
+    retval = modperl_response_handler_run(r);
+    rc = modperl_response_finish(r);
+    if (rc != APR_SUCCESS) {
+        retval = rc;
+    }
+
+#ifdef USE_ITHREADS
+    if (MpInterpPUTBACK(interp)) {
+        /* PerlInterpScope handler */
+        rcfg->interp = NULL;
+        modperl_interp_unselect(interp);
+    }
+#endif
+
+    return retval;
+}
+
+int modperl_response_handler_cgi(request_rec *r)
+{
+    MP_dDCFG;
+    GV *h_stdin, *h_stdout;
+    apr_status_t retval, rc;
+    MP_dRCFG;
+#ifdef USE_ITHREADS
+    pTHX;
+    modperl_interp_t *interp;
+#endif
+
+    if (!strEQ(r->handler, "perl-script")) {
+        return DECLINED;
+    }
+
+#ifdef USE_ITHREADS
+    interp = modperl_interp_select(r, r->connection, r->server);
+    aTHX = interp->perl;
+    if (MpInterpPUTBACK(interp)) {
+        rcfg->interp = interp;
+    }
+#endif
+
+    modperl_perl_global_request_save(aTHX_ r);
+
+    /* default is +SetupEnv, skip if PerlOption -SetupEnv */
+    if (MpDirSETUP_ENV(dcfg) || !MpDirSeenSETUP_ENV(dcfg)) {
+        modperl_env_request_populate(aTHX_ r);
+    }
+
+    /* default is +GlobalRequest, skip if PerlOption -GlobalRequest */
+    if (MpDirGLOBAL_REQUEST(dcfg) || !MpDirSeenGLOBAL_REQUEST(dcfg)) {
+        modperl_global_request_set(r);
+    }
+
+    /* need to create a block around the IO setup so the temp vars
+     * will be automatically cleaned up when we are done with IO */
+    ENTER;SAVETMPS;
+    h_stdin  = modperl_io_override_stdin(aTHX_ r);
+    h_stdout = modperl_io_override_stdout(aTHX_ r);
+
+    modperl_env_request_tie(aTHX_ r);
+
+    retval = modperl_response_handler_run(r);
+
+    modperl_env_request_untie(aTHX_ r);
+
+    modperl_perl_global_request_restore(aTHX_ r);
+
+    modperl_io_restore_stdin(aTHX_ h_stdin);
+    modperl_io_restore_stdout(aTHX_ h_stdout);
+    FREETMPS;LEAVE;
+
+#ifdef USE_ITHREADS
+    if (MpInterpPUTBACK(interp)) {
+        /* PerlInterpScope handler */
+        modperl_interp_unselect(interp);
+        rcfg->interp = NULL;
+    }
+#endif
+
+    /* flush output buffer after interpreter is putback */
+    rc = modperl_response_finish(r);
+    if (rc != APR_SUCCESS) {
+        retval = rc;
+    }
+
+    switch (rcfg->status) {
+      case HTTP_MOVED_TEMPORARILY:
+        /* set by modperl_cgi_header_parse */
+        retval = HTTP_MOVED_TEMPORARILY;
+        break;
+    }
+
+    return retval;
+}
+
+/* This ugly hack pulls in any function listed in
+ * modperl_exports.c. Otherwise, the over-zealous
+ * linker would remove unused api functions
+ */
+const void *modperl_suck_in_ugly_hack(void);
+const void *modperl_suck_in_ugly_hack(void)
+{
+    extern const void *modperl_ugly_hack;
+    return modperl_ugly_hack;
+}
+
+module AP_MODULE_DECLARE_DATA perl_module = {
+    STANDARD20_MODULE_STUFF,
+    modperl_config_dir_create, /* dir config creater */
+    modperl_config_dir_merge,  /* dir merger --- default is to override */
+    modperl_config_srv_create, /* server config */
+    modperl_config_srv_merge,  /* merge server config */
+    modperl_cmds,              /* table of config file commands       */
+    modperl_register_hooks,    /* register hooks */
+};
