@@ -23,6 +23,7 @@ use constant OSX     => $^O eq 'darwin';
 use constant CYGWIN  => $^O eq 'cygwin';
 use constant NETWARE => $^O eq 'NetWare';
 use constant SOLARIS => $^O eq 'solaris';
+use constant AIX     => $^O eq 'aix';
 use constant WINFU   => WIN32 || NETWARE;
 use constant COLOR   => ($ENV{APACHE_TEST_COLOR} && -t STDOUT) ? 1 : 0;
 
@@ -557,6 +558,7 @@ sub massage_config_args {
             }
         }
         else {
+            $data=~s/\n(?!\z)/\n    /g;
             $args .= "    $data";
         }
         $args .= "</$directive>\n";
@@ -610,7 +612,8 @@ sub add_config_hooks_run {
 
     for (@{ $self->{$where} }) {
         $self->replace;
-        print $out "$_\n";
+        s/\n?$/\n/;
+        print $out "$_";
     }
 }
 
@@ -1238,7 +1241,9 @@ sub parse_vhost {
         @out_config = ([Listen => '0.0.0.0:' . $port]);
 
         if ($self->{vhosts}->{$module}->{namebased}) {
-            push @out_config => [NameVirtualHost => "*:$port"];
+            push @out_config => ["<IfVersion < 2.3.11>\n".
+                                 "${indent}${indent}NameVirtualHost"
+                                 => "*:$port\n${indent}</IfVersion>"];
         }
     }
 

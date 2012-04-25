@@ -55,6 +55,9 @@ static apr_status_t mpxs_cleanup_run(void *data)
     dTHXa(cdata->perl);
 #endif
     dSP;
+#ifdef USE_ITHREADS
+    PERL_SET_CONTEXT(aTHX);
+#endif
 
     ENTER;SAVETMPS;
     PUSHMARK(SP);
@@ -63,6 +66,7 @@ static apr_status_t mpxs_cleanup_run(void *data)
     }
     PUTBACK;
 
+    save_gp(PL_errgv, 1);       /* local *@ */
     count = call_sv(cdata->cv, G_SCALAR|G_EVAL);
 
     SPAGAIN;
@@ -71,16 +75,17 @@ static apr_status_t mpxs_cleanup_run(void *data)
         (void)POPs; /* the return value is ignored */
     }
 
+    if (SvTRUE(ERRSV)) {
+        Perl_warn(aTHX_ "Apache2::ServerUtil: cleanup died: %s",
+                  SvPV_nolen(ERRSV));
+    }
+
     PUTBACK;
     FREETMPS;LEAVE;
 
     SvREFCNT_dec(cdata->cv);
     if (cdata->arg) {
         SvREFCNT_dec(cdata->arg);
-    }
-
-    if (SvTRUE(ERRSV)) {
-        Perl_croak(aTHX_ SvPV_nolen(ERRSV));
     }
 
     /* the return value is ignored by apr_pool_destroy anyway */
@@ -185,6 +190,13 @@ void mpxs_Apache2__ServerRec_add_config(pTHX_ server_rec *s, SV *lines)
     }
 }
 
+#define mpxs_Apache2__ServerRec_get_server_banner         \
+    ap_get_server_banner()
+#define mpxs_Apache2__ServerRec_get_server_description    \
+    ap_get_server_description()
+#define mpxs_Apache2__ServerRec_get_server_version        \
+    ap_get_server_version()
+
 static void mpxs_Apache2__ServerUtil_BOOT(pTHX)
 {
     newCONSTSUB(PL_defstash, "Apache2::ServerUtil::server_root",
@@ -192,13 +204,4 @@ static void mpxs_Apache2__ServerUtil_BOOT(pTHX)
 
     newCONSTSUB(PL_defstash, "Apache2::ServerUtil::get_server_built",
                 newSVpv(ap_get_server_built(), 0));
-
-    newCONSTSUB(PL_defstash, "Apache2::ServerUtil::get_server_version",
-                newSVpv(ap_get_server_version(), 0));
-
-    newCONSTSUB(PL_defstash, "Apache2::ServerUtil::get_server_banner",
-                newSVpv(ap_get_server_banner(), 0));
-
-    newCONSTSUB(PL_defstash, "Apache2::ServerUtil::get_server_description",
-                newSVpv(ap_get_server_description(), 0));
 }

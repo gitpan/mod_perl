@@ -159,6 +159,16 @@ sub user_agent {
         };
     }
 
+    # in LWP 6, verify_hostname defaults to on, so SSL_ca_file
+    # needs to be set accordingly
+    if ($have_lwp and $LWP::VERSION >= 6.0 and not exists $args->{ssl_opts}->{SSL_ca_file}) {
+        my $vars = Apache::Test::vars();
+        my $cafile = "$vars->{sslca}/$vars->{sslcaorg}/certs/ca.crt";
+        $args->{ssl_opts}->{SSL_ca_file} = $cafile;
+        # Net:SSL compatibility (legacy)
+        $ENV{HTTPS_CA_FILE} = $cafile;
+    }
+
     eval { $UA ||= __PACKAGE__->new(%$args); };
 }
 
@@ -352,7 +362,7 @@ sub prepare {
         }
         push @$pass, content => $content;
     }
-    if ($keep->{cert}) {
+    if (exists $keep->{cert}) {
         set_client_cert($keep->{cert});
     }
 
@@ -618,12 +628,26 @@ sub set_client_cert {
     my $dir = join '/', $vars->{sslca}, $vars->{sslcaorg};
 
     if ($name) {
-        $ENV{HTTPS_CERT_FILE} = "$dir/certs/$name.crt";
-        $ENV{HTTPS_KEY_FILE}  = "$dir/keys/$name.pem";
+        my ($cert, $key) = ("$dir/certs/$name.crt", "$dir/keys/$name.pem");
+        @ENV{qw/HTTPS_CERT_FILE HTTPS_KEY_FILE/} = ($cert, $key);
+        if ($LWP::VERSION >= 6.0) {
+            # IO::Socket:SSL doesn't look at environment variables
+            if ($UA) {
+                $UA->ssl_opts(SSL_cert_file => $cert);
+                $UA->ssl_opts(SSL_key_file  => $key);
+            } else {
+                user_agent(ssl_opts => { SSL_cert_file => $cert,
+                                         SSL_key_file  => $key });
+            }
+        }
     }
     else {
         for (qw(CERT KEY)) {
             delete $ENV{"HTTPS_${_}_FILE"};
+        }
+        if ($LWP::VERSION >= 6.0 and $UA) {
+            $UA->ssl_opts(SSL_cert_file => undef);
+            $UA->ssl_opts(SSL_key_file  => undef);
         }
     }
 }

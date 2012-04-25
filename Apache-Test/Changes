@@ -6,6 +6,29 @@ Changes - Apache::Test change logfile
 
 =over 3
 
+=item 1.37 January 29, 2012
+
+Apache::TestRequest: improve compatibility for SSL requests with LWP 6 and
+IO::Socket::SSL, in particular [Kaspar Brand]
+
+As of httpd revision 1053230 (version 2.3.11) the NameVirtualHost directive
+became superfluous and a warning is issued when it is met. So, Apache::Test
+now wraps NameVirtualHost directives in <IfVersion> blocks.
+[Kaspar Brand]
+
+Add comments about the source files of auto configurated tests to
+the generated httpd.conf and improve indentation a bit. [Torsten Foertsch]
+
+Run t/TEST tests by default in alphabetical order and
+only t/SMOKE tests by default in random order. [Rainer Jung]
+
+Add t_file_watch_for to Apache::TestUtil [Torsten Foertsch]
+
+Add $boolean parameter to Apache::TestHandler::ok and Apache::TestHandler::ok1
+Add a few bits of documentation [Torsten Foertsch]
+
+Apache::TestHandler forgot to require Apache2::RequestRec [Torsten Foertsch]
+
 =item 1.36 February 2, 2011
 
 Skip sok.t unless perlio is enabled [Torsten Foertsch]

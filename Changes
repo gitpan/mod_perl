@@ -10,6 +10,73 @@ Also refer to the Apache::Test changes log file, at Apache-Test/Changes
 
 =over 3
 
+=item 2.0.6 April 24, 2012
+
+Preserve 5.8 compatibility surrounding use of MUTABLE_CV [Adam Prime]
+
+Move code after declarations to keep MSVC++ compiler happy. [Steve Hay]
+
+Adopt modperl_pcw.c changes from httpd24 branch. [Torsten Foertsch]
+
+Pool cleanup functions must not longjmp. Catch these exceptions and turn
+them into warnings. [Torsten Foertsch] 
+
+Fix a race condition in our tipool management.
+See http://www.gossamer-threads.com/lists/modperl/dev/104026
+Patch submitted by: SalusaSecondus <salusa@nationstates.net>
+Reviewed by: Torsten Foertsch
+
+Ensure that MP_APXS is set when building on Win32 with MP_AP_PREFIX,
+otherwise the bundled Reload and SizeLimit builds will fail to find a
+properly configured Test environment.
+[Steve Hay]
+
+Fix a few REFCNT bugs.
+Patch submitted by: Niko Tyni <ntyni@debian.org>
+Reviewed by: Torsten Foertsch
+
+Correct the initialization of the build config in ModPerl::MM. The global
+variable was only being set once on loading the module, which was before
+Apache2::BuildConfig.pm had been written, leading to cwd and MP_LIBNAME
+being unset when writing the Reload and SizeLimit makefiles.
+[Steve Hay]
+
+Discover apr-2-config from Apache 2.4 onwards. [Gozer]
+
+Apache 2.4 and onwards doesn't require linking the MPM module directly in
+the httpd binary anymore. APXS lost the MPM_NAME query, so we can't assume
+a given MPM anymore. Introduce a fake MPM 'dynamic' to represent this. 
+[Torsten Foertsch, Gozer]
+
+Perl 5.14 brought a few changes in Perl_sv_dup() that made a threaded apache
+segfault while cloning interpreters.
+[Torsten Foertsch]
+
+PerlIOApache_flush() and mpxs_Apache2__RequestRec_rflush() now no longer throw
+exceptions when modperl_wbucket_flush() fails if the failure was just a reset
+connection or an aborted connection. The failure is simply logged to the error
+log instead. This should fix cases of httpd.exe crashing when users press the
+Stop button in their web browsers.
+[Steve Hay]
+
+Fixed a few issues that came up with LWP 6.00:
+- t/response/TestAPI/request_rec.pm assumes HTTP/1.0 but LWP 6 uses 1.1
+- t/api/err_headers_out.t fails due to a bug somewhere in LWP 6
+- t/filter/TestFilter/out_str_reverse.pm sends the wrong content-length header
+[Torsten Foertsch]
+
+Bugfix: Apache2::ServerUtil::get_server{description,banner,version} cannot
+be declared as perl constants or they won't reflect added version components
+if Apache2::ServerUtil is loaded before the PostConfig phase. Now, they
+are ordinary perl functions. [Torsten Foertsch]
+
+Check for the right ExtUtils::Embed version during build [Torsten Foertsch]
+
+Take a lesson from rt.cpan.org #66085 and pass LD_LIBRARY_PATH if mod_env
+is present.  Should prevent test failures on some platforms.
+[Fred Moyer]
+
+
 =item 2.0.5 February 7, 2011
 
 The mod_perl PMC dedicates this release of mod_perl to Randy Kobes, who

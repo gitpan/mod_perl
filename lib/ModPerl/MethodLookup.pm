@@ -5,11 +5,11 @@
 #  * Any changes made here will be lost
 #  * ***********************************
 #  * 01: lib/ModPerl/Code.pm:709
-#  * 02: lib/ModPerl/WrapXS.pm:755
-#  * 03: lib/ModPerl/WrapXS.pm:1178
-#  * 04: Makefile.PL:424
-#  * 05: Makefile.PL:326
-#  * 06: Makefile.PL:57
+#  * 02: /Users/phred/dev/svn/modperl/mod_perl-2.0/blib/lib/ModPerl/WrapXS.pm:762
+#  * 03: /Users/phred/dev/svn/modperl/mod_perl-2.0/blib/lib/ModPerl/WrapXS.pm:1185
+#  * 04: Makefile.PL:427
+#  * 05: Makefile.PL:329
+#  * 06: Makefile.PL:58
 #  */
 # 
 
@@ -19,1557 +19,1011 @@ use strict;
 use warnings;
 
 my $methods = {
-          'BINMODE' => [
-                         [
-                           'Apache2::RequestIO',
-                           'Apache2::RequestRec'
-                         ]
-                       ],
-          'CLEAR' => [
-                       [
-                         'APR::Table',
-                         'APR::Table'
-                       ]
-                     ],
-          'CLOSE' => [
-                       [
-                         'Apache2::RequestIO',
-                         'Apache2::RequestRec'
-                       ]
-                     ],
-          'DELETE' => [
-                        [
-                          'APR::Table',
-                          'APR::Table'
-                        ]
-                      ],
-          'DESTROY' => [
-                         [
-                           'Apache2::SubRequest',
-                           'Apache2::SubRequest'
-                         ],
-                         [
-                           'APR::ThreadMutex',
-                           'APR::ThreadMutex'
-                         ],
-                         [
-                           'APR::ThreadRWLock',
-                           'APR::ThreadRWLock'
-                         ],
-                         [
-                           'APR::Pool',
-                           'APR::Pool'
-                         ]
-                       ],
-          'EXISTS' => [
-                        [
-                          'APR::Table',
-                          'APR::Table'
-                        ]
-                      ],
-          'FETCH' => [
-                       [
-                         'APR::Table',
-                         'APR::Table'
-                       ]
-                     ],
-          'FILENO' => [
-                        [
-                          'Apache2::RequestIO',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'FIRSTKEY' => [
-                          [
-                            'APR::Table',
-                            'APR::Table'
-                          ]
-                        ],
-          'GETC' => [
-                      [
-                        'Apache2::RequestIO',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'LOG_MARK' => [
-                          [
-                            'Apache2::Log',
-                            undef
-                          ]
-                        ],
-          'MODIFY_CODE_ATTRIBUTES' => [
-                                        [
-                                          'Apache2::Filter',
-                                          undef
-                                        ]
-                                      ],
-          'NEXTKEY' => [
-                         [
-                           'APR::Table',
-                           'APR::Table'
-                         ]
-                       ],
-          'OPEN' => [
-                      [
-                        'Apache2::RequestIO',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'PRINT' => [
-                       [
-                         'Apache2::Filter',
-                         'Apache2::Filter'
-                       ],
-                       [
-                         'Apache2::RequestIO',
-                         'Apache2::RequestRec'
-                       ]
-                     ],
-          'PRINTF' => [
-                        [
-                          'Apache2::RequestIO',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'READ' => [
-                      [
-                        'Apache2::RequestIO',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'STORE' => [
-                       [
-                         'APR::Table',
-                         'APR::Table'
-                       ]
-                     ],
-          'TIEHANDLE' => [
-                           [
-                             'Apache2::Filter',
-                             'Apache2::Filter'
-                           ],
-                           [
-                             'Apache2::RequestIO',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'UNTIE' => [
-                       [
-                         'Apache2::RequestIO',
-                         'Apache2::RequestRec'
-                       ]
-                     ],
-          'WRITE' => [
-                       [
-                         'Apache2::RequestIO',
-                         'Apache2::RequestRec'
-                       ]
-                     ],
-          'aborted' => [
-                         [
-                           'Apache2::Connection',
-                           'Apache2::Connection'
-                         ]
-                       ],
-          'add' => [
-                     [
-                       'APR::Table',
-                       'APR::Table'
-                     ],
-                     [
-                       'Apache2::Module',
-                       'Apache2::Module'
-                     ]
-                   ],
-          'add_config' => [
-                            [
-                              'Apache2::CmdParms',
-                              'Apache2::CmdParms'
-                            ],
-                            [
-                              'Apache2::ServerUtil',
-                              'Apache2::ServerRec'
-                            ],
-                            [
-                              'Apache2::RequestUtil',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'add_input_filter' => [
-                                  [
-                                    'Apache2::Filter',
-                                    'Apache2::Connection'
-                                  ],
-                                  [
-                                    'Apache2::Filter',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'add_output_filter' => [
-                                   [
-                                     'Apache2::Filter',
-                                     'Apache2::Connection'
-                                   ],
-                                   [
-                                     'Apache2::Filter',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'add_version_component' => [
-                                       [
-                                         'Apache2::ServerUtil',
-                                         'Apache2::ServerRec'
-                                       ]
-                                     ],
-          'addrs' => [
-                       [
-                         'Apache2::ServerRec',
-                         'Apache2::ServerRec'
-                       ]
-                     ],
-          'alert' => [
-                       [
-                         'Apache2::Log',
-                         undef
-                       ]
-                     ],
-          'allow_methods' => [
-                               [
-                                 'Apache2::Access',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'allow_options' => [
-                               [
-                                 'Apache2::Access',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'allow_override_opts' => [
-                                     [
-                                       'Apache2::Access',
-                                       'Apache2::RequestRec'
-                                     ]
-                                   ],
-          'allow_overrides' => [
-                                 [
-                                   'Apache2::Access',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'allowed' => [
-                         [
-                           'Apache2::RequestRec',
-                           'Apache2::RequestRec'
-                         ]
-                       ],
-          'allowed_methods' => [
-                                 [
-                                   'Apache2::RequestRec',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'allowed_xmethods' => [
-                                  [
-                                    'Apache2::RequestRec',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'ap_api_major_version' => [
-                                      [
-                                        'Apache2::Module',
-                                        'Apache2::Module'
-                                      ]
-                                    ],
-          'ap_api_minor_version' => [
-                                      [
-                                        'Apache2::Module',
-                                        'Apache2::Module'
-                                      ]
-                                    ],
-          'ap_auth_type' => [
-                              [
-                                'Apache2::RequestRec',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'args' => [
-                      [
-                        'Apache2::Directive',
-                        'Apache2::Directive'
-                      ],
-                      [
-                        'Apache2::RequestRec',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'args_how' => [
-                          [
-                            'Apache2::Command',
-                            'Apache2::Command'
-                          ]
-                        ],
-          'as_hash' => [
-                         [
-                           'Apache2::Directive',
-                           'Apache2::Directive'
-                         ]
-                       ],
-          'as_string' => [
-                           [
-                             'Apache2::Directive',
-                             'Apache2::Directive'
-                           ],
-                           [
-                             'Apache2::RequestUtil',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'assbackwards' => [
-                              [
-                                'Apache2::RequestRec',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'atime' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'auth_name' => [
-                           [
-                             'Apache2::Access',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'auth_type' => [
-                           [
-                             'Apache2::Access',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'base_server' => [
-                             [
-                               'Apache2::Connection',
-                               'Apache2::Connection'
-                             ]
-                           ],
-          'bind' => [
-                      [
-                        'APR::Socket',
-                        'APR::Socket'
-                      ]
-                    ],
-          'bucket_alloc' => [
-                              [
-                                'Apache2::Connection',
-                                'Apache2::Connection'
+  'BINMODE' => [
+                 [
+                   'Apache2::RequestIO',
+                   'Apache2::RequestRec'
+                 ]
+               ],
+  'CLEAR' => [
+               [
+                 'APR::Table',
+                 'APR::Table'
+               ]
+             ],
+  'CLOSE' => [
+               [
+                 'Apache2::RequestIO',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'DELETE' => [
+                [
+                  'APR::Table',
+                  'APR::Table'
+                ]
+              ],
+  'DESTROY' => [
+                 [
+                   'Apache2::SubRequest',
+                   'Apache2::SubRequest'
+                 ],
+                 [
+                   'APR::ThreadMutex',
+                   'APR::ThreadMutex'
+                 ],
+                 [
+                   'APR::ThreadRWLock',
+                   'APR::ThreadRWLock'
+                 ],
+                 [
+                   'APR::Pool',
+                   'APR::Pool'
+                 ]
+               ],
+  'EXISTS' => [
+                [
+                  'APR::Table',
+                  'APR::Table'
+                ]
+              ],
+  'FETCH' => [
+               [
+                 'APR::Table',
+                 'APR::Table'
+               ]
+             ],
+  'FILENO' => [
+                [
+                  'Apache2::RequestIO',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'FIRSTKEY' => [
+                  [
+                    'APR::Table',
+                    'APR::Table'
+                  ]
+                ],
+  'GETC' => [
+              [
+                'Apache2::RequestIO',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'LOG_MARK' => [
+                  [
+                    'Apache2::Log',
+                    undef
+                  ]
+                ],
+  'MODIFY_CODE_ATTRIBUTES' => [
+                                [
+                                  'Apache2::Filter',
+                                  undef
+                                ]
                               ],
-                              [
-                                'APR::Brigade',
-                                'APR::Brigade'
-                              ]
-                            ],
-          'bytes_sent' => [
-                            [
-                              'Apache2::RequestRec',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'c' => [
+  'NEXTKEY' => [
+                 [
+                   'APR::Table',
+                   'APR::Table'
+                 ]
+               ],
+  'OPEN' => [
+              [
+                'Apache2::RequestIO',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'PRINT' => [
+               [
+                 'Apache2::Filter',
+                 'Apache2::Filter'
+               ],
+               [
+                 'Apache2::RequestIO',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'PRINTF' => [
+                [
+                  'Apache2::RequestIO',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'READ' => [
+              [
+                'Apache2::RequestIO',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'STORE' => [
+               [
+                 'APR::Table',
+                 'APR::Table'
+               ]
+             ],
+  'TIEHANDLE' => [
                    [
                      'Apache2::Filter',
                      'Apache2::Filter'
+                   ],
+                   [
+                     'Apache2::RequestIO',
+                     'Apache2::RequestRec'
                    ]
                  ],
-          'check_cmd_context' => [
-                                   [
-                                     'Apache2::CmdParms',
-                                     'Apache2::CmdParms'
-                                   ]
-                                 ],
-          'child_terminate' => [
-                                 [
-                                   'Apache2::RequestUtil',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'cleanup' => [
-                         [
-                           'APR::Brigade',
-                           'APR::Brigade'
-                         ]
-                       ],
-          'cleanup_for_exec' => [
-                                  [
-                                    'APR::Pool',
-                                    'APR::Pool'
-                                  ]
-                                ],
-          'cleanup_register' => [
-                                  [
-                                    'APR::Pool',
-                                    'APR::Pool'
-                                  ]
-                                ],
-          'clear' => [
-                       [
-                         'APR::Table',
-                         'APR::Table'
-                       ],
-                       [
-                         'APR::Pool',
-                         'APR::Pool'
-                       ]
-                     ],
-          'client_socket' => [
-                               [
-                                 'Apache2::Connection',
-                                 'Apache2::Connection'
-                               ]
-                             ],
-          'close' => [
-                       [
-                         'APR::Socket',
-                         'APR::Socket'
-                       ]
-                     ],
-          'cmd' => [
-                     [
-                       'Apache2::CmdParms',
-                       'Apache2::CmdParms'
-                     ]
-                   ],
-          'cmds' => [
-                      [
-                        'Apache2::Module',
-                        'Apache2::Module'
-                      ]
-                    ],
-          'compress' => [
-                          [
-                            'APR::Table',
-                            'APR::Table'
-                          ]
-                        ],
-          'concat' => [
-                        [
-                          'APR::Brigade',
-                          'APR::Brigade'
-                        ]
-                      ],
-          'conftree' => [
-                          [
-                            'Apache2::Directive',
-                            'Apache2::Directive'
-                          ]
-                        ],
-          'conn_config' => [
-                             [
-                               'Apache2::Connection',
-                               'Apache2::Connection'
-                             ]
-                           ],
-          'connect' => [
-                         [
-                           'APR::Socket',
-                           'APR::Socket'
-                         ]
-                       ],
-          'connection' => [
-                            [
-                              'Apache2::RequestRec',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'construct_server' => [
-                                  [
-                                    'Apache2::URI',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'construct_url' => [
-                               [
-                                 'Apache2::URI',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'content_encoding' => [
-                                  [
-                                    'Apache2::RequestRec',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'content_languages' => [
-                                   [
-                                     'Apache2::RequestRec',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'content_type' => [
-                              [
-                                'Apache2::RequestRec',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'context' => [
-                         [
-                           'Apache2::CmdParms',
-                           'Apache2::CmdParms'
-                         ]
-                       ],
-          'copy' => [
-                      [
-                        'APR::Table',
-                        'APR::Table'
-                      ]
-                    ],
-          'crit' => [
-                      [
-                        'Apache2::Log',
-                        undef
-                      ]
-                    ],
-          'csize' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'ctime' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'ctx' => [
-                     [
-                       'Apache2::Filter',
-                       'Apache2::Filter'
-                     ]
-                   ],
-          'current_callback' => [
-                                  [
-                                    'ModPerl::Util',
-                                    'ModPerl::Util'
-                                  ]
-                                ],
-          'current_perl_id' => [
-                                 [
-                                   'ModPerl::Util',
-                                   'ModPerl::Util'
-                                 ]
-                               ],
-          'current_thread_id' => [
-                                   [
-                                     'APR::OS',
-                                     'APR::OS'
-                                   ]
-                                 ],
-          'custom_response' => [
-                                 [
-                                   'Apache2::Response',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'data' => [
-                      [
-                        'APR::Bucket',
-                        'APR::Bucket'
-                      ]
-                    ],
-          'debug' => [
-                       [
-                         'Apache2::Log',
-                         undef
-                       ]
-                     ],
-          'decode' => [
-                        [
-                          'APR::Base64',
-                          undef
-                        ]
-                      ],
-          'default_type' => [
-                              [
-                                'Apache2::RequestUtil',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'delete' => [
-                        [
-                          'APR::Bucket',
-                          'APR::Bucket'
-                        ]
-                      ],
-          'destroy' => [
-                         [
-                           'APR::Bucket',
-                           'APR::Bucket'
-                         ],
-                         [
-                           'APR::Brigade',
-                           'APR::Brigade'
-                         ],
-                         [
-                           'APR::BucketAlloc',
-                           'APR::BucketAlloc'
-                         ],
-                         [
-                           'APR::Pool',
-                           'APR::Pool'
-                         ]
-                       ],
-          'device' => [
-                        [
-                          'APR::Finfo',
-                          'APR::Finfo'
-                        ]
-                      ],
-          'die' => [
-                     [
-                       'Apache2::HookRun',
-                       'Apache2::RequestRec'
-                     ]
-                   ],
-          'dir_config' => [
-                            [
-                              'Apache2::ServerUtil',
-                              'Apache2::ServerRec'
-                            ],
-                            [
-                              'Apache2::RequestUtil',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'directive' => [
-                           [
-                             'Apache2::Directive',
-                             'Apache2::Directive'
-                           ],
-                           [
-                             'Apache2::CmdParms',
-                             'Apache2::CmdParms'
-                           ]
-                         ],
-          'discard_request_body' => [
-                                      [
-                                        'Apache2::RequestIO',
-                                        'Apache2::RequestRec'
-                                      ]
-                                    ],
-          'do' => [
+  'UNTIE' => [
+               [
+                 'Apache2::RequestIO',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'WRITE' => [
+               [
+                 'Apache2::RequestIO',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'aborted' => [
+                 [
+                   'Apache2::Connection',
+                   'Apache2::Connection'
+                 ]
+               ],
+  'add' => [
+             [
+               'APR::Table',
+               'APR::Table'
+             ],
+             [
+               'Apache2::Module',
+               'Apache2::Module'
+             ]
+           ],
+  'add_config' => [
                     [
-                      'APR::Table',
-                      'APR::Table'
+                      'Apache2::CmdParms',
+                      'Apache2::CmdParms'
+                    ],
+                    [
+                      'Apache2::ServerUtil',
+                      'Apache2::ServerRec'
+                    ],
+                    [
+                      'Apache2::RequestUtil',
+                      'Apache2::RequestRec'
                     ]
                   ],
-          'document_root' => [
-                               [
-                                 'Apache2::RequestUtil',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'emerg' => [
-                       [
-                         'Apache2::Log',
-                         undef
-                       ]
-                     ],
-          'encode' => [
-                        [
-                          'APR::Base64',
-                          undef
-                        ]
-                      ],
-          'encode_len' => [
-                            [
-                              'APR::Base64',
-                              'APR::Base64'
-                            ]
-                          ],
-          'eos_create' => [
-                            [
-                              'APR::Bucket',
-                              'APR::Bucket'
-                            ]
-                          ],
-          'equal' => [
-                       [
-                         'APR::SockAddr',
-                         'APR::SockAddr'
-                       ]
-                     ],
-          'err_headers_out' => [
-                                 [
-                                   'Apache2::RequestRec',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'errmsg' => [
-                        [
-                          'Apache2::Command',
-                          'Apache2::Command'
-                        ]
-                      ],
-          'error' => [
-                       [
-                         'Apache2::Log',
-                         undef
-                       ]
-                     ],
-          'error_fname' => [
-                             [
-                               'Apache2::ServerRec',
-                               'Apache2::ServerRec'
-                             ]
-                           ],
-          'error_log2stderr' => [
-                                  [
-                                    'Apache2::ServerUtil',
-                                    'Apache2::ServerRec'
-                                  ]
-                                ],
-          'escape_path' => [
-                             [
-                               'Apache2::Util',
-                               'Apache2::Util'
-                             ]
-                           ],
-          'exists_config_define' => [
-                                      [
-                                        'Apache2::ServerUtil',
-                                        'Apache2::ServerUtil'
-                                      ]
-                                    ],
-          'fflush' => [
-                        [
-                          'Apache2::Filter',
-                          'Apache2::Filter'
-                        ]
-                      ],
-          'filename' => [
+  'add_input_filter' => [
                           [
-                            'Apache2::Directive',
-                            'Apache2::Directive'
+                            'Apache2::Filter',
+                            'Apache2::Connection'
                           ],
                           [
-                            'Apache2::RequestRec',
+                            'Apache2::Filter',
                             'Apache2::RequestRec'
                           ]
                         ],
-          'fileno' => [
-                        [
-                          'APR::Socket',
-                          'APR::Socket'
-                        ]
-                      ],
-          'filepath_name_get' => [
-                                   [
-                                     'APR::Util',
-                                     'APR::Util'
-                                   ]
-                                 ],
-          'filetype' => [
-                          [
-                            'APR::Finfo',
-                            'APR::Finfo'
-                          ]
-                        ],
-          'filter_flush' => [
-                              [
-                                'Apache2::Filter',
-                                'APR::Brigade'
-                              ]
-                            ],
-          'find_linked_module' => [
-                                    [
-                                      'Apache2::Module',
-                                      'Apache2::Module'
-                                    ]
-                                  ],
-          'finfo' => [
+  'add_output_filter' => [
+                           [
+                             'Apache2::Filter',
+                             'Apache2::Connection'
+                           ],
+                           [
+                             'Apache2::Filter',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'add_version_component' => [
+                               [
+                                 'Apache2::ServerUtil',
+                                 'Apache2::ServerRec'
+                               ]
+                             ],
+  'addrs' => [
+               [
+                 'Apache2::ServerRec',
+                 'Apache2::ServerRec'
+               ]
+             ],
+  'alert' => [
+               [
+                 'Apache2::Log',
+                 undef
+               ]
+             ],
+  'allow_methods' => [
                        [
-                         'Apache2::RequestRec',
+                         'Apache2::Access',
                          'Apache2::RequestRec'
                        ]
                      ],
-          'first' => [
+  'allow_options' => [
                        [
-                         'APR::Brigade',
-                         'APR::Brigade'
+                         'Apache2::Access',
+                         'Apache2::RequestRec'
                        ]
                      ],
-          'first_child' => [
+  'allow_override_opts' => [
                              [
-                               'Apache2::Directive',
-                               'Apache2::Directive'
+                               'Apache2::Access',
+                               'Apache2::RequestRec'
                              ]
                            ],
-          'flatten' => [
+  'allow_overrides' => [
                          [
-                           'APR::Brigade',
-                           'APR::Brigade'
+                           'Apache2::Access',
+                           'Apache2::RequestRec'
                          ]
                        ],
-          'flush_create' => [
-                              [
-                                'APR::Bucket',
-                                'APR::Bucket'
-                              ]
-                            ],
-          'fname' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'format' => [
-                        [
-                          'APR::UUID',
-                          undef
-                        ]
-                      ],
-          'format_size' => [
-                             [
-                               'APR::String',
-                               'APR::String'
-                             ]
-                           ],
-          'fragment' => [
-                          [
-                            'APR::URI',
-                            'APR::URI'
-                          ]
-                        ],
-          'frec' => [
-                      [
-                        'Apache2::Filter',
-                        'Apache2::Filter'
-                      ]
-                    ],
-          'get' => [
-                     [
-                       'APR::Table',
-                       undef
-                     ]
-                   ],
-          'get_basic_auth_pw' => [
-                                   [
-                                     'Apache2::Access',
-                                     undef
-                                   ]
-                                 ],
-          'get_brigade' => [
-                             [
-                               'Apache2::Filter',
-                               'Apache2::Filter'
-                             ]
-                           ],
-          'get_client_block' => [
-                                  [
-                                    'Apache2::RequestIO',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'get_config' => [
-                            [
-                              'Apache2::Module',
-                              'Apache2::Module'
-                            ]
-                          ],
-          'get_handlers' => [
-                              [
-                                'Apache2::ServerUtil',
-                                'Apache2::ServerRec'
-                              ],
-                              [
-                                'Apache2::RequestUtil',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'get_limit_req_body' => [
-                                    [
-                                      'Apache2::RequestUtil',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'get_remote_host' => [
-                                 [
-                                   'Apache2::Connection',
-                                   'Apache2::Connection'
-                                 ]
-                               ],
-          'get_remote_logname' => [
-                                    [
-                                      'Apache2::Access',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'get_server_name' => [
-                                 [
-                                   'Apache2::RequestUtil',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'get_server_port' => [
-                                 [
-                                   'Apache2::RequestUtil',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'get_status_line' => [
-                                 [
-                                   'Apache2::RequestUtil',
-                                   'Apache2::RequestUtil'
-                                 ]
-                               ],
-          'group' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'group_id' => [
-                          [
-                            'Apache2::ServerUtil',
-                            'Apache2::ServerUtil'
-                          ]
-                        ],
-          'handler' => [
+  'allowed' => [
+                 [
+                   'Apache2::RequestRec',
+                   'Apache2::RequestRec'
+                 ]
+               ],
+  'allowed_methods' => [
                          [
                            'Apache2::RequestRec',
                            'Apache2::RequestRec'
                          ]
                        ],
-          'header_only' => [
-                             [
-                               'Apache2::RequestRec',
-                               'Apache2::RequestRec'
-                             ]
-                           ],
-          'headers_in' => [
-                            [
-                              'Apache2::RequestRec',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'headers_out' => [
-                             [
-                               'Apache2::RequestRec',
-                               'Apache2::RequestRec'
-                             ]
-                           ],
-          'hostinfo' => [
-                          [
-                            'APR::URI',
-                            'APR::URI'
-                          ]
-                        ],
-          'hostname' => [
-                          [
-                            'APR::URI',
-                            'APR::URI'
-                          ],
+  'allowed_xmethods' => [
                           [
                             'Apache2::RequestRec',
                             'Apache2::RequestRec'
                           ]
                         ],
-          'ht_time' => [
-                         [
-                           'Apache2::Util',
-                           'Apache2::Util'
-                         ]
-                       ],
-          'id' => [
-                    [
-                      'Apache2::Connection',
-                      'Apache2::Connection'
-                    ]
-                  ],
-          'info' => [
-                      [
-                        'Apache2::CmdParms',
-                        'Apache2::CmdParms'
-                      ],
-                      [
-                        'Apache2::Log',
-                        undef
-                      ]
-                    ],
-          'inode' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'input_filters' => [
-                               [
-                                 'Apache2::Connection',
-                                 'Apache2::Connection'
-                               ],
-                               [
-                                 'Apache2::RequestRec',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'insert_after' => [
-                              [
-                                'APR::Bucket',
-                                'APR::Bucket'
-                              ]
-                            ],
-          'insert_before' => [
-                               [
-                                 'APR::Bucket',
-                                 'APR::Bucket'
-                               ]
-                             ],
-          'insert_head' => [
-                             [
-                               'APR::Brigade',
-                               'APR::Brigade'
-                             ]
-                           ],
-          'insert_tail' => [
-                             [
-                               'APR::Brigade',
-                               'APR::Brigade'
-                             ]
-                           ],
-          'internal_fast_redirect' => [
-                                        [
-                                          'Apache2::SubRequest',
-                                          'Apache2::RequestRec'
-                                        ]
-                                      ],
-          'internal_redirect' => [
-                                   [
-                                     'Apache2::SubRequest',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'internal_redirect_handler' => [
-                                           [
-                                             'Apache2::SubRequest',
-                                             'Apache2::RequestRec'
-                                           ]
-                                         ],
-          'invoke_handler' => [
-                                [
-                                  'Apache2::HookRun',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'ip_get' => [
-                        [
-                          'APR::SockAddr',
-                          'APR::SockAddr'
-                        ]
-                      ],
-          'is_EACCES' => [
-                           [
-                             'APR::Status',
-                             'APR::Status'
-                           ]
-                         ],
-          'is_EAGAIN' => [
-                           [
-                             'APR::Status',
-                             'APR::Status'
-                           ]
-                         ],
-          'is_ECONNABORTED' => [
-                                 [
-                                   'APR::Status',
-                                   'APR::Status'
-                                 ]
-                               ],
-          'is_ECONNRESET' => [
-                               [
-                                 'APR::Status',
-                                 'APR::Status'
-                               ]
-                             ],
-          'is_ENOENT' => [
-                           [
-                             'APR::Status',
-                             'APR::Status'
-                           ]
-                         ],
-          'is_EOF' => [
-                        [
-                          'APR::Status',
-                          'APR::Status'
-                        ]
-                      ],
-          'is_TIMEUP' => [
-                           [
-                             'APR::Status',
-                             'APR::Status'
-                           ]
-                         ],
-          'is_ancestor' => [
-                             [
-                               'APR::Pool',
-                               'APR::Pool'
-                             ]
-                           ],
-          'is_empty' => [
-                          [
-                            'APR::Brigade',
-                            'APR::Brigade'
-                          ]
-                        ],
-          'is_eos' => [
-                        [
-                          'APR::Bucket',
-                          'APR::Bucket'
-                        ]
-                      ],
-          'is_flush' => [
-                          [
-                            'APR::Bucket',
-                            'APR::Bucket'
-                          ]
-                        ],
-          'is_initial_req' => [
-                                [
-                                  'Apache2::RequestUtil',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'is_perl_option_enabled' => [
-                                        [
-                                          'Apache2::ServerUtil',
-                                          'Apache2::ServerRec'
-                                        ],
-                                        [
-                                          'Apache2::RequestUtil',
-                                          'Apache2::RequestRec'
-                                        ]
-                                      ],
-          'is_virtual' => [
-                            [
-                              'Apache2::ServerRec',
-                              'Apache2::ServerRec'
-                            ]
-                          ],
-          'keep_alive' => [
-                            [
-                              'Apache2::ServerRec',
-                              'Apache2::ServerRec'
-                            ]
-                          ],
-          'keep_alive_max' => [
-                                [
-                                  'Apache2::ServerRec',
-                                  'Apache2::ServerRec'
-                                ]
-                              ],
-          'keep_alive_timeout' => [
-                                    [
-                                      'Apache2::ServerRec',
-                                      'Apache2::ServerRec'
-                                    ]
-                                  ],
-          'keepalive' => [
-                           [
-                             'Apache2::Connection',
-                             'Apache2::Connection'
-                           ]
-                         ],
-          'keepalives' => [
-                            [
-                              'Apache2::Connection',
-                              'Apache2::Connection'
-                            ]
-                          ],
-          'last' => [
-                      [
-                        'APR::Brigade',
-                        'APR::Brigade'
-                      ]
-                    ],
-          'length' => [
-                        [
-                          'APR::Bucket',
-                          'APR::Bucket'
-                        ],
-                        [
-                          'APR::Brigade',
-                          'APR::Brigade'
-                        ]
-                      ],
-          'limit_req_fields' => [
-                                  [
-                                    'Apache2::ServerRec',
-                                    'Apache2::ServerRec'
-                                  ]
-                                ],
-          'limit_req_fieldsize' => [
-                                     [
-                                       'Apache2::ServerRec',
-                                       'Apache2::ServerRec'
-                                     ]
-                                   ],
-          'limit_req_line' => [
-                                [
-                                  'Apache2::ServerRec',
-                                  'Apache2::ServerRec'
-                                ]
-                              ],
-          'line_num' => [
-                          [
-                            'Apache2::Directive',
-                            'Apache2::Directive'
-                          ]
-                        ],
-          'listen' => [
-                        [
-                          'APR::Socket',
-                          'APR::Socket'
-                        ]
-                      ],
-          'loaded' => [
-                        [
-                          'Apache2::Module',
-                          'Apache2::Module'
-                        ]
-                      ],
-          'local_addr' => [
-                            [
-                              'Apache2::Connection',
-                              'Apache2::Connection'
-                            ]
-                          ],
-          'local_host' => [
-                            [
-                              'Apache2::Connection',
-                              'Apache2::Connection'
-                            ]
-                          ],
-          'local_ip' => [
-                          [
-                            'Apache2::Connection',
-                            'Apache2::Connection'
-                          ]
-                        ],
-          'location' => [
-                          [
-                            'Apache2::RequestUtil',
-                            'Apache2::RequestRec'
-                          ]
-                        ],
-          'location_merge' => [
-                                [
-                                  'Apache2::RequestUtil',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'lock' => [
-                      [
-                        'APR::ThreadMutex',
-                        'APR::ThreadMutex'
-                      ]
-                    ],
-          'log' => [
-                     [
-                       'Apache2::Log',
-                       'Apache2::ServerRec'
-                     ],
-                     [
-                       'Apache2::Log',
-                       'Apache2::RequestRec'
-                     ]
-                   ],
-          'log_error' => [
-                           [
-                             'Apache2::Log',
-                             undef
-                           ],
-                           [
-                             'Apache2::Log',
-                             undef
-                           ]
-                         ],
-          'log_pid' => [
-                         [
-                           'Apache2::Log',
-                           'Apache2::Log'
-                         ]
-                       ],
-          'log_reason' => [
-                            [
-                              'Apache2::Log',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'log_rerror' => [
-                            [
-                              'Apache2::Log',
-                              undef
-                            ]
-                          ],
-          'log_serror' => [
-                            [
-                              'Apache2::Log',
-                              undef
-                            ]
-                          ],
-          'loglevel' => [
-                          [
-                            'Apache2::ServerRec',
-                            'Apache2::ServerRec'
-                          ]
-                        ],
-          'lookup' => [
-                        [
-                          'Apache2::Directive',
-                          undef
-                        ]
-                      ],
-          'lookup_defaults' => [
-                                 [
-                                   'Apache2::ServerRec',
-                                   'Apache2::ServerRec'
-                                 ]
-                               ],
-          'lookup_dirent' => [
-                               [
-                                 'Apache2::SubRequest',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'lookup_file' => [
-                             [
-                               'Apache2::SubRequest',
-                               'Apache2::RequestRec'
-                             ]
-                           ],
-          'lookup_method_uri' => [
-                                   [
-                                     'Apache2::SubRequest',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'lookup_uri' => [
-                            [
-                              'Apache2::SubRequest',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'main' => [
-                      [
-                        'Apache2::RequestRec',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'make' => [
-                      [
-                        'APR::Table',
-                        'APR::Table'
-                      ]
-                    ],
-          'make_etag' => [
-                           [
-                             'Apache2::Response',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'meets_conditions' => [
-                                  [
-                                    'Apache2::Response',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'merge' => [
-                       [
-                         'APR::Table',
-                         'APR::Table'
-                       ]
-                     ],
-          'method' => [
-                        [
-                          'Apache2::RequestRec',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'method_is_limited' => [
-                                   [
-                                     'Apache2::CmdParms',
-                                     'Apache2::CmdParms'
-                                   ]
-                                 ],
-          'method_number' => [
-                               [
-                                 'Apache2::RequestRec',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'method_register' => [
-                                 [
-                                   'Apache2::ServerUtil',
-                                   'Apache2::ServerRec'
-                                 ]
-                               ],
-          'module_config' => [
-                               [
-                                 'Apache2::ServerRec',
-                                 'Apache2::ServerRec'
-                               ]
-                             ],
-          'module_index' => [
+  'ap_api_major_version' => [
                               [
                                 'Apache2::Module',
                                 'Apache2::Module'
                               ]
                             ],
-          'mtime' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ],
-                       [
-                         'Apache2::RequestRec',
-                         'Apache2::RequestRec'
-                       ]
-                     ],
-          'name' => [
+  'ap_api_minor_version' => [
+                              [
+                                'Apache2::Module',
+                                'Apache2::Module'
+                              ]
+                            ],
+  'ap_auth_type' => [
                       [
-                        'Apache2::Command',
-                        'Apache2::Command'
-                      ],
-                      [
-                        'APR::Finfo',
-                        'APR::Finfo'
-                      ],
-                      [
-                        'Apache2::FilterRec',
-                        'Apache2::FilterRec'
-                      ],
-                      [
-                        'APR::BucketType',
-                        'APR::BucketType'
-                      ],
-                      [
-                        'Apache2::Module',
-                        'Apache2::Module'
+                        'Apache2::RequestRec',
+                        'Apache2::RequestRec'
                       ]
                     ],
-          'names' => [
-                       [
-                         'Apache2::ServerRec',
-                         'Apache2::ServerRec'
-                       ]
-                     ],
-          'new' => [
+  'args' => [
+              [
+                'Apache2::Directive',
+                'Apache2::Directive'
+              ],
+              [
+                'Apache2::RequestRec',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'args_how' => [
+                  [
+                    'Apache2::Command',
+                    'Apache2::Command'
+                  ]
+                ],
+  'as_hash' => [
+                 [
+                   'Apache2::Directive',
+                   'Apache2::Directive'
+                 ]
+               ],
+  'as_string' => [
+                   [
+                     'Apache2::Directive',
+                     'Apache2::Directive'
+                   ],
+                   [
+                     'Apache2::RequestUtil',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'assbackwards' => [
+                      [
+                        'Apache2::RequestRec',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'atime' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'auth_name' => [
+                   [
+                     'Apache2::Access',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'auth_type' => [
+                   [
+                     'Apache2::Access',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'base_server' => [
                      [
-                       'APR::Bucket',
-                       'APR::Bucket'
-                     ],
-                     [
-                       'Apache2::RequestUtil',
-                       'Apache2::RequestRec'
-                     ],
-                     [
-                       'APR::UUID',
-                       'APR::UUID'
-                     ],
-                     [
-                       'APR::Brigade',
-                       'APR::Brigade'
-                     ],
-                     [
-                       'APR::ThreadMutex',
-                       'APR::ThreadMutex'
-                     ],
-                     [
-                       'APR::BucketAlloc',
-                       'APR::BucketAlloc'
-                     ],
-                     [
-                       'APR::IpSubnet',
-                       'APR::IpSubnet'
-                     ],
-                     [
-                       'APR::ThreadRWLock',
-                       'APR::ThreadRWLock'
-                     ],
-                     [
-                       'APR::Pool',
-                       'APR::Pool'
+                       'Apache2::Connection',
+                       'Apache2::Connection'
                      ]
                    ],
-          'next' => [
+  'bind' => [
+              [
+                'APR::Socket',
+                'APR::Socket'
+              ]
+            ],
+  'bucket_alloc' => [
                       [
-                        'Apache2::Command',
-                        'Apache2::Command'
-                      ],
-                      [
-                        'Apache2::Directive',
-                        'Apache2::Directive'
-                      ],
-                      [
-                        'Apache2::Filter',
-                        'Apache2::Filter'
-                      ],
-                      [
-                        'Apache2::ServerRec',
-                        'Apache2::ServerRec'
+                        'Apache2::Connection',
+                        'Apache2::Connection'
                       ],
                       [
                         'APR::Brigade',
                         'APR::Brigade'
-                      ],
-                      [
-                        'Apache2::RequestRec',
-                        'Apache2::RequestRec'
-                      ],
-                      [
-                        'Apache2::Module',
-                        'Apache2::Module'
                       ]
                     ],
-          'nlink' => [
+  'bytes_sent' => [
+                    [
+                      'Apache2::RequestRec',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'c' => [
+           [
+             'Apache2::Filter',
+             'Apache2::Filter'
+           ]
+         ],
+  'check_cmd_context' => [
+                           [
+                             'Apache2::CmdParms',
+                             'Apache2::CmdParms'
+                           ]
+                         ],
+  'child_terminate' => [
+                         [
+                           'Apache2::RequestUtil',
+                           'Apache2::RequestRec'
+                         ]
+                       ],
+  'cleanup' => [
+                 [
+                   'APR::Brigade',
+                   'APR::Brigade'
+                 ]
+               ],
+  'cleanup_for_exec' => [
+                          [
+                            'APR::Pool',
+                            'APR::Pool'
+                          ]
+                        ],
+  'cleanup_register' => [
+                          [
+                            'APR::Pool',
+                            'APR::Pool'
+                          ]
+                        ],
+  'clear' => [
+               [
+                 'APR::Table',
+                 'APR::Table'
+               ],
+               [
+                 'APR::Pool',
+                 'APR::Pool'
+               ]
+             ],
+  'client_socket' => [
                        [
-                         'APR::Finfo',
-                         'APR::Finfo'
+                         'Apache2::Connection',
+                         'Apache2::Connection'
                        ]
                      ],
-          'no_cache' => [
+  'close' => [
+               [
+                 'APR::Socket',
+                 'APR::Socket'
+               ]
+             ],
+  'cmd' => [
+             [
+               'Apache2::CmdParms',
+               'Apache2::CmdParms'
+             ]
+           ],
+  'cmds' => [
+              [
+                'Apache2::Module',
+                'Apache2::Module'
+              ]
+            ],
+  'compress' => [
+                  [
+                    'APR::Table',
+                    'APR::Table'
+                  ]
+                ],
+  'concat' => [
+                [
+                  'APR::Brigade',
+                  'APR::Brigade'
+                ]
+              ],
+  'conftree' => [
+                  [
+                    'Apache2::Directive',
+                    'Apache2::Directive'
+                  ]
+                ],
+  'conn_config' => [
+                     [
+                       'Apache2::Connection',
+                       'Apache2::Connection'
+                     ]
+                   ],
+  'connect' => [
+                 [
+                   'APR::Socket',
+                   'APR::Socket'
+                 ]
+               ],
+  'connection' => [
+                    [
+                      'Apache2::RequestRec',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'construct_server' => [
                           [
-                            'Apache2::RequestUtil',
+                            'Apache2::URI',
                             'Apache2::RequestRec'
                           ]
                         ],
-          'no_local_copy' => [
-                               [
-                                 'Apache2::RequestRec',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'note_auth_failure' => [
-                                   [
-                                     'Apache2::Access',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'note_basic_auth_failure' => [
-                                         [
-                                           'Apache2::Access',
-                                           'Apache2::RequestRec'
-                                         ]
-                                       ],
-          'note_digest_auth_failure' => [
-                                          [
-                                            'Apache2::Access',
-                                            'Apache2::RequestRec'
-                                          ]
-                                        ],
-          'notes' => [
+  'construct_url' => [
+                       [
+                         'Apache2::URI',
+                         'Apache2::RequestRec'
+                       ]
+                     ],
+  'content_encoding' => [
+                          [
+                            'Apache2::RequestRec',
+                            'Apache2::RequestRec'
+                          ]
+                        ],
+  'content_languages' => [
+                           [
+                             'Apache2::RequestRec',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'content_type' => [
+                      [
+                        'Apache2::RequestRec',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'context' => [
+                 [
+                   'Apache2::CmdParms',
+                   'Apache2::CmdParms'
+                 ]
+               ],
+  'copy' => [
+              [
+                'APR::Table',
+                'APR::Table'
+              ]
+            ],
+  'crit' => [
+              [
+                'Apache2::Log',
+                undef
+              ]
+            ],
+  'csize' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'ctime' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'ctx' => [
+             [
+               'Apache2::Filter',
+               'Apache2::Filter'
+             ]
+           ],
+  'current_callback' => [
+                          [
+                            'ModPerl::Util',
+                            'ModPerl::Util'
+                          ]
+                        ],
+  'current_perl_id' => [
+                         [
+                           'ModPerl::Util',
+                           'ModPerl::Util'
+                         ]
+                       ],
+  'current_thread_id' => [
+                           [
+                             'APR::OS',
+                             'APR::OS'
+                           ]
+                         ],
+  'custom_response' => [
+                         [
+                           'Apache2::Response',
+                           'Apache2::RequestRec'
+                         ]
+                       ],
+  'data' => [
+              [
+                'APR::Bucket',
+                'APR::Bucket'
+              ]
+            ],
+  'debug' => [
+               [
+                 'Apache2::Log',
+                 undef
+               ]
+             ],
+  'decode' => [
+                [
+                  'APR::Base64',
+                  undef
+                ]
+              ],
+  'default_type' => [
+                      [
+                        'Apache2::RequestUtil',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'delete' => [
+                [
+                  'APR::Bucket',
+                  'APR::Bucket'
+                ]
+              ],
+  'destroy' => [
+                 [
+                   'APR::Bucket',
+                   'APR::Bucket'
+                 ],
+                 [
+                   'APR::Brigade',
+                   'APR::Brigade'
+                 ],
+                 [
+                   'APR::BucketAlloc',
+                   'APR::BucketAlloc'
+                 ],
+                 [
+                   'APR::Pool',
+                   'APR::Pool'
+                 ]
+               ],
+  'device' => [
+                [
+                  'APR::Finfo',
+                  'APR::Finfo'
+                ]
+              ],
+  'die' => [
+             [
+               'Apache2::HookRun',
+               'Apache2::RequestRec'
+             ]
+           ],
+  'dir_config' => [
+                    [
+                      'Apache2::ServerUtil',
+                      'Apache2::ServerRec'
+                    ],
+                    [
+                      'Apache2::RequestUtil',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'directive' => [
+                   [
+                     'Apache2::Directive',
+                     'Apache2::Directive'
+                   ],
+                   [
+                     'Apache2::CmdParms',
+                     'Apache2::CmdParms'
+                   ]
+                 ],
+  'discard_request_body' => [
+                              [
+                                'Apache2::RequestIO',
+                                'Apache2::RequestRec'
+                              ]
+                            ],
+  'do' => [
+            [
+              'APR::Table',
+              'APR::Table'
+            ]
+          ],
+  'document_root' => [
+                       [
+                         'Apache2::RequestUtil',
+                         'Apache2::RequestRec'
+                       ]
+                     ],
+  'emerg' => [
+               [
+                 'Apache2::Log',
+                 undef
+               ]
+             ],
+  'encode' => [
+                [
+                  'APR::Base64',
+                  undef
+                ]
+              ],
+  'encode_len' => [
+                    [
+                      'APR::Base64',
+                      'APR::Base64'
+                    ]
+                  ],
+  'eos_create' => [
+                    [
+                      'APR::Bucket',
+                      'APR::Bucket'
+                    ]
+                  ],
+  'equal' => [
+               [
+                 'APR::SockAddr',
+                 'APR::SockAddr'
+               ]
+             ],
+  'err_headers_out' => [
+                         [
+                           'Apache2::RequestRec',
+                           'Apache2::RequestRec'
+                         ]
+                       ],
+  'errmsg' => [
+                [
+                  'Apache2::Command',
+                  'Apache2::Command'
+                ]
+              ],
+  'error' => [
+               [
+                 'Apache2::Log',
+                 undef
+               ]
+             ],
+  'error_fname' => [
+                     [
+                       'Apache2::ServerRec',
+                       'Apache2::ServerRec'
+                     ]
+                   ],
+  'error_log2stderr' => [
+                          [
+                            'Apache2::ServerUtil',
+                            'Apache2::ServerRec'
+                          ]
+                        ],
+  'escape_path' => [
+                     [
+                       'Apache2::Util',
+                       'Apache2::Util'
+                     ]
+                   ],
+  'exists_config_define' => [
+                              [
+                                'Apache2::ServerUtil',
+                                'Apache2::ServerUtil'
+                              ]
+                            ],
+  'fflush' => [
+                [
+                  'Apache2::Filter',
+                  'Apache2::Filter'
+                ]
+              ],
+  'filename' => [
+                  [
+                    'Apache2::Directive',
+                    'Apache2::Directive'
+                  ],
+                  [
+                    'Apache2::RequestRec',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'fileno' => [
+                [
+                  'APR::Socket',
+                  'APR::Socket'
+                ]
+              ],
+  'filepath_name_get' => [
+                           [
+                             'APR::Util',
+                             'APR::Util'
+                           ]
+                         ],
+  'filetype' => [
+                  [
+                    'APR::Finfo',
+                    'APR::Finfo'
+                  ]
+                ],
+  'filter_flush' => [
+                      [
+                        'Apache2::Filter',
+                        'APR::Brigade'
+                      ]
+                    ],
+  'find_linked_module' => [
+                            [
+                              'Apache2::Module',
+                              'Apache2::Module'
+                            ]
+                          ],
+  'finfo' => [
+               [
+                 'Apache2::RequestRec',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'first' => [
+               [
+                 'APR::Brigade',
+                 'APR::Brigade'
+               ]
+             ],
+  'first_child' => [
+                     [
+                       'Apache2::Directive',
+                       'Apache2::Directive'
+                     ]
+                   ],
+  'flatten' => [
+                 [
+                   'APR::Brigade',
+                   'APR::Brigade'
+                 ]
+               ],
+  'flush_create' => [
+                      [
+                        'APR::Bucket',
+                        'APR::Bucket'
+                      ]
+                    ],
+  'fname' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'format' => [
+                [
+                  'APR::UUID',
+                  undef
+                ]
+              ],
+  'format_size' => [
+                     [
+                       'APR::String',
+                       'APR::String'
+                     ]
+                   ],
+  'fragment' => [
+                  [
+                    'APR::URI',
+                    'APR::URI'
+                  ]
+                ],
+  'frec' => [
+              [
+                'Apache2::Filter',
+                'Apache2::Filter'
+              ]
+            ],
+  'get' => [
+             [
+               'APR::Table',
+               undef
+             ]
+           ],
+  'get_basic_auth_pw' => [
+                           [
+                             'Apache2::Access',
+                             undef
+                           ]
+                         ],
+  'get_brigade' => [
+                     [
+                       'Apache2::Filter',
+                       'Apache2::Filter'
+                     ]
+                   ],
+  'get_client_block' => [
+                          [
+                            'Apache2::RequestIO',
+                            'Apache2::RequestRec'
+                          ]
+                        ],
+  'get_config' => [
+                    [
+                      'Apache2::Module',
+                      'Apache2::Module'
+                    ]
+                  ],
+  'get_handlers' => [
+                      [
+                        'Apache2::ServerUtil',
+                        'Apache2::ServerRec'
+                      ],
+                      [
+                        'Apache2::RequestUtil',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'get_limit_req_body' => [
+                            [
+                              'Apache2::RequestUtil',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'get_remote_host' => [
+                         [
+                           'Apache2::Connection',
+                           'Apache2::Connection'
+                         ]
+                       ],
+  'get_remote_logname' => [
+                            [
+                              'Apache2::Access',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'get_server_banner' => [
+                           [
+                             'Apache2::ServerUtil',
+                             'Apache2::ServerUtil'
+                           ]
+                         ],
+  'get_server_description' => [
+                                [
+                                  'Apache2::ServerUtil',
+                                  'Apache2::ServerUtil'
+                                ]
+                              ],
+  'get_server_name' => [
+                         [
+                           'Apache2::RequestUtil',
+                           'Apache2::RequestRec'
+                         ]
+                       ],
+  'get_server_port' => [
+                         [
+                           'Apache2::RequestUtil',
+                           'Apache2::RequestRec'
+                         ]
+                       ],
+  'get_server_version' => [
+                            [
+                              'Apache2::ServerUtil',
+                              'Apache2::ServerUtil'
+                            ]
+                          ],
+  'get_status_line' => [
+                         [
+                           'Apache2::RequestUtil',
+                           'Apache2::RequestUtil'
+                         ]
+                       ],
+  'group' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'group_id' => [
+                  [
+                    'Apache2::ServerUtil',
+                    'Apache2::ServerUtil'
+                  ]
+                ],
+  'handler' => [
+                 [
+                   'Apache2::RequestRec',
+                   'Apache2::RequestRec'
+                 ]
+               ],
+  'header_only' => [
+                     [
+                       'Apache2::RequestRec',
+                       'Apache2::RequestRec'
+                     ]
+                   ],
+  'headers_in' => [
+                    [
+                      'Apache2::RequestRec',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'headers_out' => [
+                     [
+                       'Apache2::RequestRec',
+                       'Apache2::RequestRec'
+                     ]
+                   ],
+  'hostinfo' => [
+                  [
+                    'APR::URI',
+                    'APR::URI'
+                  ]
+                ],
+  'hostname' => [
+                  [
+                    'APR::URI',
+                    'APR::URI'
+                  ],
+                  [
+                    'Apache2::RequestRec',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'ht_time' => [
+                 [
+                   'Apache2::Util',
+                   'Apache2::Util'
+                 ]
+               ],
+  'id' => [
+            [
+              'Apache2::Connection',
+              'Apache2::Connection'
+            ]
+          ],
+  'info' => [
+              [
+                'Apache2::CmdParms',
+                'Apache2::CmdParms'
+              ],
+              [
+                'Apache2::Log',
+                undef
+              ]
+            ],
+  'inode' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'input_filters' => [
                        [
                          'Apache2::Connection',
                          'Apache2::Connection'
@@ -1579,973 +1033,1537 @@ my $methods = {
                          'Apache2::RequestRec'
                        ]
                      ],
-          'notice' => [
-                        [
-                          'Apache2::Log',
-                          undef
-                        ]
-                      ],
-          'opt_get' => [
-                         [
-                           'APR::Socket',
-                           'APR::Socket'
-                         ]
-                       ],
-          'opt_set' => [
-                         [
-                           'APR::Socket',
-                           'APR::Socket'
-                         ]
-                       ],
-          'output_filters' => [
-                                [
-                                  'Apache2::Connection',
-                                  'Apache2::Connection'
-                                ],
-                                [
-                                  'Apache2::RequestRec',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'overlap' => [
-                         [
-                           'APR::Table',
-                           'APR::Table'
-                         ]
-                       ],
-          'overlay' => [
-                         [
-                           'APR::Table',
-                           'APR::Table'
-                         ]
-                       ],
-          'override' => [
-                          [
-                            'Apache2::CmdParms',
-                            'Apache2::CmdParms'
-                          ]
-                        ],
-          'override_opts' => [
-                               [
-                                 'Apache2::CmdParms',
-                                 'Apache2::CmdParms'
-                               ]
-                             ],
-          'parent' => [
-                        [
-                          'Apache2::Directive',
-                          'Apache2::Directive'
-                        ]
-                      ],
-          'parent_get' => [
-                            [
-                              'APR::Pool',
-                              'APR::Pool'
-                            ]
-                          ],
-          'parse' => [
-                       [
-                         'APR::UUID',
-                         'APR::UUID'
-                       ],
-                       [
-                         'APR::URI',
-                         'APR::URI'
-                       ]
-                     ],
-          'parse_http' => [
-                            [
-                              'APR::Date',
-                              'APR::Date'
-                            ]
-                          ],
-          'parse_rfc' => [
-                           [
-                             'APR::Date',
-                             'APR::Date'
-                           ]
-                         ],
-          'parse_uri' => [
-                           [
-                             'Apache2::URI',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'parsed_uri' => [
-                            [
-                              'Apache2::URI',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'pass_brigade' => [
-                              [
-                                'Apache2::Filter',
-                                'Apache2::Filter'
-                              ]
-                            ],
-          'password' => [
-                          [
-                            'APR::URI',
-                            'APR::URI'
-                          ]
-                        ],
-          'password_get' => [
-                              [
-                                'APR::Util',
-                                'APR::Util'
-                              ]
-                            ],
-          'password_validate' => [
-                                   [
-                                     'APR::Util',
-                                     'APR::Util'
-                                   ]
-                                 ],
-          'path' => [
-                      [
-                        'Apache2::CmdParms',
-                        'Apache2::CmdParms'
-                      ],
-                      [
-                        'Apache2::ServerRec',
-                        'Apache2::ServerRec'
-                      ],
-                      [
-                        'APR::URI',
-                        'APR::URI'
-                      ]
-                    ],
-          'path_info' => [
-                           [
-                             'Apache2::RequestRec',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'pconf' => [
-                       [
-                         'Apache2::Process',
-                         'Apache2::Process'
-                       ]
-                     ],
-          'per_dir_config' => [
-                                [
-                                  'Apache2::RequestRec',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'pnotes' => [
-                        [
-                          'Apache2::ConnectionUtil',
-                          'Apache2::Connection'
-                        ],
-                        [
-                          'Apache2::RequestUtil',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'poll' => [
-                      [
-                        'APR::Socket',
-                        'APR::Socket'
-                      ]
-                    ],
-          'pool' => [
-                      [
-                        'Apache2::Process',
-                        'Apache2::Process'
-                      ],
-                      [
-                        'Apache2::CmdParms',
-                        'Apache2::CmdParms'
-                      ],
-                      [
-                        'Apache2::Connection',
-                        'Apache2::Connection'
-                      ],
-                      [
-                        'APR::Brigade',
-                        'APR::Brigade'
-                      ],
-                      [
-                        'Apache2::RequestRec',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'pool_get' => [
-                          [
-                            'APR::ThreadMutex',
-                            'APR::ThreadMutex'
-                          ],
-                          [
-                            'APR::ThreadRWLock',
-                            'APR::ThreadRWLock'
-                          ]
-                        ],
-          'port' => [
-                      [
-                        'APR::SockAddr',
-                        'APR::SockAddr'
-                      ],
-                      [
-                        'Apache2::ServerRec',
-                        'Apache2::ServerRec'
-                      ],
-                      [
-                        'APR::URI',
-                        'APR::URI'
-                      ]
-                    ],
-          'port_of_scheme' => [
-                                [
-                                  'APR::URI',
-                                  'APR::URI'
-                                ]
-                              ],
-          'prev' => [
-                      [
-                        'APR::Brigade',
-                        'APR::Brigade'
-                      ],
-                      [
-                        'Apache2::RequestRec',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'print' => [
-                       [
-                         'Apache2::Filter',
-                         'Apache2::Filter'
-                       ],
-                       [
-                         'Apache2::RequestIO',
-                         'Apache2::RequestRec'
-                       ]
-                     ],
-          'printf' => [
-                        [
-                          'Apache2::RequestIO',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'process' => [
-                         [
-                           'Apache2::ServerRec',
-                           'Apache2::ServerRec'
-                         ]
-                       ],
-          'protection' => [
-                            [
-                              'APR::Finfo',
-                              'APR::Finfo'
-                            ]
-                          ],
-          'proto_input_filters' => [
-                                     [
-                                       'Apache2::RequestRec',
-                                       'Apache2::RequestRec'
-                                     ]
-                                   ],
-          'proto_num' => [
-                           [
-                             'Apache2::RequestRec',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'proto_output_filters' => [
-                                      [
-                                        'Apache2::RequestRec',
-                                        'Apache2::RequestRec'
-                                      ]
-                                    ],
-          'protocol' => [
-                          [
-                            'Apache2::RequestRec',
-                            'Apache2::RequestRec'
-                          ]
-                        ],
-          'proxyreq' => [
-                          [
-                            'Apache2::RequestRec',
-                            'Apache2::RequestRec'
-                          ]
-                        ],
-          'psignature' => [
-                            [
-                              'Apache2::RequestUtil',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'push_handlers' => [
-                               [
-                                 'Apache2::ServerUtil',
-                                 'Apache2::ServerRec'
-                               ],
-                               [
-                                 'Apache2::RequestUtil',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'puts' => [
-                      [
-                        'Apache2::RequestIO',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'query' => [
-                       [
-                         'Apache2::MPM',
-                         'Apache2::MPM'
-                       ],
-                       [
-                         'APR::URI',
-                         'APR::URI'
-                       ]
-                     ],
-          'r' => [
-                   [
-                     'Apache2::Filter',
-                     'Apache2::Filter'
-                   ]
-                 ],
-          'rationalize_mtime' => [
-                                   [
-                                     'Apache2::Response',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'rdlock' => [
-                        [
-                          'APR::ThreadRWLock',
-                          'APR::ThreadRWLock'
-                        ]
-                      ],
-          'read' => [
+  'insert_after' => [
                       [
                         'APR::Bucket',
                         'APR::Bucket'
-                      ],
-                      [
-                        'Apache2::Filter',
-                        'Apache2::Filter'
-                      ],
-                      [
-                        'Apache2::RequestIO',
-                        'Apache2::RequestRec'
                       ]
                     ],
-          'recv' => [
-                      [
-                        'APR::Socket',
-                        'APR::Socket'
-                      ]
-                    ],
-          'recvfrom' => [
-                          [
-                            'APR::Socket',
-                            'APR::Socket'
-                          ]
-                        ],
-          'remote_addr' => [
-                             [
-                               'Apache2::Connection',
-                               'Apache2::Connection'
-                             ]
-                           ],
-          'remote_host' => [
-                             [
-                               'Apache2::Connection',
-                               'Apache2::Connection'
-                             ]
-                           ],
-          'remote_ip' => [
-                           [
-                             'Apache2::Connection',
-                             'Apache2::Connection'
-                           ]
-                         ],
-          'remove' => [
-                        [
-                          'APR::Bucket',
-                          'APR::Bucket'
-                        ],
-                        [
-                          'Apache2::Filter',
-                          'Apache2::Filter'
-                        ]
-                      ],
-          'remove_loaded_module' => [
-                                      [
-                                        'Apache2::Module',
-                                        'Apache2::Module'
-                                      ]
-                                    ],
-          'req_override' => [
-                              [
-                                'Apache2::Command',
-                                'Apache2::Command'
-                              ]
-                            ],
-          'request' => [
-                         [
-                           'Apache2::RequestUtil',
-                           'Apache2::RequestUtil'
-                         ]
-                       ],
-          'request_config' => [
-                                [
-                                  'Apache2::RequestRec',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'request_time' => [
-                              [
-                                'Apache2::RequestRec',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'requires' => [
-                          [
-                            'Apache2::Access',
-                            'Apache2::RequestRec'
-                          ]
-                        ],
-          'restart_count' => [
-                               [
-                                 'Apache2::ServerUtil',
-                                 'Apache2::ServerUtil'
-                               ]
-                             ],
-          'rflush' => [
-                        [
-                          'Apache2::RequestIO',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'rpath' => [
-                       [
-                         'APR::URI',
-                         'APR::URI'
-                       ]
-                     ],
-          'run' => [
-                     [
-                       'Apache2::SubRequest',
-                       'Apache2::SubRequest'
-                     ]
-                   ],
-          'run_access_checker' => [
-                                    [
-                                      'Apache2::HookRun',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'run_auth_checker' => [
-                                  [
-                                    'Apache2::HookRun',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'run_check_user_id' => [
-                                   [
-                                     'Apache2::HookRun',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'run_fixups' => [
-                            [
-                              'Apache2::HookRun',
-                              'Apache2::RequestRec'
-                            ]
-                          ],
-          'run_handler' => [
-                             [
-                               'Apache2::HookRun',
-                               'Apache2::RequestRec'
-                             ]
-                           ],
-          'run_header_parser' => [
-                                   [
-                                     'Apache2::HookRun',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'run_log_transaction' => [
-                                     [
-                                       'Apache2::HookRun',
-                                       'Apache2::RequestRec'
-                                     ]
-                                   ],
-          'run_map_to_storage' => [
-                                    [
-                                      'Apache2::HookRun',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'run_post_read_request' => [
-                                       [
-                                         'Apache2::HookRun',
-                                         'Apache2::RequestRec'
-                                       ]
-                                     ],
-          'run_translate_name' => [
-                                    [
-                                      'Apache2::HookRun',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'run_type_checker' => [
-                                  [
-                                    'Apache2::HookRun',
-                                    'Apache2::RequestRec'
-                                  ]
-                                ],
-          'satisfies' => [
-                           [
-                             'Apache2::Access',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'sbh' => [
-                     [
-                       'Apache2::Connection',
-                       'Apache2::Connection'
-                     ]
-                   ],
-          'scheme' => [
-                        [
-                          'APR::URI',
-                          'APR::URI'
-                        ]
-                      ],
-          'seen_eos' => [
-                          [
-                            'Apache2::Filter',
-                            'Apache2::Filter'
-                          ]
-                        ],
-          'send' => [
-                      [
-                        'APR::Socket',
-                        'APR::Socket'
-                      ]
-                    ],
-          'send_cgi_header' => [
-                                 [
-                                   'Apache2::Response',
-                                   'Apache2::RequestRec'
-                                 ]
-                               ],
-          'send_error_response' => [
-                                     [
-                                       'Apache2::Response',
-                                       'Apache2::RequestRec'
-                                     ]
-                                   ],
-          'send_mmap' => [
-                           [
-                             'Apache2::Response',
-                             'Apache2::RequestRec'
-                           ]
-                         ],
-          'sendfile' => [
-                          [
-                            'Apache2::RequestIO',
-                            'Apache2::RequestRec'
-                          ]
-                        ],
-          'sendto' => [
-                        [
-                          'APR::Socket',
-                          'APR::Socket'
-                        ]
-                      ],
-          'server' => [
-                        [
-                          'Apache2::CmdParms',
-                          'Apache2::CmdParms'
-                        ],
-                        [
-                          'Apache2::ServerUtil',
-                          'Apache2::ServerUtil'
-                        ],
-                        [
-                          'Apache2::RequestRec',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'server_admin' => [
-                              [
-                                'Apache2::ServerRec',
-                                'Apache2::ServerRec'
-                              ]
-                            ],
-          'server_hostname' => [
-                                 [
-                                   'Apache2::ServerRec',
-                                   'Apache2::ServerRec'
-                                 ]
-                               ],
-          'server_root_relative' => [
-                                      [
-                                        'Apache2::ServerUtil',
-                                        'Apache2::ServerUtil'
-                                      ]
-                                    ],
-          'server_shutdown_cleanup_register' => [
-                                                  [
-                                                    'Apache2::ServerUtil',
-                                                    'Apache2::ServerUtil'
-                                                  ]
-                                                ],
-          'set' => [
-                     [
-                       'APR::Table',
-                       'APR::Table'
-                     ]
-                   ],
-          'set_basic_credentials' => [
-                                       [
-                                         'Apache2::RequestUtil',
-                                         'Apache2::RequestRec'
-                                       ]
-                                     ],
-          'set_content_length' => [
-                                    [
-                                      'Apache2::Response',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'set_etag' => [
-                          [
-                            'Apache2::Response',
-                            'Apache2::RequestRec'
-                          ]
-                        ],
-          'set_handlers' => [
-                              [
-                                'Apache2::ServerUtil',
-                                'Apache2::ServerRec'
-                              ],
-                              [
-                                'Apache2::RequestUtil',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'set_keepalive' => [
-                               [
-                                 'Apache2::Response',
-                                 'Apache2::RequestRec'
-                               ]
-                             ],
-          'set_last_modified' => [
-                                   [
-                                     'Apache2::Response',
-                                     'Apache2::RequestRec'
-                                   ]
-                                 ],
-          'setaside' => [
-                          [
-                            'APR::Bucket',
-                            'APR::Bucket'
-                          ]
-                        ],
-          'setup_client_block' => [
-                                    [
-                                      'Apache2::RequestIO',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'short_name' => [
-                            [
-                              'Apache2::Process',
-                              'Apache2::Process'
-                            ]
-                          ],
-          'should_client_block' => [
-                                     [
-                                       'Apache2::RequestIO',
-                                       'Apache2::RequestRec'
-                                     ]
-                                   ],
-          'size' => [
-                      [
-                        'APR::Finfo',
-                        'APR::Finfo'
-                      ]
-                    ],
-          'slurp_filename' => [
-                                [
-                                  'Apache2::RequestUtil',
-                                  'Apache2::RequestRec'
-                                ]
-                              ],
-          'some_auth_required' => [
-                                    [
-                                      'Apache2::Access',
-                                      'Apache2::RequestRec'
-                                    ]
-                                  ],
-          'spawn_proc_prog' => [
-                                 [
-                                   'Apache2::SubProcess',
-                                   undef
-                                 ]
-                               ],
-          'special_list_call' => [
-                                   [
-                                     'ModPerl::Global',
-                                     'ModPerl::Global'
-                                   ]
-                                 ],
-          'special_list_clear' => [
-                                    [
-                                      'ModPerl::Global',
-                                      'ModPerl::Global'
-                                    ]
-                                  ],
-          'special_list_register' => [
-                                       [
-                                         'ModPerl::Global',
-                                         'ModPerl::Global'
-                                       ]
-                                     ],
-          'split' => [
-                       [
-                         'APR::Brigade',
-                         'APR::Brigade'
-                       ]
-                     ],
-          'start' => [
+  'insert_before' => [
                        [
                          'APR::Bucket',
                          'APR::Bucket'
                        ]
                      ],
-          'stat' => [
-                      [
-                        'APR::Finfo',
-                        'APR::Finfo'
-                      ]
-                    ],
-          'status' => [
-                        [
-                          'Apache2::RequestRec',
-                          'Apache2::RequestRec'
-                        ]
-                      ],
-          'status_line' => [
-                             [
-                               'Apache2::RequestRec',
-                               'Apache2::RequestRec'
-                             ]
-                           ],
-          'strerror' => [
-                          [
-                            'APR::Error',
-                            'APR::Error'
-                          ]
-                        ],
-          'subprocess_env' => [
+  'insert_head' => [
+                     [
+                       'APR::Brigade',
+                       'APR::Brigade'
+                     ]
+                   ],
+  'insert_tail' => [
+                     [
+                       'APR::Brigade',
+                       'APR::Brigade'
+                     ]
+                   ],
+  'internal_fast_redirect' => [
                                 [
-                                  'Apache2::RequestRec',
+                                  'Apache2::SubRequest',
                                   'Apache2::RequestRec'
                                 ]
                               ],
-          'tag' => [
+  'internal_redirect' => [
+                           [
+                             'Apache2::SubRequest',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'internal_redirect_handler' => [
+                                   [
+                                     'Apache2::SubRequest',
+                                     'Apache2::RequestRec'
+                                   ]
+                                 ],
+  'invoke_handler' => [
+                        [
+                          'Apache2::HookRun',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'ip_get' => [
+                [
+                  'APR::SockAddr',
+                  'APR::SockAddr'
+                ]
+              ],
+  'is_EACCES' => [
+                   [
+                     'APR::Status',
+                     'APR::Status'
+                   ]
+                 ],
+  'is_EAGAIN' => [
+                   [
+                     'APR::Status',
+                     'APR::Status'
+                   ]
+                 ],
+  'is_ECONNABORTED' => [
+                         [
+                           'APR::Status',
+                           'APR::Status'
+                         ]
+                       ],
+  'is_ECONNRESET' => [
+                       [
+                         'APR::Status',
+                         'APR::Status'
+                       ]
+                     ],
+  'is_ENOENT' => [
+                   [
+                     'APR::Status',
+                     'APR::Status'
+                   ]
+                 ],
+  'is_EOF' => [
+                [
+                  'APR::Status',
+                  'APR::Status'
+                ]
+              ],
+  'is_TIMEUP' => [
+                   [
+                     'APR::Status',
+                     'APR::Status'
+                   ]
+                 ],
+  'is_ancestor' => [
                      [
                        'APR::Pool',
                        'APR::Pool'
                      ]
                    ],
-          'temp_pool' => [
-                           [
-                             'Apache2::CmdParms',
-                             'Apache2::CmdParms'
-                           ]
-                         ],
-          'test' => [
-                      [
-                        'APR::IpSubnet',
-                        'APR::IpSubnet'
-                      ]
-                    ],
-          'the_request' => [
-                             [
-                               'Apache2::RequestRec',
-                               'Apache2::RequestRec'
-                             ]
-                           ],
-          'timeout' => [
-                         [
-                           'Apache2::ServerRec',
-                           'Apache2::ServerRec'
-                         ]
-                       ],
-          'timeout_get' => [
-                             [
-                               'APR::Socket',
-                               'APR::Socket'
-                             ]
-                           ],
-          'timeout_set' => [
-                             [
-                               'APR::Socket',
-                               'APR::Socket'
-                             ]
-                           ],
-          'top_module' => [
-                            [
-                              'Apache2::Module',
-                              'Apache2::Module'
-                            ]
-                          ],
-          'trylock' => [
-                         [
-                           'APR::ThreadMutex',
-                           'APR::ThreadMutex'
-                         ]
-                       ],
-          'tryrdlock' => [
-                           [
-                             'APR::ThreadRWLock',
-                             'APR::ThreadRWLock'
-                           ]
-                         ],
-          'trywrlock' => [
-                           [
-                             'APR::ThreadRWLock',
-                             'APR::ThreadRWLock'
-                           ]
-                         ],
-          'type' => [
-                      [
-                        'APR::Bucket',
-                        'APR::Bucket'
-                      ]
-                    ],
-          'unescape_url' => [
-                              [
-                                'Apache2::URI',
-                                'Apache2::URI'
-                              ]
-                            ],
-          'unload_package_xs' => [
-                                   [
-                                     'ModPerl::Util',
-                                     'ModPerl::Util'
-                                   ]
-                                 ],
-          'unlock' => [
+  'is_empty' => [
+                  [
+                    'APR::Brigade',
+                    'APR::Brigade'
+                  ]
+                ],
+  'is_eos' => [
+                [
+                  'APR::Bucket',
+                  'APR::Bucket'
+                ]
+              ],
+  'is_flush' => [
+                  [
+                    'APR::Bucket',
+                    'APR::Bucket'
+                  ]
+                ],
+  'is_initial_req' => [
                         [
-                          'APR::ThreadMutex',
-                          'APR::ThreadMutex'
-                        ],
-                        [
-                          'APR::ThreadRWLock',
-                          'APR::ThreadRWLock'
+                          'Apache2::RequestUtil',
+                          'Apache2::RequestRec'
                         ]
                       ],
-          'unparse' => [
-                         [
-                           'APR::URI',
-                           'APR::URI'
-                         ]
-                       ],
-          'unparsed_uri' => [
-                              [
-                                'Apache2::RequestRec',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'unset' => [
-                       [
-                         'APR::Table',
-                         'APR::Table'
-                       ]
-                     ],
-          'untaint' => [
-                         [
-                           'ModPerl::Util',
-                           'ModPerl::Util'
-                         ]
-                       ],
-          'update_mtime' => [
-                              [
-                                'Apache2::Response',
-                                'Apache2::RequestRec'
-                              ]
-                            ],
-          'uri' => [
-                     [
-                       'Apache2::RequestRec',
-                       'Apache2::RequestRec'
-                     ]
-                   ],
-          'used_path_info' => [
+  'is_perl_option_enabled' => [
                                 [
-                                  'Apache2::RequestRec',
+                                  'Apache2::ServerUtil',
+                                  'Apache2::ServerRec'
+                                ],
+                                [
+                                  'Apache2::RequestUtil',
                                   'Apache2::RequestRec'
                                 ]
                               ],
-          'user' => [
-                      [
-                        'APR::Finfo',
-                        'APR::Finfo'
+  'is_virtual' => [
+                    [
+                      'Apache2::ServerRec',
+                      'Apache2::ServerRec'
+                    ]
+                  ],
+  'keep_alive' => [
+                    [
+                      'Apache2::ServerRec',
+                      'Apache2::ServerRec'
+                    ]
+                  ],
+  'keep_alive_max' => [
+                        [
+                          'Apache2::ServerRec',
+                          'Apache2::ServerRec'
+                        ]
                       ],
-                      [
-                        'APR::URI',
-                        'APR::URI'
-                      ],
-                      [
-                        'Apache2::RequestRec',
-                        'Apache2::RequestRec'
-                      ]
-                    ],
-          'user_id' => [
-                         [
-                           'Apache2::ServerUtil',
-                           'Apache2::ServerUtil'
-                         ]
-                       ],
-          'valid' => [
-                       [
-                         'APR::Finfo',
-                         'APR::Finfo'
-                       ]
-                     ],
-          'warn' => [
-                      [
-                        'Apache2::Log',
-                        undef
-                      ],
-                      [
-                        'Apache2::Log',
-                        undef
-                      ],
-                      [
-                        'Apache2::Log',
-                        undef
-                      ]
-                    ],
-          'wild_names' => [
+  'keep_alive_timeout' => [
                             [
                               'Apache2::ServerRec',
                               'Apache2::ServerRec'
                             ]
                           ],
-          'write' => [
+  'keepalive' => [
+                   [
+                     'Apache2::Connection',
+                     'Apache2::Connection'
+                   ]
+                 ],
+  'keepalives' => [
+                    [
+                      'Apache2::Connection',
+                      'Apache2::Connection'
+                    ]
+                  ],
+  'last' => [
+              [
+                'APR::Brigade',
+                'APR::Brigade'
+              ]
+            ],
+  'length' => [
+                [
+                  'APR::Bucket',
+                  'APR::Bucket'
+                ],
+                [
+                  'APR::Brigade',
+                  'APR::Brigade'
+                ]
+              ],
+  'limit_req_fields' => [
+                          [
+                            'Apache2::ServerRec',
+                            'Apache2::ServerRec'
+                          ]
+                        ],
+  'limit_req_fieldsize' => [
+                             [
+                               'Apache2::ServerRec',
+                               'Apache2::ServerRec'
+                             ]
+                           ],
+  'limit_req_line' => [
+                        [
+                          'Apache2::ServerRec',
+                          'Apache2::ServerRec'
+                        ]
+                      ],
+  'line_num' => [
+                  [
+                    'Apache2::Directive',
+                    'Apache2::Directive'
+                  ]
+                ],
+  'listen' => [
+                [
+                  'APR::Socket',
+                  'APR::Socket'
+                ]
+              ],
+  'loaded' => [
+                [
+                  'Apache2::Module',
+                  'Apache2::Module'
+                ]
+              ],
+  'local_addr' => [
+                    [
+                      'Apache2::Connection',
+                      'Apache2::Connection'
+                    ]
+                  ],
+  'local_host' => [
+                    [
+                      'Apache2::Connection',
+                      'Apache2::Connection'
+                    ]
+                  ],
+  'local_ip' => [
+                  [
+                    'Apache2::Connection',
+                    'Apache2::Connection'
+                  ]
+                ],
+  'location' => [
+                  [
+                    'Apache2::RequestUtil',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'location_merge' => [
+                        [
+                          'Apache2::RequestUtil',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'lock' => [
+              [
+                'APR::ThreadMutex',
+                'APR::ThreadMutex'
+              ]
+            ],
+  'log' => [
+             [
+               'Apache2::Log',
+               'Apache2::ServerRec'
+             ],
+             [
+               'Apache2::Log',
+               'Apache2::RequestRec'
+             ]
+           ],
+  'log_error' => [
+                   [
+                     'Apache2::Log',
+                     undef
+                   ],
+                   [
+                     'Apache2::Log',
+                     undef
+                   ]
+                 ],
+  'log_pid' => [
+                 [
+                   'Apache2::Log',
+                   'Apache2::Log'
+                 ]
+               ],
+  'log_reason' => [
+                    [
+                      'Apache2::Log',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'log_rerror' => [
+                    [
+                      'Apache2::Log',
+                      undef
+                    ]
+                  ],
+  'log_serror' => [
+                    [
+                      'Apache2::Log',
+                      undef
+                    ]
+                  ],
+  'loglevel' => [
+                  [
+                    'Apache2::ServerRec',
+                    'Apache2::ServerRec'
+                  ]
+                ],
+  'lookup' => [
+                [
+                  'Apache2::Directive',
+                  undef
+                ]
+              ],
+  'lookup_defaults' => [
+                         [
+                           'Apache2::ServerRec',
+                           'Apache2::ServerRec'
+                         ]
+                       ],
+  'lookup_dirent' => [
                        [
-                         'Apache2::RequestIO',
+                         'Apache2::SubRequest',
                          'Apache2::RequestRec'
                        ]
                      ],
-          'wrlock' => [
-                        [
-                          'APR::ThreadRWLock',
-                          'APR::ThreadRWLock'
-                        ]
+  'lookup_file' => [
+                     [
+                       'Apache2::SubRequest',
+                       'Apache2::RequestRec'
+                     ]
+                   ],
+  'lookup_method_uri' => [
+                           [
+                             'Apache2::SubRequest',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'lookup_uri' => [
+                    [
+                      'Apache2::SubRequest',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'main' => [
+              [
+                'Apache2::RequestRec',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'make' => [
+              [
+                'APR::Table',
+                'APR::Table'
+              ]
+            ],
+  'make_etag' => [
+                   [
+                     'Apache2::Response',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'meets_conditions' => [
+                          [
+                            'Apache2::Response',
+                            'Apache2::RequestRec'
+                          ]
+                        ],
+  'merge' => [
+               [
+                 'APR::Table',
+                 'APR::Table'
+               ]
+             ],
+  'method' => [
+                [
+                  'Apache2::RequestRec',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'method_is_limited' => [
+                           [
+                             'Apache2::CmdParms',
+                             'Apache2::CmdParms'
+                           ]
+                         ],
+  'method_number' => [
+                       [
+                         'Apache2::RequestRec',
+                         'Apache2::RequestRec'
+                       ]
+                     ],
+  'method_register' => [
+                         [
+                           'Apache2::ServerUtil',
+                           'Apache2::ServerRec'
+                         ]
+                       ],
+  'module_config' => [
+                       [
+                         'Apache2::ServerRec',
+                         'Apache2::ServerRec'
+                       ]
+                     ],
+  'module_index' => [
+                      [
+                        'Apache2::Module',
+                        'Apache2::Module'
                       ]
-        };
+                    ],
+  'mtime' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ],
+               [
+                 'Apache2::RequestRec',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'name' => [
+              [
+                'Apache2::Command',
+                'Apache2::Command'
+              ],
+              [
+                'APR::Finfo',
+                'APR::Finfo'
+              ],
+              [
+                'Apache2::FilterRec',
+                'Apache2::FilterRec'
+              ],
+              [
+                'APR::BucketType',
+                'APR::BucketType'
+              ],
+              [
+                'Apache2::Module',
+                'Apache2::Module'
+              ]
+            ],
+  'names' => [
+               [
+                 'Apache2::ServerRec',
+                 'Apache2::ServerRec'
+               ]
+             ],
+  'new' => [
+             [
+               'APR::Bucket',
+               'APR::Bucket'
+             ],
+             [
+               'Apache2::RequestUtil',
+               'Apache2::RequestRec'
+             ],
+             [
+               'APR::UUID',
+               'APR::UUID'
+             ],
+             [
+               'APR::Brigade',
+               'APR::Brigade'
+             ],
+             [
+               'APR::ThreadMutex',
+               'APR::ThreadMutex'
+             ],
+             [
+               'APR::BucketAlloc',
+               'APR::BucketAlloc'
+             ],
+             [
+               'APR::IpSubnet',
+               'APR::IpSubnet'
+             ],
+             [
+               'APR::ThreadRWLock',
+               'APR::ThreadRWLock'
+             ],
+             [
+               'APR::Pool',
+               'APR::Pool'
+             ]
+           ],
+  'next' => [
+              [
+                'Apache2::Command',
+                'Apache2::Command'
+              ],
+              [
+                'Apache2::Directive',
+                'Apache2::Directive'
+              ],
+              [
+                'Apache2::Filter',
+                'Apache2::Filter'
+              ],
+              [
+                'Apache2::ServerRec',
+                'Apache2::ServerRec'
+              ],
+              [
+                'APR::Brigade',
+                'APR::Brigade'
+              ],
+              [
+                'Apache2::RequestRec',
+                'Apache2::RequestRec'
+              ],
+              [
+                'Apache2::Module',
+                'Apache2::Module'
+              ]
+            ],
+  'nlink' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'no_cache' => [
+                  [
+                    'Apache2::RequestUtil',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'no_local_copy' => [
+                       [
+                         'Apache2::RequestRec',
+                         'Apache2::RequestRec'
+                       ]
+                     ],
+  'note_auth_failure' => [
+                           [
+                             'Apache2::Access',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'note_basic_auth_failure' => [
+                                 [
+                                   'Apache2::Access',
+                                   'Apache2::RequestRec'
+                                 ]
+                               ],
+  'note_digest_auth_failure' => [
+                                  [
+                                    'Apache2::Access',
+                                    'Apache2::RequestRec'
+                                  ]
+                                ],
+  'notes' => [
+               [
+                 'Apache2::Connection',
+                 'Apache2::Connection'
+               ],
+               [
+                 'Apache2::RequestRec',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'notice' => [
+                [
+                  'Apache2::Log',
+                  undef
+                ]
+              ],
+  'opt_get' => [
+                 [
+                   'APR::Socket',
+                   'APR::Socket'
+                 ]
+               ],
+  'opt_set' => [
+                 [
+                   'APR::Socket',
+                   'APR::Socket'
+                 ]
+               ],
+  'output_filters' => [
+                        [
+                          'Apache2::Connection',
+                          'Apache2::Connection'
+                        ],
+                        [
+                          'Apache2::RequestRec',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'overlap' => [
+                 [
+                   'APR::Table',
+                   'APR::Table'
+                 ]
+               ],
+  'overlay' => [
+                 [
+                   'APR::Table',
+                   'APR::Table'
+                 ]
+               ],
+  'override' => [
+                  [
+                    'Apache2::CmdParms',
+                    'Apache2::CmdParms'
+                  ]
+                ],
+  'override_opts' => [
+                       [
+                         'Apache2::CmdParms',
+                         'Apache2::CmdParms'
+                       ]
+                     ],
+  'parent' => [
+                [
+                  'Apache2::Directive',
+                  'Apache2::Directive'
+                ]
+              ],
+  'parent_get' => [
+                    [
+                      'APR::Pool',
+                      'APR::Pool'
+                    ]
+                  ],
+  'parse' => [
+               [
+                 'APR::UUID',
+                 'APR::UUID'
+               ],
+               [
+                 'APR::URI',
+                 'APR::URI'
+               ]
+             ],
+  'parse_http' => [
+                    [
+                      'APR::Date',
+                      'APR::Date'
+                    ]
+                  ],
+  'parse_rfc' => [
+                   [
+                     'APR::Date',
+                     'APR::Date'
+                   ]
+                 ],
+  'parse_uri' => [
+                   [
+                     'Apache2::URI',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'parsed_uri' => [
+                    [
+                      'Apache2::URI',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'pass_brigade' => [
+                      [
+                        'Apache2::Filter',
+                        'Apache2::Filter'
+                      ]
+                    ],
+  'password' => [
+                  [
+                    'APR::URI',
+                    'APR::URI'
+                  ]
+                ],
+  'password_get' => [
+                      [
+                        'APR::Util',
+                        'APR::Util'
+                      ]
+                    ],
+  'password_validate' => [
+                           [
+                             'APR::Util',
+                             'APR::Util'
+                           ]
+                         ],
+  'path' => [
+              [
+                'Apache2::CmdParms',
+                'Apache2::CmdParms'
+              ],
+              [
+                'Apache2::ServerRec',
+                'Apache2::ServerRec'
+              ],
+              [
+                'APR::URI',
+                'APR::URI'
+              ]
+            ],
+  'path_info' => [
+                   [
+                     'Apache2::RequestRec',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'pconf' => [
+               [
+                 'Apache2::Process',
+                 'Apache2::Process'
+               ]
+             ],
+  'per_dir_config' => [
+                        [
+                          'Apache2::RequestRec',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'pnotes' => [
+                [
+                  'Apache2::ConnectionUtil',
+                  'Apache2::Connection'
+                ],
+                [
+                  'Apache2::RequestUtil',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'poll' => [
+              [
+                'APR::Socket',
+                'APR::Socket'
+              ]
+            ],
+  'pool' => [
+              [
+                'Apache2::Process',
+                'Apache2::Process'
+              ],
+              [
+                'Apache2::CmdParms',
+                'Apache2::CmdParms'
+              ],
+              [
+                'Apache2::Connection',
+                'Apache2::Connection'
+              ],
+              [
+                'APR::Brigade',
+                'APR::Brigade'
+              ],
+              [
+                'Apache2::RequestRec',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'pool_get' => [
+                  [
+                    'APR::ThreadMutex',
+                    'APR::ThreadMutex'
+                  ],
+                  [
+                    'APR::ThreadRWLock',
+                    'APR::ThreadRWLock'
+                  ]
+                ],
+  'port' => [
+              [
+                'APR::SockAddr',
+                'APR::SockAddr'
+              ],
+              [
+                'Apache2::ServerRec',
+                'Apache2::ServerRec'
+              ],
+              [
+                'APR::URI',
+                'APR::URI'
+              ]
+            ],
+  'port_of_scheme' => [
+                        [
+                          'APR::URI',
+                          'APR::URI'
+                        ]
+                      ],
+  'prev' => [
+              [
+                'APR::Brigade',
+                'APR::Brigade'
+              ],
+              [
+                'Apache2::RequestRec',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'print' => [
+               [
+                 'Apache2::Filter',
+                 'Apache2::Filter'
+               ],
+               [
+                 'Apache2::RequestIO',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'printf' => [
+                [
+                  'Apache2::RequestIO',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'process' => [
+                 [
+                   'Apache2::ServerRec',
+                   'Apache2::ServerRec'
+                 ]
+               ],
+  'protection' => [
+                    [
+                      'APR::Finfo',
+                      'APR::Finfo'
+                    ]
+                  ],
+  'proto_input_filters' => [
+                             [
+                               'Apache2::RequestRec',
+                               'Apache2::RequestRec'
+                             ]
+                           ],
+  'proto_num' => [
+                   [
+                     'Apache2::RequestRec',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'proto_output_filters' => [
+                              [
+                                'Apache2::RequestRec',
+                                'Apache2::RequestRec'
+                              ]
+                            ],
+  'protocol' => [
+                  [
+                    'Apache2::RequestRec',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'proxyreq' => [
+                  [
+                    'Apache2::RequestRec',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'psignature' => [
+                    [
+                      'Apache2::RequestUtil',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'push_handlers' => [
+                       [
+                         'Apache2::ServerUtil',
+                         'Apache2::ServerRec'
+                       ],
+                       [
+                         'Apache2::RequestUtil',
+                         'Apache2::RequestRec'
+                       ]
+                     ],
+  'puts' => [
+              [
+                'Apache2::RequestIO',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'query' => [
+               [
+                 'Apache2::MPM',
+                 'Apache2::MPM'
+               ],
+               [
+                 'APR::URI',
+                 'APR::URI'
+               ]
+             ],
+  'r' => [
+           [
+             'Apache2::Filter',
+             'Apache2::Filter'
+           ]
+         ],
+  'rationalize_mtime' => [
+                           [
+                             'Apache2::Response',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'rdlock' => [
+                [
+                  'APR::ThreadRWLock',
+                  'APR::ThreadRWLock'
+                ]
+              ],
+  'read' => [
+              [
+                'APR::Bucket',
+                'APR::Bucket'
+              ],
+              [
+                'Apache2::Filter',
+                'Apache2::Filter'
+              ],
+              [
+                'Apache2::RequestIO',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'recv' => [
+              [
+                'APR::Socket',
+                'APR::Socket'
+              ]
+            ],
+  'recvfrom' => [
+                  [
+                    'APR::Socket',
+                    'APR::Socket'
+                  ]
+                ],
+  'remote_addr' => [
+                     [
+                       'Apache2::Connection',
+                       'Apache2::Connection'
+                     ]
+                   ],
+  'remote_host' => [
+                     [
+                       'Apache2::Connection',
+                       'Apache2::Connection'
+                     ]
+                   ],
+  'remote_ip' => [
+                   [
+                     'Apache2::Connection',
+                     'Apache2::Connection'
+                   ]
+                 ],
+  'remove' => [
+                [
+                  'APR::Bucket',
+                  'APR::Bucket'
+                ],
+                [
+                  'Apache2::Filter',
+                  'Apache2::Filter'
+                ]
+              ],
+  'remove_loaded_module' => [
+                              [
+                                'Apache2::Module',
+                                'Apache2::Module'
+                              ]
+                            ],
+  'req_override' => [
+                      [
+                        'Apache2::Command',
+                        'Apache2::Command'
+                      ]
+                    ],
+  'request' => [
+                 [
+                   'Apache2::RequestUtil',
+                   'Apache2::RequestUtil'
+                 ]
+               ],
+  'request_config' => [
+                        [
+                          'Apache2::RequestRec',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'request_time' => [
+                      [
+                        'Apache2::RequestRec',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'requires' => [
+                  [
+                    'Apache2::Access',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'restart_count' => [
+                       [
+                         'Apache2::ServerUtil',
+                         'Apache2::ServerUtil'
+                       ]
+                     ],
+  'rflush' => [
+                [
+                  'Apache2::RequestIO',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'rpath' => [
+               [
+                 'APR::URI',
+                 'APR::URI'
+               ]
+             ],
+  'run' => [
+             [
+               'Apache2::SubRequest',
+               'Apache2::SubRequest'
+             ]
+           ],
+  'run_access_checker' => [
+                            [
+                              'Apache2::HookRun',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'run_auth_checker' => [
+                          [
+                            'Apache2::HookRun',
+                            'Apache2::RequestRec'
+                          ]
+                        ],
+  'run_check_user_id' => [
+                           [
+                             'Apache2::HookRun',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'run_fixups' => [
+                    [
+                      'Apache2::HookRun',
+                      'Apache2::RequestRec'
+                    ]
+                  ],
+  'run_handler' => [
+                     [
+                       'Apache2::HookRun',
+                       'Apache2::RequestRec'
+                     ]
+                   ],
+  'run_header_parser' => [
+                           [
+                             'Apache2::HookRun',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'run_log_transaction' => [
+                             [
+                               'Apache2::HookRun',
+                               'Apache2::RequestRec'
+                             ]
+                           ],
+  'run_map_to_storage' => [
+                            [
+                              'Apache2::HookRun',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'run_post_read_request' => [
+                               [
+                                 'Apache2::HookRun',
+                                 'Apache2::RequestRec'
+                               ]
+                             ],
+  'run_translate_name' => [
+                            [
+                              'Apache2::HookRun',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'run_type_checker' => [
+                          [
+                            'Apache2::HookRun',
+                            'Apache2::RequestRec'
+                          ]
+                        ],
+  'satisfies' => [
+                   [
+                     'Apache2::Access',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'sbh' => [
+             [
+               'Apache2::Connection',
+               'Apache2::Connection'
+             ]
+           ],
+  'scheme' => [
+                [
+                  'APR::URI',
+                  'APR::URI'
+                ]
+              ],
+  'seen_eos' => [
+                  [
+                    'Apache2::Filter',
+                    'Apache2::Filter'
+                  ]
+                ],
+  'send' => [
+              [
+                'APR::Socket',
+                'APR::Socket'
+              ]
+            ],
+  'send_cgi_header' => [
+                         [
+                           'Apache2::Response',
+                           'Apache2::RequestRec'
+                         ]
+                       ],
+  'send_error_response' => [
+                             [
+                               'Apache2::Response',
+                               'Apache2::RequestRec'
+                             ]
+                           ],
+  'send_mmap' => [
+                   [
+                     'Apache2::Response',
+                     'Apache2::RequestRec'
+                   ]
+                 ],
+  'sendfile' => [
+                  [
+                    'Apache2::RequestIO',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'sendto' => [
+                [
+                  'APR::Socket',
+                  'APR::Socket'
+                ]
+              ],
+  'server' => [
+                [
+                  'Apache2::CmdParms',
+                  'Apache2::CmdParms'
+                ],
+                [
+                  'Apache2::ServerUtil',
+                  'Apache2::ServerUtil'
+                ],
+                [
+                  'Apache2::RequestRec',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'server_admin' => [
+                      [
+                        'Apache2::ServerRec',
+                        'Apache2::ServerRec'
+                      ]
+                    ],
+  'server_hostname' => [
+                         [
+                           'Apache2::ServerRec',
+                           'Apache2::ServerRec'
+                         ]
+                       ],
+  'server_root_relative' => [
+                              [
+                                'Apache2::ServerUtil',
+                                'Apache2::ServerUtil'
+                              ]
+                            ],
+  'server_shutdown_cleanup_register' => [
+                                          [
+                                            'Apache2::ServerUtil',
+                                            'Apache2::ServerUtil'
+                                          ]
+                                        ],
+  'set' => [
+             [
+               'APR::Table',
+               'APR::Table'
+             ]
+           ],
+  'set_basic_credentials' => [
+                               [
+                                 'Apache2::RequestUtil',
+                                 'Apache2::RequestRec'
+                               ]
+                             ],
+  'set_content_length' => [
+                            [
+                              'Apache2::Response',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'set_etag' => [
+                  [
+                    'Apache2::Response',
+                    'Apache2::RequestRec'
+                  ]
+                ],
+  'set_handlers' => [
+                      [
+                        'Apache2::ServerUtil',
+                        'Apache2::ServerRec'
+                      ],
+                      [
+                        'Apache2::RequestUtil',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'set_keepalive' => [
+                       [
+                         'Apache2::Response',
+                         'Apache2::RequestRec'
+                       ]
+                     ],
+  'set_last_modified' => [
+                           [
+                             'Apache2::Response',
+                             'Apache2::RequestRec'
+                           ]
+                         ],
+  'setaside' => [
+                  [
+                    'APR::Bucket',
+                    'APR::Bucket'
+                  ]
+                ],
+  'setup_client_block' => [
+                            [
+                              'Apache2::RequestIO',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'short_name' => [
+                    [
+                      'Apache2::Process',
+                      'Apache2::Process'
+                    ]
+                  ],
+  'should_client_block' => [
+                             [
+                               'Apache2::RequestIO',
+                               'Apache2::RequestRec'
+                             ]
+                           ],
+  'size' => [
+              [
+                'APR::Finfo',
+                'APR::Finfo'
+              ]
+            ],
+  'slurp_filename' => [
+                        [
+                          'Apache2::RequestUtil',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'some_auth_required' => [
+                            [
+                              'Apache2::Access',
+                              'Apache2::RequestRec'
+                            ]
+                          ],
+  'spawn_proc_prog' => [
+                         [
+                           'Apache2::SubProcess',
+                           undef
+                         ]
+                       ],
+  'special_list_call' => [
+                           [
+                             'ModPerl::Global',
+                             'ModPerl::Global'
+                           ]
+                         ],
+  'special_list_clear' => [
+                            [
+                              'ModPerl::Global',
+                              'ModPerl::Global'
+                            ]
+                          ],
+  'special_list_register' => [
+                               [
+                                 'ModPerl::Global',
+                                 'ModPerl::Global'
+                               ]
+                             ],
+  'split' => [
+               [
+                 'APR::Brigade',
+                 'APR::Brigade'
+               ]
+             ],
+  'start' => [
+               [
+                 'APR::Bucket',
+                 'APR::Bucket'
+               ]
+             ],
+  'stat' => [
+              [
+                'APR::Finfo',
+                'APR::Finfo'
+              ]
+            ],
+  'status' => [
+                [
+                  'Apache2::RequestRec',
+                  'Apache2::RequestRec'
+                ]
+              ],
+  'status_line' => [
+                     [
+                       'Apache2::RequestRec',
+                       'Apache2::RequestRec'
+                     ]
+                   ],
+  'strerror' => [
+                  [
+                    'APR::Error',
+                    'APR::Error'
+                  ]
+                ],
+  'subprocess_env' => [
+                        [
+                          'Apache2::RequestRec',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'tag' => [
+             [
+               'APR::Pool',
+               'APR::Pool'
+             ]
+           ],
+  'temp_pool' => [
+                   [
+                     'Apache2::CmdParms',
+                     'Apache2::CmdParms'
+                   ]
+                 ],
+  'test' => [
+              [
+                'APR::IpSubnet',
+                'APR::IpSubnet'
+              ]
+            ],
+  'the_request' => [
+                     [
+                       'Apache2::RequestRec',
+                       'Apache2::RequestRec'
+                     ]
+                   ],
+  'timeout' => [
+                 [
+                   'Apache2::ServerRec',
+                   'Apache2::ServerRec'
+                 ]
+               ],
+  'timeout_get' => [
+                     [
+                       'APR::Socket',
+                       'APR::Socket'
+                     ]
+                   ],
+  'timeout_set' => [
+                     [
+                       'APR::Socket',
+                       'APR::Socket'
+                     ]
+                   ],
+  'top_module' => [
+                    [
+                      'Apache2::Module',
+                      'Apache2::Module'
+                    ]
+                  ],
+  'trylock' => [
+                 [
+                   'APR::ThreadMutex',
+                   'APR::ThreadMutex'
+                 ]
+               ],
+  'tryrdlock' => [
+                   [
+                     'APR::ThreadRWLock',
+                     'APR::ThreadRWLock'
+                   ]
+                 ],
+  'trywrlock' => [
+                   [
+                     'APR::ThreadRWLock',
+                     'APR::ThreadRWLock'
+                   ]
+                 ],
+  'type' => [
+              [
+                'APR::Bucket',
+                'APR::Bucket'
+              ]
+            ],
+  'unescape_url' => [
+                      [
+                        'Apache2::URI',
+                        'Apache2::URI'
+                      ]
+                    ],
+  'unload_package_xs' => [
+                           [
+                             'ModPerl::Util',
+                             'ModPerl::Util'
+                           ]
+                         ],
+  'unlock' => [
+                [
+                  'APR::ThreadMutex',
+                  'APR::ThreadMutex'
+                ],
+                [
+                  'APR::ThreadRWLock',
+                  'APR::ThreadRWLock'
+                ]
+              ],
+  'unparse' => [
+                 [
+                   'APR::URI',
+                   'APR::URI'
+                 ]
+               ],
+  'unparsed_uri' => [
+                      [
+                        'Apache2::RequestRec',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'unset' => [
+               [
+                 'APR::Table',
+                 'APR::Table'
+               ]
+             ],
+  'untaint' => [
+                 [
+                   'ModPerl::Util',
+                   'ModPerl::Util'
+                 ]
+               ],
+  'update_mtime' => [
+                      [
+                        'Apache2::Response',
+                        'Apache2::RequestRec'
+                      ]
+                    ],
+  'uri' => [
+             [
+               'Apache2::RequestRec',
+               'Apache2::RequestRec'
+             ]
+           ],
+  'used_path_info' => [
+                        [
+                          'Apache2::RequestRec',
+                          'Apache2::RequestRec'
+                        ]
+                      ],
+  'user' => [
+              [
+                'APR::Finfo',
+                'APR::Finfo'
+              ],
+              [
+                'APR::URI',
+                'APR::URI'
+              ],
+              [
+                'Apache2::RequestRec',
+                'Apache2::RequestRec'
+              ]
+            ],
+  'user_id' => [
+                 [
+                   'Apache2::ServerUtil',
+                   'Apache2::ServerUtil'
+                 ]
+               ],
+  'valid' => [
+               [
+                 'APR::Finfo',
+                 'APR::Finfo'
+               ]
+             ],
+  'warn' => [
+              [
+                'Apache2::Log',
+                undef
+              ],
+              [
+                'Apache2::Log',
+                undef
+              ],
+              [
+                'Apache2::Log',
+                undef
+              ]
+            ],
+  'wild_names' => [
+                    [
+                      'Apache2::ServerRec',
+                      'Apache2::ServerRec'
+                    ]
+                  ],
+  'write' => [
+               [
+                 'Apache2::RequestIO',
+                 'Apache2::RequestRec'
+               ]
+             ],
+  'wrlock' => [
+                [
+                  'APR::ThreadRWLock',
+                  'APR::ThreadRWLock'
+                ]
+              ]
+};
 
 
 use base qw(Exporter);

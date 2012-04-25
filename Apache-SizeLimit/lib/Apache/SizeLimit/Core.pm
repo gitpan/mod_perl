@@ -49,7 +49,7 @@ use vars qw(
                 $START_TIME
                );
 
-$VERSION = '0.95';
+$VERSION = '0.97';
 
 $REQUEST_COUNT          = 1;
 
@@ -117,9 +117,9 @@ sub _limits_are_exceeded {
 sub _check_size {
     my $class = shift;
 
-    my ($size, $share) = $class->_platform_check_size();
+    my ($size, $share, $unshared) = $class->_platform_check_size();
 
-    return ($size, $share, $size - $share);
+    return ($size, $share, defined $unshared ? $unshared : $size - $share);
 }
 
 sub _load {
@@ -143,7 +143,7 @@ BEGIN {
 
         *_platform_getppid = \&_linux_getppid;
 
-        if (eval { require Linux::Smaps } && Linux::Smaps->new($$)) {
+        if (eval { require Linux::Smaps && Linux::Smaps->new($$) }) {
             $USE_SMAPS = 1;
             *_platform_check_size = \&_linux_smaps_size_check;
         }
@@ -176,7 +176,9 @@ sub _linux_smaps_size_check {
     return $class->_linux_size_check() unless $USE_SMAPS;
 
     my $s = Linux::Smaps->new($$)->all;
-    return ($s->size, $s->shared_clean + $s->shared_dirty);
+    return ($s->size,
+	    $s->shared_clean + $s->shared_dirty,
+	    $s->private_clean + $s->private_dirty);
 }
 
 sub _linux_size_check {

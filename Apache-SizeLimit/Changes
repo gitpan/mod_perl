@@ -6,6 +6,25 @@ Changes - Apache::SizeLimit change logfile
 
 =over 6
 
+=item 0.97 2012-04-02
+
+Set the -apxs argument correctly when building from mod_perl.
+[Steve Hay]
+
+=item 0.96 2011-12-21
+
+eval Linux::Smaps->new call when checking for /proc/self/smaps
+[Christian Ruppert <idl0r@qasi.de>]
+
+Require Apache::Test 1.36 [Fred]
+
+Unshared size is now interpreted as RSS - shared instead of VSIZE - shared
+on Linux [Torsten]
+
+Subtest 1 checks that Apache2::SizeLimit->_limits_are_exceeded() returns
+false without any limits. But if the test runs near the end of the test
+suite it may very well be that some other test has set a limit. [Torsten]
+
 =item 0.95 2011-01-19
 
 Fix erroneous version in Core.pm for 0.94 release. [fred]

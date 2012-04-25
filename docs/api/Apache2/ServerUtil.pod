@@ -837,10 +837,13 @@ code at the server startup:
   Apache2::ServerUtil::server_shutdown_cleanup_register(\&do_my_cleanups);
 
 It's necessary to run this code at the server startup (normally
-F<startup.pl>. The function will croak if run after the
+F<startup.pl>). The function will croak if run after the
 C<L<PerlPostConfigHandler|docs::2.0::user::handlers::server/C_PerlPostConfigHandler_>>
 phase.
 
+Values returned from cleanup functions are ignored. If a cleanup dies the
+exception is stringified and passed to C<warn()>. Usually, this results in
+printing it to the F<error_log>.
 
 
 

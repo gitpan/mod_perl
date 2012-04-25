@@ -94,6 +94,7 @@ Apache-Test/t/conf/modperl_extra.pl.in
 Apache-Test/t/cookies.t
 Apache-Test/t/import.t
 Apache-Test/t/log_watch.t
+Apache-Test/t/log_watch_for_broken_lines.t
 Apache-Test/t/more/01testpm.t
 Apache-Test/t/more/02testmore.t
 Apache-Test/t/more/03testpm.t
@@ -936,7 +937,7 @@ t/user/README
 t/user/rewrite.t
 t/vhost/config.t
 t/vhost/log.t
-todo/2.0.5
+todo/2.0.6
 todo/README
 todo/api_status
 todo/bugs_apr_ext
