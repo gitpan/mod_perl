@@ -1,0 +1,3 @@
+PerlSwitches -I@ServerRoot@/../../Apache-Test/lib   \
+             -I@ServerRoot@/../../blib/lib          \
+             -I@ServerRoot@/../../blib/arch

@@ -108,7 +108,7 @@ void mpxs_Apache2__ServerUtil_server_shutdown_cleanup_register(pTHX_ SV *cv,
      * before parent perl is destroyed */
     data = (mpxs_cleanup2_t *)apr_pcalloc(p, sizeof(*data));
     data->cv   = SvREFCNT_inc(cv);
-    data->arg  = arg ? SvREFCNT_inc(arg) : Nullsv;
+    data->arg  = arg ? SvREFCNT_inc(arg) : (SV *)NULL;
     data->p    = p;
 #ifdef USE_ITHREADS
     data->perl = aTHX;
@@ -162,8 +162,8 @@ SV *mpxs_Apache2__ServerRec_get_handlers(pTHX_ server_rec *s,
 #define mpxs_Apache2__ServerUtil_server(classname) modperl_global_get_server_rec()
 
 #if !defined(OS2) && !defined(WIN32) && !defined(BEOS)  && !defined(NETWARE)
-#define mpxs_Apache2__ServerUtil_user_id(classname)  unixd_config.user_id
-#define mpxs_Apache2__ServerUtil_group_id(classname) unixd_config.group_id
+#define mpxs_Apache2__ServerUtil_user_id(classname)  ap_unixd_config.user_id
+#define mpxs_Apache2__ServerUtil_group_id(classname) ap_unixd_config.group_id
 #else
 #define mpxs_Apache2__ServerUtil_user_id(classname)  0
 #define mpxs_Apache2__ServerUtil_group_id(classname) 0

@@ -511,7 +511,7 @@ sub perl_version_check {
         my @fail;
         push @fail, "Perl 5.8 or higher"
             unless $] >= 5.008;
-        push @fail, "Perl built with ithreads (build perl with -Dusethreads)"
+        push @fail, "Perl built with ithreads (build perl with -Duseithreads)"
             unless Apache2::Build::PERL_HAS_ITHREADS();
         if (@fail) {
             error "$perl_string and '$mpm' mpm httpd.",
@@ -545,7 +545,7 @@ sub perl_version_check {
         exit 1;
     }
 
-    if ($Config{usemultiplicity} xor $Config{usethreads}) {
+    if ($Config{usemultiplicity} xor $Config{useithreads}) {
         error "mod_perl does not currently support multiplicity without ".
 	      "ithreads.";
         if ($build->mpm_is_threaded()) {
@@ -839,6 +839,7 @@ Apache-Test/META.yml:
 	cd Apache-Test && make metafile
 
 tag :
+	svn copy  https://svn.apache.org/repos/asf/perl/modperl/trunk  https://svn.apache.org/repos/asf/perl/modperl/branches/release/$(VERSION_SYM)
 	svn copy  https://svn.apache.org/repos/asf/perl/modperl/branches/release/$(VERSION_SYM)  https://svn.apache.org/repos/asf/perl/modperl/tags/$(VERSION_SYM)
 	svn copy  https://svn.apache.org/repos/asf/perl/modperl/docs/trunk https://svn.apache.org/repos/asf/perl/modperl/docs/tags/$(VERSION_SYM)
 EOF

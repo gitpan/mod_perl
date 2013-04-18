@@ -8,6 +8,7 @@ Apache-Reload/RELEASE
 Apache-Reload/lib/Apache/Reload.pm
 Apache-Reload/lib/Apache2/Reload.pm
 Apache-Reload/t/all.t
+Apache-Reload/t/conf/extra.conf.in
 Apache-Reload/t/conf/extra.last.conf.in
 Apache-Reload/t/lib/Apache/TestReload.pm
 Apache-Reload/t/lib/Apache2/TestReload.pm
@@ -127,6 +128,7 @@ ModPerl-Registry/lib/ModPerl/RegistryLoader.pm
 ModPerl-Registry/lib/ModPerl/RegistryPrefork.pm
 ModPerl-Registry/t/206.t
 ModPerl-Registry/t/304.t
+ModPerl-Registry/t/404-filename-with-newline.t
 ModPerl-Registry/t/404.t
 ModPerl-Registry/t/500.t
 ModPerl-Registry/t/TEST.PL

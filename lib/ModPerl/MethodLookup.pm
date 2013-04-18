@@ -5,8 +5,8 @@
 #  * Any changes made here will be lost
 #  * ***********************************
 #  * 01: lib/ModPerl/Code.pm:709
-#  * 02: /Users/phred/dev/svn/modperl/mod_perl-2.0/blib/lib/ModPerl/WrapXS.pm:762
-#  * 03: /Users/phred/dev/svn/modperl/mod_perl-2.0/blib/lib/ModPerl/WrapXS.pm:1185
+#  * 02: lib/ModPerl/WrapXS.pm:762
+#  * 03: lib/ModPerl/WrapXS.pm:1185
 #  * 04: Makefile.PL:427
 #  * 05: Makefile.PL:329
 #  * 06: Makefile.PL:58
